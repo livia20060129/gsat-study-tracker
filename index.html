@@ -136,12 +136,22 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
 <section class="panel">
  <div class="panel-head"><h2>儲存與匯出</h2><span class="badge">依日期保存</span></div>
  <div class="content">
-  <div class="btns"><button id="saveBtn" class="primary">儲存今日紀錄</button><button id="weekSummaryBtn" class="secondary">整理本週紀錄</button><button id="exportWeekBtn" class="secondary">匯出本週 HTML</button><button id="resetBtn" class="danger">清除今日紀錄</button></div>
+  <div class="btns"><button id="saveBtn" class="primary">儲存今日紀錄</button><button id="weekSummaryBtn" class="secondary">整理本週紀錄</button></div>
+  <div class="field" style="margin-top:12px">
+   <label for="importProgress">匯入進度</label>
+   <textarea id="importProgress" placeholder="貼上單日或多日 JSON 進度資料"></textarea>
+   <div class="small" style="margin-top:6px">貼上後離開欄位即匯入；Ctrl+Enter 可立即匯入。既有內容不會被空值覆蓋，已完成狀態可向前合併。</div>
+  </div>
   <div class="status" id="status"></div>
-  <div id="exportBox" hidden style="margin-top:10px"><label>本週可複製紀錄</label><textarea id="weekSummary" readonly></textarea></div>
+  <div id="exportBox" hidden style="margin-top:10px">
+   <div class="inline" style="justify-content:space-between;align-items:center;gap:10px">
+    <label for="weekSummary">本週可複製紀錄</label>
+    <button id="copyWeekBtn" class="secondary" type="button">複製</button>
+   </div>
+   <textarea id="weekSummary" readonly></textarea>
+  </div>
  </div>
 </section>
-<div class="footer">每週檢討前仍需匯出本週 HTML 並上傳；本機瀏覽器資料無法被排程直接讀取。</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -155,6 +165,221 @@ var CALENDAR_IMPORT_AS_OF='2026-08-17';
 var CALENDAR_MATH_PLAN={"2026-08-17":{"title":"3A｜指數函數與對數函數","book":"3A","start":79,"end":88,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-18":{"title":"3A｜指數函數與對數函數","book":"3A","start":89,"end":98,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-19":{"title":"3A｜指數函數與對數函數","book":"3A","start":99,"end":108,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-20":{"title":"3A｜指數函數與對數函數","book":"3A","start":109,"end":118,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-21":{"title":"3A｜指數函數與對數函數","book":"3A","start":119,"end":128,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-22":{"title":"3A｜指數函數與對數函數","book":"3A","start":129,"end":138,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-24":{"title":"3A｜指數函數與對數函數","book":"3A","start":139,"end":148,"pages":10,"unitPages":70,"weekTarget":51},"2026-08-25":{"title":"1｜多項式函數","book":"1","start":149,"end":157,"pages":9,"unitPages":73,"weekTarget":51},"2026-08-26":{"title":"1｜多項式函數","book":"1","start":158,"end":165,"pages":8,"unitPages":73,"weekTarget":51},"2026-08-27":{"title":"1｜多項式函數","book":"1","start":166,"end":173,"pages":8,"unitPages":73,"weekTarget":51},"2026-08-28":{"title":"1｜多項式函數","book":"1","start":174,"end":181,"pages":8,"unitPages":73,"weekTarget":51},"2026-08-29":{"title":"1｜多項式函數","book":"1","start":182,"end":189,"pages":8,"unitPages":73,"weekTarget":51},"2026-08-31":{"title":"1｜多項式函數","book":"1","start":190,"end":197,"pages":8,"unitPages":73,"weekTarget":50},"2026-09-01":{"title":"1｜多項式函數","book":"1","start":198,"end":205,"pages":8,"unitPages":73,"weekTarget":50},"2026-09-02":{"title":"1｜多項式函數","book":"1","start":206,"end":213,"pages":8,"unitPages":73,"weekTarget":50},"2026-09-03":{"title":"1｜多項式函數","book":"1","start":214,"end":221,"pages":8,"unitPages":73,"weekTarget":50},"2026-09-04":{"title":"1｜直線與圓","book":"1","start":77,"end":85,"pages":9,"unitPages":72,"weekTarget":50},"2026-09-05":{"title":"1｜直線與圓","book":"1","start":86,"end":94,"pages":9,"unitPages":72,"weekTarget":50},"2026-09-07":{"title":"1｜直線與圓","book":"1","start":95,"end":103,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-08":{"title":"1｜直線與圓","book":"1","start":104,"end":112,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-09":{"title":"1｜直線與圓","book":"1","start":113,"end":121,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-10":{"title":"1｜直線與圓","book":"1","start":122,"end":130,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-11":{"title":"1｜直線與圓","book":"1","start":131,"end":139,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-12":{"title":"1｜直線與圓","book":"1","start":140,"end":148,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-14":{"title":"2｜數列與求和","book":"2","start":1,"end":11,"pages":11,"unitPages":52,"weekTarget":63},"2026-09-15":{"title":"2｜數列與求和","book":"2","start":12,"end":22,"pages":11,"unitPages":52,"weekTarget":63},"2026-09-16":{"title":"2｜數列與求和","book":"2","start":23,"end":32,"pages":10,"unitPages":52,"weekTarget":63},"2026-09-17":{"title":"2｜數列與求和","book":"2","start":33,"end":42,"pages":10,"unitPages":52,"weekTarget":63},"2026-09-18":{"title":"2｜數列與求和","book":"2","start":43,"end":52,"pages":10,"unitPages":52,"weekTarget":63},"2026-09-19":{"title":"2｜數據整理","book":"2","start":53,"end":63,"pages":11,"unitPages":54,"weekTarget":63},"2026-09-21":{"title":"2｜數據整理","book":"2","start":64,"end":74,"pages":11,"unitPages":54,"weekTarget":65},"2026-09-22":{"title":"2｜數據整理","book":"2","start":75,"end":85,"pages":11,"unitPages":54,"weekTarget":65},"2026-09-23":{"title":"2｜數據整理","book":"2","start":86,"end":96,"pages":11,"unitPages":54,"weekTarget":65},"2026-09-24":{"title":"2｜數據整理","book":"2","start":97,"end":106,"pages":10,"unitPages":54,"weekTarget":65},"2026-09-25":{"title":"2｜排列組合","book":"2","start":107,"end":117,"pages":11,"unitPages":72,"weekTarget":65},"2026-09-26":{"title":"2｜排列組合","book":"2","start":118,"end":128,"pages":11,"unitPages":72,"weekTarget":65},"2026-09-28":{"title":"2｜排列組合","book":"2","start":129,"end":138,"pages":10,"unitPages":72,"weekTarget":64},"2026-09-29":{"title":"2｜排列組合","book":"2","start":139,"end":148,"pages":10,"unitPages":72,"weekTarget":64},"2026-09-30":{"title":"2｜排列組合","book":"2","start":149,"end":158,"pages":10,"unitPages":72,"weekTarget":64},"2026-10-01":{"title":"2｜排列組合","book":"2","start":159,"end":168,"pages":10,"unitPages":72,"weekTarget":64},"2026-10-02":{"title":"2｜排列組合","book":"2","start":169,"end":178,"pages":10,"unitPages":72,"weekTarget":64},"2026-10-03":{"title":"2＋4A｜基本機率＋條件機率","book":"2","start":179,"end":192,"pages":14,"unitPages":86,"weekTarget":64},"2026-10-05":{"title":"2＋4A｜基本機率＋條件機率","book":"2","start":193,"end":205,"pages":13,"unitPages":86,"weekTarget":72},"2026-10-06":{"title":"2＋4A｜基本機率＋條件機率","book":"2","start":206,"end":218,"pages":13,"unitPages":86,"weekTarget":72},"2026-10-07":{"title":"2＋4A｜基本機率＋條件機率","book":"4A","start":151,"end":162,"pages":12,"unitPages":86,"weekTarget":72},"2026-10-08":{"title":"2＋4A｜基本機率＋條件機率","book":"4A","start":163,"end":174,"pages":12,"unitPages":86,"weekTarget":72},"2026-10-09":{"title":"2＋4A｜基本機率＋條件機率","book":"4A","start":175,"end":185,"pages":11,"unitPages":86,"weekTarget":72},"2026-10-10":{"title":"2＋4A｜基本機率＋條件機率","book":"4A","start":186,"end":196,"pages":11,"unitPages":86,"weekTarget":72},"2026-10-12":{"title":"2＋3A｜三角＋三角函數","book":"2","start":219,"end":227,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-13":{"title":"2＋3A｜三角＋三角函數","book":"2","start":228,"end":236,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-14":{"title":"2＋3A｜三角＋三角函數","book":"2","start":237,"end":245,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-15":{"title":"2＋3A｜三角＋三角函數","book":"2","start":246,"end":254,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-16":{"title":"2＋3A｜三角＋三角函數","book":"2","start":255,"end":263,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-17":{"title":"2＋3A｜三角＋三角函數","book":"2","start":264,"end":271,"pages":8,"unitPages":139,"weekTarget":53},"2026-10-19":{"title":"2＋3A｜三角＋三角函數","book":"2","start":272,"end":279,"pages":8,"unitPages":139,"weekTarget":58},"2026-10-20":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":1,"end":10,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-21":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":11,"end":20,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-22":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":21,"end":30,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-23":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":31,"end":40,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-24":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":41,"end":50,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-26":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":51,"end":60,"pages":10,"unitPages":139,"weekTarget":52},"2026-10-27":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":61,"end":69,"pages":9,"unitPages":139,"weekTarget":52},"2026-10-28":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":70,"end":78,"pages":9,"unitPages":139,"weekTarget":52},"2026-10-29":{"title":"3A｜平面向量","book":"3A","start":149,"end":156,"pages":8,"unitPages":62,"weekTarget":52},"2026-10-30":{"title":"3A｜平面向量","book":"3A","start":157,"end":164,"pages":8,"unitPages":62,"weekTarget":52},"2026-10-31":{"title":"3A｜平面向量","book":"3A","start":165,"end":172,"pages":8,"unitPages":62,"weekTarget":52},"2026-11-02":{"title":"3A｜平面向量","book":"3A","start":173,"end":180,"pages":8,"unitPages":62,"weekTarget":48},"2026-11-03":{"title":"3A｜平面向量","book":"3A","start":181,"end":188,"pages":8,"unitPages":62,"weekTarget":48},"2026-11-04":{"title":"3A｜平面向量","book":"3A","start":189,"end":196,"pages":8,"unitPages":62,"weekTarget":48},"2026-11-05":{"title":"3A｜平面向量","book":"3A","start":197,"end":203,"pages":7,"unitPages":62,"weekTarget":48},"2026-11-06":{"title":"3A｜平面向量","book":"3A","start":204,"end":210,"pages":7,"unitPages":62,"weekTarget":48},"2026-11-07":{"title":"4A｜空間向量","book":"4A","start":1,"end":10,"pages":10,"unitPages":86,"weekTarget":48},"2026-11-09":{"title":"4A｜空間向量","book":"4A","start":11,"end":20,"pages":10,"unitPages":86,"weekTarget":58},"2026-11-10":{"title":"4A｜空間向量","book":"4A","start":21,"end":30,"pages":10,"unitPages":86,"weekTarget":58},"2026-11-11":{"title":"4A｜空間向量","book":"4A","start":31,"end":40,"pages":10,"unitPages":86,"weekTarget":58},"2026-11-12":{"title":"4A｜空間向量","book":"4A","start":41,"end":50,"pages":10,"unitPages":86,"weekTarget":58},"2026-11-13":{"title":"4A｜空間向量","book":"4A","start":51,"end":59,"pages":9,"unitPages":86,"weekTarget":58},"2026-11-14":{"title":"4A｜空間向量","book":"4A","start":60,"end":68,"pages":9,"unitPages":86,"weekTarget":58},"2026-11-16":{"title":"4A｜空間向量","book":"4A","start":69,"end":77,"pages":9,"unitPages":86,"weekTarget":50},"2026-11-17":{"title":"4A｜空間向量","book":"4A","start":78,"end":86,"pages":9,"unitPages":86,"weekTarget":50},"2026-11-18":{"title":"4A｜矩陣","book":"4A","start":197,"end":204,"pages":8,"unitPages":79,"weekTarget":50},"2026-11-19":{"title":"4A｜矩陣","book":"4A","start":205,"end":212,"pages":8,"unitPages":79,"weekTarget":50},"2026-11-20":{"title":"4A｜矩陣","book":"4A","start":213,"end":220,"pages":8,"unitPages":79,"weekTarget":50},"2026-11-21":{"title":"4A｜矩陣","book":"4A","start":221,"end":228,"pages":8,"unitPages":79,"weekTarget":50},"2026-11-23":{"title":"4A｜矩陣","book":"4A","start":229,"end":236,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-24":{"title":"4A｜矩陣","book":"4A","start":237,"end":244,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-25":{"title":"4A｜矩陣","book":"4A","start":245,"end":252,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-26":{"title":"4A｜矩陣","book":"4A","start":253,"end":260,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-27":{"title":"4A｜矩陣","book":"4A","start":261,"end":268,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-28":{"title":"4A｜矩陣","book":"4A","start":269,"end":275,"pages":7,"unitPages":79,"weekTarget":47},"2026-11-30":{"title":"4A｜空間中的平面與直線","book":"4A","start":87,"end":97,"pages":11,"unitPages":64,"weekTarget":64},"2026-12-01":{"title":"4A｜空間中的平面與直線","book":"4A","start":98,"end":108,"pages":11,"unitPages":64,"weekTarget":64},"2026-12-02":{"title":"4A｜空間中的平面與直線","book":"4A","start":109,"end":119,"pages":11,"unitPages":64,"weekTarget":64},"2026-12-03":{"title":"4A｜空間中的平面與直線","book":"4A","start":120,"end":130,"pages":11,"unitPages":64,"weekTarget":64},"2026-12-04":{"title":"4A｜空間中的平面與直線","book":"4A","start":131,"end":140,"pages":10,"unitPages":64,"weekTarget":64},"2026-12-05":{"title":"4A｜空間中的平面與直線","book":"4A","start":141,"end":150,"pages":10,"unitPages":64,"weekTarget":64}};
 var CALENDAR_WEEK_MATH_TARGETS={"2026-08-17":60,"2026-08-24":51,"2026-08-31":50,"2026-09-07":54,"2026-09-14":63,"2026-09-21":65,"2026-09-28":64,"2026-10-05":72,"2026-10-12":53,"2026-10-19":58,"2026-10-26":52,"2026-11-02":48,"2026-11-09":58,"2026-11-16":50,"2026-11-23":47,"2026-11-30":64};
 var CALENDAR_NATURAL_PLAN={"2026-08-17":"生物｜細胞是生命系統的基本單位","2026-08-18":"化學｜物質分類與粒子觀","2026-08-19":"生物｜細胞膜與膜運輸","2026-08-20":"物理｜量測、單位與圖表表達方式","2026-08-21":"生物｜胞器、尺度與構造功能","2026-08-22":"自然整合｜實驗設計與變因控制","2026-08-24":"化學｜原子結構、同位素與週期表","2026-08-25":"物理｜基本交互作用與受力模型","2026-08-26":"生物｜酵素與反應速率","2026-08-27":"化學｜化學鍵與分子間作用力","2026-08-28":"生物｜ATP、氧化還原與代謝路徑","2026-08-29":"自然整合｜微觀作用與能量改變","2026-08-31":"生物｜細胞呼吸","2026-09-01":"化學｜化學式、反應式與守恆","2026-09-02":"生物｜光合作用","2026-09-03":"物理｜功、能量、功率與效率","2026-09-04":"化學｜反應熱、能量圖與催化","2026-09-05":"生物｜呼吸與光合作用比較","2026-09-07":"物理｜位置、速度、加速度圖","2026-09-08":"物理｜牛頓定律、摩擦與圓周運動","2026-09-09":"化學｜溶液濃度、溶解度與稀釋","2026-09-10":"生物｜細胞週期、有絲分裂與減數分裂","2026-09-11":"物理｜動量、衝量與碰撞","2026-09-12":"自然整合｜第一階段關卡：結構、能量、運動","2026-09-14":"物理｜波的描述與傳播","2026-09-15":"物理｜聲音、干涉、繞射與光","2026-09-16":"生物｜DNA 結構與複製","2026-09-17":"生物｜轉錄、轉譯與基因表現","2026-09-18":"化學｜水溶液離子、酸鹼與中和","2026-09-19":"地科｜地球形成、定年與太陽系","2026-09-21":"物理｜電場、電位與基本電路","2026-09-22":"物理｜磁場、電磁感應與電磁波","2026-09-23":"生物｜孟德爾遺傳與機率","2026-09-24":"生物｜延伸遺傳、伴性與家系圖","2026-09-25":"化學｜沉澱、氧化還原與電化學","2026-09-26":"地科｜地震波、地球內部與板塊構造","2026-09-28":"生物｜突變、基因調控與生物技術","2026-09-29":"生物｜演化證據與天擇","2026-09-30":"生物｜物種形成、分類與親緣樹","2026-10-01":"地科｜大氣結構、濕度與天氣系統","2026-10-02":"地科｜海洋、潮汐、氣候與永續","2026-10-03":"化學｜有機、材料、能源與環境化學","2026-10-05":"生物｜生物高風險整合：細胞→代謝→遺傳→演化","2026-10-06":"化學｜化學主線：粒子→鍵結→反應→溶液→環境","2026-10-07":"物理｜物理主線＋原子現象","2026-10-08":"地科｜地球系統：天文→固體地球→大氣海洋→氣候","2026-10-09":"自然整合｜108 試卷相容題型選題","2026-10-10":"自然整合｜108 選題訂正＋條件劃記","2026-10-12":"自然整合｜109 試卷相容題型選題","2026-10-13":"自然整合｜109 選題訂正＋圖表判讀","2026-10-14":"自然整合｜110 試卷相容題型選題","2026-10-15":"自然整合｜110 選題訂正＋選項比較","2026-10-16":"自然整合｜英聽前保留：只做一頁式回顧","2026-10-19":"生物｜細胞結構→膜運輸→代謝整合","2026-10-20":"化學｜粒子觀→原子→鍵結→物性","2026-10-21":"物理｜受力→運動→能量與動量","2026-10-22":"生物｜細胞週期→DNA→基因表現","2026-10-23":"地科｜地球形成→定年→地震波與板塊","2026-10-24":"自然整合｜實驗設計＋圖表＋條件劃記","2026-10-26":"生物｜減數分裂→孟德爾→家系與生技","2026-10-27":"化學｜反應守恆→水溶液→氧化還原與環境","2026-10-28":"物理｜波→光→電磁→原子現象","2026-10-29":"地科｜大氣→海洋→氣候與永續","2026-10-30":"生物｜遺傳變異→天擇→演化與親緣","2026-10-31":"自然整合｜四科主題驗收＋11 月準備清單"};
+var CALENDAR_NATURAL_RECOMMENDED_PAGES={
+ "2026-08-17":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[4, 7]],
+  label:"細胞是生命系統的基本單位",basis:"細胞學說、細胞大小與種類、原核／真核比較；p.8 起進入胞器。"
+ },
+ "2026-08-18":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[9, 20]],
+  label:"物質分類與粒子觀",basis:"物質的組成前段：純物質／混合物、元素／化合物及物理、化學變化。"
+ },
+ "2026-08-19":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[10, 13]],
+  label:"細胞膜與膜運輸",basis:"細胞膜構造、膜蛋白與膜運輸相關內容。"
+ },
+ "2026-08-20":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[2, 19]],
+  label:"量測、單位與圖表表達方式",basis:"Chapter 1 緒論：物理量、SI 單位、科學記號及基本資料表達。"
+ },
+ "2026-08-21":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[8, 13], [40, 43]],
+  label:"胞器、尺度與構造功能",basis:"胞器功能與合作流程；另搭配顯微觀察相關頁面。"
+ },
+ "2026-08-24":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[45, 63]],
+  label:"原子結構、同位素與週期表",basis:"Chapter 2 前段：原子結構、電子排列、同位素與週期性。"
+ },
+ "2026-08-25":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[20, 55]],
+  label:"基本交互作用與受力模型",basis:"Chapter 2 物質的組成和交互作用，涵蓋基本交互作用與受力觀念。"
+ },
+ "2026-08-26":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[14, 15]],
+  label:"酵素與反應速率",basis:"細胞代謝起始：酵素、活化能與代謝控制。"
+ },
+ "2026-08-27":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[64, 83]],
+  label:"化學鍵與分子間作用力",basis:"Chapter 2 後段：鍵結、結構、作用力與物性。"
+ },
+ "2026-08-28":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[14, 15]],
+  label:"ATP、氧化還原與代謝路徑",basis:"ATP 循環與細胞代謝能量耦合。"
+ },
+ "2026-08-31":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[16, 20]],
+  label:"細胞呼吸",basis:"細胞呼吸的主要階段、位置、物質流與 ATP。"
+ },
+ "2026-09-01":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[97, 112]],
+  label:"化學式、反應式與守恆",basis:"Chapter 3 前段：化學式、反應式、計量與守恆。"
+ },
+ "2026-09-02":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[16, 20]],
+  label:"光合作用",basis:"光合作用光反應、碳反應與限制因子。"
+ },
+ "2026-09-03":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[184, 199]],
+  label:"功、能量、功率與效率",basis:"Chapter 6 前段：功、動能、位能、功率及能量轉換。"
+ },
+ "2026-09-04":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[113, 128]],
+  label:"反應熱、能量圖與催化",basis:"Chapter 3 後段：反應熱、活化能、能量圖與催化。"
+ },
+ "2026-09-05":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[16, 21]],
+  label:"呼吸與光合作用比較",basis:"兩種代謝作用的物質流、能量流、胞器位置與比較。"
+ },
+ "2026-09-07":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[56, 75]],
+  label:"位置、速度、加速度圖",basis:"Chapter 3 前段：運動描述、x-t／v-t／a-t 圖及斜率、面積。"
+ },
+ "2026-09-08":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[76, 97]],
+  label:"牛頓定律、摩擦與圓周運動",basis:"Chapter 3 中段：受力、牛頓定律、摩擦與圓周運動。"
+ },
+ "2026-09-09":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[130, 145]],
+  label:"溶液濃度、溶解度與稀釋",basis:"Chapter 4 前段：溶液分類、濃度表示、溶解度與稀釋。"
+ },
+ "2026-09-10":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[24, 33]],
+  label:"細胞週期、有絲分裂與減數分裂",basis:"染色體、細胞週期、有絲分裂、減數分裂與配子形成。"
+ },
+ "2026-09-11":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[98, 113]],
+  label:"動量、衝量與碰撞",basis:"Chapter 3 後段：動量、衝量、碰撞與守恆條件。"
+ },
+ "2026-09-14":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[144, 157]],
+  label:"波的描述與傳播",basis:"Chapter 5 前段：週期、頻率、波長、波速、相位與波的傳播。"
+ },
+ "2026-09-15":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[158, 183]],
+  label:"聲音、干涉、繞射與光",basis:"Chapter 5 後段：聲音、反射／折射、干涉、繞射與光的波動現象。"
+ },
+ "2026-09-16":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[74, 77]],
+  label:"DNA 結構與複製",basis:"DNA／RNA 結構與 DNA 複製。"
+ },
+ "2026-09-17":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[78, 81]],
+  label:"轉錄、轉譯與基因表現",basis:"中心法則、轉錄、轉譯與蛋白質合成。"
+ },
+ "2026-09-18":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[146, 158]],
+  label:"水溶液離子、酸鹼與中和",basis:"Chapter 4 中段：電解質、酸鹼、pH 與中和。"
+ },
+ "2026-09-19":{
+  subject:"地科",material:'123日的淬鍊',ranges:[[4, 31]],
+  label:"地球形成、定年與太陽系",basis:"地球形成與定年 p.4–13；太陽系及其運動 p.14–31。"
+ },
+ "2026-09-21":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[114, 127]],
+  label:"電場、電位與基本電路",basis:"Chapter 4 前段：電作用、電場／電位與基本電路概念。"
+ },
+ "2026-09-22":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[128, 143]],
+  label:"磁場、電磁感應與電磁波",basis:"Chapter 4 後段：磁場、感應、發電／馬達與電磁波。"
+ },
+ "2026-09-23":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[60, 63]],
+  label:"孟德爾遺傳與機率",basis:"孟德爾遺傳、分離律、獨立分配與遺傳格。"
+ },
+ "2026-09-24":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[64, 71]],
+  label:"延伸遺傳、伴性與家系圖",basis:"多等位基因、延伸遺傳、伴性與家系判讀。"
+ },
+ "2026-09-25":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[159, 171]],
+  label:"沉澱、氧化還原與電化學",basis:"Chapter 4 後段：離子反應、氧化還原與相關電化學判讀。"
+ },
+ "2026-09-26":{
+  subject:"地科",material:'123日的淬鍊',ranges:[[66, 93]],
+  label:"地震波、地球內部與板塊構造",basis:"地震波與地球內部分層 p.66–73；板塊構造 p.74–80；地質作用、臺灣板塊與地震 p.81–93。"
+ },
+ "2026-09-28":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[80, 93]],
+  label:"突變、基因調控與生物技術",basis:"基因表現延伸、突變及重組 DNA／生物技術。"
+ },
+ "2026-09-29":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[114, 121]],
+  label:"演化證據與天擇",basis:"演化學說、天擇與現代演化觀點。"
+ },
+ "2026-09-30":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[120, 135]],
+  label:"物種形成、分類與親緣樹",basis:"物種形成、分類、生物多樣性與親緣關係。"
+ },
+ "2026-10-01":{
+  subject:"地科",material:'123日的淬鍊',ranges:[[114, 167]],
+  label:"大氣結構、濕度與天氣系統",basis:"大氣 Chapter 3：分層、濕度、水氣、水平運動、颱風、降雨與氣象觀測。"
+ },
+ "2026-10-02":{
+  subject:"地科",material:'123日的淬鍊',ranges:[[170, 209], [212, 250]],
+  label:"海洋、潮汐、氣候與永續",basis:"海洋 Chapter 4＋氣候變遷與永續發展 Chapter 5。"
+ },
+ "2026-10-03":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[173, 227]],
+  label:"有機、材料、能源與環境化學",basis:"Chapter 5：有機物、材料／界面活性劑、能源、水與空氣、綠色化學。"
+ },
+ "2026-10-05":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[4, 21], [24, 33], [58, 93], [112, 135]],
+  label:"生物高風險整合：細胞→代謝→遺傳→演化",basis:"以已安排過的細胞、代謝、遺傳與演化核心頁做整合回顧。"
+ },
+ "2026-10-06":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[9, 20], [45, 83], [97, 128], [130, 171], [173, 227]],
+  label:"化學主線：粒子→鍵結→反應→溶液→環境",basis:"依前面各化學主題的核心建議頁做總複習。"
+ },
+ "2026-10-07":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[220, 244]],
+  label:"物理主線＋原子現象",basis:"優先補 Chapter 7 量子／原子現象，再以題目整合前面物理主線。"
+ },
+ "2026-10-08":{
+  subject:"地科",material:'123日的淬鍊',ranges:[[4, 38], [66, 93], [114, 167], [170, 209], [212, 250]],
+  label:"地球系統：天文→固體地球→大氣海洋→氣候",basis:"地科五大主線核心頁整合。"
+ },
+ "2026-10-19":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[4, 21]],
+  label:"細胞結構→膜運輸→代謝整合",basis:"Chapter 1 前段的細胞結構、膜運輸與代謝核心頁。"
+ },
+ "2026-10-20":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[9, 20], [45, 83]],
+  label:"粒子觀→原子→鍵結→物性",basis:"Chapter 1 粒子觀＋Chapter 2 原子結構、鍵結與物性。"
+ },
+ "2026-10-21":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[20, 55], [56, 113], [184, 199]],
+  label:"受力→運動→能量與動量",basis:"交互作用、運動與機械能核心頁整合。"
+ },
+ "2026-10-22":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[24, 33], [74, 81]],
+  label:"細胞週期→DNA→基因表現",basis:"細胞分裂與遺傳分子機制核心頁。"
+ },
+ "2026-10-23":{
+  subject:"地科",material:'123日的淬鍊',ranges:[[4, 31], [66, 93]],
+  label:"地球形成→定年→地震波與板塊",basis:"探索地球＋固體地球核心頁整合。"
+ },
+ "2026-10-26":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[28, 33], [60, 71], [84, 93]],
+  label:"減數分裂→孟德爾→家系與生技",basis:"減數分裂、遺傳法則、延伸遺傳與生技核心頁。"
+ },
+ "2026-10-27":{
+  subject:"化學",material:'123日的淬鍊',ranges:[[97, 128], [130, 171], [173, 227]],
+  label:"反應守恆→水溶液→氧化還原與環境",basis:"Chapter 3–5 的反應、溶液、氧化還原與環境核心頁。"
+ },
+ "2026-10-28":{
+  subject:"物理",material:'123日的淬鍊',ranges:[[114, 143], [144, 183], [220, 244]],
+  label:"波→光→電磁→原子現象",basis:"電磁、波動與量子／原子現象核心頁整合。"
+ },
+ "2026-10-29":{
+  subject:"地科",material:'123日的淬鍊',ranges:[[114, 167], [170, 209], [212, 250]],
+  label:"大氣→海洋→氣候與永續",basis:"大氣、海洋與氣候變遷三大主線整合。"
+ },
+ "2026-10-30":{
+  subject:"生物",material:'123日的淬鍊',ranges:[[80, 93], [112, 135]],
+  label:"遺傳變異→天擇→演化與親緣",basis:"遺傳變異與演化、物種形成、親緣核心頁整合。"
+ }
+};
+
 var STORE_PREFIX='study-v10.4:';
 var weekdays=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
 var labels={mathStudy:'數學講義：進度',mathLecture:'數學講義',mathPractice:'數學講義題目：理解檢查＋錯題標記＋訂正',mathOral:'數 A 互動題：觀念題',magazine:'英文雜誌',englishPractice:'英文互動題：英聽及學測練習',englishMixedWriting:'英文：混合題與作文練習',chineseReading:'國文',aceReading:'英文：ACE Reading',scienceReview:'自然',mock:'歷屆／模考',general:'一般學習／整理',extra:'英文',interactive:'互動題',interactiveDaily:'互動題',biologyInteractive:'生物互動題',calendarStudy:'Google Calendar 排程'};
@@ -472,6 +697,21 @@ function queueCloudSave(rec){
  clearTimeout(cloudSaveTimer);
  cloudSaveTimer=setTimeout(function(){cloudSaveRecord(snap)},450);
 }
+async function cloudPullAllRecords(){
+ if(!cloudClient||!cloudUser)return 0;
+ try{
+  cloudLoading=true;
+  var r=await cloudClient.from('study_records').select('study_date,payload,updated_at').order('study_date',{ascending:true});
+  if(r.error)throw r.error;
+  var n=0;(r.data||[]).forEach(function(z){
+   if(!z||!z.study_date||!z.payload)return;
+   store.setItem(key(z.study_date),JSON.stringify(z.payload));n++;
+  });
+  cloudSetMessage('已載入 '+n+' 天雲端歷史紀錄，供跨日期進度判讀。',true);
+  return n;
+ }catch(e){cloudSetMessage('載入雲端歷史紀錄失敗：'+(e&&e.message?e.message:String(e)),false);return 0}
+ finally{cloudLoading=false}
+}
 async function cloudPullDate(date,force){
  if(!cloudClient||!cloudUser||!date)return false;
  try{
@@ -521,13 +761,6 @@ async function cloudMergeLocalMissing(){
   cloudSetMessage('本機舊資料處理完成：新增 '+added+' 天到雲端；已存在的雲端紀錄沒有被覆蓋。',true);
  }catch(e){cloudSetMessage('補上本機資料失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
-async function cloudDeleteDate(date){
- if(!cloudClient||!cloudUser||!date)return;
- try{
-  var r=await cloudClient.from('study_records').delete().eq('study_date',date);
-  if(r.error)throw r.error;cloudSetMessage('已刪除 '+date+' 的雲端紀錄。',true);
- }catch(e){cloudSetMessage('雲端刪除失敗：'+(e&&e.message?e.message:String(e)),false)}
-}
 async function cloudSignIn(){
  var email=id('cloudEmail').value.trim(),password=id('cloudPassword').value;
  if(!email||!password){cloudSetMessage('請輸入 Email 與密碼。',false);return}
@@ -553,11 +786,11 @@ async function initCloud(){
  if(!window.supabase||!window.supabase.createClient){cloudSetMessage('Supabase 程式庫載入失敗；目前使用本機模式。',false);return}
  cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
  var s=await cloudClient.auth.getSession();cloudUser=s.data&&s.data.session?s.data.session.user:null;cloudUpdateUI();
- if(cloudUser){await cloudPullDate(id('studyDate').value,true)}
+ if(cloudUser){await cloudPullAllRecords();load()}
  cloudClient.auth.onAuthStateChange(function(event,session){
   cloudUser=session?session.user:null;cloudUpdateUI();
   setTimeout(async function(){
-   if(cloudUser){await cloudMergeLocalMissing();await cloudPullDate(id('studyDate').value,true)}
+   if(cloudUser){await cloudPullAllRecords();await cloudMergeLocalMissing();await cloudPullAllRecords();load()}
   },0);
  });
 }
@@ -673,6 +906,103 @@ function calendarGujinRounds(date){
  }
  return out;
 }
+function calendarNaturalRecommended(date){return CALENDAR_NATURAL_RECOMMENDED_PAGES[date]||null}
+function calendarNaturalRanges(p){
+ if(!p)return[];
+ var a=Array.isArray(p.ranges)?p.ranges:((p.start&&p.end)?[[p.start,p.end]]:[]),out=[];
+ for(var i=0;i<a.length;i++){
+  var s=Number(a[i][0]),e=Number(a[i][1]);if(!Number.isFinite(s)||!Number.isFinite(e)||s<1||e<s)continue;
+  out.push([s,e]);
+ }
+ return out;
+}
+function calendarNaturalRangesText(p){
+ var a=calendarNaturalRanges(p);
+ return a.map(function(r){return r[0]===r[1]?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');
+}
+function addCompletedNaturalInterval(out,item,subject){
+ if(!item||item.type!=='scienceReview'||!item.done||!item.f)return;
+ var f=item.f;if(f.subject!==subject||f.material!=='123日的淬鍊')return;
+ var s=Number(f.start),e=Number(f.end);if(!Number.isFinite(s)||!Number.isFinite(e)||s<1||e<s)return;
+ out.push([s,e]);
+}
+function completedNaturalIntervalsBefore(date,subject){
+ var out=[],seenDates={};
+ function scanRecord(rec,ds){
+  if(!rec||!Array.isArray(rec.items)||!ds||ds>=date||seenDates[ds])return;seenDates[ds]=1;
+  rec.items.forEach(function(x){
+   addCompletedNaturalInterval(out,x,subject);
+   if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){addCompletedNaturalInterval(out,m,subject)});
+  });
+ }
+ try{
+  for(var i=0;i<store.length;i++){
+   var sk=store.key(i);if(!sk||sk.indexOf(STORE_PREFIX)!==0||sk.indexOf('imported-')>=0)continue;
+   var ds=sk.slice(STORE_PREFIX.length);if(!/^\d{4}-\d{2}-\d{2}$/.test(ds)||ds>=date)continue;
+   var raw=store.getItem(sk);if(!raw)continue;
+   try{scanRecord(JSON.parse(raw),ds)}catch(e){}
+  }
+ }catch(e2){}
+ out.sort(function(a,b){return a[0]-b[0]||a[1]-b[1]});
+ var merged=[];
+ out.forEach(function(r){
+  var last=merged.length?merged[merged.length-1]:null;
+  if(!last||r[0]>last[1]+1)merged.push([r[0],r[1]]);
+  else if(r[1]>last[1])last[1]=r[1];
+ });
+ return merged;
+}
+function overlapPageCount(a,b){
+ var s=Math.max(a[0],b[0]),e=Math.min(a[1],b[1]);return e>=s?e-s+1:0;
+}
+function calendarNaturalPriorCoverage(date,p){
+ var need=calendarNaturalRanges(p),doneRanges=completedNaturalIntervalsBefore(date,p.subject),total=0,done=0;
+ need.forEach(function(n){
+  total+=n[1]-n[0]+1;
+  var parts=[];
+  doneRanges.forEach(function(d){var s=Math.max(n[0],d[0]),e=Math.min(n[1],d[1]);if(e>=s)parts.push([s,e])});
+  parts.sort(function(a,b){return a[0]-b[0]});
+  var merged=[];
+  parts.forEach(function(r){
+   var last=merged.length?merged[merged.length-1]:null;
+   if(!last||r[0]>last[1]+1)merged.push([r[0],r[1]]);
+   else if(r[1]>last[1])last[1]=r[1];
+  });
+  merged.forEach(function(r){done+=r[1]-r[0]+1});
+ });
+ return{total:total,done:done,all:total>0&&done===total};
+}
+function applyCalendarNaturalRecommended(rec,date){
+ var p=calendarNaturalRecommended(date);if(!p||!rec||!Array.isArray(rec.items))return false;
+ var x=null;
+ for(var i=0;i<rec.items.length;i++){
+  var z=rec.items[i];
+  if(z&&z.type==='scienceReview'&&z.source==='preset'&&/^cal_natural_/.test(z.presetKey||'')){x=z;break}
+ }
+ if(!x)return false;
+ if(!x.f)x.f={};
+ var changed=false,ranges=calendarNaturalRanges(p);
+ if(!x.f.material){x.f.material=p.material;changed=true}
+ if(ranges.length===1){
+  if(!x.f.start){x.f.start=String(ranges[0][0]);changed=true}
+  if(!x.f.end){x.f.end=String(ranges[0][1]);changed=true}
+ }
+ var cov=calendarNaturalPriorCoverage(date,p);
+ var meta={
+  calendarSuggestedMaterial:p.material,
+  calendarSuggestedRanges:ranges,
+  calendarSuggestedLabel:p.label,
+  calendarSuggestedBasis:p.basis,
+  calendarSuggestedTotalPages:cov.total,
+  calendarSuggestedDonePages:cov.done,
+  calendarSuggestedAutoDone:cov.all
+ };
+ for(var k in meta)if(Object.prototype.hasOwnProperty.call(meta,k)&&JSON.stringify(x.f[k])!==JSON.stringify(meta[k])){x.f[k]=cloneObj(meta[k]);changed=true}
+ if(cov.all&&!x.done){x.done=true;changed=true}
+ if(cov.all&&!x.f.progress){x.f.progress=true;changed=true}
+ return changed;
+}
+
 function calendarDefsForDate(date){
  var a=[],ace=calendarAceRound(date),g=calendarGujinRounds(date),nat=CALENDAR_NATURAL_PLAN[date];
  if(ace)a.push(presetDef('cal_ace_'+ace,'extra','英文｜ACE Reading 第 '+ace+' 回','Google Calendar：第 '+ace+' 回＋訂正。',true,{title:'ACE Reading',round:String(ace)}));
@@ -784,6 +1114,7 @@ function ensureDailyPresets(rec,date){
  }
  if(by.daily_interactive)ensureInteractiveEntries(by.daily_interactive);
  if(applyCalendarMathPlan(rec,date))changed=true;
+ if(applyCalendarNaturalRecommended(rec,date))changed=true;
  return changed;
 }
 
@@ -1023,6 +1354,16 @@ function renderScienceFields(x,reviewMode){
  var h='<div class="science-main-row">'+subjectField;
  h+='<div class="field"><label>講義版本</label><select data-field="material">'+scienceMaterialOptions(f.subject,f.material)+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
  if(isCalendarNatural(x)&&f.calendarTopic)h+='<div class="field" style="margin-top:10px"><label>Google Calendar 當日主題</label><div class="fixed-book-value">'+esc(f.calendarTopic)+'</div></div>';
+ if(isCalendarNatural(x)&&Array.isArray(f.calendarSuggestedRanges)&&f.calendarSuggestedRanges.length){
+  var sr=f.calendarSuggestedRanges.map(function(r){return Number(r[0])===Number(r[1])?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');
+  h+='<div class="field" style="margin-top:10px"><label>依 Calendar × 123日的淬鍊推薦範圍</label><div class="fixed-book-value">'+esc(f.calendarSuggestedMaterial||'123日的淬鍊')+'｜'+esc(sr)+'</div>';
+  if(f.calendarSuggestedBasis)h+='<div class="small" style="margin-top:6px">'+esc(f.calendarSuggestedBasis)+'</div>';
+  var td=Number(f.calendarSuggestedDonePages||0),tt=Number(f.calendarSuggestedTotalPages||0);
+  if(f.calendarSuggestedAutoDone)h+='<div class="small" style="margin-top:6px"><strong>先前紀錄已完整涵蓋 '+td+'/'+tt+' 頁 → 已自動勾選完成。</strong></div>';
+  else if(td>0)h+='<div class="small" style="margin-top:6px">先前已完成 '+td+'/'+tt+' 頁；尚未完整涵蓋，因此不自動勾選。</div>';
+  else if(tt>0)h+='<div class="small" style="margin-top:6px">先前完成紀錄：0/'+tt+' 頁。</div>';
+  h+='</div>';
+ }
  if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))h+='<div class="field" style="margin-top:10px"><label>對應單元／章節</label><div class="small" data-science-auto>'+esc(goodPointCombinedText(f.subject,f.start,f.end))+'</div></div>';
  if(f.material==='123日的淬鍊'&&f.subject!=='混合')h+='<div class="field" style="margin-top:10px"><label>123日的淬鍊｜頁碼對應章節</label><div class="small" data-science-auto>'+esc(day123Text(f.subject,f.start,f.end))+'</div></div>';
  if(f.subject==='混合'&&f.material==='複習週記')h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-science-auto>'+esc(naturalReviewText(x))+'</div></div>';
@@ -1430,7 +1771,124 @@ function daySummary(date){
  var rec=loadData(date);ensureDailyPresets(rec,date);var a=['【'+date+' '+weekdays[parseDate(date).getDay()]+'】','狀態：'+line(rec.mood),'起床時間：'+line(rec.wakeTime)];if(isAway(rec))a.push('固定排程：因外出取消');visibleItems(rec).forEach(function(x){a.push(itemSummary(x))});a.push('最大卡點：'+line(rec.biggestBlock));a.push('明天第一件事：'+line(rec.firstThingTomorrow));a.push('補充：'+line(rec.notes));return a.join('\n');
 }
 function buildWeekSummary(){persist(false);var mon=mondayOf(parseDate(data.date)),a=['本週讀書紀錄｜'+dateString(mon)+'～'+dateString(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,12))];for(var i=0;i<7;i++){var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12);a.push('\n'+daySummary(dateString(d)))}return a.join('\n')}
-function exportWeek(){var text=buildWeekSummary(),mon=mondayOf(parseDate(data.date)),sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,12),fn='讀書紀錄_'+dateString(mon)+'_至_'+dateString(sun)+'.html',blob=new Blob(['<!DOCTYPE html><html lang="zh-Hant"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><pre style="white-space:pre-wrap;font:15px/1.7 sans-serif">'+esc(text)+'</pre></body></html>'],{type:'text/html;charset=utf-8'}),u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=fn;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},1000);id('status').textContent='已匯出本週 HTML。'}
+function importProgressItemKey(x){
+ if(!x||typeof x!=='object')return'';
+ return String(x.id||x.presetKey||((x.type||'')+'|'+(x.title||'')+'|'+((x.f&&x.f.title)||'')));
+}
+function mergeImportedProgressValue(dst,src){
+ if(src===undefined||src===null||src==='')return dst;
+ if(typeof src==='boolean')return src?true:!!dst;
+ if(Array.isArray(src))return cloneObj(src);
+ if(typeof src==='object'){
+  var out=(dst&&typeof dst==='object'&&!Array.isArray(dst))?cloneObj(dst):{};
+  for(var k in src)if(Object.prototype.hasOwnProperty.call(src,k))out[k]=mergeImportedProgressValue(out[k],src[k]);
+  return out;
+ }
+ if(dst===undefined||dst===null||dst==='')return src;
+ return dst;
+}
+function mergeImportedProgressItems(existing,incoming,date){
+ var out=Array.isArray(existing)?existing.slice():[],index={};
+ for(var i=0;i<out.length;i++){var k=importProgressItemKey(out[i]);if(k)index[k]=i}
+ (Array.isArray(incoming)?incoming:[]).forEach(function(raw){
+  var item=normalizeItem(cloneObj(raw),date);if(!item)return;
+  var k=importProgressItemKey(item);
+  if(k&&index[k]!==undefined){
+   var pos=index[k],merged=mergeImportedProgressValue(out[pos],item);
+   out[pos]=normalizeItem(merged,date)||out[pos];
+  }else{
+   out.push(item);if(k)index[k]=out.length-1;
+  }
+ });
+ return out;
+}
+function normalizeImportedProgressRecords(obj){
+ var out=[];
+ function pushRecord(rec,dateHint){
+  if(!rec||typeof rec!=='object'||Array.isArray(rec))return;
+  var d=String(rec.date||dateHint||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;
+  var x=cloneObj(rec);x.date=d;out.push(x);
+ }
+ if(Array.isArray(obj)){obj.forEach(function(x){pushRecord(x,'')});return out}
+ if(!obj||typeof obj!=='object')return out;
+ if(Array.isArray(obj.records)){obj.records.forEach(function(x){pushRecord(x,'')});return out}
+ if(obj.date){pushRecord(obj,'');return out}
+ for(var k in obj)if(Object.prototype.hasOwnProperty.call(obj,k)&&/^\d{4}-\d{2}-\d{2}$/.test(k))pushRecord(obj[k],k);
+ return out;
+}
+function mergeImportedProgressRecord(incoming){
+ var d=incoming.date,current=loadData(d);
+ current.mood=mergeImportedProgressValue(current.mood,incoming.mood)||'';
+ current.wakeTime=mergeImportedProgressValue(current.wakeTime,incoming.wakeTime)||'';
+ current.biggestBlock=mergeImportedProgressValue(current.biggestBlock,incoming.biggestBlock)||'';
+ current.firstThingTomorrow=mergeImportedProgressValue(current.firstThingTomorrow,incoming.firstThingTomorrow)||'';
+ current.notes=mergeImportedProgressValue(current.notes,incoming.notes)||'';
+ current.items=mergeImportedProgressItems(current.items,incoming.items,d);
+ ensureDailyPresets(current,d);
+ store.setItem(key(d),JSON.stringify(current));
+ return current;
+}
+async function importProgressFromField(){
+ var el=id('importProgress'),text=el?el.value.trim():'';
+ if(!text)return;
+ var parsed,records;
+ try{parsed=JSON.parse(text)}catch(e){id('status').textContent='匯入失敗：內容不是有效的 JSON。';return}
+ records=normalizeImportedProgressRecords(parsed);
+ if(!records.length){id('status').textContent='匯入失敗：找不到 YYYY-MM-DD 日期格式的進度紀錄。';return}
+ var merged=[];
+ try{
+  for(var i=0;i<records.length;i++)merged.push(mergeImportedProgressRecord(records[i]));
+  if(cloudClient&&cloudUser){
+   for(var j=0;j<merged.length;j++)await cloudSaveRecord(merged[j]);
+  }
+  el.value='';
+  load();
+  id('status').textContent='已匯入 '+merged.length+' 天進度'+(cloudUser?'，並同步到雲端。':'。');
+ }catch(e2){
+  id('status').textContent='匯入失敗：'+(e2&&e2.message?e2.message:String(e2));
+ }
+}
+
+async function copyTextToClipboard(text){
+ text=String(text==null?'':text);
+ if(!text)return false;
+ try{
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+   await navigator.clipboard.writeText(text);return true;
+  }
+ }catch(e){}
+ try{
+  var ta=document.createElement('textarea');
+  ta.value=text;
+  ta.setAttribute('readonly','');
+  ta.style.position='fixed';
+  ta.style.left='-9999px';
+  ta.style.top='0';
+  document.body.appendChild(ta);
+  ta.focus();ta.select();
+  var ok=document.execCommand('copy');
+  ta.remove();
+  return !!ok;
+ }catch(e2){return false}
+}
+async function buildAndCopyWeekSummary(){
+ var text=buildWeekSummary();
+ id('weekSummary').value=text;
+ id('exportBox').hidden=false;
+ var ok=await copyTextToClipboard(text);
+ id('status').textContent=ok?'本週紀錄已整理並複製。':'本週紀錄已整理，但瀏覽器無法自動複製；請按「複製」或手動複製。';
+ return ok;
+}
+async function copyCurrentWeekSummary(){
+ var box=id('weekSummary');
+ var text=box&&box.value?box.value:buildWeekSummary();
+ if(box)box.value=text;
+ id('exportBox').hidden=false;
+ var ok=await copyTextToClipboard(text);
+ id('status').textContent=ok?'已複製本週紀錄。':'瀏覽器無法自動複製；請手動選取內容複製。';
+ return ok;
+}
 
 function addCustom(){var t=id('itemType').value;if(!t){id('status').textContent='請先選擇項目類型。';return}data.items.push(newItem(t,'custom'));id('itemType').value='';render();persist(false)}
 function headerInput(){readHeader();persist(false)}
@@ -1441,15 +1899,16 @@ id('mood').addEventListener('change',function(){readHeader();render();persist(fa
 ['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow','notes'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerInput)});
 id('addItemBtn').addEventListener('click',addCustom);
 id('saveBtn').addEventListener('click',function(){persist(true);updateSummary()});
-id('weekSummaryBtn').addEventListener('click',function(){id('weekSummary').value=buildWeekSummary();id('exportBox').hidden=false});
-id('exportWeekBtn').addEventListener('click',exportWeek);
-id('resetBtn').addEventListener('click',function(){if(confirm('確定清除這一天的所有紀錄嗎？')){var d=data.date;store.removeItem(key(d));cloudDeleteDate(d);load()}});
+id('weekSummaryBtn').addEventListener('click',buildAndCopyWeekSummary);
+id('copyWeekBtn').addEventListener('click',copyCurrentWeekSummary);
+id('importProgress').addEventListener('change',importProgressFromField);
+id('importProgress').addEventListener('keydown',function(e){if(e.key==='Enter'&&e.ctrlKey){e.preventDefault();importProgressFromField()}});
 
 id('cloudSignInBtn').addEventListener('click',cloudSignIn);
 id('cloudSignUpBtn').addEventListener('click',cloudSignUp);
 id('cloudSignOutBtn').addEventListener('click',cloudSignOut);
 id('cloudSyncLocalBtn').addEventListener('click',cloudMergeLocalMissing);
-id('cloudRefreshBtn').addEventListener('click',function(){cloudPullDate(id('studyDate').value,true)});
+id('cloudRefreshBtn').addEventListener('click',async function(){await cloudPullAllRecords();load()});
 seedImportedWeek();mergeImportedV123Progress();id('studyDate').value=dateString(new Date());load();initCloud();
 })();
 </script>
