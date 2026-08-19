@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v143：英文文法 Calendar 每日必做改為可記錄實際頁碼；建議範圍移至說明文字。 -->
+<!-- v146：移除自然科 Calendar × 123日的淬鍊推薦範圍獨立欄位；建議教材、頁碼與依據改顯示於項目說明。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1018,12 +1018,20 @@ function applyCalendarNaturalRecommended(rec,date){
 }
 
 function calendarDefsForDate(date){
- var a=[],ace=calendarAceRound(date),g=calendarGujinRounds(date),nat=CALENDAR_NATURAL_PLAN[date],wt=calendarWritingTest(date),gr=calendarGrammarReview(date);
+ var a=[],ace=calendarAceRound(date),g=calendarGujinRounds(date),nat=CALENDAR_NATURAL_PLAN[date],wt=calendarWritingTest(date),gr=calendarGrammarReview(date),nr=calendarNaturalRecommended(date);
  if(ace)a.push(presetDef('cal_ace_'+ace,'extra','英文｜ACE Reading 第 '+ace+' 回','Google Calendar：第 '+ace+' 回＋訂正。',true,{title:'ACE Reading',round:String(ace)}));
  if(wt)a.push(presetDef('cal_writing_'+wt.round,'extra','英文｜英文寫作測驗 第 '+wt.round+' 回','Google Calendar：第 '+wt.round+' 回｜'+wt.focus+'。',true,{title:'英文寫作測驗',round:String(wt.round),calendarFocus:wt.focus}));
  if(gr)a.push(presetDef('cal_grammar_'+date.replace(/-/g,''),'extra','英文｜英文文法總複習｜'+gr.title,'Google Calendar：'+gr.title+'｜建議頁碼：'+gr.rangeText+'｜'+gr.focus+'。',true,{title:'英文文法總複習講義',start:gr.rangeType==='whole'?'':(gr.start==null?'':String(gr.start)),end:gr.rangeType==='whole'?'':(gr.end==null?'':String(gr.end)),calendarGrammarTitle:gr.title,calendarRangeText:gr.rangeText,calendarRangeType:gr.rangeType,calendarFocus:gr.focus}));
  for(var i=0;i<g.length;i++)a.push(presetDef('cal_gujin_'+g[i],'chineseReading','國文｜古今悅讀一百 第 '+g[i]+' 回','Google Calendar：第 '+g[i]+' 回＋訂正。',true,{kind:'reading',round:String(g[i])}));
- if(nat)a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然','Google Calendar：'+nat,true,{subject:calendarNaturalSubject(nat),calendarTopic:nat,calendarSource:'Google Calendar'}));
+ if(nat){
+  var nd='Google Calendar：'+nat;
+  if(nr){
+   var nrs=calendarNaturalRanges(nr).map(function(r){return Number(r[0])===Number(r[1])?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');
+   if(nrs)nd+='｜建議範圍：'+(nr.material||'123日的淬鍊')+' '+nrs;
+   if(nr.basis)nd+='｜'+nr.basis;
+  }
+  a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然',nd,true,{subject:calendarNaturalSubject(nat),calendarTopic:nat,calendarSource:'Google Calendar'}));
+ }
  return a;
 }
 function calendarWeekMathTarget(date){
@@ -1379,16 +1387,6 @@ function renderScienceFields(x,reviewMode){
  var h='<div class="science-main-row">'+subjectField;
  h+='<div class="field"><label>講義版本</label><select data-field="material">'+scienceMaterialOptions(f.subject,f.material)+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
  if(isCalendarNatural(x)&&f.calendarTopic)h+='<div class="field" style="margin-top:10px"><label>Google Calendar 當日主題</label><div class="fixed-book-value">'+esc(f.calendarTopic)+'</div></div>';
- if(isCalendarNatural(x)&&Array.isArray(f.calendarSuggestedRanges)&&f.calendarSuggestedRanges.length){
-  var sr=f.calendarSuggestedRanges.map(function(r){return Number(r[0])===Number(r[1])?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');
-  h+='<div class="field" style="margin-top:10px"><label>依 Calendar × 123日的淬鍊推薦範圍</label><div class="fixed-book-value">'+esc(f.calendarSuggestedMaterial||'123日的淬鍊')+'｜'+esc(sr)+'</div>';
-  if(f.calendarSuggestedBasis)h+='<div class="small" style="margin-top:6px">'+esc(f.calendarSuggestedBasis)+'</div>';
-  var td=Number(f.calendarSuggestedDonePages||0),tt=Number(f.calendarSuggestedTotalPages||0);
-  if(f.calendarSuggestedAutoDone)h+='<div class="small" style="margin-top:6px"><strong>先前紀錄已完整涵蓋 '+td+'/'+tt+' 頁 → 已自動勾選完成。</strong></div>';
-  else if(td>0)h+='<div class="small" style="margin-top:6px">先前已完成 '+td+'/'+tt+' 頁；尚未完整涵蓋，因此不自動勾選。</div>';
-  else if(tt>0)h+='<div class="small" style="margin-top:6px">先前完成紀錄：0/'+tt+' 頁。</div>';
-  h+='</div>';
- }
  if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))h+='<div class="field" style="margin-top:10px"><label>對應單元／章節</label><div class="small" data-science-auto>'+esc(goodPointCombinedText(f.subject,f.start,f.end))+'</div></div>';
  if(f.material==='123日的淬鍊'&&f.subject!=='混合')h+='<div class="field" style="margin-top:10px"><label>123日的淬鍊｜頁碼對應章節</label><div class="small" data-science-auto>'+esc(day123Text(f.subject,f.start,f.end))+'</div></div>';
  if(f.subject==='混合'&&f.material==='複習週記')h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-science-auto>'+esc(naturalReviewText(x))+'</div></div>';
@@ -1403,6 +1401,35 @@ function isWritingTest(t){return t==='英文寫作測驗'}
 function isCalendarWritingTest(x){return !!x&&x.source==='preset'&&/^cal_writing_/.test(x.presetKey||'')}
 function isGrammarReview(t){return t==='英文文法總複習講義'}
 function isCalendarGrammarReview(x){return !!x&&x.source==='preset'&&/^cal_grammar_/.test(x.presetKey||'')}
+
+var GRAMMAR_REVIEW_PAGE_MAP=[
+ [1,11,'Chapter 1 英文基本句型'],
+ [12,27,'Chapter 2 動詞時態'],
+ [28,44,'Chapter 3 被動語態'],
+ [45,47,'Review 1（Chapter 1–Chapter 3）'],
+ [48,63,'Chapter 4 助動詞'],
+ [64,77,'Chapter 5 主詞與動詞一致'],
+ [78,89,'Chapter 6 假設語氣'],
+ [90,91,'Review 2（Chapter 4–Chapter 6）'],
+ [92,102,'Chapter 7 名詞子句'],
+ [103,120,'Chapter 8 形容詞子句（含關係詞）'],
+ [121,139,'Chapter 9 副詞子句（含連接詞）'],
+ [140,142,'Review 3（Chapter 7–Chapter 9）'],
+ [143,158,'Chapter 10 不定詞'],
+ [159,173,'Chapter 11 動名詞'],
+ [174,190,'Chapter 12 分詞'],
+ [191,192,'Review 4（Chapter 10–Chapter 12）'],
+ [193,216,'Chapter 13 形容詞與副詞（含比較級）'],
+ [217,237,'Chapter 14 代名詞'],
+ [238,254,'Chapter 15 否定句與倒裝句'],
+ [255,255,'Review 5（Chapter 13–Chapter 15）']
+];
+function grammarReviewSections(f){
+ return ranges(GRAMMAR_REVIEW_PAGE_MAP,f&&f.start,f&&f.end);
+}
+function grammarReviewAutoText(f){
+ return rangeText(grammarReviewSections(f),function(r){return r[2]});
+}
 function isTraumaland(t){return t==='Traumaland- Josh Silver'||t==='Traumaland'}
 function isWarriors(t){return t==='Warriors- Erin Hunter'}
 function warriorsBookOptions(v){
@@ -1485,6 +1512,10 @@ function renderExtraFields(x,reviewMode){
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><div class="fixed-book-value">英文文法總複習講義</div></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="實際起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="實際結束"></div></div>';
   }else{
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
+  }
+  h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-grammar-auto>'+esc(grammarReviewAutoText(f))+'</div></div>';
+  if(isCalendarGrammarReview(x)&&f.calendarGrammarTitle){
+   h+='<div class="field" style="margin-top:10px"><label>Google Calendar 英文文法排程</label><div class="small"><strong>'+esc(f.calendarGrammarTitle)+'</strong><br>重點：'+esc(f.calendarFocus||'—')+'<br>建議頁碼：'+esc(f.calendarRangeText||'—')+'</div></div>';
   }
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
@@ -1658,6 +1689,7 @@ function removeNested(target,arrayName){
 function refreshAuto(card,x){
  if(!card||!x)return;
  if(x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice'){applyMathAuto(x.f);var m=card.querySelector('[data-math-auto]');if(m)m.textContent=mathAutoText(x.f)}
+ if(x.type==='extra'&&isGrammarReview(x.f&&x.f.title)){var g=card.querySelector('[data-grammar-auto]');if(g)g.textContent=grammarReviewAutoText(x.f)}
  if(x.type==='scienceReview'){
   normalizeScience(x.f);var s=card.querySelector('[data-science-auto]');
   if(x.f.material==='好考點'){applyGoodPoint(x.f);if(s)s.textContent=goodPointCombinedText(x.f.subject,x.f.start,x.f.end)}
