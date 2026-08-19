@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v142：依 Google Calendar 加入英文文法總複習每日必做，並依教材目錄顯示建議頁碼範圍。 -->
+<!-- v143：英文文法 Calendar 每日必做改為可記錄實際頁碼；建議範圍移至說明文字。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1021,7 +1021,7 @@ function calendarDefsForDate(date){
  var a=[],ace=calendarAceRound(date),g=calendarGujinRounds(date),nat=CALENDAR_NATURAL_PLAN[date],wt=calendarWritingTest(date),gr=calendarGrammarReview(date);
  if(ace)a.push(presetDef('cal_ace_'+ace,'extra','英文｜ACE Reading 第 '+ace+' 回','Google Calendar：第 '+ace+' 回＋訂正。',true,{title:'ACE Reading',round:String(ace)}));
  if(wt)a.push(presetDef('cal_writing_'+wt.round,'extra','英文｜英文寫作測驗 第 '+wt.round+' 回','Google Calendar：第 '+wt.round+' 回｜'+wt.focus+'。',true,{title:'英文寫作測驗',round:String(wt.round),calendarFocus:wt.focus}));
- if(gr)a.push(presetDef('cal_grammar_'+date.replace(/-/g,''),'extra','英文｜英文文法總複習｜'+gr.title,'Google Calendar：'+gr.rangeText+'｜'+gr.focus+'。',true,{title:'英文文法總複習講義',start:gr.start==null?'':String(gr.start),end:gr.end==null?'':String(gr.end),calendarGrammarTitle:gr.title,calendarRangeText:gr.rangeText,calendarRangeType:gr.rangeType,calendarFocus:gr.focus}));
+ if(gr)a.push(presetDef('cal_grammar_'+date.replace(/-/g,''),'extra','英文｜英文文法總複習｜'+gr.title,'Google Calendar：'+gr.title+'｜建議頁碼：'+gr.rangeText+'｜'+gr.focus+'。',true,{title:'英文文法總複習講義',start:gr.rangeType==='whole'?'':(gr.start==null?'':String(gr.start)),end:gr.rangeType==='whole'?'':(gr.end==null?'':String(gr.end)),calendarGrammarTitle:gr.title,calendarRangeText:gr.rangeText,calendarRangeType:gr.rangeType,calendarFocus:gr.focus}));
  for(var i=0;i<g.length;i++)a.push(presetDef('cal_gujin_'+g[i],'chineseReading','國文｜古今悅讀一百 第 '+g[i]+' 回','Google Calendar：第 '+g[i]+' 回＋訂正。',true,{kind:'reading',round:String(g[i])}));
  if(nat)a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然','Google Calendar：'+nat,true,{subject:calendarNaturalSubject(nat),calendarTopic:nat,calendarSource:'Google Calendar'}));
  return a;
@@ -1124,7 +1124,16 @@ function ensureDailyPresets(rec,date){
   if(/^cal_(ace|writing|grammar|gujin|natural)_/.test(d.key||'')){
    if(!x.f)x.f={};
    var df=d.f||{};
-   for(var dk in df)if(Object.prototype.hasOwnProperty.call(df,dk)&&x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
+   if(/^cal_grammar_/.test(d.key||'')){
+    var grammarPagesBlank=!x.f.start&&!x.f.end;
+    for(var dk in df)if(Object.prototype.hasOwnProperty.call(df,dk)){
+     if(dk==='start'||dk==='end'){
+      if(grammarPagesBlank&&x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
+     }else if(x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
+    }
+   }else{
+    for(var dk2 in df)if(Object.prototype.hasOwnProperty.call(df,dk2)&&x.f[dk2]!==df[dk2]){x.f[dk2]=df[dk2];changed=true}
+   }
   }
   normalizeItem(x,date);
  }
@@ -1473,9 +1482,7 @@ function renderExtraFields(x,reviewMode){
   if(reviewMode||f.corrected)h+=reasonField(f);
  }else if(isGrammarReview(t)){
   if(isCalendarGrammarReview(x)){
-   h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><div class="fixed-book-value">英文文法總複習講義</div></div><div class="field"><label>建議頁碼範圍</label><div class="fixed-book-value">'+esc(f.calendarRangeText||'—')+'</div></div></div>';
-   if(f.calendarGrammarTitle)h+='<div class="small" style="margin-top:8px">單元：'+esc(f.calendarGrammarTitle)+'</div>';
-   if(f.calendarFocus)h+='<div class="small" style="margin-top:4px">重點：'+esc(f.calendarFocus)+'</div>';
+   h+='<div class="english-book-page-row"><div class="field"><label>書名</label><div class="fixed-book-value">英文文法總複習講義</div></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="實際起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="實際結束"></div></div>';
   }else{
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
   }
@@ -1796,7 +1803,7 @@ function itemDetails(x){
  else if(x.type==='scienceReview'){normalizeScience(f);s+='｜科目：'+line(f.subject);if(isCalendarNatural(x)&&f.calendarTopic)s+='｜Calendar主題：'+line(f.calendarTopic);s+='｜講義：'+line(f.material)+'｜頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁';if(f.material==='好考點')s+='｜對應：'+goodPointCombinedText(f.subject,f.start,f.end);if(f.material==='123日的淬鍊'){var d123=day123Matches(f.subject,f.start,f.end);if(d123.length)s+='｜對應：'+day123Text(f.subject,f.start,f.end)}if(f.subject==='混合')s+='｜章節：'+line(f.chapter);s+='｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}
  else if(x.type==='mock')s+='｜科目：'+line(f.subject)+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
  else if(x.type==='general'&&isEnglishReview(x)){var w=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(w.length?w.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
- else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜'+(f.calendarRangeText?line(f.calendarRangeText):('頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁'))+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
+ else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
  return s;
 }
 function reviewEntrySummary(x){var d=itemDetails(x).replace(/｜進度：[✓—]｜批改：[✓—]｜訂正：[✓—]/g,'');var s=itemTitle(x)+d;if(x.type!=='mock')s+='｜錯因／不熟觀念：'+line(x.f&&x.f.reason);return s}
