@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<!-- v140：修正「本週數學已完成」未納入自行新增數學進度；同步納入週六回補數學進度。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="icon" type="image/png" href="book.png?v=139">
-<link rel="apple-touch-icon" href="book.png?v=139">
+<link rel="icon" type="image/png" href="book.png">
+<link rel="apple-touch-icon" href="book.png">
 <title>每日讀書完成度紀錄卡</title>
 <style>
 :root{--bg:#f4f7fb;--card:#fff;--line:#dce3ec;--text:#172033;--muted:#64748b;--accent:#315efb;--danger:#b91c1c;--soft:#f8fafc}
@@ -104,7 +105,7 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
    <div class="stat"><span class="small">原定項目完成度</span><strong id="completionPercent">0%</strong><div class="progress"><div id="completionBar" style="width:0"></div></div><div class="small" id="completionText">0/0 項</div></div>
    <div class="stat"><span class="small">今日完成時間</span><strong><span id="doneMinutes">0</span> 分</strong></div>
    <div class="stat"><span class="small">今日數學講義頁數</span><strong><span id="mathPagesTop">0</span> 頁</strong></div>
-   <div class="stat"><span class="small">本週數學已完成</span><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span>｜勾選「數學講義：進度」完成後累加</div></div>
+   <div class="stat"><span class="small">本週數學已完成</span><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span>｜固定數學進度＋自行新增數學中勾選「進度」且完成者累加</div></div>
   </div>
  </div>
 </section>
@@ -1700,7 +1701,12 @@ function updateSummary(){
 function completedMathStudyPages(rec){
  var total=0;if(!rec||!Array.isArray(rec.items)||isAway(rec))return 0;
  rec.items.forEach(function(x){
-  if(x&&x.type==='mathStudy'&&x.done)total+=pageCount(x.f&&x.f.start,x.f&&x.f.end);
+  if(!x)return;
+  if(x.type==='mathStudy'&&x.done)total+=pageCount(x.f&&x.f.start,x.f&&x.f.end);
+  if(x.type==='mathLecture'&&x.done&&x.f&&x.f.progress)total+=pageCount(x.f.start,x.f.end);
+  if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){
+   if(m&&m.type==='mathLecture'&&m.done&&m.f&&m.f.progress)total+=pageCount(m.f.start,m.f.end);
+  });
  });
  return total;
 }
