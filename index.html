@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v140：修正「本週數學已完成」未納入自行新增數學進度；同步納入週六回補數學進度。 -->
+<!-- v141：英文新增「英文寫作測驗」1～40 回，並依 Google Calendar 排程自動加入每日必做。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -638,9 +638,12 @@ var TEACHING_MATH_PAGE_MAP={
   [197,221,'矩陣','線性方程組與矩陣列運算'],[222,249,'矩陣','矩陣的運算'],[250,275,'矩陣','矩陣的應用']
  ]
 };
+var CALENDAR_WRITING_TEST_PLAN={"2026-08-21":{"round":17,"focus":"基礎連接詞"},"2026-08-24":{"round":19,"focus":"原因、結果與條件"},"2026-08-26":{"round":1,"focus":"讓步、原因與條件"},"2026-08-28":{"round":4,"focus":"條件、替代與時間"},"2026-08-31":{"round":6,"focus":"時間、結果與並列"},"2026-09-02":{"round":23,"focus":"條件、結果與關係詞"},"2026-09-04":{"round":7,"focus":"倍數、同級與條件"},"2026-09-07":{"round":5,"focus":"助動詞、偏好與並列"},"2026-09-09":{"round":8,"focus":"感官、比較與 too...to"},"2026-09-11":{"round":26,"focus":"轉折、結果與偏好"},"2026-09-14":{"round":15,"focus":"使役、感官與慣用語"},"2026-09-16":{"round":18,"focus":"動名詞與介系詞"},"2026-09-18":{"round":9,"focus":"分詞構句與目的"},"2026-09-21":{"round":10,"focus":"結果句型與分詞構句"},"2026-09-23":{"round":11,"focus":"結果句型與偏好"},"2026-09-25":{"round":24,"focus":"不定詞與重要搭配"},"2026-09-28":{"round":29,"focus":"分詞、比較與目的"},"2026-09-30":{"round":30,"focus":"分詞構句與 otherwise"},"2026-10-02":{"round":33,"focus":"目的、不定詞與 help"},"2026-10-05":{"round":34,"focus":"倒裝、比較與形式主詞"},"2026-10-07":{"round":36,"focus":"受詞補語與動詞搭配"},"2026-10-09":{"round":37,"focus":"動詞搭配與助動詞"},"2026-10-12":{"round":38,"focus":"pay／see／take 搭配"},"2026-10-14":{"round":39,"focus":"spend／find it／prefer"},"2026-10-16":{"round":40,"focus":"原因、疑問詞與 too...to"},"2026-10-19":{"round":2,"focus":"關係副詞與成對連接"},"2026-10-21":{"round":3,"focus":"that／who／when 子句"},"2026-10-23":{"round":12,"focus":"whose 與 lest"},"2026-10-26":{"round":14,"focus":"關係詞與受詞補語"},"2026-10-28":{"round":16,"focus":"since／while 與形式主詞"},"2026-10-30":{"round":20,"focus":"原因、讓步與關係子句"},"2026-11-02":{"round":21,"focus":"關係結構與結果句型"},"2026-11-04":{"round":22,"focus":"whose／when／if 子句"},"2026-11-06":{"round":25,"focus":"關係副詞與時間子句"},"2026-11-09":{"round":27,"focus":"關係代名詞與成對連接"},"2026-11-11":{"round":28,"focus":"關係副詞與否定時間"},"2026-11-13":{"round":31,"focus":"關係子句與補充連接"},"2026-11-16":{"round":13,"focus":"Only when 倒裝與讓步"},"2026-11-18":{"round":32,"focus":"倒裝、關係詞與比較"},"2026-11-20":{"round":35,"focus":"雙重比較與轉折"}};
+
 var EXTRA_READING_TITLES=[
  '雜誌',
  'ACE Reading',
+ '英文寫作測驗',
  '英文文法總複習講義',
  'Prism Reading',
  'Traumaland- Josh Silver',
@@ -909,6 +912,9 @@ function calendarGujinRounds(date){
  }
  return out;
 }
+function calendarWritingTest(date){
+ return CALENDAR_WRITING_TEST_PLAN[date]||null;
+}
 function calendarNaturalRecommended(date){return CALENDAR_NATURAL_RECOMMENDED_PAGES[date]||null}
 function calendarNaturalRanges(p){
  if(!p)return[];
@@ -1007,8 +1013,9 @@ function applyCalendarNaturalRecommended(rec,date){
 }
 
 function calendarDefsForDate(date){
- var a=[],ace=calendarAceRound(date),g=calendarGujinRounds(date),nat=CALENDAR_NATURAL_PLAN[date];
+ var a=[],ace=calendarAceRound(date),g=calendarGujinRounds(date),nat=CALENDAR_NATURAL_PLAN[date],wt=calendarWritingTest(date);
  if(ace)a.push(presetDef('cal_ace_'+ace,'extra','英文｜ACE Reading 第 '+ace+' 回','Google Calendar：第 '+ace+' 回＋訂正。',true,{title:'ACE Reading',round:String(ace)}));
+ if(wt)a.push(presetDef('cal_writing_'+wt.round,'extra','英文｜英文寫作測驗 第 '+wt.round+' 回','Google Calendar：第 '+wt.round+' 回｜'+wt.focus+'。',true,{title:'英文寫作測驗',round:String(wt.round),calendarFocus:wt.focus}));
  for(var i=0;i<g.length;i++)a.push(presetDef('cal_gujin_'+g[i],'chineseReading','國文｜古今悅讀一百 第 '+g[i]+' 回','Google Calendar：第 '+g[i]+' 回＋訂正。',true,{kind:'reading',round:String(g[i])}));
  if(nat)a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然','Google Calendar：'+nat,true,{subject:calendarNaturalSubject(nat),calendarTopic:nat,calendarSource:'Google Calendar'}));
  return a;
@@ -1108,7 +1115,7 @@ function ensureDailyPresets(rec,date){
   if(x.type!==d.type){x.type=d.type;changed=true}
   if(x.required!==d.required){x.required=d.required;changed=true}
   x.source='preset';
-  if(/^cal_(ace|gujin|natural)_/.test(d.key||'')){
+  if(/^cal_(ace|writing|gujin|natural)_/.test(d.key||'')){
    if(!x.f)x.f={};
    var df=d.f||{};
    for(var dk in df)if(Object.prototype.hasOwnProperty.call(df,dk)&&x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
@@ -1377,6 +1384,8 @@ function renderScienceFields(x,reviewMode){
 
 function isMagazineTitle(t){return t==='雜誌'||t==='英文雜誌'}
 function isAce(t){return t==='ACE Reading'||t==='英文：ACE Reading'}
+function isWritingTest(t){return t==='英文寫作測驗'}
+function isCalendarWritingTest(x){return !!x&&x.source==='preset'&&/^cal_writing_/.test(x.presetKey||'')}
 function isGrammarReview(t){return t==='英文文法總複習講義'}
 function isTraumaland(t){return t==='Traumaland- Josh Silver'||t==='Traumaland'}
 function isWarriors(t){return t==='Warriors- Erin Hunter'}
@@ -1420,14 +1429,14 @@ function traumalandTopicOptions(current){
 function isPrism(t){return t==='Prism Reading'||/^Prism Reading [234]$/.test(String(t||''))}
 function readingOptions(v){return'<option value="">請選擇</option>'+EXTRA_READING_TITLES.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('')}
 function reviewEnglishOptions(v){
- var a=['ACE Reading','英文文法總複習講義','Prism Reading'];
+ var a=['ACE Reading','英文寫作測驗','英文文法總複習講義','Prism Reading'];
  return'<option value="">請選擇</option>'+a.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('');
 }
 function prismLevel(f){if(f.level)return String(f.level);var m=String(f.title||'').match(/^Prism Reading ([234])$/);return m?m[1]:''}
 function prismCefr(v){return String(v)==='2'?'B1':String(v)==='3'?'B2':String(v)==='4'?'C1':'尚未選擇'}
 function renderExtraFields(x,reviewMode){
  var f=x.f,t=f.title||'',h='',bookOptions;
- if(reviewMode&&!isPrism(t)&&!isAce(t)&&!isGrammarReview(t)){
+ if(reviewMode&&!isPrism(t)&&!isAce(t)&&!isWritingTest(t)&&!isGrammarReview(t)){
   f.title='';f.level='';f.start='';f.end='';f.round='';f.topic='';f.warriorsBook='';f.chapter='';f.name='';f.month='';f.unit='';f.progress=false;f.graded=false;f.corrected=false;
   t='';
  }
@@ -1443,6 +1452,15 @@ function renderExtraFields(x,reviewMode){
    h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><div class="fixed-book-value">ACE Reading</div></div><div class="field compact-number"><label>回數</label><div class="fixed-book-value">第 '+esc(f.round||'—')+' 回</div></div></div>';
   }else{
    h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>回數</label><div class="inline"><span>第</span><input type="number" min="1" max="60" step="1" inputmode="numeric" data-field="round" value="'+esc(f.round||'')+'"><span>回</span></div></div></div>';
+  }
+  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
+  if(reviewMode||f.corrected)h+=reasonField(f);
+ }else if(isWritingTest(t)){
+  if(isCalendarWritingTest(x)){
+   h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><div class="fixed-book-value">英文寫作測驗</div></div><div class="field compact-number"><label>回數</label><div class="fixed-book-value">第 '+esc(f.round||'—')+' 回</div></div></div>';
+   if(f.calendarFocus)h+='<div class="small" style="margin-top:8px">Google Calendar 重點：'+esc(f.calendarFocus)+'</div>';
+  }else{
+   h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>回數</label><div class="inline"><span>第</span><input type="number" min="1" max="40" step="1" inputmode="numeric" data-field="round" value="'+esc(f.round||'')+'"><span>回</span></div></div></div>';
   }
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
@@ -1730,6 +1748,7 @@ function validate(){
  document.querySelectorAll('[data-field="score"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=25);el.setCustomValidity(x?'':'國文寫作分數請填 0～25。');if(!x){ok=false;msg='國文寫作分數超出範圍。'}});
  document.querySelectorAll('[data-field="correctCount"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=20);el.setCustomValidity(x?'':'答對題數請填 0～20 的整數。');if(!x){ok=false;msg='英文互動題答對題數超出範圍。'}});
  document.querySelectorAll('[data-field="translationScore1"],[data-field="translationScore2"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(v>=0&&v<=4&&Math.abs(v*2-Math.round(v*2))<1e-9);el.setCustomValidity(x?'':'中翻英分數請填 0～4.0，並以 0.5 為單位。');if(!x){ok=false;msg='中翻英分數格式不正確。'}});
+ document.querySelectorAll('[data-field="round"][max="40"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=1&&v<=40);el.setCustomValidity(x?'':'英文寫作測驗回數請填 1～40。');if(!x){ok=false;msg='英文寫作測驗回數超出範圍。'}});
  document.querySelectorAll('[data-field="round"][max="60"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=1&&v<=60);el.setCustomValidity(x?'':'ACE Reading 回數請填 1～60。');if(!x){ok=false;msg='ACE Reading 回數超出範圍。'}});
  document.querySelectorAll('[data-field="round"][max="100"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=1&&v<=100);el.setCustomValidity(x?'':'古今悅讀一百回數請填 1～100。');if(!x){ok=false;msg='古今悅讀一百回數超出範圍。'}});
  return{ok:ok,msg:msg};
@@ -1764,7 +1783,7 @@ function itemDetails(x){
  else if(x.type==='scienceReview'){normalizeScience(f);s+='｜科目：'+line(f.subject);if(isCalendarNatural(x)&&f.calendarTopic)s+='｜Calendar主題：'+line(f.calendarTopic);s+='｜講義：'+line(f.material)+'｜頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁';if(f.material==='好考點')s+='｜對應：'+goodPointCombinedText(f.subject,f.start,f.end);if(f.material==='123日的淬鍊'){var d123=day123Matches(f.subject,f.start,f.end);if(d123.length)s+='｜對應：'+day123Text(f.subject,f.start,f.end)}if(f.subject==='混合')s+='｜章節：'+line(f.chapter);s+='｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}
  else if(x.type==='mock')s+='｜科目：'+line(f.subject)+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
  else if(x.type==='general'&&isEnglishReview(x)){var w=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(w.length?w.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
- else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義｜頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
+ else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義｜頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
  return s;
 }
 function reviewEntrySummary(x){var d=itemDetails(x).replace(/｜進度：[✓—]｜批改：[✓—]｜訂正：[✓—]/g,'');var s=itemTitle(x)+d;if(x.type!=='mock')s+='｜錯因／不熟觀念：'+line(x.f&&x.f.reason);return s}
