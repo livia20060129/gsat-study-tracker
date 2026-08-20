@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v148：將「英文訂正與搭配詞整理」從每日必做視覺區分，改為獨立卡片；排程與完成度邏輯不變。 -->
+<!-- v149：英文訂正與搭配詞整理獨立卡每天皆可自行新增；原排程不變，額外新增不列入原定完成度。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -117,7 +117,10 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
 
 <section class="panel" id="englishReviewPanel">
  <div class="panel-head"><h2>英文訂正與搭配詞整理</h2><span class="badge" id="englishReviewBadge">0 項</span></div>
- <div class="content"><div id="englishReviewList"></div></div>
+ <div class="content">
+  <div class="btns" style="margin-bottom:10px"><button id="addEnglishReviewBtn" class="secondary" type="button">新增今日整理</button></div>
+  <div id="englishReviewList"></div>
+ </div>
 </section>
 
 <section class="panel">
@@ -1680,7 +1683,7 @@ function render(){
   }else{other+=renderCard(x,true);oc++}
  });
  id('dailyItemList').innerHTML=dc?daily:(isAway(data)?'<div class="small">今日狀態為「外出」，固定排程已全部取消。</div>':'<div class="small">此日沒有每日必做項目。</div>');
- id('englishReviewList').innerHTML=erc?englishReview:'<div class="small">今日沒有安排英文訂正與搭配詞整理。</div>';
+ id('englishReviewList').innerHTML=erc?englishReview:'<div class="small">今日尚未新增英文訂正與搭配詞整理。</div>';
  id('itemList').innerHTML=oc?other:'<div class="small">尚未新增其他項目。</div>';
  id('dailyPresetBadge').textContent=dc+' 項';
  id('englishReviewBadge').textContent=erc+' 項';
@@ -1983,13 +1986,24 @@ async function copyCurrentWeekSummary(){
 }
 
 function addCustom(){var t=id('itemType').value;if(!t){id('status').textContent='請先選擇項目類型。';return}data.items.push(newItem(t,'custom'));id('itemType').value='';render();persist(false)}
+function addEnglishReview(){
+ var x=newItem('general','custom');
+ x.title='英文訂正與搭配詞整理';
+ x.required=false;
+ x.f={words:[]};
+ data.items.push(x);
+ render();
+ persist(false);
+}
 function headerInput(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
+id('englishReviewList').addEventListener('input',handleInput);id('englishReviewList').addEventListener('change',handleChange);id('englishReviewList').addEventListener('click',handleClick);
 id('itemList').addEventListener('input',handleInput);id('itemList').addEventListener('change',handleChange);id('itemList').addEventListener('click',handleClick);
 id('studyDate').addEventListener('change',function(){if(data)persist(false);load()});
 id('mood').addEventListener('change',function(){readHeader();render();persist(false)});
 ['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow','notes'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerInput)});
 id('addItemBtn').addEventListener('click',addCustom);
+id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);
 id('saveBtn').addEventListener('click',function(){persist(true);updateSummary()});
 id('weekSummaryBtn').addEventListener('click',buildAndCopyWeekSummary);
 id('copyWeekBtn').addEventListener('click',copyCurrentWeekSummary);
