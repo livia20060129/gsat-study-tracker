@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v147：移除「本週數學已完成」下方的統計來源說明，只保留百分比。 -->
+<!-- v148：將「英文訂正與搭配詞整理」從每日必做視覺區分，改為獨立卡片；排程與完成度邏輯不變。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -113,6 +113,11 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
 <section class="panel">
  <div class="panel-head"><h2>每日必做</h2><span class="badge" id="dailyPresetBadge">0 項</span></div>
  <div class="content"><div class="small" id="dailyNotice" style="margin-bottom:10px"></div><div id="dailyItemList"></div></div>
+</section>
+
+<section class="panel" id="englishReviewPanel">
+ <div class="panel-head"><h2>英文訂正與搭配詞整理</h2><span class="badge" id="englishReviewBadge">0 項</span></div>
+ <div class="content"><div id="englishReviewList"></div></div>
 </section>
 
 <section class="panel">
@@ -1667,11 +1672,19 @@ function renderCard(x,canDelete){
  h+='</div>';var fields=renderItemFields(x,false);if(fields)h+='<div class="inner">'+fields+'</div>';return h+'</div>';
 }
 function render(){
- var active=visibleItems(data),daily='',other='',dc=0,oc=0;
- active.forEach(function(x){if(x.source==='preset'){daily+=renderCard(x,false);dc++}else{other+=renderCard(x,true);oc++}});
+ var active=visibleItems(data),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
+ active.forEach(function(x){
+  if(x.source==='preset'){
+   if(isEnglishReview(x)){englishReview+=renderCard(x,false);erc++}
+   else{daily+=renderCard(x,false);dc++}
+  }else{other+=renderCard(x,true);oc++}
+ });
  id('dailyItemList').innerHTML=dc?daily:(isAway(data)?'<div class="small">今日狀態為「外出」，固定排程已全部取消。</div>':'<div class="small">此日沒有每日必做項目。</div>');
+ id('englishReviewList').innerHTML=erc?englishReview:'<div class="small">今日沒有安排英文訂正與搭配詞整理。</div>';
  id('itemList').innerHTML=oc?other:'<div class="small">尚未新增其他項目。</div>';
- id('dailyPresetBadge').textContent=dc+' 項';id('itemCountBadge').textContent=oc+' 項';
+ id('dailyPresetBadge').textContent=dc+' 項';
+ id('englishReviewBadge').textContent=erc+' 項';
+ id('itemCountBadge').textContent=oc+' 項';
  id('dailyNotice').textContent=isAway(data)?'今日外出：固定排程全部取消；自行新增項目仍可照常記錄。':(data.date>=DAILY_PRESET_START?dailyMessageForDate(data.date):'歷史日期：不自動改寫原有紀錄。');
  updateSummary();
 }
