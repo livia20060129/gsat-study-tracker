@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v149：英文訂正與搭配詞整理獨立卡每天皆可自行新增；原排程不變，額外新增不列入原定完成度。 -->
+<!-- v150：修正星期五英文雜誌可能消失；星期五固定保留「學測英文訓練：英文雜誌」。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1097,13 +1097,18 @@ function weekdayPresets(day){
 }
 
 function presetsForDate(date){
- var defs=weekdayPresets(parseDate(date).getDay()).slice(),i,a=[];
- if(parseDate(date).getDay()===6&&!fridayMockExistsForSaturday(date)){
+ var day=parseDate(date).getDay(),defs=weekdayPresets(day).slice(),i,a=[],hasFriMagazine=false;
+ if(day===6&&!fridayMockExistsForSaturday(date)){
   for(i=0;i<defs.length;i++)if(defs[i].key!=='sat_mock_correction')a.push(defs[i]);defs=a;
  }
  if(mixedWritingDay(date)){
   a=[];for(i=0;i<defs.length;i++)if(defs[i].key!=='fri_mock_timed')a.push(defs[i]);defs=a;
   defs.push(presetDef('english_mixed_writing','englishMixedWriting','英文：混合題與作文練習','每三天一次；先處理優先修改錯誤，再記錄作文與混合題分數。',true));
+ }
+ /* 星期五英文雜誌為固定必做，避免任何條件排程或舊版本資料造成遺失。 */
+ if(day===5){
+  for(i=0;i<defs.length;i++)if(defs[i]&&defs[i].key==='fri_magazine'){hasFriMagazine=true;break}
+  if(!hasFriMagazine)defs.push(presetDef('fri_magazine','magazine','學測英文訓練：英文雜誌','閱讀文章、理解內容並整理字詞。',true));
  }
  var cal=calendarDefsForDate(date);for(i=0;i<cal.length;i++)defs.push(cal[i]);
  return defs;
@@ -1116,7 +1121,7 @@ function ensureDailyPresets(rec,date){
  var oldMathKeys={weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1};
  var oldEnglishKeys={weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1};
  for(i=0;i<defs.length;i++)allowed[defs[i].key]=true;
- var managed={weekday_math_practice:1,fri_math_practice:1,sat_math_practice:1,sun_math_practice:1,english_mixed_writing:1,fri_mock_timed:1,sat_mock_correction:1,fri_mock_check:1,daily_interactive:1,weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1,weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1,sun_math_optional:1,sun_rest:1,sun_plan_optional:1};
+ var managed={weekday_math_practice:1,fri_math_practice:1,sat_math_practice:1,sun_math_practice:1,english_mixed_writing:1,fri_mock_timed:1,sat_mock_correction:1,fri_mock_check:1,fri_magazine:1,daily_interactive:1,weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1,weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1,sun_math_optional:1,sun_rest:1,sun_plan_optional:1};
  var clean=[];
  for(i=0;i<rec.items.length;i++){
   x=rec.items[i];
