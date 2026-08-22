@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v152：所有固定必做項目新增「延期」；勾選後視為延期而非未完成，並自動移至同週星期日。 -->
+<!-- v153：將固定必做項目的「延期」勾選框移至各卡片右下角；延期邏輯不變。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1735,11 +1735,15 @@ function renderCard(x,canDelete){
  var meta=isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至本週日':''):'每日選做'):(x.required?'列入原定完成度':''));
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  var canDefer=x.source==='preset'&&x.required&&!x.deferredCarry&&parseDate(data.date).getDay()!==0;
- var h='<div class="item'+(x.done?' done':'')+(x.deferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(isInteractiveDaily(x)?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+(canDefer?'<label class="small" style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+'> 延期</label>':'')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
+ var h='<div class="item'+(x.done?' done':'')+(x.deferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(isInteractiveDaily(x)?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
  if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
  if(canDelete)h+='<button class="delete" data-action="delete-item">刪除此筆</button>';
  if(!hidesTopMinutes(x))h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" style="width:76px"> 分</span>';
- h+='</div>';var fields=renderItemFields(x,false);if(fields)h+='<div class="inner">'+fields+'</div>';return h+'</div>';
+ h+='</div>';
+ var fields=renderItemFields(x,false);
+ if(fields)h+='<div class="inner">'+fields+'</div>';
+ if(canDefer)h+='<div style="display:flex;justify-content:flex-end;align-items:center;margin-top:10px"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+'> 延期</label></div>';
+ return h+'</div>';
 }
 function render(){
  var active=visibleItems(data),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
