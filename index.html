@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v154：刪除「回補本週未完成項目」；「本週完成度與錯題整理」由星期六移至星期日。 -->
+<!-- v156：「英文歷屆／模考：批改與訂正」科目固定為英文且不可更改。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1086,12 +1086,12 @@ function weekdayPresets(day){
   presetDef('sat_math_fill','mathStudy','數學講義：進度','填寫冊別與頁碼，理解該範圍的新觀念與主要例題，並依本週 Google Calendar 頁數目標補足。',true),
   presetDef('sat_math_practice','mathPractice','數學講義題目：理解檢查＋錯題標記＋訂正','檢查理解，整理錯因／不熟觀念並完成訂正；若錯題少，可延續講義進度。',true),
   presetDef('daily_interactive','interactiveDaily','互動題','數 A、英文、生物互動題皆由此手動新增。',true),
-  presetDef('sat_mock_correction','mock','英文歷屆／模考：批改與訂正','批改試題、重做錯題、分析選項，並整理單字與搭配詞。',true)
+  presetDef('sat_mock_correction','mock','英文歷屆／模考：批改與訂正','批改試題、重做錯題、分析選項，並整理單字與搭配詞。',true,{subject:'英文',subjectLocked:true})
  ];
  return[
   presetDef('sun_math_practice','mathPractice','數學講義題目：理解檢查＋錯題標記＋訂正','檢查理解，整理錯因／不熟觀念並完成訂正；若錯題少，可延續講義進度。',true),
   presetDef('daily_interactive','interactiveDaily','互動題','數 A、英文、生物互動題皆由此手動新增。',true),
-  presetDef('sat_week_review','general','本週完成度與錯題整理','可依科目新增多筆整理；不設子項目完成勾選，直接記錄錯因／不熟觀念。',true),
+  presetDef('sat_week_review','general','本週完成度與錯題整理','可依科目新增多筆整理；不設子項目完成勾選，直接記錄錯因／不熟觀念。',false),
   presetDef('sun_english_optional','extra','英文輕量閱讀','可從既有英文書目中選擇輕量閱讀內容，不要求完整整理。',false)
  ];
 }
@@ -1635,8 +1635,14 @@ function renderChineseFields(x,reviewMode){
  if(reviewMode)h+=reasonField(f);
  return h;
 }
+function isEnglishMockCorrection(x){
+ return !!x&&x.type==='mock'&&(x.title==='英文歷屆／模考：批改與訂正'||x.presetKey==='sat_mock_correction'||(x.f&&x.f.subjectLocked));
+}
 function renderMockFields(x,reviewMode){
- var f=x.f,h='<div class="field-grid"><div class="field"><label>科目</label><select data-field="subject"><option value="">請選擇</option>'+['國文','英文','數學A','自然'].map(function(s){return'<option'+selected(s,f.subject)+'>'+s+'</option>'}).join('')+'</select></div><div class="field"><label>年份</label><input data-field="year" value="'+esc(f.year||'')+'"></div><div class="field"><label>考試</label><select data-field="exam"><option value="">請選擇</option>'+['指考','分科','學測','模擬考','模考題本'].map(function(s){return'<option'+selected(s,f.exam)+'>'+s+'</option>'}).join('')+'</select></div><div class="field"><label>回次</label><input data-field="round" value="'+esc(f.round||'')+'"></div><div class="field"><label>狀態</label><select data-field="status"><option value="">未填</option>'+['已作答','已對答案','已完整訂正'].map(function(s){return'<option'+selected(s,f.status)+'>'+s+'</option>'}).join('')+'</select></div></div>';
+ var f=x.f,lockedEnglish=isEnglishMockCorrection(x);
+ if(lockedEnglish)f.subject='英文';
+ var subjectField=lockedEnglish?'<div class="field"><label>科目</label><div class="fixed-book-value">英文</div></div>':'<div class="field"><label>科目</label><select data-field="subject"><option value="">請選擇</option>'+['國文','英文','數學A','自然'].map(function(s){return'<option'+selected(s,f.subject)+'>'+s+'</option>'}).join('')+'</select></div>';
+ var h='<div class="field-grid">'+subjectField+'<div class="field"><label>年份</label><input data-field="year" value="'+esc(f.year||'')+'"></div><div class="field"><label>考試</label><select data-field="exam"><option value="">請選擇</option>'+['指考','分科','學測','模擬考','模考題本'].map(function(s){return'<option'+selected(s,f.exam)+'>'+s+'</option>'}).join('')+'</select></div><div class="field"><label>回次</label><input data-field="round" value="'+esc(f.round||'')+'"></div><div class="field"><label>狀態</label><select data-field="status"><option value="">未填</option>'+['已作答','已對答案','已完整訂正'].map(function(s){return'<option'+selected(s,f.status)+'>'+s+'</option>'}).join('')+'</select></div></div>';
  return h+reasonField(f);
 }
 
@@ -1958,7 +1964,7 @@ function itemDetails(x){
  else if(x.type==='magazine'){if(isFixedMagazine(x)){s+='｜'+ensureMagazineEntries(x).map(function(r,i){return'第'+(i+1)+'筆：'+line(r.name)+'｜'+line(r.month)+'月號｜Unit '+line(r.unit)+'｜'+line(r.minutes)+' 分鐘'}).join('；')}else s+='｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit)}
  else if(x.type==='chineseReading'){if(f.kind==='writing')s+='｜寫作｜題目：'+line(f.topic)+'｜分數：'+line(f.score)+'｜題型：'+line(f.writingType)+'｜改進方向：'+line(f.improvement);else if(f.kind==='reading')s+='｜古今悅讀一百｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');else s+='｜國文項目：未選擇'}
  else if(x.type==='scienceReview'){normalizeScience(f);s+='｜科目：'+line(f.subject);if(isCalendarNatural(x)&&f.calendarTopic)s+='｜Calendar主題：'+line(f.calendarTopic);s+='｜講義：'+line(f.material)+'｜頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁';if(f.material==='好考點')s+='｜對應：'+goodPointCombinedText(f.subject,f.start,f.end);if(f.material==='123日的淬鍊'){var d123=day123Matches(f.subject,f.start,f.end);if(d123.length)s+='｜對應：'+day123Text(f.subject,f.start,f.end)}if(f.subject==='混合')s+='｜章節：'+line(f.chapter);s+='｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}
- else if(x.type==='mock')s+='｜科目：'+line(f.subject)+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
+ else if(x.type==='mock')s+='｜科目：'+(isEnglishMockCorrection(x)?'英文':line(f.subject))+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
  else if(x.type==='general'&&isEnglishReview(x)){var w=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(w.length?w.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
  else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
  return s;
