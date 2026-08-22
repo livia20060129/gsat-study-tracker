@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v153：將固定必做項目的「延期」勾選框移至各卡片右下角；延期邏輯不變。 -->
+<!-- v154：刪除「回補本週未完成項目」；「本週完成度與錯題整理」由星期六移至星期日。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1086,13 +1086,12 @@ function weekdayPresets(day){
   presetDef('sat_math_fill','mathStudy','數學講義：進度','填寫冊別與頁碼，理解該範圍的新觀念與主要例題，並依本週 Google Calendar 頁數目標補足。',true),
   presetDef('sat_math_practice','mathPractice','數學講義題目：理解檢查＋錯題標記＋訂正','檢查理解，整理錯因／不熟觀念並完成訂正；若錯題少，可延續講義進度。',true),
   presetDef('daily_interactive','interactiveDaily','互動題','數 A、英文、生物互動題皆由此手動新增。',true),
-  presetDef('sat_mock_correction','mock','英文歷屆／模考：批改與訂正','批改試題、重做錯題、分析選項，並整理單字與搭配詞。',true),
-  presetDef('sat_makeup','general','回補本週未完成項目','可新增多筆回補項目，欄位與「新增讀書項目」一致。',true),
-  presetDef('sat_week_review','general','本週完成度與錯題整理','可依科目新增多筆整理；不設子項目完成勾選，直接記錄錯因／不熟觀念。',true)
+  presetDef('sat_mock_correction','mock','英文歷屆／模考：批改與訂正','批改試題、重做錯題、分析選項，並整理單字與搭配詞。',true)
  ];
  return[
   presetDef('sun_math_practice','mathPractice','數學講義題目：理解檢查＋錯題標記＋訂正','檢查理解，整理錯因／不熟觀念並完成訂正；若錯題少，可延續講義進度。',true),
   presetDef('daily_interactive','interactiveDaily','互動題','數 A、英文、生物互動題皆由此手動新增。',true),
+  presetDef('sat_week_review','general','本週完成度與錯題整理','可依科目新增多筆整理；不設子項目完成勾選，直接記錄錯因／不熟觀念。',true),
   presetDef('sun_english_optional','extra','英文輕量閱讀','可從既有英文書目中選擇輕量閱讀內容，不要求完整整理。',false)
  ];
 }
@@ -1181,7 +1180,7 @@ function ensureDailyPresets(rec,date){
  var oldMathKeys={weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1};
  var oldEnglishKeys={weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1};
  for(i=0;i<defs.length;i++)allowed[defs[i].key]=true;
- var managed={weekday_math_practice:1,fri_math_practice:1,sat_math_practice:1,sun_math_practice:1,english_mixed_writing:1,fri_mock_timed:1,sat_mock_correction:1,fri_mock_check:1,fri_magazine:1,daily_interactive:1,weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1,weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1,sun_math_optional:1,sun_rest:1,sun_plan_optional:1};
+ var managed={weekday_math_practice:1,fri_math_practice:1,sat_math_practice:1,sun_math_practice:1,english_mixed_writing:1,fri_mock_timed:1,sat_mock_correction:1,fri_mock_check:1,fri_magazine:1,daily_interactive:1,sat_makeup:1,sat_week_review:1,weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1,weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1,sun_math_optional:1,sun_rest:1,sun_plan_optional:1};
  var clean=[];
  for(i=0;i<rec.items.length;i++){
   x=rec.items[i];
