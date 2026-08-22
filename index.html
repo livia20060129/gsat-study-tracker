@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v151：自然 Calendar 顯示改與數學一致；本週數學頁數改以教材＋冊別分組後計算不重複頁碼聯集。 -->
+<!-- v152：所有固定必做項目新增「延期」；勾選後視為延期而非未完成，並自動移至同週星期日。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -834,6 +834,7 @@ function normalizeItem(it,date){
  if(it.type==='extra'&&isTraumaland(it.f.title))normalizeTraumalandTopic(it.f);
  if(!it.source)it.source='custom';
  if(it.required===undefined)it.required=it.source==='preset';
+ if(it.deferred===undefined)it.deferred=false;
  if(date>=DAILY_PRESET_START&&it.source==='custom')it.required=customCountsOriginal(it);
  if(it.type==='general'&&it.title==='英文訂正與搭配詞整理'&&!it.presetKey){it.presetKey='weekday_english_review';it.source='preset'}
  if(isSaturdayMakeup(it))ensureEntryArray(it,'makeupEntries');
@@ -1113,7 +1114,66 @@ function presetsForDate(date){
  var cal=calendarDefsForDate(date);for(i=0;i<cal.length;i++)defs.push(cal[i]);
  return defs;
 }
-function makePresetItem(def,date){return{id:'preset-'+date+'-'+def.key,type:def.type,done:false,minutes:'',required:def.required,source:'preset',presetKey:def.key,title:def.title,description:def.description,f:cloneObj(def.f)}}
+function makePresetItem(def,date){return{id:'preset-'+date+'-'+def.key,type:def.type,done:false,deferred:false,minutes:'',required:def.required,source:'preset',presetKey:def.key,title:def.title,description:def.description,f:cloneObj(def.f)}}
+function sundayOfWeek(date){
+ var d=parseDate(date),day=d.getDay(),add=(7-day)%7;
+ return dateString(new Date(d.getFullYear(),d.getMonth(),d.getDate()+add,12));
+}
+function mondayDateOfWeek(date){
+ return dateString(mondayOf(parseDate(date)));
+}
+function deferredCarryKey(originDate,item){
+ return 'deferred_'+originDate.replace(/-/g,'')+'_'+String(item.id||item.presetKey||'item').replace(/[^A-Za-z0-9_-]/g,'_');
+}
+function ensureSundayDeferred(rec,date){
+ if(!rec||parseDate(date).getDay()!==0)return false;
+ if(!Array.isArray(rec.items))rec.items=[];
+ var mon=parseDate(mondayDateOfWeek(date)),wanted={},changed=false;
+ for(var i=0;i<6;i++){
+  var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d),r=loadData(ds);
+  if(!r||!Array.isArray(r.items))continue;
+  r.items.forEach(function(x){
+   if(!x||x.deferredCarry||x.source!=='preset'||!x.required||!x.deferred||x.done)return;
+   var k=deferredCarryKey(ds,x),c=cloneObj(x);
+   c.id='preset-'+date+'-'+k;
+   c.presetKey=k;
+   c.source='preset';
+   c.required=true;
+   c.done=false;
+   c.deferred=false;
+   c.deferredCarry=true;
+   c.deferredOriginDate=ds;
+   c.deferredOriginId=x.id||'';
+   c.description='延期自 '+ds+(x.description?'｜'+x.description:'');
+   wanted[k]=c;
+  });
+ }
+ var clean=[];
+ rec.items.forEach(function(x){
+  if(x&&x.deferredCarry){
+   if(wanted[x.presetKey]){
+    var keep=wanted[x.presetKey];
+    keep.done=!!x.done;
+    keep.minutes=x.minutes||'';
+    keep.f=cloneObj(x.f||keep.f||{});
+    clean.push(keep);
+    delete wanted[x.presetKey];
+   }else changed=true;
+  }else clean.push(x);
+ });
+ Object.keys(wanted).forEach(function(k){clean.push(wanted[k]);changed=true});
+ rec.items=clean;
+ return changed;
+}
+function rebuildSundayDeferredForWeek(originDate){
+ if(parseDate(originDate).getDay()===0)return;
+ var sun=sundayOfWeek(originDate),r=loadData(sun);
+ var changed=ensureDailyPresets(r,sun);
+ if(changed){
+  try{store.setItem(key(sun),JSON.stringify(r))}catch(e){}
+  if(typeof queueCloudSave==='function')queueCloudSave(r);
+ }
+}
 function ensureDailyPresets(rec,date){
  if(!rec||date<DAILY_PRESET_START)return false;
  if(!Array.isArray(rec.items))rec.items=[];
@@ -1161,6 +1221,7 @@ function ensureDailyPresets(rec,date){
  if(by.daily_interactive)ensureInteractiveEntries(by.daily_interactive);
  if(applyCalendarMathPlan(rec,date))changed=true;
  if(applyCalendarNaturalRecommended(rec,date))changed=true;
+ if(ensureSundayDeferred(rec,date))changed=true;
  return changed;
 }
 
@@ -1671,9 +1732,10 @@ function renderInteractiveDailyFields(x){
 }
 
 function renderCard(x,canDelete){
- var meta=isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?'':'每日選做'):(x.required?'列入原定完成度':''));
+ var meta=isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至本週日':''):'每日選做'):(x.required?'列入原定完成度':''));
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
- var h='<div class="item'+(x.done?' done':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(isInteractiveDaily(x)?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
+ var canDefer=x.source==='preset'&&x.required&&!x.deferredCarry&&parseDate(data.date).getDay()!==0;
+ var h='<div class="item'+(x.done?' done':'')+(x.deferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(isInteractiveDaily(x)?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+(canDefer?'<label class="small" style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+'> 延期</label>':'')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
  if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
  if(canDelete)h+='<button class="delete" data-action="delete-item">刪除此筆</button>';
  if(!hidesTopMinutes(x))h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" style="width:76px"> 分</span>';
@@ -1728,7 +1790,20 @@ function handleInput(e){
 }
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
- if(t.matches('[data-done]')&&x){x.done=t.checked;persist(false);updateSummary();return}
+ if(t.matches('[data-deferred]')&&x){
+  x.deferred=t.checked;
+  if(x.deferred)x.done=false;
+  persist(false);
+  rebuildSundayDeferredForWeek(data.date);
+  render();
+  return
+ }
+ if(t.matches('[data-done]')&&x){
+  x.done=t.checked;
+  if(x.done&&x.deferred){x.deferred=false;persist(false);rebuildSundayDeferredForWeek(data.date)}
+  else persist(false);
+  updateSummary();return
+ }
  if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');x.f[k]=t.checked;if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
  if(t.matches('[data-field]')&&x){
   var f=t.getAttribute('data-field');x.f[f]=t.value;
@@ -1767,11 +1842,11 @@ function updateSummary(){
   if(isInteractiveDaily(x)){
    var ia=ensureInteractiveEntries(x);
    x.done=ia.length>0&&ia.every(function(c){return !!c.done});
-   if(x.required){req++;if(x.done)done++}
+   if(x.required){req++;if(x.done||x.deferred)done++}
    ia.forEach(function(c){if(c.done)mins+=Number(c.minutes||0)});
    return;
   }
-  if(x.required){req++;if(x.done)done++}
+  if(x.required){req++;if(x.done||x.deferred)done++}
   if(x.done){if(isFixedMagazine(x))mins+=fixedMagazineMinutes(x);else if(!isEnglishReview(x)&&!isSaturdayMakeup(x))mins+=Number(x.minutes||0)}
   if(x.done&&x.type==='mathStudy')pages+=pageCount(x.f.start,x.f.end);
   if(x.done&&x.type==='mathLecture'&&x.f.progress)pages+=pageCount(x.f.start,x.f.end);
@@ -1887,7 +1962,8 @@ function itemDetails(x){
 }
 function reviewEntrySummary(x){var d=itemDetails(x).replace(/｜進度：[✓—]｜批改：[✓—]｜訂正：[✓—]/g,'');var s=itemTitle(x)+d;if(x.type!=='mock')s+='｜錯因／不熟觀念：'+line(x.f&&x.f.reason);return s}
 function itemSummary(x){
- var s=(x.done?'[完成] ':'[未完成] ')+itemTitle(x)+(hidesTopMinutes(x)?'':'｜花費：'+line(x.minutes)+' 分鐘')+itemDetails(x);
+ var state=x.done?'[完成] ':(x.deferred?'[延期] ':'[未完成] ');
+ var s=state+itemTitle(x)+(hidesTopMinutes(x)?'':'｜花費：'+line(x.minutes)+' 分鐘')+itemDetails(x);
  if(isSaturdayMakeup(x)){var a=ensureEntryArray(x,'makeupEntries');s+='｜回補項目：'+(a.length?a.map(function(m,i){return'第'+(i+1)+'筆：'+itemSummary(m)}).join('；'):'未新增')}
  if(isSaturdayReview(x)){var b=ensureEntryArray(x,'reviewEntries');s+='｜整理項目：'+(b.length?b.map(function(r,i){return'第'+(i+1)+'筆：'+reviewEntrySummary(r)}).join('；'):'未新增')}
  if(x.type==='general'&&!isEnglishReview(x)&&!isSaturdayMakeup(x)&&!isSaturdayReview(x))s+='｜進度：'+line(x.f&&x.f.progress);
