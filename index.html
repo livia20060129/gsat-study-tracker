@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v150：修正星期五英文雜誌可能消失；星期五固定保留「學測英文訓練：英文雜誌」。 -->
+<!-- v151：自然 Calendar 顯示改與數學一致；本週數學頁數改以教材＋冊別分組後計算不重複頁碼聯集。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1035,7 +1035,7 @@ function calendarDefsForDate(date){
   var nd='Google Calendar：'+nat;
   if(nr){
    var nrs=calendarNaturalRanges(nr).map(function(r){return Number(r[0])===Number(r[1])?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');
-   if(nrs)nd+='｜建議範圍：'+(nr.material||'123日的淬鍊')+' '+nrs;
+   if(nrs)nd+='｜建議：'+(nr.material||'123日的淬鍊')+' '+nrs;
    if(nr.basis)nd+='｜'+nr.basis;
   }
   a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然',nd,true,{subject:calendarNaturalSubject(nat),calendarTopic:nat,calendarSource:'Google Calendar'}));
@@ -1789,25 +1789,51 @@ function updateSummary(){
  id('weekMathBar').style.width=weekPct+'%';
  id('weekMathPercent').textContent=weekPct+'%';
 }
-function completedMathStudyPages(rec){
- var total=0;if(!rec||!Array.isArray(rec.items)||isAway(rec))return 0;
+function mathRecordKey(f){
+ f=f||{};
+ var edition=String(f.edition||f.version||f.book||f.material||'').trim();
+ var volume=String(f.volume||f.booklet||'').trim();
+ return edition+'||'+volume;
+}
+function pushMathRange(out,f){
+ if(!f)return;
+ var a=Number(f.start),b=Number(f.end);
+ if(!Number.isFinite(a)||!Number.isFinite(b)||a<1||b<1)return;
+ if(a>b){var t=a;a=b;b=t}
+ out.push({key:mathRecordKey(f),start:Math.floor(a),end:Math.floor(b)});
+}
+function completedMathStudyRanges(rec){
+ var out=[];if(!rec||!Array.isArray(rec.items)||isAway(rec))return out;
  rec.items.forEach(function(x){
   if(!x)return;
-  if(x.type==='mathStudy'&&x.done)total+=pageCount(x.f&&x.f.start,x.f&&x.f.end);
-  if(x.type==='mathLecture'&&x.done&&x.f&&x.f.progress)total+=pageCount(x.f.start,x.f.end);
+  if(x.type==='mathStudy'&&x.done)pushMathRange(out,x.f);
+  if(x.type==='mathLecture'&&x.done&&x.f&&x.f.progress)pushMathRange(out,x.f);
   if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){
-   if(m&&m.type==='mathLecture'&&m.done&&m.f&&m.f.progress)total+=pageCount(m.f.start,m.f.end);
+   if(m&&m.type==='mathLecture'&&m.done&&m.f&&m.f.progress)pushMathRange(out,m.f);
   });
  });
+ return out;
+}
+function completedMathStudyPages(rec){
+ var sets={};
+ completedMathStudyRanges(rec).forEach(function(r){
+  var s=sets[r.key]||(sets[r.key]=new Set());
+  for(var p=r.start;p<=r.end;p++)s.add(p);
+ });
+ var total=0;Object.keys(sets).forEach(function(k){total+=sets[k].size});
  return total;
 }
 function weekMathPageCount(date){
- var mon=mondayOf(parseDate(date)),total=0;
+ var mon=mondayOf(parseDate(date)),sets={};
  for(var i=0;i<7;i++){
   var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d);
   var rec=(data&&data.date===ds)?data:loadData(ds);
-  total+=completedMathStudyPages(rec);
+  completedMathStudyRanges(rec).forEach(function(r){
+   var s=sets[r.key]||(sets[r.key]=new Set());
+   for(var p=r.start;p<=r.end;p++)s.add(p);
+  });
  }
+ var total=0;Object.keys(sets).forEach(function(k){total+=sets[k].size});
  return total;
 }
 function wakeParts(s){var m=String(s||'').match(/^(\d{1,2}):(\d{1,2})$/);return m?{hour:m[1],minute:m[2]}:{hour:'',minute:''}}
