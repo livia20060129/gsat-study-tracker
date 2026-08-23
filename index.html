@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v158：修正每週數學講義建議頁數；跨週單元依 Calendar 單元總天數按當週實際占用天數比例分攤。 -->
+<!-- v159：星期日已有數學理解檢查／錯題標記／訂正時，不再建立同類延期重複卡片。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1129,11 +1129,18 @@ function ensureSundayDeferred(rec,date){
  if(!rec||parseDate(date).getDay()!==0)return false;
  if(!Array.isArray(rec.items))rec.items=[];
  var mon=parseDate(mondayDateOfWeek(date)),wanted={},changed=false;
+ var sundayHasMathPractice=rec.items.some(function(x){
+  return x&&!x.deferredCarry&&x.type==='mathPractice'&&(
+   x.presetKey==='sun_math_practice'||
+   itemTitle(x)==='數學講義題目：理解檢查＋錯題標記＋訂正'
+  );
+ });
  for(var i=0;i<6;i++){
   var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d),r=loadData(ds);
   if(!r||!Array.isArray(r.items))continue;
   r.items.forEach(function(x){
    if(!x||x.deferredCarry||x.source!=='preset'||!x.required||!x.deferred||x.done)return;
+   if(sundayHasMathPractice&&x.type==='mathPractice')return;
    var k=deferredCarryKey(ds,x),c=cloneObj(x);
    c.id='preset-'+date+'-'+k;
    c.presetKey=k;
@@ -1151,6 +1158,7 @@ function ensureSundayDeferred(rec,date){
  var clean=[];
  rec.items.forEach(function(x){
   if(x&&x.deferredCarry){
+   if(sundayHasMathPractice&&x.type==='mathPractice'){changed=true;return}
    if(wanted[x.presetKey]){
     var keep=wanted[x.presetKey];
     keep.done=!!x.done;
