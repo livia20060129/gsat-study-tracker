@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f5f8fc" />
+  <link rel="icon" type="image/png" href="/book.png" />
+  <link rel="apple-touch-icon" href="/book.png" />
+  <title>每日讀書完成度紀錄卡 v168</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<main>
+<header><h1>每日讀書完成度紀錄卡</h1><div class="subtitle">每日紀錄、完成度、頁數與每週匯出</div></header>
+
+<section class="panel" id="cloudPanel">
+ <div class="panel-head"><h2>雲端同步</h2><span class="badge" id="cloudStatusBadge">本機模式</span></div>
+ <div class="content">
+  <div id="cloudLoggedOut">
+   <div class="grid-3">
+    <div class="field"><label for="cloudEmail">Email</label><input id="cloudEmail" type="email" autocomplete="email" placeholder="你的 Email"></div>
+    <div class="field"><label for="cloudPassword">密碼</label><input id="cloudPassword" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 碼"></div>
+    <div class="inline" style="align-items:end;gap:8px"><button id="cloudSignInBtn" class="primary" type="button">登入</button><button id="cloudSignUpBtn" type="button">建立帳號</button></div>
+   </div>
+  </div>
+  <div id="cloudLoggedIn" hidden>
+   <div class="inline" style="gap:10px;flex-wrap:wrap">
+    <strong id="cloudUserEmail"></strong>
+    <button id="cloudSyncLocalBtn" type="button">補上本機舊資料</button>
+    <button id="cloudRefreshBtn" type="button">重新讀取雲端</button>
+    <button id="cloudSignOutBtn" type="button">登出</button>
+   </div>
+  </div>
+  <div class="small" id="cloudMessage" style="margin-top:8px">未登入時仍可使用，本機資料會照常保留。</div>
+ </div>
+</section>
+
+<section class="panel">
+ <div class="panel-head"><h2>今日資訊</h2><span class="badge" id="weekdayText"></span></div>
+ <div class="content">
+  <div class="grid-3">
+   <div class="field"><label for="studyDate">日期</label><input id="studyDate" type="date"></div>
+   <div class="field"><label for="mood">今日狀態</label><select id="mood"><option value="">未填寫</option><option>精神良好</option><option>普通</option><option>較疲累</option><option>身體不適</option><option>外出</option></select></div>
+   <div class="field"><label>起床時間</label><div class="inline"><input id="wakeHour" type="number" min="0" max="23" step="1" inputmode="numeric" placeholder="小時"><span>時</span><input id="wakeMinute" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="分鐘"><span>分</span></div></div>
+  </div>
+  <div class="stats" style="margin-top:12px">
+   <div class="stat"><span class="small">原定項目完成度</span><strong id="completionPercent">0%</strong><div class="progress"><div id="completionBar" style="width:0"></div></div><div class="small" id="completionText">0/0 項</div></div>
+   <div class="stat"><span class="small">今日完成時間</span><strong><span id="doneMinutes">0</span> 分</strong></div>
+   <div class="stat"><span class="small">今日數學講義頁數</span><strong><span id="mathPagesTop">0</span> 頁</strong></div>
+   <div class="stat"><span class="small">本週數學已完成</span><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span></div></div>
+  </div>
+ </div>
+</section>
+
+<section class="panel">
+ <div class="panel-head"><h2>每日必做</h2><span class="badge" id="dailyPresetBadge">0 項</span></div>
+ <div class="content"><div class="small" id="dailyNotice" style="margin-bottom:10px"></div><div id="dailyItemList"></div></div>
+</section>
+
+<section class="panel" id="englishReviewPanel">
+ <div class="panel-head"><h2>英文訂正與搭配詞整理</h2><span class="badge" id="englishReviewBadge">0 項</span></div>
+ <div class="content">
+  <div class="btns" style="margin-bottom:10px"><button id="addEnglishReviewBtn" class="secondary" type="button">新增今日整理</button></div>
+  <div id="englishReviewList"></div>
+ </div>
+</section>
+
+<section class="panel">
+ <div class="panel-head"><h2>新增讀書項目</h2><span class="badge">需要時自行追加</span></div>
+ <div class="content">
+  <div class="add-grid"><div class="field"><label for="itemType">項目類型</label><select id="itemType"><option value="">請選擇</option><option value="mathLecture">數學</option><option value="scienceReview">自然</option><option value="extra">英文</option><option value="chineseReading">國文</option><option value="mock">歷屆／模考</option></select></div><button id="addItemBtn" class="primary" type="button">新增</button></div>
+  <div class="small" style="margin-top:10px">每日必做由系統依星期自動帶入；這裡可另外追加。額外多讀內容預設不列入原定完成度。</div>
+ </div>
+</section>
+
+<section class="panel">
+ <div class="panel-head"><h2>自行新增項目</h2><span class="badge" id="itemCountBadge">0 項</span></div>
+ <div class="content" id="itemList"></div>
+</section>
+
+<section class="panel">
+ <div class="panel-head"><h2>每日收尾</h2><span class="badge">供週檢討使用</span></div>
+ <div class="content">
+  <div class="grid-2"><div class="field"><label for="biggestBlock">今天最大的卡點</label><textarea id="biggestBlock"></textarea></div><div class="field"><label for="firstThingTomorrow">明天第一件事</label><textarea id="firstThingTomorrow"></textarea></div></div>
+  <div class="field" style="margin-top:10px"><label for="notes">其他補充</label><textarea id="notes"></textarea></div>
+ </div>
+</section>
+
+<section class="panel">
+ <div class="panel-head"><h2>儲存與匯出</h2><span class="badge">依日期保存</span></div>
+ <div class="content">
+  <div class="btns"><button id="saveBtn" class="primary">儲存今日紀錄</button><button id="weekSummaryBtn" class="secondary">整理本週紀錄</button></div>
+  <div class="field" style="margin-top:12px">
+   <label for="importProgress">匯入進度</label>
+   <textarea id="importProgress" placeholder="貼上單日或多日 JSON 進度資料"></textarea>
+   <div class="small" style="margin-top:6px">貼上後離開欄位即匯入；Ctrl+Enter 可立即匯入。既有內容不會被空值覆蓋，已完成狀態可向前合併。</div>
+  </div>
+  <div class="status" id="status"></div>
+  <div id="exportBox" hidden style="margin-top:10px">
+   <div class="inline" style="justify-content:space-between;align-items:center;gap:10px">
+    <label for="weekSummary">本週可複製紀錄</label>
+    <button id="copyWeekBtn" class="secondary" type="button">複製</button>
+   </div>
+   <textarea id="weekSummary" readonly></textarea>
+  </div>
+ </div>
+</section>
+</main>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
