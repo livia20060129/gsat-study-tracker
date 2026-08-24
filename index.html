@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v166：自然整合刪除複習範圍、指定輸出、最低完成版、建議時間；僅保留主題與分科固定頁碼／對應章節。 -->
+<!-- v167：延期加入每週上限；同一週最多可延期 6 個固定必做項目。 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" href="book.png">
@@ -1129,6 +1129,19 @@ function sundayOfWeek(date){
 function mondayDateOfWeek(date){
  return dateString(mondayOf(parseDate(date)));
 }
+var WEEKLY_DEFER_LIMIT=6;
+function weeklyDeferredCount(date){
+ var mon=parseDate(mondayDateOfWeek(date)),count=0;
+ for(var i=0;i<6;i++){
+  var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d);
+  var r=(data&&data.date===ds)?data:loadData(ds);
+  if(!r||!Array.isArray(r.items))continue;
+  r.items.forEach(function(x){
+   if(x&&x.source==='preset'&&x.required&&!x.deferredCarry&&x.deferred&&!x.done)count++;
+  });
+ }
+ return count;
+}
 function deferredCarryKey(originDate,item){
  return 'deferred_'+originDate.replace(/-/g,'')+'_'+String(item.id||item.presetKey||'item').replace(/[^A-Za-z0-9_-]/g,'_');
 }
@@ -1867,7 +1880,10 @@ function renderCard(x,canDelete){
  h+='</div>';
  var fields=renderItemFields(x,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
- if(canDefer)h+='<div style="display:flex;justify-content:flex-end;align-items:center;margin-top:10px"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+'> 延期</label></div>';
+ if(canDefer){
+  var deferCount=weeklyDeferredCount(data.date),deferDisabled=!x.deferred&&deferCount>=WEEKLY_DEFER_LIMIT;
+  h+='<div style="display:flex;justify-content:flex-end;align-items:center;margin-top:10px"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+(deferDisabled?' disabled':'')+'> 延期（本週 '+deferCount+'／'+WEEKLY_DEFER_LIMIT+'）</label></div>';
+ }
  return h+'</div>';
 }
 function render(){
@@ -1920,6 +1936,12 @@ function handleInput(e){
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-deferred]')&&x){
+  if(t.checked&&!x.deferred&&weeklyDeferredCount(data.date)>=WEEKLY_DEFER_LIMIT){
+   t.checked=false;
+   alert('本週延期已達 6 項上限。');
+   render();
+   return
+  }
   x.deferred=t.checked;
   if(x.deferred)x.done=false;
   persist(false);
