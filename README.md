@@ -1,19 +1,50 @@
-# GSAT Study Tracker v168
+# GSAT Study Tracker v170
 
-v167 單一 HTML 的第一階段 TypeScript＋模組化重構版。
+個人版 Study Tracker 的 TypeScript 漸進重構版本。
 
-## 目標
+## v170 重點
 
-1. **功能與資料相容優先**：沿用原有 localStorage／Supabase 資料格式。
-2. **不導入 React／Vue／Svelte**：維持原生 DOM。
-3. **逐步型別化**：先把單檔 JavaScript 移到 TypeScript 模組，再將高風險邏輯逐步抽離成嚴格型別模組。
+### 數學進度單一來源
+
+數學頁數規則集中在 `src/study/mathProgress.ts`：
+
+- `extractCompletedMathPages()`：唯一的「哪些紀錄算數學進度」規則。
+- `MathProgressIndex`：建立並維護歷史頁碼索引。
+- `calculateMathProgress()`：唯一供 UI 使用的 pure calculation，回傳今日新增頁數、本週新增頁數、週目標與百分比。
+
+已移除：
+
+- `mathProgressHistory.ts`
+- `weeklyMath.ts`
+- MutationObserver／DOM guard 補丁
+- legacy runtime 內另一套 `mathRecordKey`／`weekMathPageCount`／頁數加總 implementation
+
+歷史資料只在初始化時完整建立一次索引；之後儲存、匯入與雲端同步皆以單日 record event 增量更新索引。
+
+### 雲端同步版本比較
+
+每筆 `StudyRecord` 新增 `updatedAt`。
+
+同步時會比較：
+
+- 本機 `updatedAt`
+- Supabase `study_records.updated_at`
+
+規則：
+
+- 本機較新 → 保留本機並回寫雲端
+- 雲端較新 → 採用雲端
+- 內容相同 → 不重複覆寫
+- 舊版本機紀錄沒有時間戳且與雲端不同 → 不自動覆蓋，保留本機；使用「補上本機舊資料」時才明確以本機版本解決舊資料衝突
+
+這避免登入／重新整理時用舊雲端資料直接覆蓋較新的本機紀錄。
 
 ## 專案結構
 
 ```text
 src/
 ├─ main.ts
-├─ legacy-app.ts              # v167 既有功能相容層
+├─ legacy-app.ts
 ├─ styles.css
 ├─ types.ts
 ├─ data/
@@ -21,11 +52,12 @@ src/
 │  └─ naturalCalendar.ts
 ├─ study/
 │  ├─ defer.ts
-│  └─ weeklyMath.ts
+│  └─ mathProgress.ts
 ├─ items/
 │  └─ naturalIntegration.ts
 ├─ storage/
-│  └─ local.ts
+│  ├─ local.ts
+│  └─ recordFreshness.ts
 └─ ui/
    └─ dom.ts
 ```
@@ -49,20 +81,4 @@ npm run typecheck
 npm run build
 ```
 
-輸出會在 `dist/`，可直接部署 GitHub Pages。
-
-## v168 的重構策略
-
-`legacy-app.ts` 目前保留 `// @ts-nocheck`，原因是 v167 已有大量成熟功能與歷史資料相容邏輯。
-這不是最終架構，而是避免「一次全部改寫」導致延期、自然整合、Calendar、Supabase 或舊資料遷移出錯。
-
-已先建立嚴格 TypeScript 模組：
-- `types.ts`：核心資料模型
-- `study/defer.ts`：每週延期上限
-- `study/weeklyMath.ts`：數學頁數計算
-- `items/naturalIntegration.ts`：自然整合資料
-- `storage/local.ts`：本機儲存介面
-- `ui/dom.ts`：DOM 基礎工具
-- `data/*`：Calendar 靜態資料
-
-後續版本可以逐功能把 `legacy-app.ts` 裡的函式移到上述模組，直到完全移除相容層。
+輸出在 `dist/`，由 GitHub Actions 部署至 GitHub Pages。

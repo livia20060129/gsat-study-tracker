@@ -6,7 +6,7 @@ export interface StudyStorage {
 }
 
 export class LocalStudyStorage implements StudyStorage {
-  constructor(private readonly prefix = 'study-record-') {}
+  constructor(private readonly prefix = 'study-v10.4:') {}
 
   load(date: string): StudyRecord | null {
     const raw = localStorage.getItem(this.prefix + date);

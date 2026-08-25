@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * v168 compatibility runtime.
+ * Compatibility runtime inherited from the v168 migration.
  *
  * This is the existing v167 application logic moved out of the single HTML file
  * into a TypeScript module. It intentionally uses @ts-nocheck during the first
@@ -9,6 +9,9 @@
  * New/rewritten logic should move into typed modules under:
  *   data/ · study/ · items/ · storage/ · ui/
  */
+
+import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
+import { resolveRecordSync, sameStudyPayload } from './storage/recordFreshness';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -515,6 +518,7 @@ var memoryStore={};
 var storagePersistent=true;
 var store=(function(){try{var t='__study_test__';localStorage.setItem(t,'1');localStorage.removeItem(t);return localStorage}catch(e){storagePersistent=false;return{getItem:function(k){return Object.prototype.hasOwnProperty.call(memoryStore,k)?memoryStore[k]:null},setItem:function(k,v){memoryStore[k]=String(v)},removeItem:function(k){delete memoryStore[k]},key:function(i){return Object.keys(memoryStore)[i]||null},get length(){return Object.keys(memoryStore).length}}}})();
 var data=null;
+var mathProgressIndex=new MathProgressIndex();
 
 var SUPABASE_URL='https://arxbirgujbrtzhoficdf.supabase.co';
 var SUPABASE_PUBLISHABLE_KEY='sb_publishable_x8YXDSe-6rvX25o38jEl4w_OYn971PA';
@@ -539,15 +543,55 @@ function cloudUpdateUI(){
 function cloneRecord(rec){
  try{return JSON.parse(JSON.stringify(rec))}catch(e){return rec}
 }
+function readStoredRecord(date){
+ var raw=store.getItem(key(date));if(!raw)return null;
+ try{return JSON.parse(raw)}catch(e){return null}
+}
+function stampRecord(rec,at){
+ if(!rec)return'';rec.updatedAt=String(at||new Date().toISOString());return rec.updatedAt;
+}
+function cloudRecordWithTimestamp(payload,updatedAt){
+ var rec=cloneRecord(payload)||{};
+ if(updatedAt)rec.updatedAt=String(updatedAt);
+ else if(!rec.updatedAt)stampRecord(rec);
+ return rec;
+}
+function writeStoredRecord(rec){
+ if(!rec||!rec.date)return false;
+ try{
+  store.setItem(key(rec.date),JSON.stringify(rec));
+  mathProgressIndex.upsert(rec);
+  return true;
+ }catch(e){return false}
+}
 async function cloudSaveRecord(rec){
- if(!cloudClient||!cloudUser||!rec||cloudLoading)return false;
+ if(!cloudClient||!cloudUser||!rec)return false;
  try{
   var payload=cloneRecord(rec);
+  if(!payload.updatedAt)stampRecord(payload);
+  var existing=await cloudClient.from('study_records').select('payload,updated_at').eq('study_date',payload.date).maybeSingle();
+  if(existing.error)throw existing.error;
+  if(existing.data&&existing.data.payload){
+   var cloudExisting=cloudRecordWithTimestamp(existing.data.payload,existing.data.updated_at);
+   var decision=resolveRecordSync(payload,cloudExisting,existing.data.updated_at);
+   if(decision==='use-cloud'){
+    cloudSetMessage('雲端 '+payload.date+' 比本機更新；已停止本次上傳，避免覆蓋較新的雲端紀錄。',false);
+    return false;
+   }
+   if(decision==='equal'){
+    cloudSetMessage(payload.date+' 的本機與雲端內容一致，不需重複上傳。',true);
+    return true;
+   }
+   if(decision==='legacy-conflict'){
+    cloudSetMessage(payload.date+' 的本機／雲端紀錄無法可靠判斷新舊；已保留兩端資料，不自動覆蓋。',false);
+    return false;
+   }
+  }
   var r=await cloudClient.from('study_records').upsert({
-   user_id:cloudUser.id,study_date:rec.date,payload:payload,updated_at:new Date().toISOString()
+   user_id:cloudUser.id,study_date:payload.date,payload:payload,updated_at:payload.updatedAt
   },{onConflict:'user_id,study_date'});
   if(r.error)throw r.error;
-  cloudSetMessage('已同步 '+rec.date+' 到雲端。',true);return true;
+  cloudSetMessage('已同步 '+payload.date+' 到雲端。',true);return true;
  }catch(e){cloudSetMessage('雲端同步失敗：'+(e&&e.message?e.message:String(e)),false);return false}
 }
 function queueCloudSave(rec){
@@ -558,36 +602,69 @@ function queueCloudSave(rec){
 }
 async function cloudPullAllRecords(){
  if(!cloudClient||!cloudUser)return 0;
+ var newerLocal=[],conflicts=0,accepted=0,total=0;
  try{
   cloudLoading=true;
   var r=await cloudClient.from('study_records').select('study_date,payload,updated_at').order('study_date',{ascending:true});
   if(r.error)throw r.error;
-  var n=0;(r.data||[]).forEach(function(z){
-   if(!z||!z.study_date||!z.payload)return;
-   store.setItem(key(z.study_date),JSON.stringify(z.payload));n++;
+  (r.data||[]).forEach(function(z){
+   if(!z||!z.study_date||!z.payload)return;total++;
+   var local=readStoredRecord(z.study_date);
+   var cloud=cloudRecordWithTimestamp(z.payload,z.updated_at);
+   var decision=resolveRecordSync(local,cloud,z.updated_at);
+   if(decision==='use-cloud'){
+    writeStoredRecord(cloud);accepted++;return;
+   }
+   if(decision==='equal'){
+    var equalRecord=local||cloud;
+    if(z.updated_at)equalRecord.updatedAt=String(z.updated_at);
+    writeStoredRecord(equalRecord);accepted++;return;
+   }
+   if(decision==='use-local'){
+    newerLocal.push(local);return;
+   }
+   conflicts++;
   });
-  cloudSetMessage('已載入 '+n+' 天雲端歷史紀錄，供跨日期進度判讀。',true);
-  return n;
  }catch(e){cloudSetMessage('載入雲端歷史紀錄失敗：'+(e&&e.message?e.message:String(e)),false);return 0}
  finally{cloudLoading=false}
+ for(var i=0;i<newerLocal.length;i++)await cloudSaveRecord(newerLocal[i]);
+ var msg='已比較 '+total+' 天雲端歷史紀錄；採用／確認 '+accepted+' 天';
+ if(newerLocal.length)msg+='，本機較新 '+newerLocal.length+' 天已回寫雲端';
+ if(conflicts)msg+='，另有 '+conflicts+' 天舊版紀錄因缺少時間戳而保留本機、不自動覆蓋';
+ cloudSetMessage(msg+'。',conflicts?false:true);
+ return total;
 }
 async function cloudPullDate(date,force){
  if(!cloudClient||!cloudUser||!date)return false;
+ var localToPush=null,hasCloud=false,conflict=false;
  try{
   cloudLoading=true;
   var r=await cloudClient.from('study_records').select('payload,updated_at').eq('study_date',date).maybeSingle();
   if(r.error)throw r.error;
   if(r.data&&r.data.payload){
-   store.setItem(key(date),JSON.stringify(r.data.payload));
-   if(force||id('studyDate').value===date){
-    data=loadData(date);var changed=ensureDailyPresets(data,date);writeHeader();render();
-    if(changed){store.setItem(key(date),JSON.stringify(data));await cloudSaveRecord(data)}
-   }
-   cloudSetMessage('已讀取 '+date+' 的雲端紀錄。',true);return true;
+   hasCloud=true;
+   var local=readStoredRecord(date);
+   var cloud=cloudRecordWithTimestamp(r.data.payload,r.data.updated_at);
+   var decision=resolveRecordSync(local,cloud,r.data.updated_at);
+   if(decision==='use-cloud')writeStoredRecord(cloud);
+   else if(decision==='equal'){
+    var equalRecord=local||cloud;
+    if(r.data.updated_at)equalRecord.updatedAt=String(r.data.updated_at);
+    writeStoredRecord(equalRecord);
+   }else if(decision==='use-local')localToPush=local;
+   else conflict=true;
   }
-  cloudSetMessage('雲端尚無 '+date+' 紀錄；目前顯示本機資料。',true);return false;
  }catch(e){cloudSetMessage('讀取雲端失敗：'+(e&&e.message?e.message:String(e)),false);return false}
  finally{cloudLoading=false}
+ if(localToPush)await cloudSaveRecord(localToPush);
+ if(force||id('studyDate').value===date){
+  data=loadData(date);var changed=ensureDailyPresets(data,date);writeHeader();render();
+  if(changed)persist(false);
+ }
+ if(conflict){cloudSetMessage(date+' 的舊版本機紀錄沒有更新時間，且內容與雲端不同；已保留本機資料，不自動覆蓋。',false);return false}
+ if(localToPush){cloudSetMessage(date+' 的本機紀錄較新，已保留並同步回雲端。',true);return true}
+ if(hasCloud){cloudSetMessage('已依更新時間比較並同步 '+date+'。',true);return true}
+ cloudSetMessage('雲端尚無 '+date+' 紀錄；目前顯示本機資料。',true);return false;
 }
 function localStudyDates(){
  var a=[];
@@ -600,24 +677,39 @@ function localStudyDates(){
  }
  return a.sort();
 }
+function rebuildMathProgressIndex(){
+ var records=[];
+ localStudyDates().forEach(function(date){var rec=readStoredRecord(date);if(rec)records.push(rec)});
+ mathProgressIndex.replaceAll(records);
+}
 async function cloudMergeLocalMissing(){
  if(!cloudClient||!cloudUser)return;
  try{
-  cloudSetMessage('正在補上本機舊資料…',true);
-  var r=await cloudClient.from('study_records').select('study_date');
+  cloudSetMessage('正在比較本機與雲端版本…',true);
+  var r=await cloudClient.from('study_records').select('study_date,payload,updated_at');
   if(r.error)throw r.error;
-  var have={};(r.data||[]).forEach(function(z){have[z.study_date]=true});
-  var dates=localStudyDates(),added=0;
+  var cloudByDate={};(r.data||[]).forEach(function(z){cloudByDate[z.study_date]=z});
+  var dates=localStudyDates(),added=0,updated=0,legacyResolved=0;
   for(var i=0;i<dates.length;i++){
-   var d=dates[i];if(have[d])continue;
-   var raw=store.getItem(key(d));if(!raw)continue;
-   var rec;try{rec=JSON.parse(raw)}catch(e){continue}
-   var u=await cloudClient.from('study_records').insert({
-    user_id:cloudUser.id,study_date:d,payload:rec,updated_at:new Date().toISOString()
-   });
-   if(u.error)throw u.error;added++;
+   var d=dates[i],local=readStoredRecord(d);if(!local)continue;
+   var row=cloudByDate[d];
+   if(!row){
+    if(!local.updatedAt){stampRecord(local);writeStoredRecord(local)}
+    if(await cloudSaveRecord(local))added++;
+    continue;
+   }
+   var cloud=cloudRecordWithTimestamp(row.payload,row.updated_at);
+   var decision=resolveRecordSync(local,cloud,row.updated_at);
+   if(decision==='use-local'){
+    if(await cloudSaveRecord(local))updated++;
+   }else if(decision==='legacy-conflict'){
+    // This button is an explicit request to push local legacy data. Assign a
+    // timestamp now so the conflict has a deterministic winner.
+    stampRecord(local);writeStoredRecord(local);
+    if(await cloudSaveRecord(local)){updated++;legacyResolved++}
+   }
   }
-  cloudSetMessage('本機舊資料處理完成：新增 '+added+' 天到雲端；已存在的雲端紀錄沒有被覆蓋。',true);
+  cloudSetMessage('本機資料同步完成：新增 '+added+' 天、更新 '+updated+' 天'+(legacyResolved?'（其中 '+legacyResolved+' 天為舊版無時間戳紀錄）':'')+'。',true);
  }catch(e){cloudSetMessage('補上本機資料失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 async function cloudSignIn(){
@@ -663,11 +755,10 @@ function mondayOf(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate(),12)
 function key(d){return STORE_PREFIX+d}
 function line(v){return String(v==null?'':v).trim()||'—'}
 function uid(prefix){return(prefix||'i')+'-'+Date.now()+'-'+Math.floor(Math.random()*1000000)}
-function pageCount(a,b){a=Number(a);b=Number(b);return Number.isFinite(a)&&Number.isFinite(b)&&a>0&&b>=a?b-a+1:0}
 function selected(v,current){return String(v)===String(current)?' selected':''}
 function checked(v){return v?' checked':''}
 
-function blank(date){return{date:date,mood:'',wakeTime:'',items:[],biggestBlock:'',firstThingTomorrow:'',notes:''}}
+function blank(date){return{date:date,updatedAt:'',mood:'',wakeTime:'',items:[],biggestBlock:'',firstThingTomorrow:'',notes:''}}
 function customCountsOriginal(x){return x&&x.type==='extra'&&(isPrism(x.f&&x.f.title)||((x.f&&x.f.title)==='ENGLISH VOCABULARY IN USE'))}
 function normalizeItem(it,date){
  if(!it||typeof it!=='object')return null;
@@ -690,7 +781,7 @@ function loadData(date){
  if(!raw)return b;
  try{
   var o=JSON.parse(raw)||{};
-  b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
+  b.updatedAt=o.updatedAt||'';b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
   if(Array.isArray(o.items))for(var i=0;i<o.items.length;i++){var it=normalizeItem(o.items[i],date);if(it)b.items.push(it)}
  }catch(e){}
  return b;
@@ -1832,7 +1923,8 @@ function handleClick(e){
 }
 
 function updateSummary(){
- var req=0,done=0,mins=0,pages=0,active=visibleItems(data);
+ mathProgressIndex.upsert(data);
+ var req=0,done=0,mins=0,active=visibleItems(data);
  active.forEach(function(x){
   if(isInteractiveDaily(x)){
    var ia=ensureInteractiveEntries(x);
@@ -1854,68 +1946,19 @@ function updateSummary(){
   }
   if(x.required){req++;if(x.done||x.deferred)done++}
   if(x.done){if(isFixedMagazine(x))mins+=fixedMagazineMinutes(x);else if(!isEnglishReview(x)&&!isSaturdayMakeup(x))mins+=Number(x.minutes||0)}
-  if(x.done&&x.type==='mathStudy')pages+=pageCount(x.f.start,x.f.end);
-  if(x.done&&x.type==='mathLecture'&&x.f.progress)pages+=pageCount(x.f.start,x.f.end);
-  if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){if(!m.done)return;mins+=Number(m.minutes||0);if(m.type==='mathLecture'&&m.f.progress)pages+=pageCount(m.f.start,m.f.end)});
+  if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){if(m.done)mins+=Number(m.minutes||0)});
  });
  var pct=req?Math.round(done/req*100):0;
+ var math=calculateMathProgress(mathProgressIndex.view(),data.date,calendarWeekMathTarget(data.date));
  id('completionPercent').textContent=pct+'%';
  id('completionBar').style.width=pct+'%';
  id('completionText').textContent=done+'/'+req+' 項';
  id('doneMinutes').textContent=mins;
- id('mathPagesTop').textContent=pages;
- var weekDone=weekMathPageCount(data.date),weekTarget=calendarWeekMathTarget(data.date),weekPct=weekTarget?Math.min(100,Math.round(weekDone/weekTarget*100)):0;
- id('weekMathPages').textContent=weekDone;
- id('weekMathTarget').textContent=weekTarget;
- id('weekMathBar').style.width=weekPct+'%';
- id('weekMathPercent').textContent=weekPct+'%';
-}
-function mathRecordKey(f){
- f=f||{};
- var edition=String(f.edition||f.version||f.book||f.material||'').trim();
- var volume=String(f.volume||f.booklet||'').trim();
- return edition+'||'+volume;
-}
-function pushMathRange(out,f){
- if(!f)return;
- var a=Number(f.start),b=Number(f.end);
- if(!Number.isFinite(a)||!Number.isFinite(b)||a<1||b<1)return;
- if(a>b){var t=a;a=b;b=t}
- out.push({key:mathRecordKey(f),start:Math.floor(a),end:Math.floor(b)});
-}
-function completedMathStudyRanges(rec){
- var out=[];if(!rec||!Array.isArray(rec.items)||isAway(rec))return out;
- rec.items.forEach(function(x){
-  if(!x)return;
-  if(x.type==='mathStudy'&&x.done)pushMathRange(out,x.f);
-  if(x.type==='mathLecture'&&x.done&&x.f&&x.f.progress)pushMathRange(out,x.f);
-  if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){
-   if(m&&m.type==='mathLecture'&&m.done&&m.f&&m.f.progress)pushMathRange(out,m.f);
-  });
- });
- return out;
-}
-function completedMathStudyPages(rec){
- var sets={};
- completedMathStudyRanges(rec).forEach(function(r){
-  var s=sets[r.key]||(sets[r.key]=new Set());
-  for(var p=r.start;p<=r.end;p++)s.add(p);
- });
- var total=0;Object.keys(sets).forEach(function(k){total+=sets[k].size});
- return total;
-}
-function weekMathPageCount(date){
- var mon=mondayOf(parseDate(date)),sets={};
- for(var i=0;i<7;i++){
-  var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d);
-  var rec=(data&&data.date===ds)?data:loadData(ds);
-  completedMathStudyRanges(rec).forEach(function(r){
-   var s=sets[r.key]||(sets[r.key]=new Set());
-   for(var p=r.start;p<=r.end;p++)s.add(p);
-  });
- }
- var total=0;Object.keys(sets).forEach(function(k){total+=sets[k].size});
- return total;
+ id('mathPagesTop').textContent=math.dailyNewPages;
+ id('weekMathPages').textContent=math.weeklyNewPages;
+ id('weekMathTarget').textContent=math.weeklyTarget;
+ id('weekMathBar').style.width=math.weeklyPercent+'%';
+ id('weekMathPercent').textContent=math.weeklyPercent+'%';
 }
 function wakeParts(s){var m=String(s||'').match(/^(\d{1,2}):(\d{1,2})$/);return m?{hour:m[1],minute:m[2]}:{hour:'',minute:''}}
 function composeWake(){var h=id('wakeHour').value,m=id('wakeMinute').value;if(h===''||m==='')return'';h=Number(h);m=Number(m);if(h<0||h>23||m<0||m>60)return'';return pad(h)+':'+pad(m)}
@@ -1935,9 +1978,12 @@ function validate(){
 }
 function persist(show){
  if(!data)return false;readHeader();var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
- var payload=JSON.stringify(data),ok=false;try{store.setItem(key(data.date),payload);ok=store.getItem(key(data.date))===payload}catch(e){}
- if(ok)queueCloudSave(data);
- if(show)id('status').textContent=ok?(cloudUser?'已儲存 '+data.date+'；正在同步雲端。':(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
+ var previous=readStoredRecord(data.date),changed=!sameStudyPayload(previous,data);
+ if(changed)stampRecord(data);else if(previous)data.updatedAt=previous.updatedAt||'';
+ var payload=JSON.stringify(data),ok=false;
+ try{ok=writeStoredRecord(data)&&store.getItem(key(data.date))===payload}catch(e){}
+ if(ok&&changed)queueCloudSave(data);
+ if(show)id('status').textContent=ok?(cloudUser?(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。'):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
 function load(){
  var d=id('studyDate').value;data=loadData(d);var changed=ensureDailyPresets(data,d);id('weekdayText').textContent=weekdays[parseDate(d).getDay()];writeHeader();render();if(changed)persist(false);
@@ -2035,7 +2081,7 @@ function mergeImportedProgressRecord(incoming){
  current.notes=mergeImportedProgressValue(current.notes,incoming.notes)||'';
  current.items=mergeImportedProgressItems(current.items,incoming.items,d);
  ensureDailyPresets(current,d);
- store.setItem(key(d),JSON.stringify(current));
+ stampRecord(current);writeStoredRecord(current);
  return current;
 }
 async function importProgressFromField(){
@@ -2129,4 +2175,4 @@ id('cloudSignUpBtn').addEventListener('click',cloudSignUp);
 id('cloudSignOutBtn').addEventListener('click',cloudSignOut);
 id('cloudSyncLocalBtn').addEventListener('click',cloudMergeLocalMissing);
 id('cloudRefreshBtn').addEventListener('click',async function(){await cloudPullAllRecords();load()});
-seedImportedWeek();mergeImportedV123Progress();id('studyDate').value=dateString(new Date());load();initCloud();
+seedImportedWeek();mergeImportedV123Progress();rebuildMathProgressIndex();id('studyDate').value=dateString(new Date());load();initCloud();

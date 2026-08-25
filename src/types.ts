@@ -28,6 +28,8 @@ export interface StudyItemFields {
   [key: string]: unknown;
   words?: Array<string | Record<string, unknown>>;
   interactiveEntries?: StudyItem[];
+  makeupEntries?: StudyItem[];
+  reviewEntries?: StudyItem[];
   calendarIntegrationEntries?: CalendarNaturalIntegrationEntry[];
 }
 
@@ -52,6 +54,7 @@ export interface StudyItem {
 
 export interface StudyRecord {
   date: string;
+  updatedAt?: string;
   mood?: string;
   wakeTime?: string;
   biggestBlock?: string;
