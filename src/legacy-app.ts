@@ -1,24 +1,23 @@
 // @ts-nocheck
 /**
- * v171 compatibility UI runtime.
+ * Compatibility runtime inherited from the v168 migration.
  *
- * Storage keying, record conflict resolution, cloud study synchronization,
- * math progress calculation, and Google Calendar parsing now live in typed
- * modules. This file remains @ts-nocheck only for the still-legacy UI/preset
- * rendering code and is intentionally being reduced over time.
+ * This is the existing v167 application logic moved out of the single HTML file
+ * into a TypeScript module. It intentionally uses @ts-nocheck during the first
+ * migration stage so behavior and stored-data compatibility stay unchanged.
+ *
+ * New/rewritten logic should move into typed modules under:
+ *   data/ · study/ · items/ · storage/ · ui/
  */
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
-import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
-import { calendarTaskToPresetDefinitions, liveCalendarWeekMathTarget, mathPlanFromCalendarTask } from './calendar/calendarBridge';
-import { GUEST_STORAGE_PREFIX, LEGACY_STORAGE_PREFIX, listStoredDates, recordStorageKey, storagePrefixForUser } from './storage/local';
-import { sameStudyPayload } from './storage/recordSync';
-import { StudySyncEngine } from './sync/studySync';
-import type { CalendarTaskRow } from './types';
+import { resolveRecordSync, sameStudyPayload } from './storage/recordFreshness';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
 var CALENDAR_IMPORT_AS_OF='2026-08-17';
+var CALENDAR_MATH_PLAN={"2026-08-17":{"title":"3A｜指數函數與對數函數","book":"3A","start":79,"end":88,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-18":{"title":"3A｜指數函數與對數函數","book":"3A","start":89,"end":98,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-19":{"title":"3A｜指數函數與對數函數","book":"3A","start":99,"end":108,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-20":{"title":"3A｜指數函數與對數函數","book":"3A","start":109,"end":118,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-21":{"title":"3A｜指數函數與對數函數","book":"3A","start":119,"end":128,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-22":{"title":"3A｜指數函數與對數函數","book":"3A","start":129,"end":138,"pages":10,"unitPages":70,"weekTarget":60},"2026-08-24":{"title":"3A｜指數函數與對數函數","book":"3A","start":139,"end":148,"pages":10,"unitPages":70,"weekTarget":51},"2026-08-25":{"title":"1｜多項式函數","book":"1","start":149,"end":157,"pages":9,"unitPages":73,"weekTarget":51},"2026-08-26":{"title":"1｜多項式函數","book":"1","start":158,"end":165,"pages":8,"unitPages":73,"weekTarget":51},"2026-08-27":{"title":"1｜多項式函數","book":"1","start":166,"end":173,"pages":8,"unitPages":73,"weekTarget":51},"2026-08-28":{"title":"1｜多項式函數","book":"1","start":174,"end":181,"pages":8,"unitPages":73,"weekTarget":51},"2026-08-29":{"title":"1｜多項式函數","book":"1","start":182,"end":189,"pages":8,"unitPages":73,"weekTarget":51},"2026-08-31":{"title":"1｜多項式函數","book":"1","start":190,"end":197,"pages":8,"unitPages":73,"weekTarget":50},"2026-09-01":{"title":"1｜多項式函數","book":"1","start":198,"end":205,"pages":8,"unitPages":73,"weekTarget":50},"2026-09-02":{"title":"1｜多項式函數","book":"1","start":206,"end":213,"pages":8,"unitPages":73,"weekTarget":50},"2026-09-03":{"title":"1｜多項式函數","book":"1","start":214,"end":221,"pages":8,"unitPages":73,"weekTarget":50},"2026-09-04":{"title":"1｜直線與圓","book":"1","start":77,"end":85,"pages":9,"unitPages":72,"weekTarget":50},"2026-09-05":{"title":"1｜直線與圓","book":"1","start":86,"end":94,"pages":9,"unitPages":72,"weekTarget":50},"2026-09-07":{"title":"1｜直線與圓","book":"1","start":95,"end":103,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-08":{"title":"1｜直線與圓","book":"1","start":104,"end":112,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-09":{"title":"1｜直線與圓","book":"1","start":113,"end":121,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-10":{"title":"1｜直線與圓","book":"1","start":122,"end":130,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-11":{"title":"1｜直線與圓","book":"1","start":131,"end":139,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-12":{"title":"1｜直線與圓","book":"1","start":140,"end":148,"pages":9,"unitPages":72,"weekTarget":54},"2026-09-14":{"title":"2｜數列與求和","book":"2","start":1,"end":11,"pages":11,"unitPages":52,"weekTarget":63},"2026-09-15":{"title":"2｜數列與求和","book":"2","start":12,"end":22,"pages":11,"unitPages":52,"weekTarget":63},"2026-09-16":{"title":"2｜數列與求和","book":"2","start":23,"end":32,"pages":10,"unitPages":52,"weekTarget":63},"2026-09-17":{"title":"2｜數列與求和","book":"2","start":33,"end":42,"pages":10,"unitPages":52,"weekTarget":63},"2026-09-18":{"title":"2｜數列與求和","book":"2","start":43,"end":52,"pages":10,"unitPages":52,"weekTarget":63},"2026-09-19":{"title":"2｜數據整理","book":"2","start":53,"end":63,"pages":11,"unitPages":54,"weekTarget":63},"2026-09-21":{"title":"2｜數據整理","book":"2","start":64,"end":74,"pages":11,"unitPages":54,"weekTarget":65},"2026-09-22":{"title":"2｜數據整理","book":"2","start":75,"end":85,"pages":11,"unitPages":54,"weekTarget":65},"2026-09-23":{"title":"2｜數據整理","book":"2","start":86,"end":96,"pages":11,"unitPages":54,"weekTarget":65},"2026-09-24":{"title":"2｜數據整理","book":"2","start":97,"end":106,"pages":10,"unitPages":54,"weekTarget":65},"2026-09-25":{"title":"2｜排列組合","book":"2","start":107,"end":117,"pages":11,"unitPages":72,"weekTarget":65},"2026-09-26":{"title":"2｜排列組合","book":"2","start":118,"end":128,"pages":11,"unitPages":72,"weekTarget":65},"2026-09-28":{"title":"2｜排列組合","book":"2","start":129,"end":138,"pages":10,"unitPages":72,"weekTarget":64},"2026-09-29":{"title":"2｜排列組合","book":"2","start":139,"end":148,"pages":10,"unitPages":72,"weekTarget":64},"2026-09-30":{"title":"2｜排列組合","book":"2","start":149,"end":158,"pages":10,"unitPages":72,"weekTarget":64},"2026-10-01":{"title":"2｜排列組合","book":"2","start":159,"end":168,"pages":10,"unitPages":72,"weekTarget":64},"2026-10-02":{"title":"2｜排列組合","book":"2","start":169,"end":178,"pages":10,"unitPages":72,"weekTarget":64},"2026-10-03":{"title":"2＋4A｜基本機率＋條件機率","book":"2","start":179,"end":192,"pages":14,"unitPages":86,"weekTarget":64},"2026-10-05":{"title":"2＋4A｜基本機率＋條件機率","book":"2","start":193,"end":205,"pages":13,"unitPages":86,"weekTarget":72},"2026-10-06":{"title":"2＋4A｜基本機率＋條件機率","book":"2","start":206,"end":218,"pages":13,"unitPages":86,"weekTarget":72},"2026-10-07":{"title":"2＋4A｜基本機率＋條件機率","book":"4A","start":151,"end":162,"pages":12,"unitPages":86,"weekTarget":72},"2026-10-08":{"title":"2＋4A｜基本機率＋條件機率","book":"4A","start":163,"end":174,"pages":12,"unitPages":86,"weekTarget":72},"2026-10-09":{"title":"2＋4A｜基本機率＋條件機率","book":"4A","start":175,"end":185,"pages":11,"unitPages":86,"weekTarget":72},"2026-10-10":{"title":"2＋4A｜基本機率＋條件機率","book":"4A","start":186,"end":196,"pages":11,"unitPages":86,"weekTarget":72},"2026-10-12":{"title":"2＋3A｜三角＋三角函數","book":"2","start":219,"end":227,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-13":{"title":"2＋3A｜三角＋三角函數","book":"2","start":228,"end":236,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-14":{"title":"2＋3A｜三角＋三角函數","book":"2","start":237,"end":245,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-15":{"title":"2＋3A｜三角＋三角函數","book":"2","start":246,"end":254,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-16":{"title":"2＋3A｜三角＋三角函數","book":"2","start":255,"end":263,"pages":9,"unitPages":139,"weekTarget":53},"2026-10-17":{"title":"2＋3A｜三角＋三角函數","book":"2","start":264,"end":271,"pages":8,"unitPages":139,"weekTarget":53},"2026-10-19":{"title":"2＋3A｜三角＋三角函數","book":"2","start":272,"end":279,"pages":8,"unitPages":139,"weekTarget":58},"2026-10-20":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":1,"end":10,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-21":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":11,"end":20,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-22":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":21,"end":30,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-23":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":31,"end":40,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-24":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":41,"end":50,"pages":10,"unitPages":139,"weekTarget":58},"2026-10-26":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":51,"end":60,"pages":10,"unitPages":139,"weekTarget":52},"2026-10-27":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":61,"end":69,"pages":9,"unitPages":139,"weekTarget":52},"2026-10-28":{"title":"2＋3A｜三角＋三角函數","book":"3A","start":70,"end":78,"pages":9,"unitPages":139,"weekTarget":52},"2026-10-29":{"title":"3A｜平面向量","book":"3A","start":149,"end":156,"pages":8,"unitPages":62,"weekTarget":52},"2026-10-30":{"title":"3A｜平面向量","book":"3A","start":157,"end":164,"pages":8,"unitPages":62,"weekTarget":52},"2026-10-31":{"title":"3A｜平面向量","book":"3A","start":165,"end":172,"pages":8,"unitPages":62,"weekTarget":52},"2026-11-02":{"title":"3A｜平面向量","book":"3A","start":173,"end":180,"pages":8,"unitPages":62,"weekTarget":48},"2026-11-03":{"title":"3A｜平面向量","book":"3A","start":181,"end":188,"pages":8,"unitPages":62,"weekTarget":48},"2026-11-04":{"title":"3A｜平面向量","book":"3A","start":189,"end":196,"pages":8,"unitPages":62,"weekTarget":48},"2026-11-05":{"title":"3A｜平面向量","book":"3A","start":197,"end":203,"pages":7,"unitPages":62,"weekTarget":48},"2026-11-06":{"title":"3A｜平面向量","book":"3A","start":204,"end":210,"pages":7,"unitPages":62,"weekTarget":48},"2026-11-07":{"title":"4A｜空間向量","book":"4A","start":1,"end":10,"pages":10,"unitPages":86,"weekTarget":48},"2026-11-09":{"title":"4A｜空間向量","book":"4A","start":11,"end":20,"pages":10,"unitPages":86,"weekTarget":58},"2026-11-10":{"title":"4A｜空間向量","book":"4A","start":21,"end":30,"pages":10,"unitPages":86,"weekTarget":58},"2026-11-11":{"title":"4A｜空間向量","book":"4A","start":31,"end":40,"pages":10,"unitPages":86,"weekTarget":58},"2026-11-12":{"title":"4A｜空間向量","book":"4A","start":41,"end":50,"pages":10,"unitPages":86,"weekTarget":58},"2026-11-13":{"title":"4A｜空間向量","book":"4A","start":51,"end":59,"pages":9,"unitPages":86,"weekTarget":58},"2026-11-14":{"title":"4A｜空間向量","book":"4A","start":60,"end":68,"pages":9,"unitPages":86,"weekTarget":58},"2026-11-16":{"title":"4A｜空間向量","book":"4A","start":69,"end":77,"pages":9,"unitPages":86,"weekTarget":50},"2026-11-17":{"title":"4A｜空間向量","book":"4A","start":78,"end":86,"pages":9,"unitPages":86,"weekTarget":50},"2026-11-18":{"title":"4A｜矩陣","book":"4A","start":197,"end":204,"pages":8,"unitPages":79,"weekTarget":50},"2026-11-19":{"title":"4A｜矩陣","book":"4A","start":205,"end":212,"pages":8,"unitPages":79,"weekTarget":50},"2026-11-20":{"title":"4A｜矩陣","book":"4A","start":213,"end":220,"pages":8,"unitPages":79,"weekTarget":50},"2026-11-21":{"title":"4A｜矩陣","book":"4A","start":221,"end":228,"pages":8,"unitPages":79,"weekTarget":50},"2026-11-23":{"title":"4A｜矩陣","book":"4A","start":229,"end":236,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-24":{"title":"4A｜矩陣","book":"4A","start":237,"end":244,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-25":{"title":"4A｜矩陣","book":"4A","start":245,"end":252,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-26":{"title":"4A｜矩陣","book":"4A","start":253,"end":260,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-27":{"title":"4A｜矩陣","book":"4A","start":261,"end":268,"pages":8,"unitPages":79,"weekTarget":47},"2026-11-28":{"title":"4A｜矩陣","book":"4A","start":269,"end":275,"pages":7,"unitPages":79,"weekTarget":47},"2026-11-30":{"title":"4A｜空間中的平面與直線","book":"4A","start":87,"end":97,"pages":11,"unitPages":64,"weekTarget":64},"2026-12-01":{"title":"4A｜空間中的平面與直線","book":"4A","start":98,"end":108,"pages":11,"unitPages":64,"weekTarget":64},"2026-12-02":{"title":"4A｜空間中的平面與直線","book":"4A","start":109,"end":119,"pages":11,"unitPages":64,"weekTarget":64},"2026-12-03":{"title":"4A｜空間中的平面與直線","book":"4A","start":120,"end":130,"pages":11,"unitPages":64,"weekTarget":64},"2026-12-04":{"title":"4A｜空間中的平面與直線","book":"4A","start":131,"end":140,"pages":10,"unitPages":64,"weekTarget":64},"2026-12-05":{"title":"4A｜空間中的平面與直線","book":"4A","start":141,"end":150,"pages":10,"unitPages":64,"weekTarget":64}};
+var CALENDAR_WEEK_MATH_TARGETS={"2026-08-17":51,"2026-08-24":49,"2026-08-31":50,"2026-09-07":54,"2026-09-14":63,"2026-09-21":64,"2026-09-28":64,"2026-10-05":74,"2026-10-12":56,"2026-10-19":56,"2026-10-26":51,"2026-11-02":48,"2026-11-09":57,"2026-11-16":51,"2026-11-23":47,"2026-11-30":64};
 var CALENDAR_MATH_UNIT_TARGET_OVERRIDES={"3A｜指數函數與對數函數":60};
 var CALENDAR_NATURAL_PLAN={"2026-08-17":"生物｜細胞是生命系統的基本單位","2026-08-18":"化學｜物質分類與粒子觀","2026-08-19":"生物｜細胞膜與膜運輸","2026-08-20":"物理｜量測、單位與圖表表達方式","2026-08-21":"生物｜胞器、尺度與構造功能","2026-08-24":"化學｜原子結構、同位素與週期表","2026-08-25":"物理｜基本交互作用與受力模型","2026-08-26":"生物｜酵素與反應速率","2026-08-27":"化學｜化學鍵與分子間作用力","2026-08-28":"生物｜ATP、氧化還原與代謝路徑","2026-08-29":"自然整合｜微觀作用：鍵結、酵素、ATP、受力","2026-08-31":"生物｜細胞呼吸","2026-09-01":"化學｜化學式、反應式與守恆","2026-09-02":"生物｜光合作用","2026-09-03":"物理｜功、能量、功率與效率","2026-09-04":"化學｜反應熱、能量圖與催化","2026-09-05":"生物｜呼吸與光合作用比較","2026-09-07":"物理｜位置、速度、加速度圖","2026-09-08":"物理｜牛頓定律、摩擦與圓周運動","2026-09-09":"化學｜溶液濃度、溶解度與稀釋","2026-09-10":"生物｜細胞週期、有絲分裂與減數分裂","2026-09-11":"物理｜動量、衝量與碰撞","2026-09-12":"自然整合｜第一階段驗收：細胞、結構、反應、力學","2026-09-14":"物理｜波的描述與傳播","2026-09-15":"物理｜聲音、干涉、繞射與光","2026-09-16":"生物｜DNA 結構與複製","2026-09-17":"生物｜轉錄、轉譯與基因表現","2026-09-18":"化學｜水溶液離子、酸鹼與中和","2026-09-19":"地科｜地球形成、定年與太陽系","2026-09-21":"物理｜電場、電位與基本電路","2026-09-22":"物理｜磁場、電磁感應與電磁波","2026-09-23":"生物｜孟德爾遺傳與機率","2026-09-24":"生物｜延伸遺傳、伴性與家系圖","2026-09-25":"化學｜沉澱、氧化還原與電化學","2026-09-26":"地科｜地震波、地球內部與板塊構造","2026-09-28":"生物｜突變、基因調控與生物技術","2026-09-29":"生物｜演化證據與天擇","2026-09-30":"生物｜物種形成、分類與親緣樹","2026-10-01":"地科｜大氣結構、濕度與天氣系統","2026-10-02":"地科｜海洋、潮汐、氣候與永續","2026-10-03":"化學｜有機、材料、能源與環境化學","2026-10-05":"生物｜生物高風險整合：細胞→代謝→遺傳→演化","2026-10-06":"化學｜化學主線：粒子→鍵結→反應→溶液→環境","2026-10-07":"物理｜物理主線＋原子現象","2026-10-08":"地科｜地球系統：天文→固體地球→大氣海洋→氣候","2026-10-09":"自然整合｜108 診斷選題（作答後回查）","2026-10-10":"自然整合｜108 錯題訂正：錯誤路徑與頁碼","2026-10-12":"自然整合｜109 圖表／實驗診斷","2026-10-13":"自然整合｜109 圖表訂正","2026-10-14":"自然整合｜110 多步推論診斷","2026-10-15":"自然整合｜110 選項訂正","2026-10-16":"自然整合｜四科一頁式整理","2026-10-19":"生物｜細胞結構→膜運輸→代謝整合","2026-10-20":"化學｜粒子觀→原子→鍵結→物性","2026-10-21":"物理｜受力→運動→能量與動量","2026-10-22":"生物｜細胞週期→DNA→基因表現","2026-10-23":"地科｜地球形成→定年→地震波與板塊","2026-10-24":"自然整合｜四科資料題","2026-10-26":"生物｜減數分裂→孟德爾→家系與生技","2026-10-27":"化學｜反應守恆→水溶液→氧化還原與環境","2026-10-28":"物理｜波→光→電磁→原子現象","2026-10-29":"地科｜大氣→海洋→氣候與永續","2026-10-30":"生物｜遺傳變異→天擇→演化與親緣","2026-10-31":"自然整合｜四科驗收＋11月清單"};
 var CALENDAR_NATURAL_INTEGRATION_ITEMS={"2026-08-29":[{"subject":"生物","ranges":[[14,15]]},{"subject":"化學","ranges":[[45,83]]},{"subject":"物理","ranges":[[20,55]]}],"2026-09-12":[{"subject":"生物","ranges":[[4,21],[24,33]]},{"subject":"化學","ranges":[[9,20],[45,83],[97,145]]},{"subject":"物理","ranges":[[20,113],[184,199]]}],"2026-10-09":[{"subject":"生物","dynamic":true,"pageText":"作答後依該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"化學","dynamic":true,"pageText":"作答後依該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"物理","dynamic":true,"pageText":"作答後依該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"地科","dynamic":true,"pageText":"作答後依該科實際錯題回查《123日的淬鍊》對應頁碼"}],"2026-10-10":[{"subject":"生物","dynamic":true,"pageText":"依 108 實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"化學","dynamic":true,"pageText":"依 108 實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"物理","dynamic":true,"pageText":"依 108 實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"地科","dynamic":true,"pageText":"依 108 實際錯題回查《123日的淬鍊》對應頁碼"}],"2026-10-12":[{"subject":"生物","dynamic":true,"pageText":"作答後依該科錯題之資料判讀／實驗概念回查頁碼"},{"subject":"化學","dynamic":true,"pageText":"作答後依該科錯題之資料判讀／實驗概念回查頁碼"},{"subject":"物理","dynamic":true,"pageText":"作答後依該科錯題之資料判讀／實驗概念回查頁碼"},{"subject":"地科","dynamic":true,"pageText":"作答後依該科錯題之資料判讀／實驗概念回查頁碼"}],"2026-10-13":[{"subject":"生物","dynamic":true,"pageText":"依 109 該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"化學","dynamic":true,"pageText":"依 109 該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"物理","dynamic":true,"pageText":"依 109 該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"地科","dynamic":true,"pageText":"依 109 該科實際錯題回查《123日的淬鍊》對應頁碼"}],"2026-10-14":[{"subject":"生物","dynamic":true,"pageText":"作答後依該科錯題之條件比較／推論概念回查頁碼"},{"subject":"化學","dynamic":true,"pageText":"作答後依該科錯題之條件比較／推論概念回查頁碼"},{"subject":"物理","dynamic":true,"pageText":"作答後依該科錯題之條件比較／推論概念回查頁碼"},{"subject":"地科","dynamic":true,"pageText":"作答後依該科錯題之條件比較／推論概念回查頁碼"}],"2026-10-15":[{"subject":"生物","dynamic":true,"pageText":"依 110 該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"化學","dynamic":true,"pageText":"依 110 該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"物理","dynamic":true,"pageText":"依 110 該科實際錯題回查《123日的淬鍊》對應頁碼"},{"subject":"地科","dynamic":true,"pageText":"依 110 該科實際錯題回查《123日的淬鍊》對應頁碼"}],"2026-10-16":[{"subject":"生物","ranges":[[14,20],[24,33],[60,93],[114,135]]},{"subject":"化學","ranges":[[45,83],[97,171]]},{"subject":"物理","ranges":[[56,199],[220,244]]},{"subject":"地科","ranges":[[4,38],[66,93],[114,250]]}],"2026-10-24":[{"subject":"生物","pageText":"p.14–20 或 p.60–93","chapterText":"依當日資料題主題：酵素／代謝或遺傳"},{"subject":"化學","ranges":[[113,171]]},{"subject":"物理","pageText":"p.56–113 或 p.144–199","chapterText":"依當日資料題主題：運動／牛頓／動量或波／光／能量"},{"subject":"地科","pageText":"p.66–93 或 p.114–209","chapterText":"依當日資料題主題：地震／板塊或大氣／海洋"}],"2026-10-31":[{"subject":"生物","ranges":[[60,93],[114,135]]},{"subject":"化學","ranges":[[97,171]]},{"subject":"物理","ranges":[[56,199],[220,244]]},{"subject":"地科","ranges":[[66,250]]}]};
@@ -238,7 +237,7 @@ var CALENDAR_NATURAL_RECOMMENDED_PAGES={
  }
 };
 
-var currentStoragePrefix=GUEST_STORAGE_PREFIX;
+var STORE_PREFIX='study-v10.4:';
 var weekdays=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
 var labels={mathStudy:'數學講義：進度',mathLecture:'數學講義',mathPractice:'數學講義題目：理解檢查＋錯題標記＋訂正',mathOral:'數 A 互動題：觀念題',magazine:'英文雜誌',englishPractice:'英文互動題：英聽及學測練習',englishMixedWriting:'英文：混合題與作文練習',chineseReading:'國文',aceReading:'英文：ACE Reading',scienceReview:'自然',mock:'歷屆／模考',general:'一般學習／整理',extra:'英文',interactive:'互動題',interactiveDaily:'互動題',biologyInteractive:'生物互動題',englishVocabInteractive:'英文單字／片語互動題',calendarStudy:'Google Calendar 排程'};
 var TRAUMALAND_TOPICS=[{"chapter":1,"title":"MY OVERWHELMING EMPTINESS"},{"chapter":2,"title":"GHOST VAMPIRE"},{"chapter":3,"title":"DING-DONG"},{"chapter":4,"title":"FEEL ALIVE"},{"chapter":5,"title":"THUNDERCLAP"},{"chapter":6,"title":"6 (66)"},{"chapter":7,"title":"BIRD IN FLIGHT"},{"chapter":8,"title":"THE INCIDENT"},{"chapter":9,"title":"PART OF"},{"chapter":10,"title":"GUESS WHO?"},{"chapter":11,"title":"PISTACHIO ICE CREAM"},{"chapter":12,"title":"NDA"},{"chapter":13,"title":"TO FEEL IS TO LIVE"},{"chapter":14,"title":"NO AIR"},{"chapter":15,"title":"THE SOLAR SYSTEM"},{"chapter":16,"title":"WONKY"},{"chapter":17,"title":"POLLY’S"},{"chapter":18,"title":"LIKE CRY, OR LIKE RIP"},{"chapter":19,"title":"USABLE"},{"chapter":20,"title":"SYCAMORE"},{"chapter":21,"title":"CLASSIFIED"},{"chapter":22,"title":"A BRIGHT FUTURE"},{"chapter":23,"title":"MARKED *ANONYMOUS*"},{"chapter":24,"title":"IN CASE OF EMERGENCY"},{"chapter":25,"title":"A STORY"},{"chapter":26,"title":"TURNING TIDES"},{"chapter":27,"title":"DECEPTIVE AND UNRELIABLE"},{"chapter":28,"title":"HELL"},{"chapter":29,"title":"FIND YOURSELF"},{"chapter":30,"title":"PRAYING TO THE STARS"},{"chapter":31,"title":"OK. OK. OK."},{"chapter":32,"title":"PSYCHO"},{"chapter":33,"title":"THE GREATER GOOD"},{"chapter":34,"title":"THE OMEN"},{"chapter":35,"title":"CLINIC ROOM 2"},{"chapter":36,"title":"FAITH IN GOODNESS"}];
@@ -512,6 +511,8 @@ var EXTRA_READING_TITLES=[
  '學一次用一輩子的字首．字根．字尾'
 ];
 
+var importedWeekData={"2026-08-03":{"date":"2026-08-03","mood":"","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"type":"mathStudy","done":false,"minutes":"","required":true,"f":{"book":"","start":"","end":"","unit":""},"id":"seed-2026-08-03-1"},{"type":"mathPractice","done":false,"minutes":"","required":true,"f":{"questions":"","wrong":"","reason":"","corrected":false,"review":false,"extended":""},"id":"seed-2026-08-03-2"},{"type":"mathOral","done":false,"minutes":"","required":true,"f":{"topic":"","result":""},"id":"seed-2026-08-03-3"},{"type":"englishPractice","done":false,"minutes":"","required":true,"f":{"progress":""},"id":"seed-2026-08-03-4"}]},"2026-08-04":{"date":"2026-08-04","mood":"","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"type":"mathStudy","done":false,"minutes":"","required":true,"f":{"book":"","start":"","end":"","unit":""},"id":"seed-2026-08-04-1"},{"type":"mathPractice","done":false,"minutes":"","required":true,"f":{"questions":"","wrong":"","reason":"","corrected":false,"review":false,"extended":""},"id":"seed-2026-08-04-2"},{"type":"mathOral","done":false,"minutes":"","required":true,"f":{"topic":"","result":""},"id":"seed-2026-08-04-3"},{"type":"englishPractice","done":false,"minutes":"","required":true,"f":{"progress":""},"id":"seed-2026-08-04-4"}]},"2026-08-05":{"date":"2026-08-05","mood":"普通","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"type":"mathStudy","done":false,"minutes":"","required":true,"f":{"book":"1","start":"1","end":"15","unit":"實數"},"id":"seed-2026-08-05-1"},{"type":"mathPractice","done":false,"minutes":"","required":true,"f":{"questions":"","wrong":"","reason":"","corrected":false,"review":false,"extended":""},"id":"seed-2026-08-05-2"},{"type":"mathOral","done":false,"minutes":"","required":true,"f":{"topic":"十分逼近法","result":"用平方夾逼根號範圍\t穩定\n小數平方計算\t大致穩定，分數平方有一次誤算\n四捨五入分界\t尚未掌握\n精確分數比較\t方法方向正確，但證明需補條件\n範圍辨識\t很好，正確抓出第 2 題超綱"},"id":"seed-2026-08-05-3"},{"type":"magazine","done":true,"minutes":"10","required":true,"f":{"name":"常春藤","month":"8","unit":"3"},"id":"seed-2026-08-05-4"},{"type":"englishPractice","done":false,"minutes":"","required":true,"f":{"progress":""},"id":"seed-2026-08-05-5"}]},"2026-08-06":{"date":"2026-08-06","mood":"普通","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"type":"mathStudy","done":true,"minutes":"","required":true,"f":{"book":"1","start":"16","end":"24","unit":"絕對值"},"id":"seed-2026-08-06-1"},{"type":"mathPractice","done":false,"minutes":"","required":true,"f":{"questions":"","wrong":"","reason":"","corrected":false,"review":false,"extended":""},"id":"seed-2026-08-06-2"},{"type":"mathOral","done":true,"minutes":"","required":true,"f":{"topic":"絕對值","result":"平方夾逼：正確\n四捨五入分界：正確\n最後結論：正確\n計算：一處筆誤\n作答效率：可再減少不必要的逐項測試"},"id":"seed-2026-08-06-3"},{"type":"magazine","done":true,"minutes":"10","required":true,"f":{"name":"常春藤","month":"8","unit":"3"},"id":"seed-2026-08-06-4"},{"type":"englishPractice","done":true,"minutes":"","required":true,"f":{"progress":""},"id":"seed-2026-08-06-5"}]},"2026-08-07":{"date":"2026-08-07","mood":"普通","biggestBlock":"Prism Reading線上測驗做太久","firstThingTomorrow":"把指考106寫完","notes":"今天晚起，一直到12點左右才醒來","items":[{"type":"mathStudy","done":false,"minutes":"","required":true,"f":{"book":"1","start":"","end":"","unit":""},"id":"seed-2026-08-07-1"},{"type":"mathPractice","done":false,"minutes":"","required":true,"f":{"questions":"","wrong":"","reason":"","corrected":false,"review":false,"extended":""},"id":"seed-2026-08-07-2"},{"type":"mathOral","done":true,"minutes":"","required":true,"f":{"topic":"絕對值方程式與分段討論","result":"後續重點：\n\n分段後務必寫完整：條件 → 去絕對值 → 解方程式 → 篩選。\n練習不分段的替代方法，特別注意平方前條件與平方後驗根。"},"id":"seed-2026-08-07-3"},{"type":"magazine","done":true,"minutes":"45","required":true,"f":{"name":"常春藤","month":"8","unit":"3"},"id":"seed-2026-08-07-4"},{"type":"englishPractice","done":true,"minutes":"","required":true,"f":{"progress":""},"id":"seed-2026-08-07-5"},{"type":"mock","done":true,"minutes":"8","required":true,"f":{"year":"106","exam":"指考","round":"X","progress":"p.4 閱讀測驗","status":"","wrong":""},"id":"seed-2026-08-07-6"},{"type":"extra","done":true,"minutes":"","required":false,"f":{"title":"Prism Reading 2","progress":"Unit 2 p.32-35"},"id":"seed-2026-08-07-7"}]},"2026-08-08":{"date":"2026-08-08","mood":"較疲累","biggestBlock":"","firstThingTomorrow":"","notes":"今日晚起 13:30才醒來","items":[{"type":"mathStudy","done":false,"minutes":"","required":true,"f":{"book":"","start":"","end":"","unit":""},"id":"seed-2026-08-08-1"},{"type":"mathPractice","done":false,"minutes":"","required":true,"f":{"questions":"","wrong":"","reason":"","corrected":false,"review":false,"extended":""},"id":"seed-2026-08-08-2"},{"type":"mathOral","done":true,"minutes":"","required":true,"f":{"topic":"絕對值不等式與距離","result":"特別注意：\n<,> 不含端點；≤,≥ 要檢查端點"},"id":"seed-2026-08-08-3"},{"type":"magazine","done":true,"minutes":"25","required":true,"f":{"name":"CNN互動英語","month":"8","unit":"2"},"id":"seed-2026-08-08-4"},{"type":"magazine","done":true,"minutes":"18","required":true,"f":{"name":"CNN互動英語","month":"8","unit":"Cracking English"},"id":"seed-2026-08-08-5"},{"type":"englishPractice","done":false,"minutes":"","required":true,"f":{"progress":""},"id":"seed-2026-08-08-6"},{"type":"mock","done":true,"minutes":"56","required":true,"f":{"year":"106","exam":"指考","round":"X","progress":"60／72","status":"已完整訂正","wrong":"2. 6. 8. 10. 12. 18. 20. 23. 26. 27. 30. 50."},"id":"seed-2026-08-08-7"}]},"2026-08-09":{"date":"2026-08-09","mood":"普通","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"type":"mathStudy","done":true,"minutes":"","required":true,"f":{"book":"1","start":"26","end":"","unit":"絕對值"},"id":"seed-2026-08-09-1"},{"type":"mathPractice","done":false,"minutes":"","required":true,"f":{"questions":"","wrong":"","reason":"","corrected":false,"review":false,"extended":""},"id":"seed-2026-08-09-2"},{"type":"mathOral","done":false,"minutes":"","required":true,"f":{"topic":"","result":""},"id":"seed-2026-08-09-3"},{"type":"magazine","done":true,"minutes":"9","required":true,"f":{"name":"常春藤","month":"8","unit":"1"},"id":"seed-2026-08-09-4"},{"type":"magazine","done":true,"minutes":"20","required":true,"f":{"name":"常春藤","month":"8","unit":"2"},"id":"seed-2026-08-09-5"},{"type":"englishPractice","done":true,"minutes":"30","required":true,"f":{"progress":"Traumaland: My overwhelming emptiness"},"id":"seed-2026-08-09-6"},{"type":"extra","done":true,"minutes":"","required":false,"f":{"title":"106年指考英文","progress":"完成訂正"},"id":"seed-2026-08-09-7"}]}};
+var importedV123ProgressData={"2026-08-10":{"date":"2026-08-10","mood":"外出","wakeTime":"","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"id":"v123-2026-08-10-mag-1","type":"magazine","done":true,"minutes":"5","required":false,"source":"custom","title":"","description":"","f":{"name":"常春藤","month":"8","unit":"4"}},{"id":"v123-2026-08-10-mag-2","type":"magazine","done":true,"minutes":"30","required":false,"source":"custom","title":"","description":"","f":{"name":"CNN互動英語","month":"8","unit":"3"}}]},"2026-08-11":{"date":"2026-08-11","mood":"普通","wakeTime":"","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"id":"preset-2026-08-11-weekday_math_study","type":"mathStudy","done":false,"minutes":"","required":true,"source":"preset","presetKey":"weekday_math_study","title":"","description":"","f":{"start":"38"}},{"id":"preset-2026-08-11-weekday_math_practice","type":"mathPractice","done":false,"minutes":"","required":true,"source":"preset","presetKey":"weekday_math_practice","title":"","description":"","f":{}},{"id":"preset-2026-08-11-daily_interactive","type":"interactiveDaily","done":true,"minutes":"","required":true,"source":"preset","presetKey":"daily_interactive","title":"","description":"","f":{"interactiveEntries":[{"id":"v123-2026-08-11-mathoral","type":"mathOral","done":true,"minutes":"15","required":true,"source":"dailyInteractive","title":"","description":"","f":{"topic":"絕對值比較 → 平方與因式分解","result":"兩邊皆確定非負→可以直接平方，等價有一邊正負不確定→先判斷正負，再決定是否平方"}},{"id":"v123-2026-08-11-engint","type":"englishPractice","done":true,"minutes":"20","required":true,"source":"dailyInteractive","title":"","description":"","f":{"listening":true,"vocab":true,"translation":true,"gsatPart1":true}}]}},{"id":"preset-2026-08-11-weekday_magazine","type":"magazine","done":true,"minutes":"","required":true,"source":"preset","presetKey":"weekday_magazine","title":"","description":"","f":{"entries":[{"name":"CNN互動英語","month":"8","unit":"4","minutes":"5"},{"name":"常春藤","month":"8","unit":"5","minutes":"13"}]}},{"id":"preset-2026-08-11-weekday_english_review","type":"general","done":true,"minutes":"","required":true,"source":"preset","presetKey":"weekday_english_review","title":"","description":"","f":{"words":[{"text":"point out"},{"text":"of V-ing/Noun"},{"text":"register"},{"text":"distract"},{"text":"humanoid"},{"text":"android"},{"text":"exceedingly"},{"text":"arbitration"},{"text":"complementary"},{"text":"adorn"},{"text":"ornament"}]}},{"id":"preset-2026-08-11-english_mixed_writing","type":"englishMixedWriting","done":true,"minutes":"40","required":true,"source":"preset","presetKey":"english_mixed_writing","title":"","description":"","f":{"priorityFix":"文法與句構錯誤 注意詞性","essayScore":"9","mixedScore":"7"}},{"id":"v123-2026-08-11-toeic","type":"extra","done":true,"minutes":"20","required":false,"source":"custom","title":"","description":"","f":{"title":"NEW TOEIC 新制多益900+ 高頻必考字彙","start":"12","end":"15"}}]},"2026-08-12":{"date":"2026-08-12","mood":"普通","wakeTime":"","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"id":"preset-2026-08-12-weekday_math_study","type":"mathStudy","done":true,"minutes":"57","required":true,"source":"preset","presetKey":"weekday_math_study","title":"","description":"","f":{"material":"教學講義","book":"1","start":"48","end":"53"}},{"id":"preset-2026-08-12-daily_interactive","type":"interactiveDaily","done":false,"minutes":"","required":true,"source":"preset","presetKey":"daily_interactive","title":"","description":"","f":{"interactiveEntries":[{"id":"v123-2026-08-12-mathoral","type":"mathOral","done":false,"minutes":"","required":true,"source":"dailyInteractive","title":"","description":"","f":{}},{"id":"v123-2026-08-12-engint","type":"englishPractice","done":true,"minutes":"11","required":true,"source":"dailyInteractive","title":"","description":"","f":{"listening":true,"vocab":true,"translation":true,"gsatPart1":true}}]}},{"id":"preset-2026-08-12-weekday_magazine","type":"magazine","done":true,"minutes":"","required":true,"source":"preset","presetKey":"weekday_magazine","title":"","description":"","f":{"entries":[{"name":"常春藤","month":"8","unit":"composition","minutes":"6"},{"name":"CNN互動英語","month":"8","unit":"4","minutes":"10"}]}},{"id":"preset-2026-08-12-weekday_english_review","type":"general","done":false,"minutes":"","required":true,"source":"preset","presetKey":"weekday_english_review","title":"","description":"","f":{"words":[{"text":"spend time V-ing"},{"text":"be opposed to V-ing"},{"text":"object to V-ing"}]}},{"id":"v123-2026-08-12-prism","type":"extra","done":true,"minutes":"30","required":false,"source":"custom","title":"","description":"","f":{"title":"Prism Reading","level":"2","start":"35","end":"37","progress":false,"graded":false,"corrected":false}}]},"2026-08-13":{"date":"2026-08-13","mood":"精神良好","wakeTime":"11:30","biggestBlock":"","firstThingTomorrow":"","notes":"","items":[{"id":"preset-2026-08-13-weekday_math_study","type":"mathStudy","done":true,"minutes":"59","required":true,"source":"preset","presetKey":"weekday_math_study","title":"","description":"","f":{"material":"教學講義","book":"1","start":"54","end":"63"}},{"id":"preset-2026-08-13-weekday_math_practice","type":"mathPractice","done":true,"minutes":"5","required":true,"source":"preset","presetKey":"weekday_math_practice","title":"","description":"","f":{"material":"教學講義","book":"1","start":"2","end":"12","reason":"計算錯誤","corrected":true,"review":false,"extended":""}},{"id":"preset-2026-08-13-daily_interactive","type":"interactiveDaily","done":false,"minutes":"","required":true,"source":"preset","presetKey":"daily_interactive","title":"","description":"","f":{"interactiveEntries":[{"id":"v123-2026-08-13-mathoral","type":"mathOral","done":false,"minutes":"","required":true,"source":"dailyInteractive","title":"","description":"","f":{}},{"id":"v123-2026-08-13-engint","type":"englishPractice","done":false,"minutes":"","required":true,"source":"dailyInteractive","title":"","description":"","f":{}}]}},{"id":"preset-2026-08-13-weekday_magazine","type":"magazine","done":true,"minutes":"","required":true,"source":"preset","presetKey":"weekday_magazine","title":"","description":"","f":{"entries":[{"name":"常春藤","month":"8","unit":"6","minutes":"9"},{"name":"CNN互動英語","month":"8","unit":"5","minutes":"7"}]}},{"id":"preset-2026-08-13-weekday_english_review","type":"general","done":true,"minutes":"","required":true,"source":"preset","presetKey":"weekday_english_review","title":"","description":"","f":{"words":[{"text":"be locked out of"},{"text":"raise funding"},{"text":"aimed at bringing in a new generation"},{"text":"whopping"},{"text":"ubiquitous"},{"text":"self-made"},{"text":"virtually"},{"text":"bring in"}]}},{"id":"v123-2026-08-13-mathlecture","type":"mathLecture","done":true,"minutes":"3","required":false,"source":"custom","title":"","description":"","f":{"material":"教學講義","book":"1","start":"2","end":"27","progress":false,"graded":true,"corrected":false}}]},"2026-08-14":{"date":"2026-08-14","mood":"普通","wakeTime":"12:00","biggestBlock":"to: 介係詞? 不定詞?","firstThingTomorrow":"","notes":"in advance: 提早\nask O to V","items":[{"id":"preset-2026-08-14-fri_math_study","type":"mathStudy","done":false,"minutes":"","required":true,"source":"preset","presetKey":"fri_math_study","title":"","description":"","f":{"material":"教學講義","book":"1"}},{"id":"preset-2026-08-14-daily_interactive","type":"interactiveDaily","done":true,"minutes":"","required":true,"source":"preset","presetKey":"daily_interactive","title":"","description":"","f":{"interactiveEntries":[{"id":"v123-2026-08-14-mathoral","type":"mathOral","done":true,"minutes":"10","required":true,"source":"dailyInteractive","title":"","description":"","f":{"topic":"實數 × 絕對值 × 式的運算","result":"∣A∣ ? B 遇到 B<0 的判斷：尚未穩定，需要再測 平方展開：有一次計算失誤"}},{"id":"v123-2026-08-14-engint","type":"englishPractice","done":true,"minutes":"30","required":true,"source":"dailyInteractive","title":"","description":"","f":{"listening":true,"vocab":true,"translation":true,"gsatPart1":true}}]}},{"id":"preset-2026-08-14-english_mixed_writing","type":"englishMixedWriting","done":true,"minutes":"40","required":true,"source":"preset","presetKey":"english_mixed_writing","title":"","description":"","f":{"priorityFix":"文法","essayScore":"9"}},{"id":"preset-2026-08-14-fri_magazine","type":"magazine","done":true,"minutes":"","required":true,"source":"preset","presetKey":"fri_magazine","title":"","description":"","f":{"entries":[{"name":"CNN互動英語","month":"8","unit":"5","minutes":"8"}]}},{"id":"v123-2026-08-14-chem","type":"scienceReview","done":true,"minutes":"16","required":false,"source":"custom","title":"","description":"","f":{"subject":"化學","material":"好考點","start":"6","end":"15","progress":true,"graded":true,"corrected":true,"reason":"氣體蒐集法：排水及氣法（氧氣／氫氣／二氧化碳）、向上排氣法（氯化氫、氯氣）、向下排氣法（氨氣）\n氖氣、氬氣為單原子氣體\n不能使用衛生紙擦乾容器，可能殘留纖維"}},{"id":"v123-2026-08-14-writing","type":"chineseReading","done":true,"minutes":"30","required":false,"source":"custom","title":"","description":"","f":{"kind":"writing","topic":"那一次，我選擇慢下來","score":"19","writingType":"感性題","improvement":"「體悟與轉變」寫得太短\n太早進入「議論模式」"}}]},"2026-08-15":{"date":"2026-08-15","mood":"普通","wakeTime":"10:04","biggestBlock":"","firstThingTomorrow":"","notes":"outwardly; exhale; solidifying; mythic; shitloads of","items":[{"id":"preset-2026-08-15-sat_math_fill","type":"mathStudy","done":true,"minutes":"26","required":true,"source":"preset","presetKey":"sat_math_fill","title":"","description":"","f":{"material":"教學講義","book":"3A","start":"79","end":"86"}},{"id":"preset-2026-08-15-sat_math_practice","type":"mathPractice","done":false,"minutes":"","required":true,"source":"preset","presetKey":"sat_math_practice","title":"","description":"","f":{}},{"id":"preset-2026-08-15-daily_interactive","type":"interactiveDaily","done":false,"minutes":"","required":true,"source":"preset","presetKey":"daily_interactive","title":"","description":"","f":{"interactiveEntries":[{"id":"v123-2026-08-15-mathoral","type":"mathOral","done":false,"minutes":"","required":true,"source":"dailyInteractive","title":"","description":"","f":{}},{"id":"v123-2026-08-15-engint","type":"englishPractice","done":false,"minutes":"","required":true,"source":"dailyInteractive","title":"","description":"","f":{}}]}},{"id":"preset-2026-08-15-sat_makeup","type":"general","done":true,"minutes":"","required":true,"source":"preset","presetKey":"sat_makeup","title":"","description":"","f":{"makeupEntries":[{"id":"v123-2026-08-15-makeup-1","type":"extra","done":true,"minutes":"8","required":false,"source":"makeup","title":"","description":"","f":{"title":"雜誌","name":"常春藤","month":"8","unit":"6"}}]}},{"id":"preset-2026-08-15-sat_week_review","type":"general","done":false,"minutes":"","required":true,"source":"preset","presetKey":"sat_week_review","title":"","description":"","f":{"reviewEntries":[]}},{"id":"v123-2026-08-15-traumaland","type":"extra","done":true,"minutes":"30","required":false,"source":"custom","title":"","description":"","f":{"title":"Traumaland- Josh Silver","topic":"MY OVERWHELMING EMPTINESS"}}]},"2026-08-16":{"date":"2026-08-16","mood":"較疲累","wakeTime":"11:19","biggestBlock":"","firstThingTomorrow":"","notes":"今天去剪頭髮，下大雨，好煩\n又幫別人上了家教課，更煩\n生物: .html混合題練習","items":[{"id":"preset-2026-08-16-sun_math_practice","type":"mathPractice","done":false,"minutes":"","required":true,"source":"preset","presetKey":"sun_math_practice","title":"","description":"","f":{}},{"id":"preset-2026-08-16-daily_interactive","type":"interactiveDaily","done":false,"minutes":"","required":true,"source":"preset","presetKey":"daily_interactive","title":"","description":"","f":{"interactiveEntries":[{"id":"v123-2026-08-16-mathoral","type":"mathOral","done":false,"minutes":"","required":true,"source":"dailyInteractive","title":"","description":"","f":{}},{"id":"v123-2026-08-16-engint","type":"englishPractice","done":false,"minutes":"","required":true,"source":"dailyInteractive","title":"","description":"","f":{}}]}},{"id":"v123-2026-08-16-bio","type":"scienceReview","done":true,"minutes":"10","required":false,"source":"custom","title":"","description":"","f":{"subject":"生物","progress":true,"graded":false,"corrected":false}}]}};
 
 var memoryStore={};
 var storagePersistent=true;
@@ -523,11 +524,8 @@ var SUPABASE_URL='https://arxbirgujbrtzhoficdf.supabase.co';
 var SUPABASE_PUBLISHABLE_KEY='sb_publishable_x8YXDSe-6rvX25o38jEl4w_OYn971PA';
 var cloudClient=null;
 var cloudUser=null;
-var studySyncEngine=null;
-var liveCalendarTasks=[];
-var liveCalendarTasksByDate={};
-var calendarApiAuthoritative=false;
-var calendarTaskSnapshotReady=false;
+var cloudSaveTimer=null;
+var cloudLoading=false;
 
 function cloudSetMessage(msg,ok){
  var el=id('cloudMessage');if(el)el.textContent=msg||'';
@@ -546,69 +544,138 @@ function cloneRecord(rec){
  try{return JSON.parse(JSON.stringify(rec))}catch(e){return rec}
 }
 function readStoredRecord(date){
- var raw=store.getItem(recordStorageKey(currentStoragePrefix,date));if(!raw)return null;
+ var raw=store.getItem(key(date));if(!raw)return null;
  try{return JSON.parse(raw)}catch(e){return null}
 }
-function stampRecord(rec){
- if(!rec)return false;
- rec.localDirty=true;
- rec.syncConflict=false;
- return true;
+function stampRecord(rec,at){
+ if(!rec)return'';rec.updatedAt=String(at||new Date().toISOString());return rec.updatedAt;
 }
-function createStudySyncEngine(){
- if(studySyncEngine){studySyncEngine.dispose();studySyncEngine=null}
- if(!cloudClient||!cloudUser)return;
- studySyncEngine=new StudySyncEngine(cloudClient,{
-  read:function(date){return readStoredRecord(date)},
-  write:function(rec){writeStoredRecord(rec)},
-  dates:function(){return localStudyDates()}
- });
+function cloudRecordWithTimestamp(payload,updatedAt){
+ var rec=cloneRecord(payload)||{};
+ if(updatedAt)rec.updatedAt=String(updatedAt);
+ else if(!rec.updatedAt)stampRecord(rec);
+ return rec;
 }
-function syncResultMessage(result,date){
- if(!result)return;
- if(result.status==='saved'){
-  var rec=result.record;
-  if(rec&&data&&data.date===rec.date){data.serverRevision=rec.serverRevision;data.serverUpdatedAt=rec.serverUpdatedAt;data.localDirty=false;data.syncConflict=false}
-  cloudSetMessage('已同步 '+date+' 到雲端'+(rec&&rec.serverRevision?'（revision '+rec.serverRevision+'）':'')+'。',true);
- }else if(result.status==='conflict')cloudSetMessage(date+' 發生版本衝突；已保留本機內容，未覆蓋雲端。',false);
- else if(result.status==='error')cloudSetMessage('雲端同步失敗：'+(result.message||'未知錯誤'),false);
+function writeStoredRecord(rec){
+ if(!rec||!rec.date)return false;
+ try{
+  store.setItem(key(rec.date),JSON.stringify(rec));
+  mathProgressIndex.upsert(rec);
+  return true;
+ }catch(e){return false}
 }
 async function cloudSaveRecord(rec){
- if(!studySyncEngine||!cloudUser||!rec||!rec.date)return false;
- var result=await studySyncEngine.save(cloneRecord(rec));
- syncResultMessage(result,rec.date);
- return result.status==='saved'||result.status==='equal';
+ if(!cloudClient||!cloudUser||!rec)return false;
+ try{
+  var payload=cloneRecord(rec);
+  if(!payload.updatedAt)stampRecord(payload);
+  var existing=await cloudClient.from('study_records').select('payload,updated_at').eq('study_date',payload.date).maybeSingle();
+  if(existing.error)throw existing.error;
+  if(existing.data&&existing.data.payload){
+   var cloudExisting=cloudRecordWithTimestamp(existing.data.payload,existing.data.updated_at);
+   var decision=resolveRecordSync(payload,cloudExisting,existing.data.updated_at);
+   if(decision==='use-cloud'){
+    cloudSetMessage('雲端 '+payload.date+' 比本機更新；已停止本次上傳，避免覆蓋較新的雲端紀錄。',false);
+    return false;
+   }
+   if(decision==='equal'){
+    cloudSetMessage(payload.date+' 的本機與雲端內容一致，不需重複上傳。',true);
+    return true;
+   }
+   if(decision==='legacy-conflict'){
+    cloudSetMessage(payload.date+' 的本機／雲端紀錄無法可靠判斷新舊；已保留兩端資料，不自動覆蓋。',false);
+    return false;
+   }
+  }
+  var r=await cloudClient.from('study_records').upsert({
+   user_id:cloudUser.id,study_date:payload.date,payload:payload,updated_at:payload.updatedAt
+  },{onConflict:'user_id,study_date'});
+  if(r.error)throw r.error;
+  cloudSetMessage('已同步 '+payload.date+' 到雲端。',true);return true;
+ }catch(e){cloudSetMessage('雲端同步失敗：'+(e&&e.message?e.message:String(e)),false);return false}
 }
 function queueCloudSave(rec){
- if(!studySyncEngine||!cloudUser||!rec||!rec.date)return;
- studySyncEngine.queue(cloneRecord(rec),function(result){syncResultMessage(result,rec.date)});
+ if(!cloudClient||!cloudUser||!rec||cloudLoading)return;
+ var snap=cloneRecord(rec);
+ clearTimeout(cloudSaveTimer);
+ cloudSaveTimer=setTimeout(function(){cloudSaveRecord(snap)},450);
 }
 async function cloudPullAllRecords(){
- if(!studySyncEngine||!cloudUser)return 0;
- var summary=await studySyncEngine.pullAll();
- var msg='已比較 '+summary.total+' 天雲端歷史紀錄；採用／確認 '+summary.accepted+' 天';
- if(summary.pushed)msg+='，本機較新／新增 '+summary.pushed+' 天已回寫雲端';
- if(summary.conflicts)msg+='，'+summary.conflicts+' 天版本衝突已停住';
- if(summary.errors)msg+='，另有 '+summary.errors+' 個同步錯誤';
- cloudSetMessage(msg+'。',(summary.conflicts||summary.errors)?false:true);
- return summary.total;
+ if(!cloudClient||!cloudUser)return 0;
+ var newerLocal=[],conflicts=0,accepted=0,total=0;
+ try{
+  cloudLoading=true;
+  var r=await cloudClient.from('study_records').select('study_date,payload,updated_at').order('study_date',{ascending:true});
+  if(r.error)throw r.error;
+  (r.data||[]).forEach(function(z){
+   if(!z||!z.study_date||!z.payload)return;total++;
+   var local=readStoredRecord(z.study_date);
+   var cloud=cloudRecordWithTimestamp(z.payload,z.updated_at);
+   var decision=resolveRecordSync(local,cloud,z.updated_at);
+   if(decision==='use-cloud'){
+    writeStoredRecord(cloud);accepted++;return;
+   }
+   if(decision==='equal'){
+    var equalRecord=local||cloud;
+    if(z.updated_at)equalRecord.updatedAt=String(z.updated_at);
+    writeStoredRecord(equalRecord);accepted++;return;
+   }
+   if(decision==='use-local'){
+    newerLocal.push(local);return;
+   }
+   conflicts++;
+  });
+ }catch(e){cloudSetMessage('載入雲端歷史紀錄失敗：'+(e&&e.message?e.message:String(e)),false);return 0}
+ finally{cloudLoading=false}
+ for(var i=0;i<newerLocal.length;i++)await cloudSaveRecord(newerLocal[i]);
+ var msg='已比較 '+total+' 天雲端歷史紀錄；採用／確認 '+accepted+' 天';
+ if(newerLocal.length)msg+='，本機較新 '+newerLocal.length+' 天已回寫雲端';
+ if(conflicts)msg+='，另有 '+conflicts+' 天舊版紀錄因缺少時間戳而保留本機、不自動覆蓋';
+ cloudSetMessage(msg+'。',conflicts?false:true);
+ return total;
 }
 async function cloudPullDate(date,force){
- if(!studySyncEngine||!cloudUser||!date)return false;
- var result=await studySyncEngine.pullDate(date);
+ if(!cloudClient||!cloudUser||!date)return false;
+ var localToPush=null,hasCloud=false,conflict=false;
+ try{
+  cloudLoading=true;
+  var r=await cloudClient.from('study_records').select('payload,updated_at').eq('study_date',date).maybeSingle();
+  if(r.error)throw r.error;
+  if(r.data&&r.data.payload){
+   hasCloud=true;
+   var local=readStoredRecord(date);
+   var cloud=cloudRecordWithTimestamp(r.data.payload,r.data.updated_at);
+   var decision=resolveRecordSync(local,cloud,r.data.updated_at);
+   if(decision==='use-cloud')writeStoredRecord(cloud);
+   else if(decision==='equal'){
+    var equalRecord=local||cloud;
+    if(r.data.updated_at)equalRecord.updatedAt=String(r.data.updated_at);
+    writeStoredRecord(equalRecord);
+   }else if(decision==='use-local')localToPush=local;
+   else conflict=true;
+  }
+ }catch(e){cloudSetMessage('讀取雲端失敗：'+(e&&e.message?e.message:String(e)),false);return false}
+ finally{cloudLoading=false}
+ if(localToPush)await cloudSaveRecord(localToPush);
  if(force||id('studyDate').value===date){
-  data=loadData(date);var changed=ensureDailyPresets(data,date);writeHeader();render();if(changed)persist(false);
+  data=loadData(date);var changed=ensureDailyPresets(data,date);writeHeader();render();
+  if(changed)persist(false);
  }
- if(result.status==='conflict'){
-  cloudSetMessage(date+' 有本機／雲端版本衝突；兩邊都未被自動覆蓋。',false);return false
- }
- if(result.status==='error'){
-  cloudSetMessage('讀取雲端失敗：'+(result.message||'未知錯誤'),false);return false
- }
- return true;
+ if(conflict){cloudSetMessage(date+' 的舊版本機紀錄沒有更新時間，且內容與雲端不同；已保留本機資料，不自動覆蓋。',false);return false}
+ if(localToPush){cloudSetMessage(date+' 的本機紀錄較新，已保留並同步回雲端。',true);return true}
+ if(hasCloud){cloudSetMessage('已依更新時間比較並同步 '+date+'。',true);return true}
+ cloudSetMessage('雲端尚無 '+date+' 紀錄；目前顯示本機資料。',true);return false;
 }
 function localStudyDates(){
- return listStoredDates(store,currentStoragePrefix);
+ var a=[];
+ for(var i=0;i<store.length;i++){
+  var k=store.key(i);
+  if(k&&k.indexOf(STORE_PREFIX)===0){
+   var d=k.slice(STORE_PREFIX.length);
+   if(/^\d{4}-\d{2}-\d{2}$/.test(d))a.push(d);
+  }
+ }
+ return a.sort();
 }
 function rebuildMathProgressIndex(){
  var records=[];
@@ -618,28 +685,32 @@ function rebuildMathProgressIndex(){
 async function cloudMergeLocalMissing(){
  if(!cloudClient||!cloudUser)return;
  try{
-  cloudSetMessage('正在手動匯入舊版本機／訪客資料…',true);
-  var sourceByDate={};
-  listStoredDates(store,LEGACY_STORAGE_PREFIX).forEach(function(date){
-   try{var raw=store.getItem(recordStorageKey(LEGACY_STORAGE_PREFIX,date));if(raw)sourceByDate[date]=JSON.parse(raw)}catch(e){}
-  });
-  listStoredDates(store,GUEST_STORAGE_PREFIX).forEach(function(date){
-   try{var raw=store.getItem(recordStorageKey(GUEST_STORAGE_PREFIX,date));if(raw)sourceByDate[date]=JSON.parse(raw)}catch(e){}
-  });
-  var dates=Object.keys(sourceByDate).sort(),imported=0,skipped=0,failed=0;
+  cloudSetMessage('正在比較本機與雲端版本…',true);
+  var r=await cloudClient.from('study_records').select('study_date,payload,updated_at');
+  if(r.error)throw r.error;
+  var cloudByDate={};(r.data||[]).forEach(function(z){cloudByDate[z.study_date]=z});
+  var dates=localStudyDates(),added=0,updated=0,legacyResolved=0;
   for(var i=0;i<dates.length;i++){
-   var d=dates[i],incoming=sourceByDate[d];if(!incoming||!incoming.date)incoming.date=d;
-   var current=readStoredRecord(d);
-   if(current&&!sameStudyPayload(current,incoming)&&current.localDirty){skipped++;continue}
-   var cloudRow=await cloudClient.from('study_records').select('revision').eq('study_date',d).maybeSingle();
-   if(cloudRow.error)throw cloudRow.error;
-   var candidate=cloneRecord(incoming);candidate.serverRevision=cloudRow.data?Number(cloudRow.data.revision||0)||undefined:undefined;candidate.localDirty=true;candidate.syncConflict=false;
-   writeStoredRecord(candidate);
-   if(await cloudSaveRecord(candidate))imported++;else failed++;
+   var d=dates[i],local=readStoredRecord(d);if(!local)continue;
+   var row=cloudByDate[d];
+   if(!row){
+    if(!local.updatedAt){stampRecord(local);writeStoredRecord(local)}
+    if(await cloudSaveRecord(local))added++;
+    continue;
+   }
+   var cloud=cloudRecordWithTimestamp(row.payload,row.updated_at);
+   var decision=resolveRecordSync(local,cloud,row.updated_at);
+   if(decision==='use-local'){
+    if(await cloudSaveRecord(local))updated++;
+   }else if(decision==='legacy-conflict'){
+    // This button is an explicit request to push local legacy data. Assign a
+    // timestamp now so the conflict has a deterministic winner.
+    stampRecord(local);writeStoredRecord(local);
+    if(await cloudSaveRecord(local)){updated++;legacyResolved++}
+   }
   }
-  rebuildMathProgressIndex();load();
-  cloudSetMessage('舊資料手動匯入完成：成功 '+imported+' 天、略過已綁定且內容不同 '+skipped+' 天、未同步 '+failed+' 天。',failed?false:true);
- }catch(e){cloudSetMessage('匯入舊版本機資料失敗：'+(e&&e.message?e.message:String(e)),false)}
+  cloudSetMessage('本機資料同步完成：新增 '+added+' 天、更新 '+updated+' 天'+(legacyResolved?'（其中 '+legacyResolved+' 天為舊版無時間戳紀錄）':'')+'。',true);
+ }catch(e){cloudSetMessage('補上本機資料失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 async function cloudSignIn(){
  var email=id('cloudEmail').value.trim(),password=id('cloudPassword').value;
@@ -660,27 +731,19 @@ async function cloudSignUp(){
  }catch(e){cloudSetMessage('建立帳號失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 async function cloudSignOut(){
- if(!cloudClient)return;
- if(studySyncEngine){studySyncEngine.dispose();studySyncEngine=null}
- await cloudClient.auth.signOut();
- cloudSetMessage('已登出；已切回訪客本機資料。',true);
-}
-async function applyAuthSession(session,initial){
- var nextUser=session?session.user:null,nextId=nextUser?nextUser.id:null,oldId=cloudUser?cloudUser.id:null;
- if(!initial&&nextId===oldId)return;
- if(studySyncEngine){studySyncEngine.dispose();studySyncEngine=null}
- cloudUser=nextUser;currentStoragePrefix=storagePrefixForUser(nextId);data=null;mathProgressIndex=new MathProgressIndex();calendarApiAuthoritative=false;calendarTaskSnapshotReady=false;rebuildLiveCalendarTaskIndex(cloudUser?readCalendarTaskCache():[]);cloudUpdateUI();calendarUpdateUI();rebuildMathProgressIndex();
- if(cloudUser){createStudySyncEngine();await cloudPullAllRecords();await calendarPullTasks();await calendarRefreshStatus()}
- rebuildMathProgressIndex();load();
+ if(!cloudClient)return;await cloudClient.auth.signOut();cloudSetMessage('已登出；之後仍可使用本機資料。',true);
 }
 async function initCloud(){
- if(!window.supabase||!window.supabase.createClient){
-  currentStoragePrefix=storagePrefixForUser(null);rebuildMathProgressIndex();cloudSetMessage('Supabase 程式庫載入失敗；目前使用訪客本機模式。',false);calendarUpdateUI();load();return
- }
+ if(!window.supabase||!window.supabase.createClient){cloudSetMessage('Supabase 程式庫載入失敗；目前使用本機模式。',false);return}
  cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
- var s=await cloudClient.auth.getSession();
- await applyAuthSession(s.data&&s.data.session?s.data.session:null,true);
- cloudClient.auth.onAuthStateChange(function(event,session){setTimeout(function(){applyAuthSession(session,false)},0)});
+ var s=await cloudClient.auth.getSession();cloudUser=s.data&&s.data.session?s.data.session.user:null;cloudUpdateUI();
+ if(cloudUser){await cloudPullAllRecords();load()}
+ cloudClient.auth.onAuthStateChange(function(event,session){
+  cloudUser=session?session.user:null;cloudUpdateUI();
+  setTimeout(async function(){
+   if(cloudUser){await cloudPullAllRecords();await cloudMergeLocalMissing();await cloudPullAllRecords();load()}
+  },0);
+ });
 }
 
 function id(x){return document.getElementById(x)}
@@ -689,13 +752,13 @@ function pad(n){return n<10?'0'+n:String(n)}
 function dateString(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function parseDate(s){var p=String(s).split('-');return new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),12,0,0)}
 function mondayOf(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate(),12),day=x.getDay();x.setDate(x.getDate()-(day===0?6:day-1));return x}
-function key(d){return recordStorageKey(currentStoragePrefix,d)}
+function key(d){return STORE_PREFIX+d}
 function line(v){return String(v==null?'':v).trim()||'—'}
 function uid(prefix){return(prefix||'i')+'-'+Date.now()+'-'+Math.floor(Math.random()*1000000)}
 function selected(v,current){return String(v)===String(current)?' selected':''}
 function checked(v){return v?' checked':''}
 
-function blank(date){return{date:date,serverRevision:undefined,serverUpdatedAt:undefined,localDirty:false,syncConflict:false,mood:'',wakeTime:'',items:[],biggestBlock:'',firstThingTomorrow:'',notes:''}}
+function blank(date){return{date:date,updatedAt:'',mood:'',wakeTime:'',items:[],biggestBlock:'',firstThingTomorrow:'',notes:''}}
 function customCountsOriginal(x){return x&&x.type==='extra'&&(isPrism(x.f&&x.f.title)||((x.f&&x.f.title)==='ENGLISH VOCABULARY IN USE'))}
 function normalizeItem(it,date){
  if(!it||typeof it!=='object')return null;
@@ -718,12 +781,18 @@ function loadData(date){
  if(!raw)return b;
  try{
   var o=JSON.parse(raw)||{};
-  b.serverRevision=Number(o.serverRevision||0)||undefined;b.serverUpdatedAt=o.serverUpdatedAt||'';b.localDirty=!!o.localDirty;b.syncConflict=!!o.syncConflict;
-  b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
+  b.updatedAt=o.updatedAt||'';b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
   if(Array.isArray(o.items))for(var i=0;i<o.items.length;i++){var it=normalizeItem(o.items[i],date);if(it)b.items.push(it)}
  }catch(e){}
  return b;
 }
+function seedImportedWeek(){
+ var marker=STORE_PREFIX+'imported-2026-08-03-to-08-09';
+ if(store.getItem(marker))return;
+ for(var d in importedWeekData)if(Object.prototype.hasOwnProperty.call(importedWeekData,d)&&store.getItem(key(d))===null)store.setItem(key(d),JSON.stringify(importedWeekData[d]));
+ store.setItem(marker,'1');
+}
+
 function mergeV123Value(dst,src){
  if(src===undefined||src===null)return dst;
  if(Array.isArray(src)){
@@ -740,6 +809,34 @@ function mergeV123Value(dst,src){
  if(dst===undefined||dst===null||dst==='')return src;
  return dst;
 }
+function mergeImportedV123Progress(){
+ var marker=STORE_PREFIX+'imported-v123-progress-2026-08-10-to-08-16-v1';
+ if(store.getItem(marker))return;
+ for(var d in importedV123ProgressData)if(Object.prototype.hasOwnProperty.call(importedV123ProgressData,d)){
+  var src=importedV123ProgressData[d],raw=store.getItem(key(d)),dst=raw?loadData(d):blank(d);
+  dst.mood=mergeV123Value(dst.mood,src.mood);
+  dst.wakeTime=mergeV123Value(dst.wakeTime,src.wakeTime);
+  dst.biggestBlock=mergeV123Value(dst.biggestBlock,src.biggestBlock);
+  dst.firstThingTomorrow=mergeV123Value(dst.firstThingTomorrow,src.firstThingTomorrow);
+  dst.notes=mergeV123Value(dst.notes,src.notes);
+  if(!Array.isArray(dst.items))dst.items=[];
+  for(var i=0;i<src.items.length;i++){
+   var si=src.items[i],di=null,j;
+   if(si.presetKey){
+    for(j=0;j<dst.items.length;j++)if(dst.items[j]&&dst.items[j].presetKey===si.presetKey){di=dst.items[j];break}
+   }else{
+    for(j=0;j<dst.items.length;j++)if(dst.items[j]&&dst.items[j].id===si.id){di=dst.items[j];break}
+   }
+   if(!di){dst.items.push(cloneObj(si));continue}
+   di.done=si.done?true:!!di.done;
+   if((di.minutes===undefined||di.minutes==='')&&si.minutes!=='')di.minutes=si.minutes;
+   if(!di.f)di.f={};di.f=mergeV123Value(di.f,si.f||{});
+  }
+  store.setItem(key(d),JSON.stringify(dst));
+ }
+ store.setItem(marker,'1');
+}
+
 function presetDef(key,type,title,description,required,f){return{key:key,type:type,title:title,description:description,required:required!==false,f:f||{}}}
 function cloneObj(o){try{return JSON.parse(JSON.stringify(o||{}))}catch(e){return{}}}
 function calendarAceRound(date){
@@ -766,16 +863,7 @@ function calendarWritingTest(date){
 function calendarGrammarReview(date){
  return CALENDAR_GRAMMAR_PLAN[date]||null;
 }
-function calendarNaturalRecommended(date){
- var tasks=liveCalendarTasksByDate[date]||[];
- for(var i=0;i<tasks.length;i++){
-  var task=tasks[i];if(!task||!(task.category==='natural'||/^(物理|化學|生物|地科)｜/.test(task.title||'')))continue;
-  for(var d in CALENDAR_NATURAL_PLAN)if(Object.prototype.hasOwnProperty.call(CALENDAR_NATURAL_PLAN,d)&&CALENDAR_NATURAL_PLAN[d]===task.title)return CALENDAR_NATURAL_RECOMMENDED_PAGES[d]||null;
-  return null;
- }
- if(calendarApiAuthoritative)return null;
- return CALENDAR_NATURAL_RECOMMENDED_PAGES[date]||null;
-}
+function calendarNaturalRecommended(date){return CALENDAR_NATURAL_RECOMMENDED_PAGES[date]||null}
 function calendarNaturalRanges(p){
  if(!p)return[];
  var a=Array.isArray(p.ranges)?p.ranges:((p.start&&p.end)?[[p.start,p.end]]:[]),out=[];
@@ -806,8 +894,8 @@ function completedNaturalIntervalsBefore(date,subject){
  }
  try{
   for(var i=0;i<store.length;i++){
-   var sk=store.key(i);if(!sk||sk.indexOf(currentStoragePrefix)!==0)continue;
-   var ds=sk.slice(currentStoragePrefix.length);if(!/^\d{4}-\d{2}-\d{2}$/.test(ds)||ds>=date)continue;
+   var sk=store.key(i);if(!sk||sk.indexOf(STORE_PREFIX)!==0||sk.indexOf('imported-')>=0)continue;
+   var ds=sk.slice(STORE_PREFIX.length);if(!/^\d{4}-\d{2}-\d{2}$/.test(ds)||ds>=date)continue;
    var raw=store.getItem(sk);if(!raw)continue;
    try{scanRecord(JSON.parse(raw),ds)}catch(e){}
   }
@@ -846,7 +934,7 @@ function applyCalendarNaturalRecommended(rec,date){
  var x=null;
  for(var i=0;i<rec.items.length;i++){
   var z=rec.items[i];
-  if(z&&z.type==='scienceReview'&&z.source==='preset'&&isCalendarNatural(z)){x=z;break}
+  if(z&&z.type==='scienceReview'&&z.source==='preset'&&/^cal_natural_/.test(z.presetKey||'')){x=z;break}
  }
  if(!x)return false;
  if(!x.f)x.f={};
@@ -872,79 +960,44 @@ function applyCalendarNaturalRecommended(rec,date){
  return changed;
 }
 
-function calendarCacheKey(){return cloudUser?'calendar-cache-v1:user:'+cloudUser.id:''}
-function readCalendarTaskCache(){var k=calendarCacheKey();if(!k)return[];try{var cached=JSON.parse(store.getItem(k)||'null');if(Array.isArray(cached)){if(cached.length)calendarTaskSnapshotReady=true;return cached}if(cached&&Array.isArray(cached.rows)){calendarTaskSnapshotReady=!!cached.ready;return cached.rows}return[]}catch(e){return[]}}
-function writeCalendarTaskCache(rows){var k=calendarCacheKey();if(!k)return;try{store.setItem(k,JSON.stringify({ready:true,rows:rows||[],savedAt:new Date().toISOString()}))}catch(e){}}
-function rebuildLiveCalendarTaskIndex(rows){
- liveCalendarTasks=Array.isArray(rows)?rows:[];liveCalendarTasksByDate={};
- liveCalendarTasks.forEach(function(task){if(!task||!task.event_date)return;(liveCalendarTasksByDate[task.event_date]||(liveCalendarTasksByDate[task.event_date]=[])).push(task)});
-}
-async function calendarPullTasks(){
- if(!cloudClient||!cloudUser){rebuildLiveCalendarTaskIndex([]);calendarApiAuthoritative=false;calendarTaskSnapshotReady=false;calendarUpdateUI();return 0}
- try{
-  var from=new Date();from.setDate(from.getDate()-60);var to=new Date();to.setDate(to.getDate()+240);
-  var r=await cloudClient.from('calendar_tasks').select('*').gte('event_date',dateString(from)).lte('event_date',dateString(to)).order('event_date',{ascending:true});
-  if(r.error)throw r.error;rebuildLiveCalendarTaskIndex(r.data||[]);calendarTaskSnapshotReady=true;writeCalendarTaskCache(r.data||[]);calendarUpdateUI();return liveCalendarTasks.length;
- }catch(e){calendarSetMessage('讀取 Calendar 排程失敗：'+(e&&e.message?e.message:String(e)),false);return 0}
-}
-function calendarSetMessage(msg,ok){var el=id('calendarMessage');if(el)el.textContent=msg||'';var badge=id('calendarStatusBadge');if(badge)badge.textContent=!cloudUser?'需先登入':(ok===false?'同步異常':'Calendar')}
-function calendarUpdateUI(){
- var disabled=!cloudUser;['calendarConnectBtn','calendarSyncBtn','calendarDisconnectBtn'].forEach(function(k){var el=id(k);if(el)el.disabled=disabled});
- if(!cloudUser)calendarSetMessage('先登入 Study Tracker 帳號，再連接 Google Calendar。',true);
-}
-async function calendarInvoke(action){
- if(!cloudClient||!cloudUser)throw new Error('請先登入 Study Tracker。');
- var r=await cloudClient.functions.invoke('google-calendar',{body:{action:action}});if(r.error)throw r.error;if(r.data&&r.data.error)throw new Error(r.data.error);return r.data||{};
-}
-async function calendarRefreshStatus(){
- if(!cloudUser){calendarUpdateUI();return}
- try{var st=await calendarInvoke('status');if(st.connected){calendarApiAuthoritative=!!calendarTaskSnapshotReady;var suffix=st.last_synced_at?'；上次同步 '+new Date(st.last_synced_at).toLocaleString():'';if(!calendarTaskSnapshotReady)suffix+='；尚未取得可用的 Calendar task snapshot，目前暫用內建 fallback';if(st.sync_error)suffix+='；錯誤：'+st.sync_error;calendarSetMessage('Google Calendar 已連接'+suffix,!st.sync_error&&calendarTaskSnapshotReady)}else{calendarApiAuthoritative=false;calendarSetMessage('尚未連接 Google Calendar。',true)}}catch(e){calendarSetMessage('Calendar 狀態讀取失敗：'+(e&&e.message?e.message:String(e)),false)}
-}
-async function calendarConnect(){try{var r=await calendarInvoke('auth-url');if(!r.url)throw new Error('未取得 Google 授權網址。');window.location.href=r.url}catch(e){calendarSetMessage('Calendar 連線失敗：'+(e&&e.message?e.message:String(e)),false)}}
-async function calendarSyncNow(){try{calendarSetMessage('正在從 Google Calendar 讀取…',true);var r=await calendarInvoke('sync');await calendarPullTasks();load();calendarSetMessage('Calendar 已同步 '+Number(r.synced||0)+' 筆事件。',true)}catch(e){calendarSetMessage('Calendar 同步失敗：'+(e&&e.message?e.message:String(e)),false)}}
-async function calendarDisconnect(){try{await calendarInvoke('disconnect');calendarApiAuthoritative=false;calendarTaskSnapshotReady=false;rebuildLiveCalendarTaskIndex([]);writeCalendarTaskCache([]);load();calendarSetMessage('已解除 Google Calendar 連線。',true)}catch(e){calendarSetMessage('Calendar 解除失敗：'+(e&&e.message?e.message:String(e)),false)}}
-function liveCalendarDefinitions(date){
- var tasks=liveCalendarTasksByDate[date]||[],defs=[];
- tasks.forEach(function(task){calendarTaskToPresetDefinitions(task).forEach(function(def){defs.push(def)})});
- return defs;
-}
-function liveCalendarMathPlan(date){
- var tasks=liveCalendarTasksByDate[date]||[];
- for(var i=0;i<tasks.length;i++){var plan=mathPlanFromCalendarTask(tasks[i]);if(plan)return plan}
- return null;
-}
 function calendarDefsForDate(date){
- var live=liveCalendarDefinitions(date);
- if(calendarApiAuthoritative)return live;
- if(live.length)return live;
  var a=[],ace=calendarAceRound(date),g=calendarGujinRounds(date),nat=CALENDAR_NATURAL_PLAN[date],wt=calendarWritingTest(date),gr=calendarGrammarReview(date),nr=calendarNaturalRecommended(date),ni=CALENDAR_NATURAL_INTEGRATION_DETAILS[date]||null;
- if(ace)a.push(presetDef('cal_ace_'+ace,'extra','英文｜ACE Reading 第 '+ace+' 回','Google Calendar fallback：第 '+ace+' 回＋訂正。',true,{title:'ACE Reading',round:String(ace)}));
- if(wt)a.push(presetDef('cal_writing_'+wt.round,'extra','英文｜英文寫作測驗 第 '+wt.round+' 回','Google Calendar fallback：第 '+wt.round+' 回｜'+wt.focus+'。',true,{title:'英文寫作測驗',round:String(wt.round),calendarFocus:wt.focus}));
- if(gr)a.push(presetDef('cal_grammar_'+date.replace(/-/g,''),'extra','英文｜英文文法總複習｜'+gr.title,'Google Calendar fallback：'+gr.title+'｜建議頁碼：'+gr.rangeText+'｜'+gr.focus+'。',true,{title:'英文文法總複習講義',start:gr.rangeType==='whole'?'':(gr.start==null?'':String(gr.start)),end:gr.rangeType==='whole'?'':(gr.end==null?'':String(gr.end)),calendarGrammarTitle:gr.title,calendarRangeText:gr.rangeText,calendarRangeType:gr.rangeType,calendarFocus:gr.focus}));
- for(var i=0;i<g.length;i++)a.push(presetDef('cal_gujin_'+g[i],'chineseReading','國文｜古今悅讀一百 第 '+g[i]+' 回','Google Calendar fallback：第 '+g[i]+' 回＋訂正。',true,{kind:'reading',round:String(g[i])}));
+ if(ace)a.push(presetDef('cal_ace_'+ace,'extra','英文｜ACE Reading 第 '+ace+' 回','Google Calendar：第 '+ace+' 回＋訂正。',true,{title:'ACE Reading',round:String(ace)}));
+ if(wt)a.push(presetDef('cal_writing_'+wt.round,'extra','英文｜英文寫作測驗 第 '+wt.round+' 回','Google Calendar：第 '+wt.round+' 回｜'+wt.focus+'。',true,{title:'英文寫作測驗',round:String(wt.round),calendarFocus:wt.focus}));
+ if(gr)a.push(presetDef('cal_grammar_'+date.replace(/-/g,''),'extra','英文｜英文文法總複習｜'+gr.title,'Google Calendar：'+gr.title+'｜建議頁碼：'+gr.rangeText+'｜'+gr.focus+'。',true,{title:'英文文法總複習講義',start:gr.rangeType==='whole'?'':(gr.start==null?'':String(gr.start)),end:gr.rangeType==='whole'?'':(gr.end==null?'':String(gr.end)),calendarGrammarTitle:gr.title,calendarRangeText:gr.rangeText,calendarRangeType:gr.rangeType,calendarFocus:gr.focus}));
+ for(var i=0;i<g.length;i++)a.push(presetDef('cal_gujin_'+g[i],'chineseReading','國文｜古今悅讀一百 第 '+g[i]+' 回','Google Calendar：第 '+g[i]+' 回＋訂正。',true,{kind:'reading',round:String(g[i])}));
  if(nat){
-  var nd='Google Calendar fallback：'+nat;
-  if(ni){nd+='｜依下列指定科目與頁碼完成。';a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然',nd,true,{subject:'混合',calendarTopic:nat,calendarSource:'Google Calendar fallback',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review,calendarIntegrationPages:ni.pages,calendarIntegrationOutput:ni.output,calendarIntegrationMinimum:ni.minimum,calendarIntegrationTime:ni.time}))}
-  else{if(nr){var nrs=calendarNaturalRanges(nr).map(function(r){return Number(r[0])===Number(r[1])?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');if(nrs)nd+='｜建議：'+(nr.material||'123日的淬鍊')+' '+nrs;if(nr.basis)nd+='｜'+nr.basis}a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然',nd,true,{subject:calendarNaturalSubject(nat),calendarTopic:nat,calendarSource:'Google Calendar fallback'}))}
+  var nd='Google Calendar：'+nat;
+  if(ni){
+   nd+='｜依下列指定科目與頁碼完成。';
+   a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然',nd,true,{subject:'混合',calendarTopic:nat,calendarSource:'Google Calendar',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review,calendarIntegrationPages:ni.pages,calendarIntegrationOutput:ni.output,calendarIntegrationMinimum:ni.minimum,calendarIntegrationTime:ni.time}));
+  }else{
+   if(nr){
+    var nrs=calendarNaturalRanges(nr).map(function(r){return Number(r[0])===Number(r[1])?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');
+    if(nrs)nd+='｜建議：'+(nr.material||'123日的淬鍊')+' '+nrs;
+    if(nr.basis)nd+='｜'+nr.basis;
+   }
+   a.push(presetDef('cal_natural_'+date.replace(/-/g,''),'scienceReview','自然',nd,true,{subject:calendarNaturalSubject(nat),calendarTopic:nat,calendarSource:'Google Calendar'}));
+  }
  }
  return a;
 }
 function calendarWeekMathTarget(date){
- var live=liveCalendarWeekMathTarget(liveCalendarTasks,date);if(calendarApiAuthoritative)return Number(live||0);if(live!==null)return Number(live||0);
  var mon=dateString(mondayOf(parseDate(date)));
  return Number(CALENDAR_WEEK_MATH_TARGETS[mon]||0);
 }
 function applyCalendarMathPlan(rec,date){
- var livePlan=liveCalendarMathPlan(date),p=livePlan||(calendarApiAuthoritative?null:CALENDAR_MATH_PLAN[date]);if(!p||!rec||!Array.isArray(rec.items))return false;
+ var p=CALENDAR_MATH_PLAN[date];if(!p||!rec||!Array.isArray(rec.items))return false;
  var x=null;
  for(var i=0;i<rec.items.length;i++)if(rec.items[i]&&rec.items[i].type==='mathStudy'&&rec.items[i].source==='preset'){x=rec.items[i];break}
  if(!x)return false;
  if(!x.f)x.f={};
  var changed=false,blank=!x.f.material&&!x.f.book&&!x.f.start&&!x.f.end;
  if(blank){x.f.material='教學講義';x.f.book=p.book;x.f.start=String(p.start);x.f.end=String(p.end);changed=true}
- var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedBook:p.book,calendarPlanSource:livePlan?'Google Calendar API':'fallback'};
+ var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedBook:p.book};
  for(var k in meta)if(Object.prototype.hasOwnProperty.call(meta,k)&&x.f[k]!==meta[k]){x.f[k]=meta[k];changed=true}
- applyMathAuto(x.f);return changed;
+ applyMathAuto(x.f);
+ return changed;
 }
 function mixedWritingDay(date){
  if(date<MIXED_WRITING_START)return false;
@@ -1092,7 +1145,7 @@ function ensureDailyPresets(rec,date){
  for(i=0;i<rec.items.length;i++){
   x=rec.items[i];
   if(x&&x.source==='preset'&&(oldMathKeys[x.presetKey]||oldEnglishKeys[x.presetKey])){changed=true;continue}
-  if(x&&x.source==='preset'&&/^(cal_|gcal_)/.test(x.presetKey||'')&&!allowed[x.presetKey]){changed=true;continue}
+  if(x&&x.source==='preset'&&/^cal_/.test(x.presetKey||'')&&!allowed[x.presetKey]){changed=true;continue}
   if(x&&x.source==='preset'&&managed[x.presetKey]&&!allowed[x.presetKey]){changed=true;continue}
   clean.push(x);
  }
@@ -1108,10 +1161,10 @@ function ensureDailyPresets(rec,date){
   if(x.type!==d.type){x.type=d.type;changed=true}
   if(x.required!==d.required){x.required=d.required;changed=true}
   x.source='preset';
-  if(/^(cal_(ace|writing|grammar|gujin|natural)_|gcal_)/.test(d.key||'')){
+  if(/^cal_(ace|writing|grammar|gujin|natural)_/.test(d.key||'')){
    if(!x.f)x.f={};
    var df=d.f||{};
-   if(/^cal_grammar_/.test(d.key||'')||(/^gcal_/.test(d.key||'')&&df.title==='英文文法總複習講義')){
+   if(/^cal_grammar_/.test(d.key||'')){
     var grammarPagesBlank=!x.f.start&&!x.f.end;
     for(var dk in df)if(Object.prototype.hasOwnProperty.call(df,dk)){
      if(dk==='start'||dk==='end'){
@@ -1157,9 +1210,9 @@ function isFixedMagazine(x){return !!x&&x.type==='magazine'&&(x.title==='學測�
 function isSaturdayMakeup(x){return !!x&&x.type==='general'&&(x.presetKey==='sat_makeup'||x.title==='回補本週未完成項目')}
 function isSaturdayReview(x){return !!x&&x.type==='general'&&(x.presetKey==='sat_week_review'||x.title==='本週完成度與錯題整理')}
 function isInteractiveDaily(x){return !!x&&x.type==='interactiveDaily'&&x.presetKey==='daily_interactive'}
-function isCalendarAce(x){return !!x&&x.source==='preset'&&(/^(cal_ace_|gcal_.*ace_)/.test(x.presetKey||'')||(x.f&&x.f.calendarSource==='Google Calendar API'&&x.f.title==='ACE Reading'))}
-function isCalendarGujin(x){return !!x&&x.source==='preset'&&(/^(cal_gujin_|gcal_.*gujin_)/.test(x.presetKey||'')||(x.f&&x.f.calendarSource==='Google Calendar API'&&x.type==='chineseReading'))}
-function isCalendarNatural(x){return !!x&&x.source==='preset'&&(/^cal_natural_/.test(x.presetKey||'')||(/^gcal_/.test(x.presetKey||'')&&x.type==='scienceReview'&&x.f&&x.f.calendarSource==='Google Calendar API'))}
+function isCalendarAce(x){return !!x&&x.source==='preset'&&/^cal_ace_/.test(x.presetKey||'')}
+function isCalendarGujin(x){return !!x&&x.source==='preset'&&/^cal_gujin_/.test(x.presetKey||'')}
+function isCalendarNatural(x){return !!x&&x.source==='preset'&&/^cal_natural_/.test(x.presetKey||'')}
 function isCalendarNaturalIntegration(x){return !!x&&isCalendarNatural(x)&&x.f&&x.f.calendarNaturalIntegration}
 function calendarIntegrationRangeText(ranges){
  if(!Array.isArray(ranges)||!ranges.length)return'—';
@@ -1177,21 +1230,8 @@ function calendarIntegrationChapterText(subject,ranges){
 function ensureCalendarNaturalIntegrationEntries(x,date){
  if(!x||!x.f)x.f={};
  if(!Array.isArray(x.f.calendarIntegrationEntries))x.f.calendarIntegrationEntries=[];
- var defs=(x.f&&x.f.calendarSource==='Google Calendar API')?null:(CALENDAR_NATURAL_INTEGRATION_ITEMS[date]||null);
- if(!defs||!defs.length){
-  var live=x.f.calendarIntegrationEntries;
-  for(var li=0;li<live.length;li++){
-   var lc=live[li];if(!lc||!lc.subject)continue;
-   if(!lc.id)lc.id='natural-integration-'+date+'-'+lc.subject;
-   lc.source='calendarNaturalIntegration';lc.calendarIntegrationChild=true;lc.material=lc.material||'123日的淬鍊';
-   if(!Array.isArray(lc.ranges))lc.ranges=[];
-   if(!lc.pageText)lc.pageText=calendarIntegrationRangeText(lc.ranges);
-   if(!lc.chapterText)lc.chapterText=calendarIntegrationChapterText(lc.subject,lc.ranges);
-   if(typeof lc.done!=='boolean')lc.done=!!x.done;
-  }
-  x.done=live.length>0&&live.every(function(c){return !!c.done});
-  return live;
- }
+ var defs=CALENDAR_NATURAL_INTEGRATION_ITEMS[date]||null;
+ if(!defs||!defs.length)return x.f.calendarIntegrationEntries;
  var old=x.f.calendarIntegrationEntries,by={},out=[];
  for(var i=0;i<old.length;i++)if(old[i]&&old[i].subject)by[old[i].subject]=old[i];
  for(var j=0;j<defs.length;j++){
@@ -1453,7 +1493,7 @@ function naturalReviewMatches(f,current){
  var s=Number(f.start),e=Number(f.end),out=[],seen={};if(!Number.isFinite(s)||s<1)return out;if(!Number.isFinite(e)||e<1)e=s;if(e<s){var t=s;s=e;e=t}
  function add(it){if(!it||it===current||it.type!=='scienceReview'||!it.f)return;var q=it.f;if(q.subject!=='混合'||q.material!=='複習週記'||!q.chapter)return;var a=Number(q.start),b=Number(q.end);if(!Number.isFinite(a)||a<1)return;if(!Number.isFinite(b)||b<1)b=a;if(b<a){var z=a;a=b;b=z}if(e<a||s>b)return;var k=a+'|'+b+'|'+q.chapter;if(seen[k])return;seen[k]=1;out.push({start:Math.max(s,a),end:Math.min(e,b),chapter:q.chapter})}
  if(data&&Array.isArray(data.items))data.items.forEach(add);
- try{for(var i=0;i<store.length;i++){var sk=store.key(i);if(!sk||sk.indexOf(currentStoragePrefix)!==0)continue;var o=JSON.parse(store.getItem(sk)||'null');if(o&&Array.isArray(o.items))o.items.forEach(add)}}catch(e2){}
+ try{for(var i=0;i<store.length;i++){var sk=store.key(i);if(!sk||sk.indexOf(STORE_PREFIX)!==0||sk.indexOf('imported-')>=0)continue;var o=JSON.parse(store.getItem(sk)||'null');if(o&&Array.isArray(o.items))o.items.forEach(add)}}catch(e2){}
  return out.sort(function(a,b){return a.start-b.start});
 }
 function naturalReviewText(x){var f=x.f,a=naturalReviewMatches(f,x);if(!a.length)return f.chapter||'尚無對應資料';return a.map(function(z){return z.chapter+'（'+(z.start===z.end?'p.'+z.start:'p.'+z.start+'–'+z.end)+'）'}).join('、')}
@@ -1485,9 +1525,9 @@ function renderScienceFields(x,reviewMode){
 function isMagazineTitle(t){return t==='雜誌'||t==='英文雜誌'}
 function isAce(t){return t==='ACE Reading'||t==='英文：ACE Reading'}
 function isWritingTest(t){return t==='英文寫作測驗'}
-function isCalendarWritingTest(x){return !!x&&x.source==='preset'&&(/^cal_writing_/.test(x.presetKey||'')||(/^gcal_/.test(x.presetKey||'')&&x.f&&x.f.title==='英文寫作測驗'))}
+function isCalendarWritingTest(x){return !!x&&x.source==='preset'&&/^cal_writing_/.test(x.presetKey||'')}
 function isGrammarReview(t){return t==='英文文法總複習講義'}
-function isCalendarGrammarReview(x){return !!x&&x.source==='preset'&&(/^cal_grammar_/.test(x.presetKey||'')||(/^gcal_/.test(x.presetKey||'')&&x.f&&x.f.title==='英文文法總複習講義'))}
+function isCalendarGrammarReview(x){return !!x&&x.source==='preset'&&/^cal_grammar_/.test(x.presetKey||'')}
 
 var GRAMMAR_REVIEW_PAGE_MAP=[
  [1,11,'Chapter 1 英文基本句型'],
@@ -1939,11 +1979,11 @@ function validate(){
 function persist(show){
  if(!data)return false;readHeader();var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
  var previous=readStoredRecord(data.date),changed=!sameStudyPayload(previous,data);
- if(changed)stampRecord(data);else if(previous){data.serverRevision=previous.serverRevision;data.serverUpdatedAt=previous.serverUpdatedAt;data.localDirty=!!previous.localDirty;data.syncConflict=!!previous.syncConflict}
+ if(changed)stampRecord(data);else if(previous)data.updatedAt=previous.updatedAt||'';
  var payload=JSON.stringify(data),ok=false;
  try{ok=writeStoredRecord(data)&&store.getItem(key(data.date))===payload}catch(e){}
  if(ok&&changed)queueCloudSave(data);
- if(show)id('status').textContent=ok?(cloudUser?(changed?'已儲存 '+data.date+'；正在以 server revision 同步雲端。':'紀錄未變更，不需重新同步。'):(storagePersistent?'已儲存 '+data.date+' 的訪客本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
+ if(show)id('status').textContent=ok?(cloudUser?(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。'):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
 function load(){
  var d=id('studyDate').value;data=loadData(d);var changed=ensureDailyPresets(data,d);id('weekdayText').textContent=weekdays[parseDate(d).getDay()];writeHeader();render();if(changed)persist(false);
@@ -2134,8 +2174,5 @@ id('cloudSignInBtn').addEventListener('click',cloudSignIn);
 id('cloudSignUpBtn').addEventListener('click',cloudSignUp);
 id('cloudSignOutBtn').addEventListener('click',cloudSignOut);
 id('cloudSyncLocalBtn').addEventListener('click',cloudMergeLocalMissing);
-id('cloudRefreshBtn').addEventListener('click',async function(){await cloudPullAllRecords();await calendarPullTasks();load()});
-id('calendarConnectBtn').addEventListener('click',calendarConnect);
-id('calendarSyncBtn').addEventListener('click',calendarSyncNow);
-id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);
-id('studyDate').value=dateString(new Date());initCloud();
+id('cloudRefreshBtn').addEventListener('click',async function(){await cloudPullAllRecords();load()});
+seedImportedWeek();mergeImportedV123Progress();rebuildMathProgressIndex();id('studyDate').value=dateString(new Date());load();initCloud();

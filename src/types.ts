@@ -54,16 +54,7 @@ export interface StudyItem {
 
 export interface StudyRecord {
   date: string;
-  /** Legacy client timestamp; ignored by v171 conflict resolution. */
   updatedAt?: string;
-  /** Server-controlled revision from public.study_records.revision. */
-  serverRevision?: number;
-  /** Server timestamp for display/diagnostics only; never used to order writes. */
-  serverUpdatedAt?: string;
-  /** True when local content differs from the last acknowledged server revision. */
-  localDirty?: boolean;
-  /** True when a local/cloud conflict requires explicit user action. */
-  syncConflict?: boolean;
   mood?: string;
   wakeTime?: string;
   biggestBlock?: string;
@@ -96,32 +87,3 @@ export interface CalendarMathPlanEntry {
 }
 
 export const WEEKLY_DEFER_LIMIT = 6 as const;
-
-
-export type CalendarTaskCategory =
-  | 'math'
-  | 'natural'
-  | 'naturalIntegration'
-  | 'ace'
-  | 'gujin'
-  | 'grammar'
-  | 'writing'
-  | 'other';
-
-export interface CalendarTaskRow {
-  event_key: string;
-  source_event_id: string;
-  calendar_id: string;
-  event_date: string;
-  end_date?: string | null;
-  start_at?: string | null;
-  end_at?: string | null;
-  is_all_day: boolean;
-  title: string;
-  description: string;
-  location?: string;
-  category: CalendarTaskCategory | string;
-  metadata?: Record<string, unknown>;
-  synced_at?: string;
-  event_updated_at?: string | null;
-}
