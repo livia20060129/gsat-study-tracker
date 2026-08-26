@@ -31,12 +31,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build
-        run: npm run build
-        env:
-          # OAuth client IDs are public identifiers. Configure this as the
-          # repository variable VITE_GOOGLE_CLIENT_ID (a secret also works).
-          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID || secrets.VITE_GOOGLE_CLIENT_ID }}
+- name: Build
+  run: npm run build
+  env:
+    VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
