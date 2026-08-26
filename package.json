@@ -1,7 +1,7 @@
 {
-  "name": "gsat-study-tracker-v170",
+  "name": "gsat-study-tracker-v171",
   "private": true,
-  "version": "170.0.0",
+  "version": "171.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

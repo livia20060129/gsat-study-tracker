@@ -1,0 +1,26 @@
+name: Hourly Google Calendar Sync
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Calendar sync
+        env:
+          SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL }}
+          CALENDAR_CRON_SECRET: ${{ secrets.CALENDAR_CRON_SECRET }}
+        run: |
+          test -n "$SUPABASE_PROJECT_URL"
+          test -n "$CALENDAR_CRON_SECRET"
+          curl --fail-with-body --silent --show-error \
+            --request POST "$SUPABASE_PROJECT_URL/functions/v1/google-calendar" \
+            --header "Content-Type: application/json" \
+            --header "x-cron-secret: $CALENDAR_CRON_SECRET" \
+            --data '{"action":"sync-all"}'

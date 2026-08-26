@@ -1,43 +1,222 @@
-# GSAT Study Tracker v170
+# GSAT Study Tracker v171
 
-個人版 Study Tracker 的 TypeScript 漸進重構版本。
+個人版 Study Tracker。v171 把 v170 的資料安全重構與 Google Calendar 真同步合併成同一版。
 
-## v170 重點
+## v171 重點
 
-### 數學進度單一來源
+### 1. localStorage 依帳號隔離
 
-數學頁數規則集中在 `src/study/mathProgress.ts`：
+正式資料改用：
 
-- `extractCompletedMathPages()`：唯一的「哪些紀錄算數學進度」規則。
-- `MathProgressIndex`：建立並維護歷史頁碼索引。
-- `calculateMathProgress()`：唯一供 UI 使用的 pure calculation，回傳今日新增頁數、本週新增頁數、週目標與百分比。
+```text
+study-v11:user:<supabase-user-id>:<YYYY-MM-DD>
+```
 
-已移除：
+未登入資料使用：
 
-- `mathProgressHistory.ts`
-- `weeklyMath.ts`
-- MutationObserver／DOM guard 補丁
-- legacy runtime 內另一套 `mathRecordKey`／`weekMathPageCount`／頁數加總 implementation
+```text
+study-v11:guest:<YYYY-MM-DD>
+```
 
-歷史資料只在初始化時完整建立一次索引；之後儲存、匯入與雲端同步皆以單日 record event 增量更新索引。
+v170 以前的：
 
-### 雲端同步版本比較
+```text
+study-v10.4:<YYYY-MM-DD>
+```
 
-每筆 `StudyRecord` 新增 `updatedAt`。
+只視為 legacy unscoped data。登入時不會自動匯入；只有按「補上本機舊資料」才會明確匯入目前帳號。
 
-同步時會比較：
+### 2. 登入不再自動解決 legacy conflict
 
-- 本機 `updatedAt`
-- Supabase `study_records.updated_at`
+登入只會切換到該 user 的本機 namespace、讀取雲端與 Calendar。`cloudMergeLocalMissing()` 只綁在「補上本機舊資料」按鈕，不存在登入自動呼叫路徑。
 
-規則：
+### 3. 啟動順序改為 Auth → Storage → Sync → UI
 
-- 本機較新 → 保留本機並回寫雲端
-- 雲端較新 → 採用雲端
-- 內容相同 → 不重複覆寫
-- 舊版本機紀錄沒有時間戳且與雲端不同 → 不自動覆蓋，保留本機；使用「補上本機舊資料」時才明確以本機版本解決舊資料衝突
+不再先 `load()` 後才知道目前登入者。啟動先取得 Supabase session，再決定 `study-v11:user:<uid>:` 或 guest namespace，然後重建 MathProgressIndex、同步雲端，最後載入 UI。
 
-這避免登入／重新整理時用舊雲端資料直接覆蓋較新的本機紀錄。
+### 4. Study Record 不再依賴裝置時間判斷版本
+
+`public.study_records` 新增 `revision bigint`。所有寫入透過：
+
+```sql
+public.upsert_study_record(study_date, payload, base_revision)
+```
+
+伺服器只有在 `base_revision` 與目前 revision 相同時才接受更新；成功後 revision + 1。手機／電腦時鐘不再決定誰比較新。
+
+本機只保存：
+
+- `serverRevision`
+- `serverUpdatedAt`（僅顯示／診斷）
+- `localDirty`
+- `syncConflict`
+
+### 5. 每日期獨立 cloud debounce
+
+不再只有一個全站 timer。每個日期各有自己的 debounce timer，所以修改 8/26 不會取消 8/25 尚未送出的同步。
+
+### 6. 移除 production seed 個人歷史資料
+
+v170 內建的 `importedWeekData`／`importedV123ProgressData` 與自動灌入流程已從 production bundle 移除。舊瀏覽器已存在的 `study-v10.4:` 仍可由手動 migration 匯入。
+
+### 7. Google Calendar API 真同步
+
+新增 Supabase Edge Functions：
+
+```text
+supabase/functions/google-calendar
+supabase/functions/google-calendar-callback
+```
+
+流程：
+
+```text
+Tracker
+  → Google OAuth
+  → refresh token 僅存 Supabase server-side table
+  → Edge Function 呼叫 Google Calendar API events.list
+  → calendar_tasks
+  → Tracker 讀 calendar_tasks
+```
+
+使用 read-only scope：
+
+```text
+https://www.googleapis.com/auth/calendar.readonly
+```
+
+Google client secret／refresh token 不會出現在 GitHub Pages JavaScript。
+
+目前 Calendar parser 已支援個人行事曆中的主要格式：
+
+- `1｜多項式函數` 等數學排程
+- `物理｜...`／`化學｜...`／`生物｜...`／`地科｜...`
+- `自然整合｜...`
+- `ACE Reading｜第 N 回＋訂正`
+- `古今悅讀一百｜第 N 回＋訂正`／`第 N–M 回＋訂正`
+- `英文文法｜...`
+- `英文寫作測驗｜第 N 回：...`
+
+數學事件若 description 沒寫頁碼，會依事件中的 `單元進度：x/y` 對應既有教材分段，不再以事件原本日期當作頁碼來源；因此 Calendar 搬日期仍能保留該段正確頁碼。
+
+Calendar API 尚未成功連線或 `calendar_tasks` 尚無資料時，現有 hardcoded Calendar plan 暫時保留作 fallback，避免排程整批消失。
+
+### 8. 每小時 Calendar 同步
+
+`.github/workflows/calendar-sync.yml` 每小時觸發一次 server-side Calendar sync。網站不需要保持開啟。
+
+### 9. 數學進度仍維持單一實作
+
+只有：
+
+```text
+src/study/mathProgress.ts
+```
+
+負責 completed-page extraction、MathProgressIndex 與 UI pure calculation。v171 ZIP 不含 `mathProgressHistory.ts`／`weeklyMath.ts`。
+
+### 10. UI
+
+「其他補充」預設放大到約 6 行，並可垂直拖曳調整。
+
+---
+
+# 一次設定 Supabase
+
+## 1. 套用 migration
+
+先登入 Supabase CLI，於 repo root 執行：
+
+```bash
+supabase link --project-ref arxbirgujbrtzhoficdf
+supabase db push
+```
+
+migration 位於：
+
+```text
+supabase/migrations/202608270001_v171_storage_calendar.sql
+```
+
+它會：
+
+- 替 `study_records` 加入 `revision`
+- 建立 `upsert_study_record()`
+- 建立 `google_calendar_connections`
+- 補強 `calendar_tasks`
+
+## 2. Google Cloud Console
+
+建立／選擇 Google Cloud project：
+
+1. Enable **Google Calendar API**
+2. 設定 OAuth consent screen
+3. 建立 **OAuth 2.0 Client ID → Web application**
+4. Authorized redirect URI 填：
+
+```text
+https://arxbirgujbrtzhoficdf.supabase.co/functions/v1/google-calendar-callback
+```
+
+Google OAuth 若仍在 Testing 模式，記得把實際 Google 帳號加入 Test users。
+
+## 3. 設定 Edge Function secrets
+
+建立自己的高熵字串作為 `GOOGLE_STATE_SECRET` 與 `CALENDAR_CRON_SECRET`，不要 commit 到 repo。
+
+```bash
+supabase secrets set \
+  GOOGLE_CLIENT_ID='你的 Google OAuth client id' \
+  GOOGLE_CLIENT_SECRET='你的 Google OAuth client secret' \
+  GOOGLE_REDIRECT_URI='https://arxbirgujbrtzhoficdf.supabase.co/functions/v1/google-calendar-callback' \
+  APP_RETURN_URL='https://livia20060129.github.io/gsat-study-tracker/' \
+  GOOGLE_STATE_SECRET='隨機長字串' \
+  CALENDAR_CRON_SECRET='另一組隨機長字串'
+```
+
+## 4. Deploy Edge Functions
+
+```bash
+supabase functions deploy google-calendar --project-ref arxbirgujbrtzhoficdf
+supabase functions deploy google-calendar-callback --project-ref arxbirgujbrtzhoficdf
+```
+
+## 5. GitHub Actions Secrets
+
+Repo → Settings → Secrets and variables → Actions，新增：
+
+```text
+SUPABASE_PROJECT_URL=https://arxbirgujbrtzhoficdf.supabase.co
+CALENDAR_CRON_SECRET=<與 Supabase secret 相同>
+```
+
+之後 `Hourly Google Calendar Sync` 會在每小時第 7 分鐘觸發同步，也可從 Actions 手動 Run workflow。
+
+---
+
+# 使用方式
+
+第一次部署 v171 後：
+
+1. 登入 Study Tracker
+2. 舊版 localStorage 不會自動灌入目前帳號
+3. 若需要舊本機資料，明確按「補上本機舊資料」
+4. 在 Google Calendar 區塊按「連接 Google Calendar」
+5. 完成 Google OAuth
+6. callback 會立即同步一次 Calendar
+7. 回 Tracker 後可按「立即同步」測試
+8. 之後每小時自動同步
+
+---
+
+# 開發
+
+```bash
+npm install
+npm run typecheck
+npm run build
+npm run dev
+```
 
 ## 專案結構
 
@@ -45,40 +224,33 @@
 src/
 ├─ main.ts
 ├─ legacy-app.ts
-├─ styles.css
 ├─ types.ts
+├─ calendar/
+│  └─ calendarBridge.ts
 ├─ data/
 │  ├─ mathCalendar.ts
 │  └─ naturalCalendar.ts
+├─ storage/
+│  ├─ local.ts
+│  └─ recordSync.ts
 ├─ study/
 │  ├─ defer.ts
 │  └─ mathProgress.ts
 ├─ items/
 │  └─ naturalIntegration.ts
-├─ storage/
-│  ├─ local.ts
-│  └─ recordFreshness.ts
 └─ ui/
    └─ dom.ts
+
+supabase/
+├─ config.toml
+├─ migrations/
+│  └─ 202608270001_v171_storage_calendar.sql
+└─ functions/
+   ├─ _shared/googleCalendar.ts
+   ├─ google-calendar/index.ts
+   └─ google-calendar-callback/index.ts
 ```
 
-## 開發
+## 注意
 
-```bash
-npm install
-npm run dev
-```
-
-## 型別檢查
-
-```bash
-npm run typecheck
-```
-
-## 建置
-
-```bash
-npm run build
-```
-
-輸出在 `dist/`，由 GitHub Actions 部署至 GitHub Pages。
+`legacy-app.ts` 仍是舊 UI／業務邏輯 compatibility runtime，因此尚保留 `@ts-nocheck`。v171 已把版本判定、storage namespace、數學進度與 Calendar parser／server integration 放到 typed module 或 server function；後續版本再逐區拆除剩餘 legacy UI code。
