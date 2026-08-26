@@ -32,9 +32,13 @@ study-v10.4:<YYYY-MM-DD>
 
 登入只會切換到該 user 的本機 namespace、讀取雲端與 Calendar。`cloudMergeLocalMissing()` 只綁在「補上本機舊資料」按鈕，不存在登入自動呼叫路徑。
 
-### 3. 啟動順序改為 Auth → Storage → Sync → UI
+### 3. 啟動順序改為 Auth → Storage → UI → Background Sync
 
-不再先 `load()` 後才知道目前登入者。啟動先取得 Supabase session，再決定 `study-v11:user:<uid>:` 或 guest namespace，然後重建 MathProgressIndex、同步雲端，最後載入 UI。
+啟動先取得 Supabase session，再決定 `study-v11:user:<uid>:` 或 guest namespace。登入後會立即顯示該帳號隔離的本機快取，不再等待整批雲端歷史與 Calendar 都讀完才出現畫面。
+
+Study Records 與 Calendar 會在背景平行讀取。Study Records 第一次仍會做完整 revision 比對；成功後保存每個帳號獨立的 server watermark，之後只增量讀取最近異動，並保留 2 分鐘重疊區間避免同步競爭造成缺口。待上傳資料改為背景佇列，MathProgressIndex 只在切換帳號時重建一次。
+
+背景同步完成後，如果使用者正在輸入，Tracker 不會強制重繪打斷游標；切換日期時會自然套用最新資料。
 
 ### 4. Study Record 不再依賴裝置時間判斷版本
 
@@ -291,7 +295,8 @@ src/
 │  └─ naturalCalendar.ts
 ├─ storage/
 │  ├─ local.ts
-│  └─ recordSync.ts
+│  ├─ recordSync.ts
+│  └─ syncWatermark.ts
 ├─ study/
 │  ├─ defer.ts
 │  └─ mathProgress.ts

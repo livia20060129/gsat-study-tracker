@@ -13,6 +13,7 @@
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
 import { decideRevisionSync, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
+import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 
@@ -240,6 +241,24 @@ var CALENDAR_NATURAL_RECOMMENDED_PAGES={
  }
 };
 
+var storagePersistent=true;
+var store=(function(){
+ try{
+  var testKey='study-v11:storage-test';
+  window.localStorage.setItem(testKey,'1');window.localStorage.removeItem(testKey);
+  return window.localStorage;
+ }catch(e){
+  storagePersistent=false;
+  var memory={};
+  return{
+   get length(){return Object.keys(memory).length},
+   key:function(index){return Object.keys(memory)[index]||null},
+   getItem:function(k){return Object.prototype.hasOwnProperty.call(memory,k)?memory[k]:null},
+   setItem:function(k,v){memory[String(k)]=String(v)},
+   removeItem:function(k){delete memory[String(k)]}
+  };
+ }
+})();
 var STORE_PREFIX=storagePrefixForUser(null);
 var weekdays=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
 var labels={mathStudy:'數學講義：進度',mathLecture:'數學講義',mathPractice:'數學講義題目：理解檢查＋錯題標記＋訂正',mathOral:'數 A 互動題：觀念題',magazine:'英文雜誌',englishPractice:'英文互動題：英聽及學測練習',englishMixedWriting:'英文：混合題與作文練習',chineseReading:'國文',aceReading:'英文：ACE Reading',scienceReview:'自然',mock:'歷屆／模考',general:'一般學習／整理',extra:'英文',interactive:'互動題',interactiveDaily:'互動題',biologyInteractive:'生物互動題',englishVocabInteractive:'英文單字／片語互動題',calendarStudy:'Google Calendar 排程'};
@@ -522,6 +541,7 @@ var SUPABASE_PUBLISHABLE_KEY='sb_publishable_x8YXDSe-6rvX25o38jEl4w_OYn971PA';
 var cloudClient=null;
 var cloudUser=null;
 var cloudLoading=false;
+var cloudBootstrapPending=false;
 var cloudSaveTimers=new Map();
 var cloudActivationSerial=0;
 
@@ -540,11 +560,19 @@ function setStorageScope(userId){
  data=null;
 }
 function currentStorageIsUserScoped(){return !!cloudUser&&STORE_PREFIX===storagePrefixForUser(cloudUser.id)}
+function recordSyncWatermark(){
+ if(!cloudUser)return null;
+ try{return store.getItem(recordSyncWatermarkKey(cloudUser.id))}catch(e){return null}
+}
+function saveRecordSyncWatermark(value){
+ if(!cloudUser||!value)return;
+ try{store.setItem(recordSyncWatermarkKey(cloudUser.id),String(value))}catch(e){}
+}
 function cloudSetMessage(msg,ok){
  var el=id('cloudMessage');if(el)el.textContent=msg||'';
  var b=id('cloudStatusBadge');if(!b)return;
  if(!cloudUser)b.textContent='本機模式';
- else b.textContent=ok===false?'同步異常':'雲端同步中';
+ else b.textContent=ok===false?'同步異常':((cloudLoading||cloudBootstrapPending)?'雲端同步中':'已連線');
 }
 function cloudUpdateUI(){
  var out=id('cloudLoggedOut'),inn=id('cloudLoggedIn');
@@ -656,39 +684,65 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
   cloudSetMessage('雲端同步失敗：'+(e&&e.message?e.message:String(e)),false);return false
  }
 }
-function queueCloudSave(rec){
- if(!cloudClient||!cloudUser||!rec||cloudLoading||rec.syncConflict||!currentStorageIsUserScoped())return;
+function queueCloudSave(rec,allowDuringBootstrap){
+ if(!cloudClient||!cloudUser||!rec||cloudLoading||(!allowDuringBootstrap&&cloudBootstrapPending)||rec.syncConflict||!currentStorageIsUserScoped())return;
  var snap=cloneRecord(rec),date=String(rec.date||'');if(!date)return;
  var previous=cloudSaveTimers.get(date);if(previous)clearTimeout(previous);
  cloudSaveTimers.set(date,setTimeout(function(){cloudSaveTimers.delete(date);cloudSaveRecord(snap)},450));
 }
-async function cloudPullAllRecords(){
+function queueDirtyCloudRecords(){
  if(!cloudClient||!cloudUser||!currentStorageIsUserScoped())return 0;
- var pending=[],conflicts=0,accepted=0,total=0;
+ var queued=0;
+ localStudyDates().forEach(function(date){
+  var rec=readStoredRecord(date);
+  if(!rec||!rec.localDirty||rec.syncConflict)return;
+  queueCloudSave(rec,true);queued++;
+ });
+ return queued;
+}
+async function cloudPullAllRecords(options){
+ var opts=options||{};
+ var empty={ok:false,mode:'none',total:0,accepted:0,queued:0,conflicts:0};
+ if(!cloudClient||!cloudUser||!currentStorageIsUserScoped())return empty;
+ var pendingByDate={},cloudDates={},conflicts=0,accepted=0,total=0,errorMessage='';
+ var watermark=recordSyncWatermark(),since=incrementalSyncStart(watermark),mode=since?'incremental':'full';
  try{
   cloudLoading=true;
-  var r=await cloudClient.from('study_records').select('study_date,payload,updated_at,revision').order('study_date',{ascending:true});
+  var query=cloudClient.from('study_records').select('study_date,payload,updated_at,revision');
+  if(since)query=query.gte('updated_at',since);
+  var r=await query.order('study_date',{ascending:true});
   if(r.error)throw r.error;
   (r.data||[]).forEach(function(row){
    if(!row||!row.study_date||!row.payload)return;total++;
+   cloudDates[String(row.study_date)]=true;
    var local=readStoredRecord(row.study_date),cloud=cloudRecordFromRow(row);
    var decision=decideRevisionSync(local,cloud);
-   if(decision==='use-cloud'||decision==='equal'){
-    if(cloud){writeStoredRecord(cloud);accepted++}
-   }else if(decision==='push-local'){
-    if(local)pending.push(local);
-   }else if(local){
-    local.syncConflict=true;writeStoredRecord(local);conflicts++;
-   }
+    if(decision==='use-cloud'||decision==='equal'){
+     if(cloud){writeStoredRecord(cloud);accepted++}
+    }else if(decision==='push-local'){
+    if(local)pendingByDate[local.date]=local;
+    }else if(local){
+     local.syncConflict=true;writeStoredRecord(local);conflicts++;
+    }
+   });
+  if(mode==='full')localStudyDates().forEach(function(date){
+   if(cloudDates[date])return;
+   var local=readStoredRecord(date);if(local)pendingByDate[date]=local;
   });
- }catch(e){cloudSetMessage('讀取雲端失敗：'+(e&&e.message?e.message:String(e)),false);return 0}
+  var nextWatermark=latestServerWatermark(r.data||[],watermark);if(nextWatermark)saveRecordSyncWatermark(nextWatermark);
+ }catch(e){errorMessage=e&&e.message?e.message:String(e)}
  finally{cloudLoading=false}
- for(var i=0;i<pending.length;i++)await cloudSaveRecord(pending[i]);
- var msg='已比較 '+total+' 天雲端紀錄；採用／確認 '+accepted+' 天';
- if(pending.length)msg+='，本機待同步 '+pending.length+' 天';
+ if(errorMessage){cloudSetMessage('讀取雲端失敗：'+errorMessage,false);return Object.assign({},empty,{mode:mode,error:errorMessage})}
+ localStudyDates().forEach(function(date){
+  var rec=readStoredRecord(date);if(rec&&rec.localDirty&&!rec.syncConflict)pendingByDate[date]=rec;
+ });
+ var pending=Object.keys(pendingByDate).map(function(date){return pendingByDate[date]});
+ pending.forEach(function(rec){queueCloudSave(rec,true)});
+ var msg=(mode==='incremental'?'增量讀取 ':'首次比較 ')+total+' 天雲端紀錄；採用／確認 '+accepted+' 天';
+ if(pending.length)msg+='，本機背景待同步 '+pending.length+' 天';
  if(conflicts)msg+='，'+conflicts+' 天有版本衝突且未自動覆蓋';
- cloudSetMessage(msg+'。',conflicts?false:true);
- return total;
+ if(!opts.silent)cloudSetMessage(msg+'。',conflicts?false:true);
+ return{ok:true,mode:mode,total:total,accepted:accepted,queued:pending.length,conflicts:conflicts,message:msg+'。'};
 }
 async function cloudPullDate(date,force){
  if(!cloudClient||!cloudUser||!date||!currentStorageIsUserScoped())return false;
@@ -899,22 +953,49 @@ async function calendarConnect(){
 }
 async function calendarSyncNow(){
  try{
-  calendarSetMessage('正在從 Google Calendar 讀取最新排程…',true);var r=await calendarInvoke('sync');calendarConnected=!!r.connected;var n=await refreshCalendarTaskCache();calendarSetMessage('同步完成：Google API 更新 '+Number(r.synced||0)+' 筆，Tracker 載入 '+n+' 筆。',true);load();
+  calendarSetMessage('正在從 Google Calendar 讀取最新排程…',true);var r=await calendarInvoke('sync');calendarConnected=!!r.connected;var n=await refreshCalendarTaskCache();calendarSetMessage('同步完成：Google API 更新 '+Number(r.synced||0)+' 筆，Tracker 載入 '+n+' 筆。',true);load({skipCloudRead:true});
  }catch(e){calendarSetMessage('Calendar 同步失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 async function calendarDisconnect(){
- try{await calendarInvoke('disconnect');clearCalendarRuntime();calendarSetMessage('已解除 Google Calendar 連線；Tracker 回到內建排程 fallback。',true);load()}catch(e){calendarSetMessage('解除連線失敗：'+(e&&e.message?e.message:String(e)),false)}
+ try{await calendarInvoke('disconnect');clearCalendarRuntime();calendarSetMessage('已解除 Google Calendar 連線；Tracker 回到內建排程 fallback。',true);load({skipCloudRead:true})}catch(e){calendarSetMessage('解除連線失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 
+function refreshVisibleDataAfterBackgroundSync(){
+ var active=document.activeElement,tag=active&&active.tagName?String(active.tagName).toUpperCase():'';
+ var editing=(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')&&active!==id('studyDate');
+ if(editing)return false;
+ load({skipCloudRead:true});return true;
+}
 async function activateCloudUser(user){
- var serial=++cloudActivationSerial;cloudUser=user||null;setStorageScope(cloudUser?cloudUser.id:null);cloudUpdateUI();clearCalendarRuntime();
+ var serial=++cloudActivationSerial;cloudUser=user||null;setStorageScope(cloudUser?cloudUser.id:null);cloudBootstrapPending=!!cloudUser;cloudUpdateUI();clearCalendarRuntime();
  rebuildMathProgressIndex();
- if(cloudUser){
-  await cloudPullAllRecords();if(serial!==cloudActivationSerial)return;
-  await calendarRefreshStatus(false);if(serial!==cloudActivationSerial)return;
-  cloudSetMessage('已登入；本機資料已切換到此帳號專屬空間。',true);
- }else cloudSetMessage('已登出；目前使用獨立 guest 本機資料。',true);
- rebuildMathProgressIndex();load();
+ if(!cloudUser){
+  cloudBootstrapPending=false;cloudSetMessage('已登出；目前使用獨立 guest 本機資料。',true);load({skipCloudRead:true});return;
+ }
+
+ // Render the account-scoped cache immediately. cacheOnly prevents a missing
+ // cached day from being generated and mistaken for a newer server record.
+ load({skipCloudRead:true,cacheOnly:true});
+ cloudSetMessage('登入完成；已先載入本機快取，雲端紀錄與 Calendar 正在背景同步。',true);
+ var recordStats=null;
+ try{
+  var results=await Promise.all([cloudPullAllRecords({silent:true}),calendarRefreshStatus(false)]);
+  recordStats=results[0];
+ }catch(e){
+  recordStats={ok:false,error:e&&e.message?e.message:String(e)};
+ }
+ if(serial!==cloudActivationSerial)return;
+ cloudBootstrapPending=false;
+ var queued=queueDirtyCloudRecords();
+ var refreshed=refreshVisibleDataAfterBackgroundSync();
+ if(recordStats&&recordStats.ok){
+  var msg='登入完成；本機快取已立即顯示，'+recordStats.message;
+  if(queued)msg+=' 另有 '+queued+' 天已排入背景上傳。';
+  if(!refreshed)msg+=' 目前正在輸入，畫面未強制重繪；切換日期時會套用最新資料。';
+  cloudSetMessage(msg,recordStats.conflicts?false:true);
+ }else{
+  cloudSetMessage('已登入並使用本機快取；背景讀取雲端失敗：'+((recordStats&&recordStats.error)||'未知錯誤')+'。',false);
+ }
 }
 async function initCloud(){
  if(!window.supabase||!window.supabase.createClient){
@@ -929,7 +1010,7 @@ async function initCloud(){
  });
  var params=new URLSearchParams(window.location.search);if(params.get('calendar')==='connected'){
   params.delete('calendar');var qs=params.toString(),nextUrl=window.location.pathname+(qs?'?'+qs:'')+window.location.hash;window.history.replaceState({},'',nextUrl);
-  if(cloudUser)setTimeout(function(){calendarRefreshStatus(true).then(function(){load()})},0);
+  if(cloudUser)setTimeout(function(){calendarRefreshStatus(true).then(function(){load({skipCloudRead:true})})},0);
  }
 }
 function id(x){return document.getElementById(x)}
@@ -2163,9 +2244,9 @@ function persist(show){
  if(ok&&changed)queueCloudSave(data);
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
-function load(){
- var d=id('studyDate').value;data=loadData(d);var changed=ensureDailyPresets(data,d);id('weekdayText').textContent=weekdays[parseDate(d).getDay()];writeHeader();render();if(changed)persist(false);
- if(cloudUser)cloudPullDate(d,false);
+function load(options){
+ var opts=options||{},d=id('studyDate').value;data=loadData(d);var changed=ensureDailyPresets(data,d);id('weekdayText').textContent=weekdays[parseDate(d).getDay()];writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
+ if(cloudUser&&!cloudBootstrapPending&&!opts.skipCloudRead)cloudPullDate(d,false);
 }
 
 function itemDetails(x){
@@ -2352,7 +2433,7 @@ id('cloudSignInBtn').addEventListener('click',cloudSignIn);
 id('cloudSignUpBtn').addEventListener('click',cloudSignUp);
 id('cloudSignOutBtn').addEventListener('click',cloudSignOut);
 id('cloudSyncLocalBtn').addEventListener('click',cloudMergeLocalMissing);
-id('cloudRefreshBtn').addEventListener('click',async function(){await cloudPullAllRecords();load()});
+id('cloudRefreshBtn').addEventListener('click',async function(){await cloudPullAllRecords();load({skipCloudRead:true})});
 id('calendarConnectBtn').addEventListener('click',calendarConnect);
 id('calendarSyncBtn').addEventListener('click',calendarSyncNow);
 id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);
