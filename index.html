@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f8fc" />
   <link rel="icon" type="image/png" href="/book.png" />
   <link rel="apple-touch-icon" href="/book.png" />
-  <title>每日讀書完成度紀錄卡 v170</title>
+  <title>每日讀書完成度紀錄卡 v171</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -32,6 +32,19 @@
    </div>
   </div>
   <div class="small" id="cloudMessage" style="margin-top:8px">未登入時仍可使用，本機資料會照常保留。</div>
+ </div>
+</section>
+
+<section class="panel" id="calendarPanel">
+ <div class="panel-head"><h2>Google Calendar</h2><span class="badge" id="calendarStatusBadge">需先登入</span></div>
+ <div class="content">
+  <div class="inline" style="gap:8px;flex-wrap:wrap">
+   <button id="calendarConnectBtn" class="secondary" type="button">連接 Google Calendar</button>
+   <button id="calendarSyncBtn" type="button">立即同步</button>
+   <button id="calendarDisconnectBtn" type="button">解除連線</button>
+  </div>
+  <div class="small" id="calendarMessage" style="margin-top:8px">先登入 Study Tracker 帳號，再連接 Google Calendar。</div>
+  <div class="small" style="margin-top:6px">連接後由 Google Calendar API 讀取排程；每小時同步由伺服器排程觸發，網站不必保持開啟。</div>
  </div>
 </section>
 
@@ -82,7 +95,7 @@
  <div class="panel-head"><h2>每日收尾</h2><span class="badge">供週檢討使用</span></div>
  <div class="content">
   <div class="grid-2"><div class="field"><label for="biggestBlock">今天最大的卡點</label><textarea id="biggestBlock"></textarea></div><div class="field"><label for="firstThingTomorrow">明天第一件事</label><textarea id="firstThingTomorrow"></textarea></div></div>
-  <div class="field" style="margin-top:10px"><label for="notes">其他補充</label><textarea id="notes"></textarea></div>
+  <div class="field" style="margin-top:10px"><label for="notes">其他補充</label><textarea id="notes" class="notes-large" rows="6"></textarea></div>
  </div>
 </section>
 

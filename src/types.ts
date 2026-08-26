@@ -54,7 +54,12 @@ export interface StudyItem {
 
 export interface StudyRecord {
   date: string;
+  /** @deprecated v170 legacy client timestamp; never used for sync ordering in v171. */
   updatedAt?: string;
+  serverRevision?: number;
+  serverUpdatedAt?: string;
+  localDirty?: boolean;
+  syncConflict?: boolean;
   mood?: string;
   wakeTime?: string;
   biggestBlock?: string;

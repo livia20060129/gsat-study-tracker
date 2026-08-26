@@ -55,3 +55,6 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
  input[type=number]{width:96px}
  [data-minutes],[data-mag-field="minutes"]{width:78px!important}
 }
+
+/* v171: larger daily closing notes area. */
+.notes-large { min-height: 120px; resize: vertical; }
