@@ -40,6 +40,8 @@ Study Records 與 Calendar 會在背景平行讀取。Study Records 第一次仍
 
 背景同步完成後，如果使用者正在輸入，Tracker 不會強制重繪打斷游標；切換日期時會自然套用最新資料。
 
+`171.0.3` 另修正 `upsert_study_record` 的 `column reference "revision" is ambiguous`：資料表欄位一律以 relation alias 明確限定，RPC 改用 RLS 保護的 `security invoker`，並移除 anon／public 執行權限。
+
 ### 4. Study Record 不再依賴裝置時間判斷版本
 
 `public.study_records` 新增 `revision bigint`。所有寫入透過：
@@ -309,7 +311,8 @@ supabase/
 ├─ config.toml
 ├─ migrations/
 │  ├─ 202608270001_v171_storage_calendar.sql
-│  └─ 202608270002_google_calendar_client_id.sql
+│  ├─ 202608270002_google_calendar_client_id.sql
+│  └─ 202608270003_fix_study_record_revision_ambiguity.sql
 └─ functions/
    ├─ _shared/googleCalendar.ts
    ├─ google-calendar/index.ts

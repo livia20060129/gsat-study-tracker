@@ -15,8 +15,8 @@ returns table(
   updated_at timestamptz
 )
 language plpgsql
-security definer
-set search_path = public
+security invoker
+set search_path = ''
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -26,9 +26,10 @@ begin
     raise exception 'not authenticated';
   end if;
 
-  select * into v_row
-  from public.study_records
-  where user_id = v_uid and study_date = p_study_date
+  select sr.* into v_row
+  from public.study_records as sr
+  where sr.user_id = v_uid
+    and sr.study_date = p_study_date
   for update;
 
   if not found then
@@ -37,9 +38,9 @@ begin
       return;
     end if;
 
-    insert into public.study_records(user_id, study_date, payload, revision, updated_at)
+    insert into public.study_records as sr(user_id, study_date, payload, revision, updated_at)
     values (v_uid, p_study_date, coalesce(p_payload, '{}'::jsonb), 1, now())
-    returning * into v_row;
+    returning sr.* into v_row;
 
     return query select true, v_row.revision, v_row.payload, v_row.updated_at;
     return;
@@ -55,17 +56,19 @@ begin
     return;
   end if;
 
-  update public.study_records
+  update public.study_records as sr
   set payload = coalesce(p_payload, '{}'::jsonb),
-      revision = revision + 1,
+      revision = sr.revision + 1,
       updated_at = now()
-  where user_id = v_uid and study_date = p_study_date
-  returning * into v_row;
+  where sr.user_id = v_uid
+    and sr.study_date = p_study_date
+  returning sr.* into v_row;
 
   return query select true, v_row.revision, v_row.payload, v_row.updated_at;
 end;
 $$;
 
+revoke execute on function public.upsert_study_record(date, jsonb, bigint) from public, anon;
 grant execute on function public.upsert_study_record(date, jsonb, bigint) to authenticated;
 
 create table if not exists public.google_calendar_connections (
