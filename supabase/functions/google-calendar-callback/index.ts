@@ -1,5 +1,6 @@
 import {
   CALENDAR_SCOPE,
+  CalendarConfigurationError,
   adminClient,
   exchangeAuthorizationCode,
   googleConfig,
@@ -32,8 +33,8 @@ Deno.serve(async (req) => {
 
     const admin = adminClient();
     const cfg = googleConfig();
-    const { userId } = await verifyOAuthState(state);
-    const tokens = await exchangeAuthorizationCode(code);
+    const { userId, clientId } = await verifyOAuthState(state);
+    const tokens = await exchangeAuthorizationCode(code, clientId);
     const { data: existing, error: existingError } = await admin
       .from('google_calendar_connections')
       .select('refresh_token')
@@ -48,6 +49,7 @@ Deno.serve(async (req) => {
     const { error } = await admin.from('google_calendar_connections').upsert({
       user_id: userId,
       calendar_id: 'primary',
+      client_id: clientId,
       refresh_token: refreshToken,
       access_token: tokens.access_token,
       access_token_expires_at: expiresAt,
@@ -63,6 +65,9 @@ Deno.serve(async (req) => {
     return Response.redirect(target.toString(), 302);
   } catch (error) {
     console.error('google-calendar-callback error', error);
+    if (error instanceof CalendarConfigurationError) {
+      return html(`Google Calendar 伺服器設定未完成：缺少 ${error.missing.join('、')}。請完成設定後重新連線。`, 503);
+    }
     return html(`Google Calendar 連線失敗：${error instanceof Error ? error.message : String(error)}`, 500);
   }
 });

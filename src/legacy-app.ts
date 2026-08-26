@@ -14,6 +14,7 @@ import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
 import { decideRevisionSync, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { parseCalendarTask } from './calendar/calendarBridge';
+import { googleCalendarClientConfig } from './config/googleCalendar';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -526,6 +527,7 @@ var cloudActivationSerial=0;
 
 var calendarConnected=false;
 var calendarCacheLoaded=false;
+var calendarHasError=false;
 var calendarParsedByDate={};
 var cloudMathPlanByDate={};
 var cloudNaturalRecommendedByDate={};
@@ -782,38 +784,60 @@ async function cloudSignOut(){
 
 function calendarSetMessage(msg,ok){
  var el=id('calendarMessage');if(el)el.textContent=msg||'';
+ calendarHasError=ok===false;
  var badge=id('calendarStatusBadge');if(!badge)return;
  if(!cloudUser)badge.textContent='需先登入';
+ else if(!calendarConnected&&!googleCalendarClientConfig.isConfigured)badge.textContent='設定未完成';
  else if(ok===false)badge.textContent='同步異常';
  else badge.textContent=calendarConnected?'已連接':'未連接';
 }
 function calendarUpdateUI(){
  var connect=id('calendarConnectBtn'),sync=id('calendarSyncBtn'),disconnect=id('calendarDisconnectBtn');
- if(connect)connect.disabled=!cloudUser||calendarConnected;
+ if(connect){
+  connect.disabled=!cloudUser||calendarConnected||!googleCalendarClientConfig.isConfigured;
+  connect.title=!googleCalendarClientConfig.isConfigured?(googleCalendarClientConfig.message||'Google Calendar 設定未完成。'):'';
+ }
  if(sync)sync.disabled=!cloudUser||!calendarConnected;
  if(disconnect)disconnect.disabled=!cloudUser||!calendarConnected;
- var badge=id('calendarStatusBadge');if(badge)badge.textContent=!cloudUser?'需先登入':(calendarConnected?'已連接':'未連接');
+ var badge=id('calendarStatusBadge');if(badge)badge.textContent=!cloudUser?'需先登入':(calendarConnected?'已連接':(!googleCalendarClientConfig.isConfigured?'設定未完成':(calendarHasError?'同步異常':'未連接')));
+}
+function calendarFriendlyError(message,body){
+ message=String(message||'Calendar request failed');
+ if(body&&body.code==='calendar_configuration_error'){
+  var missingList=Array.isArray(body.missing)?body.missing:[];
+  if(missingList.indexOf('VITE_GOOGLE_CLIENT_ID')>=0)return googleCalendarClientConfig.message||'請在部署環境設定 VITE_GOOGLE_CLIENT_ID 後重新建置網站。';
+  var missing=missingList.join('、');
+  return 'Google Calendar 伺服器設定未完成'+(missing?'（缺少 '+missing+'）':'')+'。請依 README 設定 Supabase secrets 後重新部署 Calendar Functions。';
+ }
+ if(/Missing GOOGLE_CLIENT_ID|VITE_GOOGLE_CLIENT_ID/i.test(message))return googleCalendarClientConfig.message||'請在部署環境設定 VITE_GOOGLE_CLIENT_ID 後重新建置網站。';
+ if(/Missing GOOGLE_CLIENT_SECRET/i.test(message))return 'Google Calendar 伺服器缺少 GOOGLE_CLIENT_SECRET。請在 Supabase secrets 設定後重新部署 Calendar Functions。';
+ if(/Missing GOOGLE_REDIRECT_URI/i.test(message))return 'Google Calendar 伺服器缺少 GOOGLE_REDIRECT_URI。請在 Supabase secrets 設定 OAuth callback 網址。';
+ if(/Missing GOOGLE_STATE_SECRET/i.test(message))return 'Google Calendar 伺服器缺少 GOOGLE_STATE_SECRET。請在 Supabase secrets 設定高熵隨機字串。';
+ if(/Missing APP_RETURN_URL/i.test(message))return 'Google Calendar 伺服器缺少 APP_RETURN_URL。請設定授權完成後返回 Tracker 的正式網址。';
+ return message;
 }
 async function calendarErrorDetail(error){
  var message=error&&error.message?String(error.message):String(error||'Unknown error');
+ var body=null;
  try{
   var response=error&&error.context;
   if(response&&typeof response.clone==='function')response=response.clone();
   if(response&&typeof response.json==='function'){
-   var body=await response.json();if(body&&body.error)message=String(body.error);
+   body=await response.json();if(body&&body.error)message=String(body.error);
   }
  }catch(e){}
- return message;
+ return calendarFriendlyError(message,body);
 }
-async function calendarInvoke(action){
+async function calendarInvoke(action,payload){
  if(!cloudClient||!cloudUser)throw new Error('請先登入 Study Tracker。');
- var r=await cloudClient.functions.invoke('google-calendar',{body:{action:action}});
+ var body=Object.assign({},payload||{},{action:action});
+ var r=await cloudClient.functions.invoke('google-calendar',{body:body});
  if(r.error)throw new Error(await calendarErrorDetail(r.error));
- if(r.data&&r.data.error)throw new Error(String(r.data.error));
+ if(r.data&&r.data.error)throw new Error(calendarFriendlyError(String(r.data.error),r.data));
  return r.data||{};
 }
 function clearCalendarRuntime(){
- calendarConnected=false;calendarCacheLoaded=false;calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalRecommendedByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
+ calendarConnected=false;calendarCacheLoaded=false;calendarHasError=false;calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalRecommendedByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
  calendarUpdateUI();
 }
 function naturalRecommendationByTopic(topic){
@@ -858,14 +882,19 @@ async function calendarRefreshStatus(showMessage){
  if(!cloudUser){clearCalendarRuntime();calendarSetMessage('先登入 Study Tracker 帳號，再連接 Google Calendar。',true);return false}
  try{
   var s=await calendarInvoke('status');calendarConnected=!!s.connected;
-  if(calendarConnected){var n=await refreshCalendarTaskCache();if(showMessage!==false)calendarSetMessage('Google Calendar 已連接；已載入 '+n+' 筆同步排程。',true)}
-  else{calendarCacheLoaded=false;calendarParsedByDate={};if(showMessage!==false)calendarSetMessage('尚未連接 Google Calendar；目前使用內建排程 fallback。',true)}
+  if(calendarConnected){var n=await refreshCalendarTaskCache();calendarSetMessage('Google Calendar 已連接；已載入 '+n+' 筆同步排程。',true)}
+  else{
+   calendarCacheLoaded=false;calendarParsedByDate={};
+   if(!googleCalendarClientConfig.isConfigured)calendarSetMessage(googleCalendarClientConfig.message,false);
+   else calendarSetMessage('尚未連接 Google Calendar；目前使用內建排程 fallback。',true);
+  }
   calendarUpdateUI();return calendarConnected;
  }catch(e){calendarCacheLoaded=false;calendarSetMessage('Calendar 連線失敗：'+(e&&e.message?e.message:String(e)),false);calendarUpdateUI();return false}
 }
 async function calendarConnect(){
  try{
-  calendarSetMessage('正在建立 Google OAuth 連線…',true);var r=await calendarInvoke('auth-url');if(!r.url)throw new Error('伺服器未回傳 Google 授權網址。');window.location.assign(String(r.url));
+  if(!googleCalendarClientConfig.isConfigured||!googleCalendarClientConfig.clientId){calendarSetMessage(googleCalendarClientConfig.message,false);calendarUpdateUI();return}
+  calendarSetMessage('正在建立 Google OAuth 連線…',true);var r=await calendarInvoke('auth-url',{clientId:googleCalendarClientConfig.clientId});if(!r.url)throw new Error('伺服器未回傳 Google 授權網址。');window.location.assign(String(r.url));
  }catch(e){calendarSetMessage('Calendar 連線失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 async function calendarSyncNow(){

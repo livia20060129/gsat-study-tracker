@@ -2,7 +2,7 @@
 
 個人版 Study Tracker。v171 把 v170 的資料安全重構與 Google Calendar 真同步合併成同一版。
 
-> 目前 `arxbirgujbrtzhoficdf` 專案已套用 v171 revision／Calendar schema migration，且 `google-calendar`／`google-calendar-callback` Edge Functions 已部署。若 Google OAuth secrets 尚未設定，前端會直接顯示缺少的 secret 名稱，不再只顯示泛化的 Edge Function fetch error。
+> Google OAuth Client ID 由 Vite 的 `VITE_GOOGLE_CLIENT_ID` 在建置時注入；它是公開的應用程式識別碼，不是秘密。Google Client Secret、refresh token 與 access token 永遠只留在 Supabase server side。若任一端設定不完整，Calendar 區塊會顯示可採取行動的設定訊息，Tracker 其他功能與內建排程 fallback 仍可使用。
 
 ## v171 重點
 
@@ -89,6 +89,14 @@ https://www.googleapis.com/auth/calendar.readonly
 
 Google client secret／refresh token 不會出現在 GitHub Pages JavaScript。
 
+Google OAuth Client ID 不寫死在原始碼，改從：
+
+```text
+VITE_GOOGLE_CLIENT_ID
+```
+
+讀取。前端會先檢查缺漏、範例值與格式；設定有效後才啟用「連接 Google Calendar」。OAuth state 會簽章保存此次連線使用的 Client ID，callback 完成後再將公開 Client ID 與連線一同存到 server-side table，供後續 refresh token 更新 access token。
+
 目前 Calendar parser 已支援個人行事曆中的主要格式：
 
 - `1｜多項式函數` 等數學排程
@@ -138,6 +146,7 @@ migration 位於：
 
 ```text
 supabase/migrations/202608270001_v171_storage_calendar.sql
+supabase/migrations/202608270002_google_calendar_client_id.sql
 ```
 
 它會：
@@ -145,6 +154,7 @@ supabase/migrations/202608270001_v171_storage_calendar.sql
 - 替 `study_records` 加入 `revision`
 - 建立 `upsert_study_record()`
 - 建立 `google_calendar_connections`
+- 替既有 Calendar connection 增加公開的 `client_id`
 - 補強 `calendar_tasks`
 
 ## 2. Google Cloud Console
@@ -162,13 +172,44 @@ https://arxbirgujbrtzhoficdf.supabase.co/functions/v1/google-calendar-callback
 
 Google OAuth 若仍在 Testing 模式，記得把實際 Google 帳號加入 Test users。
 
-## 3. 設定 Edge Function secrets
+## 3. 設定 Vite 的公開 Client ID
+
+OAuth Client ID 是公開識別碼，可安全出現在瀏覽器；OAuth Client Secret 才是必須保密的憑證。
+
+本機開發先複製：
+
+```bash
+cp .env.example .env.local
+```
+
+Windows PowerShell 可使用：
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+再把 `.env.local` 改成：
+
+```dotenv
+VITE_GOOGLE_CLIENT_ID=你的-web-client-id.apps.googleusercontent.com
+```
+
+`.env.local` 已由 `.gitignore` 排除。不要建立 `VITE_GOOGLE_CLIENT_SECRET`；所有 `VITE_` 值都會公開進 browser bundle。
+
+GitHub Pages 正式部署時，到 Repo → Settings → Secrets and variables → Actions → **Variables** 新增：
+
+```text
+VITE_GOOGLE_CLIENT_ID=<同一個 Web OAuth Client ID>
+```
+
+`deploy.yml` 會把這個 repository variable 提供給 Vite build。修改 variable 後必須重新執行 workflow，因為 Vite env 是建置時設定。
+
+## 4. 設定 Edge Function secrets
 
 建立自己的高熵字串作為 `GOOGLE_STATE_SECRET` 與 `CALENDAR_CRON_SECRET`，不要 commit 到 repo。
 
 ```bash
 supabase secrets set \
-  GOOGLE_CLIENT_ID='你的 Google OAuth client id' \
   GOOGLE_CLIENT_SECRET='你的 Google OAuth client secret' \
   GOOGLE_REDIRECT_URI='https://arxbirgujbrtzhoficdf.supabase.co/functions/v1/google-calendar-callback' \
   APP_RETURN_URL='https://livia20060129.github.io/gsat-study-tracker/' \
@@ -176,16 +217,28 @@ supabase secrets set \
   CALENDAR_CRON_SECRET='另一組隨機長字串'
 ```
 
-## 4. Deploy Edge Functions
+`GOOGLE_CLIENT_ID` 不再是 Supabase 必要 secret；Client ID 由設定完成的前端送入 auth flow，Client Secret 則只由 callback／token refresh 在伺服器端使用。
+
+## 5. Deploy Edge Functions
 
 ```bash
 supabase functions deploy google-calendar --project-ref arxbirgujbrtzhoficdf
 supabase functions deploy google-calendar-callback --project-ref arxbirgujbrtzhoficdf
 ```
 
-## 5. GitHub Actions Secrets
+## 6. GitHub Actions Secrets
 
 Repo → Settings → Secrets and variables → Actions，新增：
+
+```text
+Variable: VITE_GOOGLE_CLIENT_ID=<Google Web OAuth Client ID>
+Secret:   SUPABASE_PROJECT_URL=https://arxbirgujbrtzhoficdf.supabase.co
+Secret:   CALENDAR_CRON_SECRET=<與 Supabase secret 相同>
+```
+
+若原本已用 Actions secret 保存 `VITE_GOOGLE_CLIENT_ID` 也可繼續使用，workflow 會以 repository variable 優先。Client ID 本身不是敏感資料，建議使用 Variable。
+
+其餘兩個是每小時同步 workflow 使用的 secrets：
 
 ```text
 SUPABASE_PROJECT_URL=https://arxbirgujbrtzhoficdf.supabase.co
@@ -209,6 +262,8 @@ CALENDAR_CRON_SECRET=<與 Supabase secret 相同>
 7. 回 Tracker 後可按「立即同步」測試
 8. 之後每小時自動同步
 
+如果 `VITE_GOOGLE_CLIENT_ID` 未設定或仍是 `.env.example` 的範例值，「連接 Google Calendar」會停用並直接說明要補的設定，不會再送出必然失敗的 OAuth request。已連線帳號仍可載入 `calendar_tasks`；舊連線若尚未保存 `client_id`，請在套用新 migration／部署 Functions 後解除連線並重新連接一次。
+
 ---
 
 # 開發
@@ -227,6 +282,8 @@ src/
 ├─ main.ts
 ├─ legacy-app.ts
 ├─ types.ts
+├─ config/
+│  └─ googleCalendar.ts
 ├─ calendar/
 │  └─ calendarBridge.ts
 ├─ data/
@@ -246,7 +303,8 @@ src/
 supabase/
 ├─ config.toml
 ├─ migrations/
-│  └─ 202608270001_v171_storage_calendar.sql
+│  ├─ 202608270001_v171_storage_calendar.sql
+│  └─ 202608270002_google_calendar_client_id.sql
 └─ functions/
    ├─ _shared/googleCalendar.ts
    ├─ google-calendar/index.ts

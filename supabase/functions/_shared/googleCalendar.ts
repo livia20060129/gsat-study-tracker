@@ -10,6 +10,7 @@ export const CORS_HEADERS = {
 export interface CalendarConnection {
   user_id: string;
   calendar_id: string;
+  client_id?: string | null;
   refresh_token: string;
   access_token?: string | null;
   access_token_expires_at?: string | null;
@@ -36,6 +37,27 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+export class CalendarConfigurationError extends Error {
+  readonly code = 'calendar_configuration_error';
+
+  constructor(readonly missing: string[]) {
+    super(`Google Calendar server configuration is incomplete: ${missing.join(', ')}`);
+    this.name = 'CalendarConfigurationError';
+  }
+}
+
+function requiredCalendarEnv(names: string[]): Record<string, string> {
+  const values: Record<string, string> = {};
+  const missing: string[] = [];
+  for (const name of names) {
+    const value = Deno.env.get(name)?.trim();
+    if (value) values[name] = value;
+    else missing.push(name);
+  }
+  if (missing.length) throw new CalendarConfigurationError(missing);
+  return values;
+}
+
 function serviceRoleKey(): string {
   const direct = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (direct) return direct;
@@ -59,13 +81,37 @@ export function adminClient(): SupabaseClient {
 }
 
 export function googleConfig() {
+  const env = requiredCalendarEnv([
+    'GOOGLE_CLIENT_SECRET',
+    'GOOGLE_REDIRECT_URI',
+    'GOOGLE_STATE_SECRET',
+    'APP_RETURN_URL',
+  ]);
   return {
-    clientId: requiredEnv('GOOGLE_CLIENT_ID'),
-    clientSecret: requiredEnv('GOOGLE_CLIENT_SECRET'),
-    redirectUri: requiredEnv('GOOGLE_REDIRECT_URI'),
-    stateSecret: requiredEnv('GOOGLE_STATE_SECRET'),
-    appReturnUrl: requiredEnv('APP_RETURN_URL'),
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    redirectUri: env.GOOGLE_REDIRECT_URI,
+    stateSecret: env.GOOGLE_STATE_SECRET,
+    appReturnUrl: env.APP_RETURN_URL,
   };
+}
+
+export function assertGoogleOAuthServerConfigured(): void {
+  googleConfig();
+}
+
+export function normalizeGoogleClientId(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new CalendarConfigurationError(['VITE_GOOGLE_CLIENT_ID']);
+  }
+  const clientId = value.trim();
+  if (
+    clientId.length > 512
+    || /\s/.test(clientId)
+    || !/^[A-Za-z0-9._-]+\.apps\.googleusercontent\.com$/.test(clientId)
+  ) {
+    throw new Error('Invalid Google OAuth client ID supplied by the application');
+  }
+  return clientId;
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -90,35 +136,37 @@ async function hmac(value: string, secret: string): Promise<string> {
   return base64Url(new Uint8Array(signature));
 }
 
-export async function createOAuthState(userId: string): Promise<string> {
+export async function createOAuthState(userId: string, clientId: string): Promise<string> {
   const cfg = googleConfig();
   const payload = base64Url(new TextEncoder().encode(JSON.stringify({
     userId,
+    clientId: normalizeGoogleClientId(clientId),
     expiresAt: Date.now() + 15 * 60 * 1000,
     nonce: crypto.randomUUID(),
   })));
   return `${payload}.${await hmac(payload, cfg.stateSecret)}`;
 }
 
-export async function verifyOAuthState(state: string): Promise<{ userId: string }> {
+export async function verifyOAuthState(state: string): Promise<{ userId: string; clientId: string }> {
   const cfg = googleConfig();
   const [payload, signature] = state.split('.');
   if (!payload || !signature) throw new Error('Invalid OAuth state');
   if (signature !== await hmac(payload, cfg.stateSecret)) throw new Error('Invalid OAuth state signature');
   const decoded = JSON.parse(new TextDecoder().decode(decodeBase64Url(payload))) as {
     userId?: string;
+    clientId?: string;
     expiresAt?: number;
   };
-  if (!decoded.userId || !decoded.expiresAt || decoded.expiresAt < Date.now()) {
+  if (!decoded.userId || !decoded.clientId || !decoded.expiresAt || decoded.expiresAt < Date.now()) {
     throw new Error('Expired OAuth state');
   }
-  return { userId: decoded.userId };
+  return { userId: decoded.userId, clientId: normalizeGoogleClientId(decoded.clientId) };
 }
 
-export function buildGoogleAuthorizationUrl(state: string): string {
+export function buildGoogleAuthorizationUrl(state: string, clientId: string): string {
   const cfg = googleConfig();
   const params = new URLSearchParams({
-    client_id: cfg.clientId,
+    client_id: normalizeGoogleClientId(clientId),
     redirect_uri: cfg.redirectUri,
     response_type: 'code',
     scope: CALENDAR_SCOPE,
@@ -130,14 +178,14 @@ export function buildGoogleAuthorizationUrl(state: string): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
-export async function exchangeAuthorizationCode(code: string) {
+export async function exchangeAuthorizationCode(code: string, clientId: string) {
   const cfg = googleConfig();
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
-      client_id: cfg.clientId,
+      client_id: normalizeGoogleClientId(clientId),
       client_secret: cfg.clientSecret,
       redirect_uri: cfg.redirectUri,
       grant_type: 'authorization_code',
@@ -148,14 +196,14 @@ export async function exchangeAuthorizationCode(code: string) {
   return data as { access_token: string; expires_in: number; refresh_token?: string; scope?: string };
 }
 
-async function refreshGoogleAccessToken(refreshToken: string) {
+async function refreshGoogleAccessToken(refreshToken: string, clientId: string) {
   const cfg = googleConfig();
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       refresh_token: refreshToken,
-      client_id: cfg.clientId,
+      client_id: normalizeGoogleClientId(clientId),
       client_secret: cfg.clientSecret,
       grant_type: 'refresh_token',
     }),
@@ -168,7 +216,10 @@ async function refreshGoogleAccessToken(refreshToken: string) {
 async function validAccessToken(admin: SupabaseClient, connection: CalendarConnection): Promise<string> {
   const expires = connection.access_token_expires_at ? Date.parse(connection.access_token_expires_at) : 0;
   if (connection.access_token && expires > Date.now() + 60_000) return connection.access_token;
-  const refreshed = await refreshGoogleAccessToken(connection.refresh_token);
+  if (!connection.client_id) {
+    throw new Error('既有 Google Calendar 連線缺少 OAuth Client ID；請解除連線後重新連接。');
+  }
+  const refreshed = await refreshGoogleAccessToken(connection.refresh_token, connection.client_id);
   const expiresAt = new Date(Date.now() + refreshed.expires_in * 1000).toISOString();
   const { error } = await admin.from('google_calendar_connections').update({
     access_token: refreshed.access_token,

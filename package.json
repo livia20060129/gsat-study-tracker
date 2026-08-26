@@ -1,13 +1,14 @@
 {
   "name": "gsat-study-tracker-v171",
   "private": true,
-  "version": "171.0.0",
+  "version": "171.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/googleCalendarConfig.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

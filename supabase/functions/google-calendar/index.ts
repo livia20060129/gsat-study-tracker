@@ -1,10 +1,13 @@
 import {
   CORS_HEADERS,
+  CalendarConfigurationError,
   adminClient,
+  assertGoogleOAuthServerConfigured,
   authenticatedUser,
   buildGoogleAuthorizationUrl,
   createOAuthState,
   json,
+  normalizeGoogleClientId,
   syncCalendarForUser,
 } from '../_shared/googleCalendar.ts';
 
@@ -36,8 +39,10 @@ Deno.serve(async (req) => {
 
     const userId = await authenticatedUser(req, admin);
     if (action === 'auth-url') {
-      const state = await createOAuthState(userId);
-      return json({ url: buildGoogleAuthorizationUrl(state) });
+      assertGoogleOAuthServerConfigured();
+      const clientId = normalizeGoogleClientId(body.clientId);
+      const state = await createOAuthState(userId, clientId);
+      return json({ url: buildGoogleAuthorizationUrl(state, clientId) });
     }
     if (action === 'status') {
       const { data, error } = await admin
@@ -59,6 +64,13 @@ Deno.serve(async (req) => {
     return json({ error: `Unknown action: ${action}` }, 400);
   } catch (error) {
     console.error('google-calendar error', error);
+    if (error instanceof CalendarConfigurationError) {
+      return json({
+        error: error.message,
+        code: error.code,
+        missing: error.missing,
+      }, 503);
+    }
     return json({ error: error instanceof Error ? error.message : String(error) }, 500);
   }
 });

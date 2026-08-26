@@ -71,6 +71,7 @@ grant execute on function public.upsert_study_record(date, jsonb, bigint) to aut
 create table if not exists public.google_calendar_connections (
   user_id uuid primary key references auth.users(id) on delete cascade,
   calendar_id text not null default 'primary',
+  client_id text,
   refresh_token text not null,
   access_token text,
   access_token_expires_at timestamptz,
@@ -80,6 +81,9 @@ create table if not exists public.google_calendar_connections (
   last_synced_at timestamptz,
   sync_error text
 );
+
+alter table public.google_calendar_connections
+  add column if not exists client_id text;
 
 alter table public.google_calendar_connections enable row level security;
 revoke all on table public.google_calendar_connections from anon, authenticated;
