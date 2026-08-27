@@ -16,7 +16,7 @@ import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
-import { formatPercentagePointDelta, summarizeCompletionUnits } from './study/completionMetrics';
+import { formatPercentagePointDelta, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions } from './study/presetDedup';
 
@@ -1413,19 +1413,12 @@ function ensureDeferredForDate(rec,date){
  if(targetOffset<1)return false;
  if(!Array.isArray(rec.items))rec.items=[];
  var mon=parseDate(mondayDateOfWeek(date)),wanted={},changed=false;
- var targetHasMathPractice=rec.items.some(function(x){
-  return x&&!x.deferredCarry&&x.type==='mathPractice'&&(
-   x.presetKey==='sun_math_practice'||
-   itemTitle(x)==='數學講義題目：理解檢查＋錯題標記＋訂正'
-  );
- });
  for(var i=0;i<targetOffset;i++){
   var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d),r=loadData(ds);
   if(!r||!Array.isArray(r.items))continue;
   r.items.forEach(function(x){
    if(!x||x.deferredCarry||x.source!=='preset'||!x.required||!x.deferred||x.done)return;
    if(deferredTargetDay(x)!==targetDay)return;
-   if(targetHasMathPractice&&x.type==='mathPractice')return;
    var k=deferredCarryKey(ds,x),c=cloneOriginalItemForMakeup(x,{id:'preset-'+date+'-'+k,presetKey:k,originDate:ds});
    wanted[k]=c;
   });
@@ -1433,7 +1426,6 @@ function ensureDeferredForDate(rec,date){
  var clean=[];
  rec.items.forEach(function(x){
   if(x&&x.deferredCarry){
-   if(targetHasMathPractice&&x.type==='mathPractice'){changed=true;return}
    if(wanted[x.presetKey]){
     var keep=wanted[x.presetKey];
     keep=mergeMakeupProgress(keep,x);
@@ -2347,6 +2339,18 @@ function completionUnitsForRecord(rec,date){
  visibleItems(rec).forEach(function(x){
   if(!x)return;
   if(isWeeklyCalendarItem(x))return;
+  if(x.deferredCarry){
+   var carryCompleted=!!x.done;
+   if(isInteractiveDaily(x)){
+    var carryEntries=(x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[];
+    carryCompleted=carryEntries.length>0&&carryEntries.every(function(c){return !!c.done});
+   }else if(isCalendarNaturalIntegration(x)){
+    var carryChildren=ensureCalendarNaturalIntegrationEntries(x,date);
+    carryCompleted=carryChildren.length>0&&carryChildren.every(function(c){return !!c.done});
+   }
+   units.push(makeupCompletionUnit(carryCompleted));
+   return;
+  }
   if(!x.required){
    if(((x.source==='custom'&&!isEnglishReview(x))||isCalendarMakeup(x)||hasMergedCalendarMakeup(x))&&x.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done});
    return;

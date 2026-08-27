@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   formatPercentagePointDelta,
+  makeupCompletionUnit,
   summarizeCompletionUnits,
 } from '../src/study/completionMetrics.ts';
 
@@ -40,7 +41,7 @@ test('formats Friday comparison as signed percentage points', () => {
 test('adds today makeup work to workload without changing original item totals', () => {
   const metrics = summarizeCompletionUnits([
     { itemAccepted: true, workloadCompleted: true },
-    { itemIncluded: false, itemAccepted: false, workloadCompleted: false },
+    makeupCompletionUnit(false),
   ]);
 
   assert.equal(metrics.itemCompleted, 1);
@@ -49,6 +50,21 @@ test('adds today makeup work to workload without changing original item totals',
   assert.equal(metrics.workloadCompleted, 1);
   assert.equal(metrics.workloadTotal, 2);
   assert.equal(metrics.workloadPercent, 50);
+});
+
+test('includes completed deferred makeup in weekly workload without duplicating the original item', () => {
+  const metrics = summarizeCompletionUnits([
+    { itemAccepted: true, workloadCompleted: false },
+    makeupCompletionUnit(true),
+  ]);
+
+  assert.equal(metrics.itemCompleted, 1);
+  assert.equal(metrics.itemTotal, 1);
+  assert.equal(metrics.itemPercent, 100);
+  assert.equal(metrics.workloadCompleted, 1);
+  assert.equal(metrics.workloadTotal, 2);
+  assert.equal(metrics.workloadPercent, 50);
+  assert.equal(metrics.settlementPercent, 75);
 });
 
 test('can count detailed original items as one top-level workload item', () => {

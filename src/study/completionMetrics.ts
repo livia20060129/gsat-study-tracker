@@ -19,6 +19,15 @@ export interface CompletionMetrics {
   settlementPercent: number;
 }
 
+/** A makeup item adds one unit of actual workload without becoming another originally scheduled item. */
+export function makeupCompletionUnit(completed: boolean): CompletionUnit {
+  return {
+    itemIncluded: false,
+    itemAccepted: false,
+    workloadCompleted: completed,
+  };
+}
+
 function percentage(completed: number, total: number): number {
   return total > 0 ? Math.round((completed / total) * 100) : 0;
 }
