@@ -73,3 +73,19 @@ test('Calendar makeup overrides a weekly prefix and goes to today', () => {
   assert.equal(makeup.makeup, true);
   assert.equal(makeup.title, '整理自然錯題');
 });
+
+test('recognizes special fixed templates read from Calendar', () => {
+  const englishReview = parseCalendarTask(row('補做｜英文訂正與搭配詞整理'));
+  const interactive = parseCalendarTask(row('補做｜互動題'));
+  const magazine = parseCalendarTask(row('補做｜學測英文訓練：英文雜誌'));
+
+  assert.equal(englishReview.kind, 'englishReview');
+  assert.equal(interactive.kind, 'interactiveDaily');
+  assert.equal(magazine.kind, 'magazine');
+  assert.equal(englishReview.route, 'today');
+  assert.equal(interactive.route, 'today');
+  assert.equal(magazine.route, 'today');
+  assert.equal(englishReview.makeup, true);
+  assert.equal(interactive.makeup, true);
+  assert.equal(magazine.makeup, true);
+});

@@ -27,6 +27,9 @@ export type ParsedCalendarTask =
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
   | (ParsedBase & { kind: 'essentialGrammar'; units: number[] })
   | (ParsedBase & { kind: 'writing'; round: number | null; focus: string })
+  | (ParsedBase & { kind: 'englishReview' })
+  | (ParsedBase & { kind: 'interactiveDaily' })
+  | (ParsedBase & { kind: 'magazine' })
   | (ParsedBase & { kind: 'natural'; subject: '物理' | '化學' | '生物' | '地科'; topic: string })
   | (ParsedBase & {
       kind: 'naturalIntegration';
@@ -217,6 +220,18 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
       time: bracketSection(description, '時間'),
       pageItems: integrationPageItems(description),
     };
+  }
+
+  if (title === '英文訂正與搭配詞整理') {
+    return { ...base, kind: 'englishReview' };
+  }
+
+  if (title === '互動題') {
+    return { ...base, kind: 'interactiveDaily' };
+  }
+
+  if (title === '學測英文訓練：英文雜誌') {
+    return { ...base, kind: 'magazine' };
   }
 
   return { ...base, route: route ?? 'today', kind: 'calendarItem' };

@@ -17,7 +17,7 @@ import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } f
 import { parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, summarizeCompletionUnits } from './study/completionMetrics';
-import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress } from './study/makeup';
+import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -1235,6 +1235,12 @@ function cloudCalendarDefsForDate(date){
    out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+(p.focus?'｜'+p.focus:''),true,{title:'英文文法總複習講義',start:p.startPage==null?'':String(p.startPage),end:p.endPage==null?'':String(p.endPage),calendarGrammarTitle:gt,calendarRangeText:rt,calendarRangeType:p.startPage?'pages':'calendar',calendarFocus:p.focus||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='essentialGrammar'){
    (p.units||[]).forEach(function(unit){out.push(presetDef('cal_essential_grammar_'+unit+'_'+token,'extra','英文｜Essential Grammar in Use｜Unit '+unit,'Google Calendar API：'+p.title+'｜Unit '+unit,true,{title:'Essential Grammar in Use',unit:String(unit),unitStart:String(unit),unitEnd:String(unit),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
+  }else if(p.kind==='englishReview'){
+   out.push(presetDef('cal_english_review_'+token,'general','英文訂正與搭配詞整理','Google Calendar API：'+p.title,true,{words:[],calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+  }else if(p.kind==='interactiveDaily'){
+   out.push(presetDef('cal_interactive_'+token,'interactiveDaily','互動題','Google Calendar API：'+p.title,true,{interactiveEntries:[],calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+  }else if(p.kind==='magazine'){
+   out.push(presetDef('cal_magazine_'+token,'magazine','學測英文訓練：英文雜誌','Google Calendar API：'+p.title,true,{entries:[],calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='calendarItem'){
    out.push(presetDef('cal_item_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='natural'){
@@ -1330,7 +1336,7 @@ function presetsForDate(date){
  var cal=calendarDefsForDate(date);for(i=0;i<cal.length;i++)defs.push(cal[i]);
  return defs;
 }
-function makePresetItem(def,date){return{id:'preset-'+date+'-'+def.key,type:def.type,done:false,deferred:false,minutes:'',required:def.required,source:'preset',presetKey:def.key,title:def.title,description:def.description,f:cloneObj(def.f)}}
+function makePresetItem(def,date){return{id:'preset-'+date+'-'+def.key,type:def.type,done:false,deferred:false,minutes:'',required:def.required,source:'preset',presetKey:def.key,templatePresetKey:def.key,title:def.title,description:def.description,f:cloneObj(def.f)}}
 function mondayDateOfWeek(date){
  return dateString(mondayOf(parseDate(date)));
 }
@@ -1443,8 +1449,9 @@ function ensureDailyPresets(rec,date){
   if(x.description!==d.description){x.description=d.description;changed=true}
   if(x.type!==d.type){x.type=d.type;changed=true}
   if(x.required!==d.required){x.required=d.required;changed=true}
+  if(x.templatePresetKey!==d.key){x.templatePresetKey=d.key;changed=true}
   x.source='preset';
-  if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|item)_/.test(d.key||'')){
+  if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|english_review|interactive|magazine|item)_/.test(d.key||'')){
    if(!x.f)x.f={};
    var df=d.f||{};
    if(/^cal_grammar_/.test(d.key||'')){
@@ -1488,11 +1495,11 @@ function newItem(type,source){return{id:uid('i'),type:type||'',done:false,minute
 function isAway(rec){return rec&&rec.mood==='外出'}
 function visibleItems(rec){if(!rec||!Array.isArray(rec.items))return[];return rec.items.filter(function(x){return !(isAway(rec)&&x&&x.source==='preset')})}
 function itemTitle(x){return x&&x.title?x.title:(labels[x.type]||x.type||'未選擇')}
-function isEnglishReview(x){return !!x&&x.type==='general'&&(effectiveTemplatePresetKey(x)==='weekday_english_review'||x.title==='英文訂正與搭配詞整理')}
-function isFixedMagazine(x){var k=effectiveTemplatePresetKey(x);return !!x&&x.type==='magazine'&&(x.title==='學測英文訓練：英文雜誌'||k==='weekday_magazine'||k==='fri_magazine')}
+function isEnglishReview(x){return specialItemTemplate(x)==='englishReview'}
+function isFixedMagazine(x){return specialItemTemplate(x)==='fixedMagazine'}
 function isSaturdayMakeup(x){return !!x&&x.type==='general'&&(effectiveTemplatePresetKey(x)==='sat_makeup'||x.title==='回補本週未完成項目')}
 function isSaturdayReview(x){return !!x&&x.type==='general'&&(effectiveTemplatePresetKey(x)==='sat_week_review'||x.title==='本週完成度與錯題整理')}
-function isInteractiveDaily(x){return !!x&&x.type==='interactiveDaily'&&effectiveTemplatePresetKey(x)==='daily_interactive'}
+function isInteractiveDaily(x){return specialItemTemplate(x)==='interactiveDaily'}
 function isCalendarAce(x){return !!x&&x.source==='preset'&&/^cal_ace_/.test(effectiveTemplatePresetKey(x))}
 function isCalendarGujin(x){return !!x&&x.source==='preset'&&/^cal_gujin_/.test(effectiveTemplatePresetKey(x))}
 function isCalendarNatural(x){return !!x&&x.source==='preset'&&/^cal_natural_/.test(effectiveTemplatePresetKey(x))}
