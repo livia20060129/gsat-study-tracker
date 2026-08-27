@@ -14,10 +14,11 @@ import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
 import { decideRevisionSync, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
-import { parseCalendarTask } from './calendar/calendarBridge';
+import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, summarizeCompletionUnits } from './study/completionMetrics';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
+import { dedupePresetDefinitions } from './study/presetDedup';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -1053,6 +1054,7 @@ function normalizeItem(it,date){
   if(!it.f.unitEnd&&it.f.end)it.f.unitEnd=it.f.end;
  }
  if(!it.source)it.source='custom';
+ hydrateCalendarFixedTemplateItem(it);
  if(it.required===undefined)it.required=it.source==='preset';
  if(it.deferred===undefined)it.deferred=false;
  if(date>=DAILY_PRESET_START&&it.source==='custom')it.required=customCountsOriginal(it);
@@ -1075,6 +1077,37 @@ function loadData(date){
 }
 function presetDef(key,type,title,description,required,f){return{key:key,type:type,title:title,description:description,required:required!==false,f:f||{}}}
 function cloneObj(o){try{return JSON.parse(JSON.stringify(o||{}))}catch(e){return{}}}
+function cloneValue(v){if(v===undefined)return v;try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function calendarFixedTemplateSpec(template){
+ var specs={
+  mathStudy:['mathStudy','數學講義：進度','完成講義頁數，並理解該範圍的新觀念、定義、公式與主要例題。',{}],
+  mathPractice:['mathPractice','數學講義題目：理解檢查＋錯題標記＋訂正','檢查理解，整理錯因／不熟觀念並完成訂正；若錯題少，可延續講義進度。',{}],
+  interactiveDaily:['interactiveDaily','互動題','數 A、英文、生物互動題皆由此手動新增。',{interactiveEntries:[]}],
+  fixedMagazine:['magazine','學測英文訓練：英文雜誌','閱讀文章、理解內容並整理字詞。',{entries:[]}],
+  englishReview:['general','英文訂正與搭配詞整理','訂正題目並整理重要單字、片語與搭配詞。',{words:[]}],
+  englishMixedWriting:['englishMixedWriting','英文：混合題與作文練習','先處理優先修改錯誤，再記錄作文與混合題分數。',{}],
+  englishMockTimed:['mock','英文歷屆／模考：限時作答','依正式時間完成一回試題。',{subject:'英文',subjectLocked:true}],
+  englishMockCorrection:['mock','英文歷屆／模考：批改與訂正','批改試題、重做錯題、分析選項，並整理單字與搭配詞。',{subject:'英文',subjectLocked:true}],
+  weekReview:['general','本週完成度與錯題整理','可依科目新增多筆整理，記錄錯因／不熟觀念。',{reviewEntries:[]}],
+  englishLightReading:['extra','英文輕量閱讀','可從既有英文書目中選擇輕量閱讀內容。',{}]
+ };
+ return specs[template]||null;
+}
+function hydrateCalendarFixedTemplateItem(it){
+ if(!it||!it.f)return false;
+ var templateKey=String(it.templatePresetKey||it.presetKey||'');
+ if(!/^cal_/.test(templateKey))return false;
+ var template=it.f.calendarFixedTemplate||calendarFixedTemplate(it.title||'');
+ var spec=calendarFixedTemplateSpec(template);if(!spec)return false;
+ var changed=false,originalTitle=it.title||'';
+ if(it.type!==spec[0]){it.type=spec[0];changed=true}
+ if(it.title!==spec[1]){it.title=spec[1];changed=true}
+ var defaults=cloneObj(spec[3]);
+ for(var k in defaults)if(Object.prototype.hasOwnProperty.call(defaults,k)&&it.f[k]===undefined){it.f[k]=defaults[k];changed=true}
+ if(it.f.calendarFixedTemplate!==template){it.f.calendarFixedTemplate=template;changed=true}
+ if(!it.f.calendarOriginalTitle&&originalTitle){it.f.calendarOriginalTitle=originalTitle;changed=true}
+ return changed;
+}
 function calendarAceRound(date){
  var d=parseDate('2026-08-17'),target=parseDate(date),n=0;
  while(d<=target&&n<60){
@@ -1219,6 +1252,11 @@ function hardcodedCalendarDefsForDate(date){
  return a;
 }
 function calendarEventToken(value){return String(value||'event').replace(/[^A-Za-z0-9_-]/g,'_').slice(0,80)}
+function calendarFixedTemplateDef(p,token){
+ var s=calendarFixedTemplateSpec(p.template);if(!s)return null;
+ var f=cloneObj(s[3]);f.calendarFixedTemplate=p.template;f.calendarOriginalTitle=p.title;f.calendarEventId=p.sourceEventId;f.calendarEventKey=p.eventKey;
+ return presetDef('cal_fixed_'+p.template+'_'+token,s[0],s[1],s[2]+'｜Google Calendar API：'+p.title,true,f);
+}
 function cloudCalendarDefsForDate(date){
  var parsed=calendarParsedByDate[date]||[],out=[];
  parsed.forEach(function(p){
@@ -1235,12 +1273,8 @@ function cloudCalendarDefsForDate(date){
    out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+(p.focus?'｜'+p.focus:''),true,{title:'英文文法總複習講義',start:p.startPage==null?'':String(p.startPage),end:p.endPage==null?'':String(p.endPage),calendarGrammarTitle:gt,calendarRangeText:rt,calendarRangeType:p.startPage?'pages':'calendar',calendarFocus:p.focus||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='essentialGrammar'){
    (p.units||[]).forEach(function(unit){out.push(presetDef('cal_essential_grammar_'+unit+'_'+token,'extra','英文｜Essential Grammar in Use｜Unit '+unit,'Google Calendar API：'+p.title+'｜Unit '+unit,true,{title:'Essential Grammar in Use',unit:String(unit),unitStart:String(unit),unitEnd:String(unit),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
-  }else if(p.kind==='englishReview'){
-   out.push(presetDef('cal_english_review_'+token,'general','英文訂正與搭配詞整理','Google Calendar API：'+p.title,true,{words:[],calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
-  }else if(p.kind==='interactiveDaily'){
-   out.push(presetDef('cal_interactive_'+token,'interactiveDaily','互動題','Google Calendar API：'+p.title,true,{interactiveEntries:[],calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
-  }else if(p.kind==='magazine'){
-   out.push(presetDef('cal_magazine_'+token,'magazine','學測英文訓練：英文雜誌','Google Calendar API：'+p.title,true,{entries:[],calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+  }else if(p.kind==='fixedTemplate'){
+   var fixedDef=calendarFixedTemplateDef(p,token);if(fixedDef)out.push(fixedDef);
   }else if(p.kind==='calendarItem'){
    out.push(presetDef('cal_item_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='natural'){
@@ -1334,7 +1368,7 @@ function presetsForDate(date){
   if(!hasFriMagazine)defs.push(presetDef('fri_magazine','magazine','學測英文訓練：英文雜誌','閱讀文章、理解內容並整理字詞。',true));
  }
  var cal=calendarDefsForDate(date);for(i=0;i<cal.length;i++)defs.push(cal[i]);
- return defs;
+ return dedupePresetDefinitions(defs);
 }
 function makePresetItem(def,date){return{id:'preset-'+date+'-'+def.key,type:def.type,done:false,deferred:false,minutes:'',required:def.required,source:'preset',presetKey:def.key,templatePresetKey:def.key,title:def.title,description:def.description,f:cloneObj(def.f)}}
 function mondayDateOfWeek(date){
@@ -1425,7 +1459,7 @@ function rebuildDeferredForWeek(originDate){
 function ensureDailyPresets(rec,date){
  if(!rec||date<DAILY_PRESET_START)return false;
  if(!Array.isArray(rec.items))rec.items=[];
- var defs=presetsForDate(date),allowed={},i,x,d,changed=false;
+ var defs=presetsForDate(date),allowed={},i,x,d,changed=false,legacyCalendarByTemplate={};
  var oldMathKeys={weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1};
  var oldEnglishKeys={weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1};
  for(i=0;i<defs.length;i++)allowed[defs[i].key]=true;
@@ -1434,7 +1468,11 @@ function ensureDailyPresets(rec,date){
  for(i=0;i<rec.items.length;i++){
   x=rec.items[i];
   if(x&&x.source==='preset'&&(oldMathKeys[x.presetKey]||oldEnglishKeys[x.presetKey])){changed=true;continue}
-  if(x&&x.source==='preset'&&/^cal_/.test(x.presetKey||'')&&!allowed[x.presetKey]){changed=true;continue}
+  if(x&&x.source==='preset'&&/^cal_/.test(x.presetKey||'')&&!allowed[x.presetKey]){
+   var legacyTemplate=(x.f&&x.f.calendarFixedTemplate)||calendarFixedTemplate(itemTitle(x));
+   if(legacyTemplate&&(!legacyCalendarByTemplate[legacyTemplate]||x.done))legacyCalendarByTemplate[legacyTemplate]=x;
+   changed=true;continue
+  }
   if(x&&x.source==='preset'&&managed[x.presetKey]&&!allowed[x.presetKey]){changed=true;continue}
   clean.push(x);
  }
@@ -1451,8 +1489,11 @@ function ensureDailyPresets(rec,date){
   if(x.required!==d.required){x.required=d.required;changed=true}
   if(x.templatePresetKey!==d.key){x.templatePresetKey=d.key;changed=true}
   x.source='preset';
-  if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|english_review|interactive|magazine|item)_/.test(d.key||'')){
-   if(!x.f)x.f={};
+  if(!x.f)x.f={};
+  if(x.f.calendarMerged&&!(d.f&&d.f.calendarMerged)){
+   ['calendarMerged','calendarEventId','calendarEventKey','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
+  }
+  if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
    var df=d.f||{};
    if(/^cal_grammar_/.test(d.key||'')){
     var grammarPagesBlank=!x.f.start&&!x.f.end;
@@ -1462,8 +1503,22 @@ function ensureDailyPresets(rec,date){
      }else if(x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
     }
    }else{
-    for(var dk2 in df)if(Object.prototype.hasOwnProperty.call(df,dk2)&&x.f[dk2]!==df[dk2]){x.f[dk2]=df[dk2];changed=true}
+    for(var dk2 in df)if(Object.prototype.hasOwnProperty.call(df,dk2)){
+     if(Array.isArray(df[dk2])&&Array.isArray(x.f[dk2]))continue;
+     if(JSON.stringify(x.f[dk2])!==JSON.stringify(df[dk2])){x.f[dk2]=cloneValue(df[dk2]);changed=true}
+    }
    }
+  }
+  var mergedTemplate=d.f&&d.f.calendarMerged?d.f.calendarFixedTemplate:null,legacyItem=mergedTemplate?legacyCalendarByTemplate[mergedTemplate]:null;
+  if(legacyItem){
+   if(legacyItem.done&&!x.done){x.done=true;changed=true}
+   if(!x.minutes&&legacyItem.minutes){x.minutes=legacyItem.minutes;changed=true}
+   var legacyFields=legacyItem.f||{};
+   for(var lk in legacyFields)if(Object.prototype.hasOwnProperty.call(legacyFields,lk)&&!/^calendar/.test(lk)){
+    var currentValue=x.f[lk],legacyValue=legacyFields[lk],currentBlank=currentValue===undefined||currentValue===null||currentValue===''||(Array.isArray(currentValue)&&currentValue.length===0);
+    if(currentBlank&&legacyValue!==undefined&&legacyValue!==null&&legacyValue!==''){x.f[lk]=cloneValue(legacyValue);changed=true}
+   }
+   delete legacyCalendarByTemplate[mergedTemplate];
   }
   normalizeItem(x,date);
  }
@@ -1821,6 +1876,7 @@ function isCalendarGrammarReview(x){return !!x&&x.source==='preset'&&/^cal_gramm
 function isCalendarEssentialGrammar(x){return !!x&&x.source==='preset'&&/^cal_essential_grammar_/.test(effectiveTemplatePresetKey(x))}
 function isWeeklyCalendarItem(x){return !!x&&x.source==='preset'&&x.f&&x.f.calendarRoute==='week'}
 function isCalendarMakeup(x){return !!x&&x.source==='preset'&&x.f&&x.f.calendarMakeup===true}
+function hasMergedCalendarMakeup(x){return !!x&&x.f&&x.f.calendarIncludesMakeup===true}
 
 var GRAMMAR_REVIEW_PAGE_MAP=[
  [1,11,'Chapter 1 英文基本句型'],
@@ -2097,7 +2153,8 @@ function renderInteractiveDailyFields(x){
 }
 
 function renderCard(x,canDelete){
- var meta=x.deferredCarry?('補做｜沿用 '+(x.deferredOriginDate||'原日期')+' 的完整項目模板'):(isCalendarMakeup(x)?'今日補做｜Google Calendar':(isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':''))));
+ var calendarMeta=x.f&&x.f.calendarMerged?(x.f.calendarIncludesMakeup?'已合併 Google Calendar 同模板項目｜含補做':'已合併 Google Calendar 同模板項目'):'';
+ var meta=x.deferredCarry?('補做｜沿用 '+(x.deferredOriginDate||'原日期')+' 的完整項目模板'):(isCalendarMakeup(x)?'今日補做｜Google Calendar':(calendarMeta||(isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':'')))));
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x);
@@ -2291,7 +2348,7 @@ function completionUnitsForRecord(rec,date){
   if(!x)return;
   if(isWeeklyCalendarItem(x))return;
   if(!x.required){
-   if((x.source==='custom'||isCalendarMakeup(x))&&!isEnglishReview(x)&&x.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done});
+   if(((x.source==='custom'&&!isEnglishReview(x))||isCalendarMakeup(x)||hasMergedCalendarMakeup(x))&&x.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done});
    return;
   }
   if(isSaturdayMakeup(x)){
@@ -2306,6 +2363,7 @@ function completionUnitsForRecord(rec,date){
    var entries=(rec===data)?ensureInteractiveEntries(x):((x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[]);
    var completed=entries.length>0&&entries.every(function(c){return !!c.done});
    units.push({itemAccepted:completed||!!x.deferred,workloadCompleted:completed});
+   if(hasMergedCalendarMakeup(x))units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:completed});
    return;
   }
   if(isCalendarNaturalIntegration(x)){
@@ -2317,6 +2375,7 @@ function completionUnitsForRecord(rec,date){
    return;
   }
   units.push({itemAccepted:!!x.done||!!x.deferred,workloadCompleted:!!x.done});
+  if(hasMergedCalendarMakeup(x))units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done});
  });
  return units;
 }

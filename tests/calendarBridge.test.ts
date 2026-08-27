@@ -79,13 +79,51 @@ test('recognizes special fixed templates read from Calendar', () => {
   const interactive = parseCalendarTask(row('補做｜互動題'));
   const magazine = parseCalendarTask(row('補做｜學測英文訓練：英文雜誌'));
 
-  assert.equal(englishReview.kind, 'englishReview');
-  assert.equal(interactive.kind, 'interactiveDaily');
-  assert.equal(magazine.kind, 'magazine');
+  assert.equal(englishReview.kind, 'fixedTemplate');
+  assert.equal(interactive.kind, 'fixedTemplate');
+  assert.equal(magazine.kind, 'fixedTemplate');
+  if (englishReview.kind === 'fixedTemplate') assert.equal(englishReview.template, 'englishReview');
+  if (interactive.kind === 'fixedTemplate') assert.equal(interactive.template, 'interactiveDaily');
+  if (magazine.kind === 'fixedTemplate') assert.equal(magazine.template, 'fixedMagazine');
   assert.equal(englishReview.route, 'today');
   assert.equal(interactive.route, 'today');
   assert.equal(magazine.route, 'today');
   assert.equal(englishReview.makeup, true);
   assert.equal(interactive.makeup, true);
   assert.equal(magazine.makeup, true);
+});
+
+test('keeps the magazine template when date and makeup notes are appended', () => {
+  const parsed = parseCalendarTask(row('學測英文訓練：英文雜誌｜8/28＋補做8/26'));
+
+  assert.equal(parsed.kind, 'fixedTemplate');
+  if (parsed.kind === 'fixedTemplate') assert.equal(parsed.template, 'fixedMagazine');
+  assert.equal(parsed.route, 'today');
+  assert.equal(parsed.makeup, true);
+});
+
+test('canonicalizes the Calendar mock delimiter to the built-in timed template', () => {
+  const parsed = parseCalendarTask(row('英文歷屆／模考｜限時作答'));
+
+  assert.equal(parsed.kind, 'fixedTemplate');
+  if (parsed.kind === 'fixedTemplate') assert.equal(parsed.template, 'englishMockTimed');
+});
+
+test('recognizes every fixed Calendar template with an appended note', () => {
+  const cases = [
+    ['數學講義：進度｜8/28', 'mathStudy'],
+    ['數學講義題目：理解檢查＋錯題標記＋訂正｜8/28', 'mathPractice'],
+    ['互動題｜8/28', 'interactiveDaily'],
+    ['英文訂正與搭配詞整理｜8/28', 'englishReview'],
+    ['英文：混合題與作文練習｜8/28', 'englishMixedWriting'],
+    ['英文歷屆／模考：批改與訂正｜8/28', 'englishMockCorrection'],
+    ['本週完成度與錯題整理｜8/28', 'weekReview'],
+    ['英文輕量閱讀｜8/28', 'englishLightReading'],
+  ] as const;
+
+  for (const [title, template] of cases) {
+    const parsed = parseCalendarTask(row(title));
+    assert.equal(parsed.kind, 'fixedTemplate', title);
+    if (parsed.kind === 'fixedTemplate') assert.equal(parsed.template, template, title);
+  }
 });

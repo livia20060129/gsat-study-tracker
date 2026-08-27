@@ -27,9 +27,7 @@ export type ParsedCalendarTask =
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
   | (ParsedBase & { kind: 'essentialGrammar'; units: number[] })
   | (ParsedBase & { kind: 'writing'; round: number | null; focus: string })
-  | (ParsedBase & { kind: 'englishReview' })
-  | (ParsedBase & { kind: 'interactiveDaily' })
-  | (ParsedBase & { kind: 'magazine' })
+  | (ParsedBase & { kind: 'fixedTemplate'; template: CalendarFixedTemplate })
   | (ParsedBase & { kind: 'natural'; subject: '物理' | '化學' | '生物' | '地科'; topic: string })
   | (ParsedBase & {
       kind: 'naturalIntegration';
@@ -57,6 +55,34 @@ function roundsFromTitle(title: string): number[] {
   const rounds: number[] = [];
   for (let round = start; round <= end; round += 1) rounds.push(round);
   return rounds;
+}
+
+export type CalendarFixedTemplate =
+  | 'mathStudy'
+  | 'mathPractice'
+  | 'interactiveDaily'
+  | 'fixedMagazine'
+  | 'englishReview'
+  | 'englishMixedWriting'
+  | 'englishMockTimed'
+  | 'englishMockCorrection'
+  | 'weekReview'
+  | 'englishLightReading';
+
+/** Matches the stable template name while allowing date, range, and makeup notes after it. */
+export function calendarFixedTemplate(value: string): CalendarFixedTemplate | null {
+  const title = normalized(value);
+  if (/^數學講義題目：理解檢查＋錯題標記＋訂正(?:$|｜)/.test(title)) return 'mathPractice';
+  if (/^數學講義：進度(?:$|｜)/.test(title)) return 'mathStudy';
+  if (/^互動題(?:$|｜)/.test(title)) return 'interactiveDaily';
+  if (/^學測英文訓練：英文雜誌(?:$|｜)/.test(title)) return 'fixedMagazine';
+  if (/^英文訂正與搭配詞整理(?:$|｜)/.test(title)) return 'englishReview';
+  if (/^英文：混合題與作文練習(?:$|｜)/.test(title)) return 'englishMixedWriting';
+  if (/^英文歷屆／模考\s*[｜:：]\s*限時作答(?:$|｜)/.test(title)) return 'englishMockTimed';
+  if (/^英文歷屆／模考\s*[｜:：]\s*批改與訂正(?:$|｜)/.test(title)) return 'englishMockCorrection';
+  if (/^本週完成度與錯題整理(?:$|｜)/.test(title)) return 'weekReview';
+  if (/^英文輕量閱讀(?:$|｜)/.test(title)) return 'englishLightReading';
+  return null;
 }
 
 function expandEssentialGrammarUnits(value: string): number[] {
@@ -144,13 +170,13 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const routed = rawTitle.match(/^(今日項目|今日|本週項目|本周項目|本週|本周)｜(.+)$/);
   const routedTitle = normalized(routed?.[2] ?? rawTitle);
   const makeupPrefix = routedTitle.match(/^(補做項目|補做)\s*[｜:：]\s*(.+)$/);
-  const makeup = Boolean(makeupPrefix);
+  const title = normalized(makeupPrefix?.[2] ?? routedTitle);
+  const makeup = Boolean(makeupPrefix) || /補做(?:項目)?\s*(?:\d|[｜:：]|$)/.test(title);
   const route: 'today' | 'week' | undefined = makeup
     ? 'today'
     : routed
     ? (/^(本週|本周)/.test(routed[1]) ? 'week' : 'today')
     : undefined;
-  const title = normalized(makeupPrefix?.[2] ?? routedTitle);
   const description = row.description ?? '';
   const base: ParsedBase = {
     eventKey: row.event_key,
@@ -222,16 +248,9 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     };
   }
 
-  if (title === '英文訂正與搭配詞整理') {
-    return { ...base, kind: 'englishReview' };
-  }
-
-  if (title === '互動題') {
-    return { ...base, kind: 'interactiveDaily' };
-  }
-
-  if (title === '學測英文訓練：英文雜誌') {
-    return { ...base, kind: 'magazine' };
+  const fixedTemplate = calendarFixedTemplate(title);
+  if (fixedTemplate) {
+    return { ...base, kind: 'fixedTemplate', template: fixedTemplate };
   }
 
   return { ...base, route: route ?? 'today', kind: 'calendarItem' };
