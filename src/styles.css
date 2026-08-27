@@ -19,8 +19,9 @@ main{max-width:1050px;margin:0 auto;padding:22px 14px 60px}h1{font-size:28px;mar
 .connection-badge[data-state="busy"]{background:#eff6ff;color:#1d4ed8}.connection-badge[data-state="busy"]::before{background:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.14)}
 .connection-badge[data-state="warning"]{background:#fffbeb;color:#a16207}.connection-badge[data-state="warning"]::before{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.14)}
 .connection-badge[data-state="error"]{background:#fef2f2;color:#b91c1c}.connection-badge[data-state="error"]::before{background:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.14)}
-.connection-settings-toggle{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;font-size:12px;font-weight:750;color:#334155;background:#f1f5f9;border-radius:10px;padding:6px 9px}
-.connection-chevron{display:inline-block;font-size:15px;line-height:1;transition:transform .18s ease}.connection-dock[open] .connection-chevron{transform:rotate(180deg)}
+.connection-settings-toggle{display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;font-size:12px;font-weight:750;color:#334155;background:#f1f5f9;border-radius:10px;padding:6px 9px}
+.connection-symbol{display:inline-block;min-width:1em;font-size:11px;line-height:1;text-align:center}
+.connection-symbol::before{content:"▼"}.connection-dock[open] .connection-symbol::before{content:"＝";font-size:13px}
 .connection-settings-content{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;border-top:1px solid var(--line);background:#f8fafc}
 .connection-settings-group{min-width:0;padding:13px;border:1px solid var(--line);border-radius:15px;background:#fff}
 .connection-settings-group h2{margin:0 0 11px;font-size:15px}
@@ -83,7 +84,7 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
  .connection-status-bar{gap:8px;padding:8px 10px}
  .connection-statuses{gap:6px}.connection-divider{display:none}
  .connection-status-name{display:none}
- .connection-settings-toggle{padding:6px 8px}.connection-settings-toggle{font-size:0}.connection-settings-toggle::before{content:"設定";font-size:12px}
+ .connection-settings-toggle{padding:6px 8px}
  .connection-settings-content,.connection-login-grid{grid-template-columns:1fr}
 }
 
