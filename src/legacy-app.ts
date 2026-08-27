@@ -1250,8 +1250,8 @@ function cloudCalendarDefsForDate(date){
    var ni=cloudNaturalIntegrationDetailsByDate[date]||{};
    out.push(presetDef('cal_natural_'+token,'scienceReview','自然','Google Calendar API：'+p.title+'｜依指定科目與頁碼完成。',true,{subject:'混合',calendarTopic:p.title,calendarSource:'Google Calendar API',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review||'',calendarIntegrationPages:ni.pages||'',calendarIntegrationOutput:ni.output||'',calendarIntegrationMinimum:ni.minimum||'',calendarIntegrationTime:ni.time||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }
-  var route=p.route||'today';
-  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today';out[oi].f.calendarRoute=route}
+  var route=p.makeup?'today':(p.route||'today');
+  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup;out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup}
  });
  return out;
 }
@@ -1813,6 +1813,7 @@ function isGrammarReview(t){return t==='英文文法總複習講義'}
 function isCalendarGrammarReview(x){return !!x&&x.source==='preset'&&/^cal_grammar_/.test(effectiveTemplatePresetKey(x))}
 function isCalendarEssentialGrammar(x){return !!x&&x.source==='preset'&&/^cal_essential_grammar_/.test(effectiveTemplatePresetKey(x))}
 function isWeeklyCalendarItem(x){return !!x&&x.source==='preset'&&x.f&&x.f.calendarRoute==='week'}
+function isCalendarMakeup(x){return !!x&&x.source==='preset'&&x.f&&x.f.calendarMakeup===true}
 
 var GRAMMAR_REVIEW_PAGE_MAP=[
  [1,11,'Chapter 1 英文基本句型'],
@@ -2089,7 +2090,7 @@ function renderInteractiveDailyFields(x){
 }
 
 function renderCard(x,canDelete){
- var meta=x.deferredCarry?('補做｜沿用 '+(x.deferredOriginDate||'原日期')+' 的完整項目模板'):(isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':'')));
+ var meta=x.deferredCarry?('補做｜沿用 '+(x.deferredOriginDate||'原日期')+' 的完整項目模板'):(isCalendarMakeup(x)?'今日補做｜Google Calendar':(isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':''))));
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x);
@@ -2142,7 +2143,7 @@ function renderWeeklyItems(){
   html+='</div>';
   html+='</details>';
  }
- if(!html)html='<div class="small weekly-empty">本週尚無 Google Calendar 本週項目。可使用「本週項目｜項目名稱」，Essential Grammar in Use 則會自動加入。</div>';
+ if(!html)html='<div class="small weekly-empty">本週尚無 Google Calendar 本週項目。請使用「本週項目｜項目名稱」指定；未加前綴或標示「補做｜」的項目會加入今日項目。</div>';
  id('weeklyItemList').innerHTML=html;
  id('weeklyItemBadge').textContent=total+' 項';
 }
@@ -2283,7 +2284,7 @@ function completionUnitsForRecord(rec,date){
   if(!x)return;
   if(isWeeklyCalendarItem(x))return;
   if(!x.required){
-   if(x.source==='custom'&&!isEnglishReview(x)&&x.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done});
+   if((x.source==='custom'||isCalendarMakeup(x))&&!isEnglishReview(x)&&x.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done});
    return;
   }
   if(isSaturdayMakeup(x)){

@@ -57,3 +57,19 @@ test('routes Essential Grammar to this week only with the weekly prefix', () => 
   assert.equal(weekly.kind, 'essentialGrammar');
   assert.equal(weekly.route, 'week');
 });
+
+test('routes Calendar makeup to today and preserves a recognized item template', () => {
+  const makeup = parseCalendarTask(row('補做｜Essential Grammar in Use｜Unit 22'));
+  assert.equal(makeup.kind, 'essentialGrammar');
+  assert.equal(makeup.route, 'today');
+  assert.equal(makeup.makeup, true);
+  assert.equal(makeup.title, 'Essential Grammar in Use｜Unit 22');
+});
+
+test('Calendar makeup overrides a weekly prefix and goes to today', () => {
+  const makeup = parseCalendarTask(row('本週項目｜補做項目｜整理自然錯題'));
+  assert.equal(makeup.kind, 'calendarItem');
+  assert.equal(makeup.route, 'today');
+  assert.equal(makeup.makeup, true);
+  assert.equal(makeup.title, '整理自然錯題');
+});

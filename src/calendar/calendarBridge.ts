@@ -17,6 +17,7 @@ interface ParsedBase {
   title: string;
   description: string;
   route?: 'today' | 'week';
+  makeup?: boolean;
 }
 
 export type ParsedCalendarTask =
@@ -138,10 +139,15 @@ function integrationPageItems(description: string) {
 export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const rawTitle = normalized(row.title ?? '');
   const routed = rawTitle.match(/^(今日項目|今日|本週項目|本周項目|本週|本周)｜(.+)$/);
-  const route: 'today' | 'week' | undefined = routed
+  const routedTitle = normalized(routed?.[2] ?? rawTitle);
+  const makeupPrefix = routedTitle.match(/^(補做項目|補做)\s*[｜:：]\s*(.+)$/);
+  const makeup = Boolean(makeupPrefix);
+  const route: 'today' | 'week' | undefined = makeup
+    ? 'today'
+    : routed
     ? (/^(本週|本周)/.test(routed[1]) ? 'week' : 'today')
     : undefined;
-  const title = normalized(routed?.[2] ?? rawTitle);
+  const title = normalized(makeupPrefix?.[2] ?? routedTitle);
   const description = row.description ?? '';
   const base: ParsedBase = {
     eventKey: row.event_key,
@@ -150,6 +156,7 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     title,
     description,
     ...(route ? { route } : {}),
+    ...(makeup ? { makeup: true } : {}),
   };
 
   if (row.category === 'math' || /^(1|2|3A|4A|2＋4A|2＋3A)｜/.test(title)) {
