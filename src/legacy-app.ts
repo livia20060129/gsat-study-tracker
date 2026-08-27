@@ -17,6 +17,7 @@ import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } f
 import { parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, summarizeCompletionUnits } from './study/completionMetrics';
+import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress } from './study/makeup';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -1385,18 +1386,7 @@ function ensureDeferredForDate(rec,date){
    if(!x||x.deferredCarry||x.source!=='preset'||!x.required||!x.deferred||x.done)return;
    if(deferredTargetDay(x)!==targetDay)return;
    if(targetHasMathPractice&&x.type==='mathPractice')return;
-   var k=deferredCarryKey(ds,x),c=cloneObj(x);
-   c.id='preset-'+date+'-'+k;
-   c.presetKey=k;
-   c.source='preset';
-   c.required=true;
-   c.done=false;
-   c.deferred=false;
-   delete c.deferredTargetDay;
-   c.deferredCarry=true;
-   c.deferredOriginDate=ds;
-   c.deferredOriginId=x.id||'';
-   c.description='延期自 '+ds+(x.description?'｜'+x.description:'');
+   var k=deferredCarryKey(ds,x),c=cloneOriginalItemForMakeup(x,{id:'preset-'+date+'-'+k,presetKey:k,originDate:ds});
    wanted[k]=c;
   });
  }
@@ -1406,9 +1396,7 @@ function ensureDeferredForDate(rec,date){
    if(targetHasMathPractice&&x.type==='mathPractice'){changed=true;return}
    if(wanted[x.presetKey]){
     var keep=wanted[x.presetKey];
-    keep.done=!!x.done;
-    keep.minutes=x.minutes||'';
-    keep.f=cloneObj(x.f||keep.f||{});
+    keep=mergeMakeupProgress(keep,x);
     clean.push(keep);
     delete wanted[x.presetKey];
    }else changed=true;
@@ -1500,14 +1488,14 @@ function newItem(type,source){return{id:uid('i'),type:type||'',done:false,minute
 function isAway(rec){return rec&&rec.mood==='外出'}
 function visibleItems(rec){if(!rec||!Array.isArray(rec.items))return[];return rec.items.filter(function(x){return !(isAway(rec)&&x&&x.source==='preset')})}
 function itemTitle(x){return x&&x.title?x.title:(labels[x.type]||x.type||'未選擇')}
-function isEnglishReview(x){return !!x&&x.type==='general'&&(x.presetKey==='weekday_english_review'||x.title==='英文訂正與搭配詞整理')}
-function isFixedMagazine(x){return !!x&&x.type==='magazine'&&(x.title==='學測英文訓練：英文雜誌'||x.presetKey==='weekday_magazine'||x.presetKey==='fri_magazine')}
-function isSaturdayMakeup(x){return !!x&&x.type==='general'&&(x.presetKey==='sat_makeup'||x.title==='回補本週未完成項目')}
-function isSaturdayReview(x){return !!x&&x.type==='general'&&(x.presetKey==='sat_week_review'||x.title==='本週完成度與錯題整理')}
-function isInteractiveDaily(x){return !!x&&x.type==='interactiveDaily'&&x.presetKey==='daily_interactive'}
-function isCalendarAce(x){return !!x&&x.source==='preset'&&/^cal_ace_/.test(x.presetKey||'')}
-function isCalendarGujin(x){return !!x&&x.source==='preset'&&/^cal_gujin_/.test(x.presetKey||'')}
-function isCalendarNatural(x){return !!x&&x.source==='preset'&&/^cal_natural_/.test(x.presetKey||'')}
+function isEnglishReview(x){return !!x&&x.type==='general'&&(effectiveTemplatePresetKey(x)==='weekday_english_review'||x.title==='英文訂正與搭配詞整理')}
+function isFixedMagazine(x){var k=effectiveTemplatePresetKey(x);return !!x&&x.type==='magazine'&&(x.title==='學測英文訓練：英文雜誌'||k==='weekday_magazine'||k==='fri_magazine')}
+function isSaturdayMakeup(x){return !!x&&x.type==='general'&&(effectiveTemplatePresetKey(x)==='sat_makeup'||x.title==='回補本週未完成項目')}
+function isSaturdayReview(x){return !!x&&x.type==='general'&&(effectiveTemplatePresetKey(x)==='sat_week_review'||x.title==='本週完成度與錯題整理')}
+function isInteractiveDaily(x){return !!x&&x.type==='interactiveDaily'&&effectiveTemplatePresetKey(x)==='daily_interactive'}
+function isCalendarAce(x){return !!x&&x.source==='preset'&&/^cal_ace_/.test(effectiveTemplatePresetKey(x))}
+function isCalendarGujin(x){return !!x&&x.source==='preset'&&/^cal_gujin_/.test(effectiveTemplatePresetKey(x))}
+function isCalendarNatural(x){return !!x&&x.source==='preset'&&/^cal_natural_/.test(effectiveTemplatePresetKey(x))}
 function isCalendarNaturalIntegration(x){return !!x&&isCalendarNatural(x)&&x.f&&x.f.calendarNaturalIntegration}
 function calendarIntegrationRangeText(ranges){
  if(!Array.isArray(ranges)||!ranges.length)return'—';
@@ -1820,10 +1808,10 @@ function renderScienceFields(x,reviewMode){
 function isMagazineTitle(t){return t==='雜誌'||t==='英文雜誌'}
 function isAce(t){return t==='ACE Reading'||t==='英文：ACE Reading'}
 function isWritingTest(t){return t==='英文寫作測驗'}
-function isCalendarWritingTest(x){return !!x&&x.source==='preset'&&/^cal_writing_/.test(x.presetKey||'')}
+function isCalendarWritingTest(x){return !!x&&x.source==='preset'&&/^cal_writing_/.test(effectiveTemplatePresetKey(x))}
 function isGrammarReview(t){return t==='英文文法總複習講義'}
-function isCalendarGrammarReview(x){return !!x&&x.source==='preset'&&/^cal_grammar_/.test(x.presetKey||'')}
-function isCalendarEssentialGrammar(x){return !!x&&x.source==='preset'&&/^cal_essential_grammar_/.test(x.presetKey||'')}
+function isCalendarGrammarReview(x){return !!x&&x.source==='preset'&&/^cal_grammar_/.test(effectiveTemplatePresetKey(x))}
+function isCalendarEssentialGrammar(x){return !!x&&x.source==='preset'&&/^cal_essential_grammar_/.test(effectiveTemplatePresetKey(x))}
 function isWeeklyCalendarItem(x){return !!x&&x.source==='preset'&&x.f&&x.f.calendarRoute==='week'}
 
 var GRAMMAR_REVIEW_PAGE_MAP=[
@@ -1991,11 +1979,12 @@ function renderChineseFields(x,reviewMode){
  return h;
 }
 function isLockedEnglishMock(x){
+ var k=effectiveTemplatePresetKey(x);
  return !!x&&x.type==='mock'&&(
   x.title==='英文歷屆／模考：批改與訂正'||
   x.title==='英文歷屆／模考：限時作答'||
-  x.presetKey==='sat_mock_correction'||
-  x.presetKey==='fri_mock_timed'||
+  k==='sat_mock_correction'||
+  k==='fri_mock_timed'||
   (x.f&&x.f.subjectLocked)
  );
 }
@@ -2100,7 +2089,7 @@ function renderInteractiveDailyFields(x){
 }
 
 function renderCard(x,canDelete){
- var meta=isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':''));
+ var meta=x.deferredCarry?('補做｜沿用 '+(x.deferredOriginDate||'原日期')+' 的完整項目模板'):(isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':'')));
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x);

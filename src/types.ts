@@ -41,6 +41,8 @@ export interface StudyItem {
   required: boolean;
   source?: string;
   presetKey?: string;
+  /** Preserves the original renderer/template when this item is carried forward for makeup. */
+  templatePresetKey?: string;
   title?: string;
   description?: string;
   deferred?: boolean;
