@@ -65,8 +65,10 @@
    <div class="field"><label>起床時間</label><div class="inline"><input id="wakeHour" type="number" min="0" max="23" step="1" inputmode="numeric" placeholder="小時"><span>時</span><input id="wakeMinute" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="分鐘"><span>分</span></div></div>
   </div>
   <div class="stats overview-stats" style="margin-top:12px">
+   <div class="stat"><span class="small">今日完成時間</span><strong><span id="doneMinutes">0</span> 分</strong></div>
+   <div class="stat"><span class="small">今日數學講義頁數</span><strong><span id="mathPagesTop">0</span> 頁</strong></div>
+   <div class="stat"><span class="small">本週數學已完成</span><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span></div></div>
    <div class="stat completion-stat">
-    <span class="small">完成率雙指標</span>
     <div class="completion-metric">
      <div class="completion-metric-head"><span>原定項目完成率</span><strong id="completionPercent">0%</strong></div>
      <div class="progress"><div id="completionBar" style="width:0"></div></div>
@@ -82,9 +84,6 @@
      <div class="settlement-comparison" id="settlementComparison" hidden>相較週五結算 <strong id="settlementDelta">±0%</strong></div>
     </div>
    </div>
-   <div class="stat"><span class="small">今日完成時間</span><strong><span id="doneMinutes">0</span> 分</strong></div>
-   <div class="stat"><span class="small">今日數學講義頁數</span><strong><span id="mathPagesTop">0</span> 頁</strong></div>
-   <div class="stat"><span class="small">本週數學已完成</span><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span></div></div>
   </div>
  </div>
 </section>
