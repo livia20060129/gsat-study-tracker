@@ -44,9 +44,16 @@ test('routes prefixed Calendar items to today or this week', () => {
   assert.equal(week.title, '整理自然錯題');
 });
 
-test('routes Essential Grammar to this week by default and allows a today override', () => {
-  const weekly = parseCalendarTask(row('Essential Grammar in Use｜Unit 20'));
-  const today = parseCalendarTask(row('今日項目｜Essential Grammar in Use｜Unit 21'));
+test('routes unprefixed Calendar items to today', () => {
+  const generic = parseCalendarTask(row('整理化學錯題'));
+  const essentialGrammar = parseCalendarTask(row('Essential Grammar in Use｜Unit 20'));
+  assert.equal(generic.kind, 'calendarItem');
+  assert.equal(generic.route, 'today');
+  assert.equal(essentialGrammar.route, 'today');
+});
+
+test('routes Essential Grammar to this week only with the weekly prefix', () => {
+  const weekly = parseCalendarTask(row('本週項目｜Essential Grammar in Use｜Unit 21'));
+  assert.equal(weekly.kind, 'essentialGrammar');
   assert.equal(weekly.route, 'week');
-  assert.equal(today.route, 'today');
 });

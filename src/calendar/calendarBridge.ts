@@ -178,7 +178,7 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   }
 
   if (row.category === 'essentialGrammar' || /Essential Grammar in Use/i.test(title)) {
-    return { ...base, route: route ?? 'week', kind: 'essentialGrammar', units: essentialGrammarUnits(title, description) };
+    return { ...base, route: route ?? 'today', kind: 'essentialGrammar', units: essentialGrammarUnits(title, description) };
   }
 
   if (row.category === 'writing' || /^英文寫作測驗｜/.test(title)) {
@@ -212,9 +212,5 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     };
   }
 
-  if (route || row.category === 'studyItem') {
-    return { ...base, route: route ?? 'today', kind: 'calendarItem' };
-  }
-
-  return { ...base, kind: 'other' };
+  return { ...base, route: route ?? 'today', kind: 'calendarItem' };
 }

@@ -1249,7 +1249,7 @@ function cloudCalendarDefsForDate(date){
    var ni=cloudNaturalIntegrationDetailsByDate[date]||{};
    out.push(presetDef('cal_natural_'+token,'scienceReview','自然','Google Calendar API：'+p.title+'｜依指定科目與頁碼完成。',true,{subject:'混合',calendarTopic:p.title,calendarSource:'Google Calendar API',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review||'',calendarIntegrationPages:ni.pages||'',calendarIntegrationOutput:ni.output||'',calendarIntegrationMinimum:ni.minimum||'',calendarIntegrationTime:ni.time||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }
-  var route=p.route||(p.kind==='essentialGrammar'?'week':'today');
+  var route=p.route||'today';
   for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today';out[oi].f.calendarRoute=route}
  });
  return out;

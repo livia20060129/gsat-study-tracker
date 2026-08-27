@@ -256,7 +256,7 @@ function classify(title: string): string {
   if (/^自然整合｜/.test(title)) return 'naturalIntegration';
   if (/^(物理|化學|生物|地科)｜/.test(title)) return 'natural';
   if (/^(1|2|3A|4A|2＋4A|2＋3A)｜/.test(title)) return 'math';
-  return 'other';
+  return 'studyItem';
 }
 
 async function fetchCalendarEvents(accessToken: string, calendarId: string) {
