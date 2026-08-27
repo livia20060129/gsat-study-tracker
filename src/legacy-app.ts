@@ -16,6 +16,7 @@ import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
+import { formatPercentagePointDelta, summarizeCompletionUnits } from './study/completionMetrics';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -2187,6 +2188,81 @@ function handleClick(e){
  else if(action==='interactive-delete'&&x){if(x.locked){render();return}removeNested(x.id,'interactiveEntries');render();persist(false)}
 }
 
+var DEFAULT_PLANNED_WORK_MINUTES={
+ mathStudy:60,mathLecture:60,mathPractice:45,mathOral:20,
+ interactive:20,interactiveDaily:20,englishPractice:25,
+ englishVocabInteractive:20,biologyInteractive:20,
+ magazine:30,englishMixedWriting:80,chineseReading:45,
+ scienceReview:60,mock:100,general:25,extra:30,calendarStudy:45
+};
+function plannedMinuteNumber(value){
+ var match=String(value==null?'':value).match(/(\d+(?:\.\d+)?)/);
+ return match?Math.max(0,Number(match[1])||0):0;
+}
+function plannedPageCount(x){
+ var f=x&&x.f?x.f:{},start=Number(f.start),end=Number(f.end);
+ if(Number.isFinite(start)&&Number.isFinite(end)&&start>0&&end>=start)return end-start+1;
+ var calendarPages=Number(f.calendarDailyPages||0);
+ return Number.isFinite(calendarPages)&&calendarPages>0?calendarPages:0;
+}
+function plannedWorkloadMinutes(x,date){
+ if(!x)return 0;
+ var f=x.f||{},explicit=plannedMinuteNumber(f.calendarIntegrationTime||f.calendarTime||f.plannedMinutes);
+ if(explicit)return explicit;
+ var pages=plannedPageCount(x);
+ if(pages){
+  var perPage=(x.type==='mathStudy'||x.type==='mathLecture')?6:(x.type==='mathPractice'?8:(x.type==='scienceReview'?5:4));
+  return Math.max(15,pages*perPage);
+ }
+ return Number(DEFAULT_PLANNED_WORK_MINUTES[x.type]||30);
+}
+function completionUnitsForRecord(rec,date){
+ var units=[];
+ visibleItems(rec).forEach(function(x){
+  if(!x||!x.required)return;
+  if(isInteractiveDaily(x)){
+   var entries=(rec===data)?ensureInteractiveEntries(x):((x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[]);
+   var workload=entries.length?entries.reduce(function(sum,c){return sum+plannedWorkloadMinutes(c,date)},0):plannedWorkloadMinutes(x,date);
+   var completed=entries.length>0&&entries.every(function(c){return !!c.done});
+   units.push({itemAccepted:completed||!!x.deferred,workloadCompleted:completed,workload:workload});
+   return;
+  }
+  if(isCalendarNaturalIntegration(x)){
+   var children=ensureCalendarNaturalIntegrationEntries(x,date),total=plannedWorkloadMinutes(x,date),share=children.length?total/children.length:total;
+   children.forEach(function(c){units.push({itemAccepted:!!c.done||!!x.deferred,workloadCompleted:!!c.done,workload:share})});
+   return;
+  }
+  units.push({itemAccepted:!!x.done||!!x.deferred,workloadCompleted:!!x.done,workload:plannedWorkloadMinutes(x,date)});
+ });
+ return units;
+}
+function completionMetricsForWeek(date,lastDayIndex){
+ var mon=mondayOf(parseDate(date)),units=[];
+ for(var i=0;i<=lastDayIndex;i++){
+  var day=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(day);
+  var rec=data&&data.date===ds?data:loadData(ds);
+  ensureDailyPresets(rec,ds);
+  units=units.concat(completionUnitsForRecord(rec,ds));
+ }
+ return summarizeCompletionUnits(units);
+}
+function updateSettlementMetrics(date){
+ var day=parseDate(date).getDay(),box=id('settlementMetrics'),comparison=id('settlementComparison');
+ if(day!==5&&day!==0){box.hidden=true;comparison.hidden=true;return}
+ box.hidden=false;
+ if(day===5){
+  var friday=completionMetricsForWeek(date,4);
+  id('settlementLabel').textContent='週五結算完成率';
+  id('settlementPercent').textContent=friday.settlementPercent+'%';
+  comparison.hidden=true;return;
+ }
+ var week=completionMetricsForWeek(date,6),fridayBase=completionMetricsForWeek(date,4);
+ id('settlementLabel').textContent='本週結算完成率';
+ id('settlementPercent').textContent=week.settlementPercent+'%';
+ id('settlementDelta').textContent=formatPercentagePointDelta(week.settlementPercent-fridayBase.settlementPercent);
+ comparison.hidden=false;
+}
+
 function updateSummary(){
  mathProgressIndex.upsert(data);
  var req=0,done=0,mins=0,active=visibleItems(data);
@@ -2213,11 +2289,15 @@ function updateSummary(){
   if(x.done){if(isFixedMagazine(x))mins+=fixedMagazineMinutes(x);else if(!isEnglishReview(x)&&!isSaturdayMakeup(x))mins+=Number(x.minutes||0)}
   if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){if(m.done)mins+=Number(m.minutes||0)});
  });
- var pct=req?Math.round(done/req*100):0;
+ var completion=summarizeCompletionUnits(completionUnitsForRecord(data,data.date)),pct=completion.itemPercent;
  var math=calculateMathProgress(mathProgressIndex.view(),data.date,calendarWeekMathTarget(data.date));
  id('completionPercent').textContent=pct+'%';
  id('completionBar').style.width=pct+'%';
- id('completionText').textContent=done+'/'+req+' 項';
+ id('completionText').textContent=completion.itemCompleted+'/'+completion.itemTotal+' 項';
+ id('workloadCompletionPercent').textContent=completion.workloadPercent+'%';
+ id('workloadCompletionBar').style.width=completion.workloadPercent+'%';
+ id('workloadCompletionText').textContent=Math.round(completion.workloadCompleted)+'/'+Math.round(completion.workloadTotal)+' 分鐘工作量';
+ updateSettlementMetrics(data.date);
  id('doneMinutes').textContent=mins;
  id('mathPagesTop').textContent=math.dailyNewPages;
  id('weekMathPages').textContent=math.weeklyNewPages;
