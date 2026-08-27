@@ -531,6 +531,7 @@ var EXTRA_READING_TITLES=[
  '英文字彙王: 核心單字2001~ 4000',
  '英文字彙王: 核心單字4001~ 6000',
  'ENGLISH VOCABULARY IN USE',
+ 'Essential Grammar in Use',
  '學一次用一輩子的字首．字根．字尾'
 ];
 
@@ -1881,6 +1882,7 @@ function traumalandTopicOptions(current){
 }
 
 function isPrism(t){return t==='Prism Reading'||/^Prism Reading [234]$/.test(String(t||''))}
+function isEssentialGrammar(t){return t==='Essential Grammar in Use'}
 function readingOptions(v){return'<option value="">請選擇</option>'+EXTRA_READING_TITLES.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('')}
 function reviewEnglishOptions(v){
  var a=['ACE Reading','英文寫作測驗','英文文法總複習講義','Prism Reading'];
@@ -1930,6 +1932,8 @@ function renderExtraFields(x,reviewMode){
   }
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
+ }else if(!reviewMode&&isEssentialGrammar(t)){
+  h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select><div class="small" style="margin-top:5px">全書共 115 Unit</div></div><div class="field compact-number"><label>起始 Unit</label><input type="number" min="1" max="115" step="1" inputmode="numeric" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束 Unit</label><input type="number" min="1" max="115" step="1" inputmode="numeric" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
  }else if(!reviewMode&&isTraumaland(t)){
   if(!f.topic&&f.progress)f.topic=f.progress;
   normalizeTraumalandTopic(f);
@@ -2103,6 +2107,38 @@ function renderCard(x,canDelete){
  }
  return h+'</div>';
 }
+function weeklyItemDisplayTitle(x){
+ var title=itemTitle(x),book=x&&x.type==='extra'&&x.f&&x.f.title?String(x.f.title):'';
+ return book&&book!==title?title+'｜'+book:title;
+}
+function weeklyItemState(x){
+ if(x.done)return{label:'完成',kind:'done'};
+ if(x.deferred)return{label:'延期至'+deferredTargetLabel(x),kind:'deferred'};
+ if(x.deferredCarry)return{label:'補做',kind:'makeup'};
+ if(x.source==='custom')return{label:'今日補做',kind:'makeup'};
+ if(!x.required)return{label:'選做',kind:'optional'};
+ return{label:'未完成',kind:'pending'};
+}
+function renderWeeklyItems(){
+ var mon=mondayOf(parseDate(data.date)),html='',total=0;
+ for(var i=0;i<7;i++){
+  var dayDate=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(dayDate);
+  var rec=data.date===ds?data:loadData(ds);
+  ensureDailyPresets(rec,ds);
+  var items=visibleItems(rec),accepted=0;
+  items.forEach(function(x){if(x.done||x.deferred)accepted++});
+  total+=items.length;
+  html+='<details class="weekly-day"'+(ds===data.date?' open':'')+'><summary><span><strong>'+weekdays[dayDate.getDay()]+'</strong><span class="weekly-date">'+esc(ds.slice(5).replace('-','／'))+'</span></span><span class="weekly-day-actions"><span class="small">'+accepted+'／'+items.length+'</span><button type="button" data-action="week-open" data-week-date="'+esc(ds)+'">查看</button></span></summary>';
+  if(items.length){
+   html+='<div class="weekly-day-items">';
+   items.forEach(function(x){var state=weeklyItemState(x);html+='<div class="weekly-item-row"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><span>'+esc(weeklyItemDisplayTitle(x))+'</span></div>'});
+   html+='</div>';
+  }else html+='<div class="small weekly-empty">尚無項目</div>';
+  html+='</details>';
+ }
+ id('weeklyItemList').innerHTML=html;
+ id('weeklyItemBadge').textContent=total+' 項';
+}
 function render(){
  var active=visibleItems(data),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
  active.forEach(function(x){
@@ -2111,7 +2147,7 @@ function render(){
    else{daily+=renderCard(x,false);dc++}
   }else{other+=renderCard(x,true);oc++}
  });
- id('dailyItemList').innerHTML=dc?daily:(isAway(data)?'<div class="small">今日狀態為「外出」，固定排程已全部取消。</div>':'<div class="small">此日沒有每日必做項目。</div>');
+ id('dailyItemList').innerHTML=dc?daily:(isAway(data)?'<div class="small">今日狀態為「外出」，固定排程已全部取消。</div>':'<div class="small">今日沒有項目。</div>');
  id('englishReviewList').innerHTML=erc?englishReview:'<div class="small">今日尚未新增英文訂正與搭配詞整理。</div>';
  id('itemList').innerHTML=oc?other:'<div class="small">尚未新增其他項目。</div>';
  id('dailyPresetBadge').textContent=dc+' 項';
@@ -2119,6 +2155,7 @@ function render(){
  id('itemCountBadge').textContent=oc+' 項';
  id('dailyNotice').textContent=isAway(data)?'今日外出：固定排程全部取消；自行新增項目仍可照常記錄。':(data.date>=DAILY_PRESET_START?dailyMessageForDate(data.date):'歷史日期：不自動改寫原有紀錄。');
  updateSummary();
+ renderWeeklyItems();
 }
 function findRecursive(list,target){
  if(!Array.isArray(list))return null;
@@ -2146,7 +2183,7 @@ function refreshAuto(card,x){
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-minutes]')&&x){x.minutes=t.value;updateSummary();persist(false);return}
- if(t.matches('[data-field]')&&x){x.f[t.getAttribute('data-field')]=t.value;var k=t.getAttribute('data-field');if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
+ if(t.matches('[data-field]')&&x){x.f[t.getAttribute('data-field')]=t.value;var k=t.getAttribute('data-field');if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='start'||k==='end')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit)}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
  if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;updateSummary();persist(false);return}
  if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;persist(false);return}
 }
@@ -2203,7 +2240,11 @@ function handleChange(e){
 }
 function handleClick(e){
  var b=e.target.closest('[data-action]');if(!b)return;var card=b.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null,action=b.getAttribute('data-action');
- if(action==='delete-item'&&x){data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
+ if(action==='week-open'){
+  var target=b.getAttribute('data-week-date');
+  if(target){persist(false);id('studyDate').value=target;load();var panel=id('dailyItemList').closest('.panel');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'})}
+ }
+ else if(action==='delete-item'&&x){data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
  else if(action==='mag-add'&&x){ensureMagazineEntries(x).push({name:'',month:'',unit:'',minutes:''});render();persist(false)}
  else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x);if(a.length>1)a.splice(Number(b.getAttribute('data-index')),1);render();persist(false)}
  else if(action==='word-add'&&x){(x.f.words||(x.f.words=[])).push({text:'',noun:false,verb:false,adjective:false,adverb:false,preposition:false,conjunction:false,fixedCombination:false,beautifulSentences:false});render();persist(false)}
@@ -2401,7 +2442,7 @@ function itemDetails(x){
  else if(x.type==='mock')s+='｜科目：'+(isLockedEnglishMock(x)?'英文':line(f.subject))+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
  else if(x.type==='englishVocabInteractive'){var vw=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(vw.length?vw.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
  else if(x.type==='general'&&isEnglishReview(x)){var w=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(w.length?w.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
- else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
+ else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEssentialGrammar(f.title))s+='｜Essential Grammar in Use｜Unit '+line(f.start)+'～'+line(f.end)+'（全書 115 Unit）';else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
  return s;
 }
 function reviewEntrySummary(x){var d=itemDetails(x).replace(/｜進度：[✓—]｜批改：[✓—]｜訂正：[✓—]/g,'');var s=itemTitle(x)+d;if(x.type!=='mock')s+='｜錯因／不熟觀念：'+line(x.f&&x.f.reason);return s}
@@ -2548,6 +2589,7 @@ function addEnglishReview(){
 }
 function headerInput(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
+id('weeklyItemList').addEventListener('click',handleClick);
 id('englishReviewList').addEventListener('input',handleInput);id('englishReviewList').addEventListener('change',handleChange);id('englishReviewList').addEventListener('click',handleClick);
 id('itemList').addEventListener('input',handleInput);id('itemList').addEventListener('change',handleChange);id('itemList').addEventListener('click',handleClick);
 id('studyDate').addEventListener('change',function(){if(data)persist(false);load()});
