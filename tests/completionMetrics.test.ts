@@ -33,3 +33,17 @@ test('formats Friday comparison as signed percentage points', () => {
   assert.equal(formatPercentagePointDelta(-8), '-8%');
   assert.equal(formatPercentagePointDelta(0), '±0%');
 });
+
+test('adds today makeup work to workload without changing original item totals', () => {
+  const metrics = summarizeCompletionUnits([
+    { itemAccepted: true, workloadCompleted: true, workload: 60 },
+    { itemIncluded: false, itemAccepted: false, workloadCompleted: false, workload: 30 },
+  ]);
+
+  assert.equal(metrics.itemCompleted, 1);
+  assert.equal(metrics.itemTotal, 1);
+  assert.equal(metrics.itemPercent, 100);
+  assert.equal(metrics.workloadCompleted, 60);
+  assert.equal(metrics.workloadTotal, 90);
+  assert.equal(metrics.workloadPercent, 67);
+});

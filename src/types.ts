@@ -44,6 +44,7 @@ export interface StudyItem {
   title?: string;
   description?: string;
   deferred?: boolean;
+  deferredTargetDay?: number;
   deferredCarry?: boolean;
   deferredOriginDate?: string;
   deferredOriginId?: string;

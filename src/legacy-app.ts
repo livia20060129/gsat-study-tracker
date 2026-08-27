@@ -1319,12 +1319,25 @@ function presetsForDate(date){
  return defs;
 }
 function makePresetItem(def,date){return{id:'preset-'+date+'-'+def.key,type:def.type,done:false,deferred:false,minutes:'',required:def.required,source:'preset',presetKey:def.key,title:def.title,description:def.description,f:cloneObj(def.f)}}
-function sundayOfWeek(date){
- var d=parseDate(date),day=d.getDay(),add=(7-day)%7;
- return dateString(new Date(d.getFullYear(),d.getMonth(),d.getDate()+add,12));
-}
 function mondayDateOfWeek(date){
  return dateString(mondayOf(parseDate(date)));
+}
+function weekDayOffset(day){return day===0?6:day-1}
+function deferredTargetDay(item){
+ var day=Number(item&&item.deferredTargetDay);
+ return day===0||(day>=2&&day<=6)?day:0;
+}
+function nextDeferredTargetDay(date){
+ var next=weekDayOffset(parseDate(date).getDay())+1;
+ return next>=6?0:next+1;
+}
+function deferredTargetLabel(item){return weekdays[deferredTargetDay(item)]||'星期日'}
+function deferredTargetOptions(date,current){
+ var originOffset=weekDayOffset(parseDate(date).getDay()),days=[2,3,4,5,6,0],selected=Number(current);
+ return days.map(function(day){
+  var disabled=weekDayOffset(day)<=originOffset;
+  return'<option value="'+day+'"'+(day===selected?' selected':'')+(disabled?' disabled':'')+'>'+weekdays[day]+'</option>';
+ }).join('');
 }
 var WEEKLY_DEFER_LIMIT=6;
 function weeklyDeferredCount(date){
@@ -1342,22 +1355,25 @@ function weeklyDeferredCount(date){
 function deferredCarryKey(originDate,item){
  return 'deferred_'+originDate.replace(/-/g,'')+'_'+String(item.id||item.presetKey||'item').replace(/[^A-Za-z0-9_-]/g,'_');
 }
-function ensureSundayDeferred(rec,date){
- if(!rec||parseDate(date).getDay()!==0)return false;
+function ensureDeferredForDate(rec,date){
+ if(!rec)return false;
+ var targetDay=parseDate(date).getDay(),targetOffset=weekDayOffset(targetDay);
+ if(targetOffset<1)return false;
  if(!Array.isArray(rec.items))rec.items=[];
  var mon=parseDate(mondayDateOfWeek(date)),wanted={},changed=false;
- var sundayHasMathPractice=rec.items.some(function(x){
+ var targetHasMathPractice=rec.items.some(function(x){
   return x&&!x.deferredCarry&&x.type==='mathPractice'&&(
    x.presetKey==='sun_math_practice'||
    itemTitle(x)==='數學講義題目：理解檢查＋錯題標記＋訂正'
   );
  });
- for(var i=0;i<6;i++){
+ for(var i=0;i<targetOffset;i++){
   var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d),r=loadData(ds);
   if(!r||!Array.isArray(r.items))continue;
   r.items.forEach(function(x){
    if(!x||x.deferredCarry||x.source!=='preset'||!x.required||!x.deferred||x.done)return;
-   if(sundayHasMathPractice&&x.type==='mathPractice')return;
+   if(deferredTargetDay(x)!==targetDay)return;
+   if(targetHasMathPractice&&x.type==='mathPractice')return;
    var k=deferredCarryKey(ds,x),c=cloneObj(x);
    c.id='preset-'+date+'-'+k;
    c.presetKey=k;
@@ -1365,6 +1381,7 @@ function ensureSundayDeferred(rec,date){
    c.required=true;
    c.done=false;
    c.deferred=false;
+   delete c.deferredTargetDay;
    c.deferredCarry=true;
    c.deferredOriginDate=ds;
    c.deferredOriginId=x.id||'';
@@ -1375,7 +1392,7 @@ function ensureSundayDeferred(rec,date){
  var clean=[];
  rec.items.forEach(function(x){
   if(x&&x.deferredCarry){
-   if(sundayHasMathPractice&&x.type==='mathPractice'){changed=true;return}
+   if(targetHasMathPractice&&x.type==='mathPractice'){changed=true;return}
    if(wanted[x.presetKey]){
     var keep=wanted[x.presetKey];
     keep.done=!!x.done;
@@ -1390,13 +1407,14 @@ function ensureSundayDeferred(rec,date){
  rec.items=clean;
  return changed;
 }
-function rebuildSundayDeferredForWeek(originDate){
- if(parseDate(originDate).getDay()===0)return;
- var sun=sundayOfWeek(originDate),r=loadData(sun);
- var changed=ensureDailyPresets(r,sun);
- if(changed){
-  try{store.setItem(key(sun),JSON.stringify(r))}catch(e){}
-  if(typeof queueCloudSave==='function')queueCloudSave(r);
+function rebuildDeferredForWeek(originDate){
+ var mon=mondayOf(parseDate(originDate));
+ for(var i=1;i<=6;i++){
+  var target=dateString(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12)),r=loadData(target);
+  if(ensureDeferredForDate(r,target)){
+   try{store.setItem(key(target),JSON.stringify(r))}catch(e){}
+   if(typeof queueCloudSave==='function')queueCloudSave(r);
+  }
  }
 }
 function ensureDailyPresets(rec,date){
@@ -1454,7 +1472,7 @@ function ensureDailyPresets(rec,date){
    if(beforeIntegration!==JSON.stringify(x.f.calendarIntegrationEntries||[]))changed=true;
   }
  }
- if(ensureSundayDeferred(rec,date))changed=true;
+ if(ensureDeferredForDate(rec,date))changed=true;
  return changed;
 }
 
@@ -2065,7 +2083,7 @@ function renderInteractiveDailyFields(x){
 }
 
 function renderCard(x,canDelete){
- var meta=isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至本週日':''):'每日選做'):(x.required?'列入原定完成度':''));
+ var meta=isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(x.deferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':''));
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x);
@@ -2079,7 +2097,9 @@ function renderCard(x,canDelete){
  if(fields)h+='<div class="inner">'+fields+'</div>';
  if(canDefer){
   var deferCount=weeklyDeferredCount(data.date),deferDisabled=!x.deferred&&deferCount>=WEEKLY_DEFER_LIMIT;
-  h+='<div style="display:flex;justify-content:flex-end;align-items:center;margin-top:10px"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+(deferDisabled?' disabled':'')+'> 延期（本週 '+deferCount+'／'+WEEKLY_DEFER_LIMIT+'）</label></div>';
+  h+='<div class="defer-controls"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+(deferDisabled?' disabled':'')+'> 延期（本週 '+deferCount+'／'+WEEKLY_DEFER_LIMIT+'）</label>';
+  if(x.deferred)h+='<label class="small defer-target-label">加入 <select data-deferred-target>'+deferredTargetOptions(data.date,deferredTargetDay(x))+'</select></label>';
+  h+='</div>';
  }
  return h+'</div>';
 }
@@ -2140,9 +2160,17 @@ function handleChange(e){
    return
   }
   x.deferred=t.checked;
-  if(x.deferred)x.done=false;
+  if(x.deferred){x.done=false;x.deferredTargetDay=nextDeferredTargetDay(data.date)}
+  else delete x.deferredTargetDay;
   persist(false);
-  rebuildSundayDeferredForWeek(data.date);
+  rebuildDeferredForWeek(data.date);
+  render();
+  return
+ }
+ if(t.matches('[data-deferred-target]')&&x){
+  x.deferredTargetDay=Number(t.value);
+  persist(false);
+  rebuildDeferredForWeek(data.date);
   render();
   return
  }
@@ -2151,7 +2179,7 @@ function handleChange(e){
   if(x.calendarIntegrationChild){
    updateSummary();persist(false);render();return
   }
-  if(x.done&&x.deferred){x.deferred=false;persist(false);rebuildSundayDeferredForWeek(data.date)}
+  if(x.done&&x.deferred){x.deferred=false;delete x.deferredTargetDay;persist(false);rebuildDeferredForWeek(data.date)}
   else persist(false);
   updateSummary();return
  }
@@ -2219,7 +2247,19 @@ function plannedWorkloadMinutes(x,date){
 function completionUnitsForRecord(rec,date){
  var units=[];
  visibleItems(rec).forEach(function(x){
-  if(!x||!x.required)return;
+  if(!x)return;
+  if(!x.required){
+   if(x.source==='custom'&&!isEnglishReview(x)&&x.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done,workload:plannedWorkloadMinutes(x,date)});
+   return;
+  }
+  if(isSaturdayMakeup(x)){
+   units.push({itemAccepted:!!x.done||!!x.deferred,workloadCompleted:false,workload:0});
+   var makeupEntries=x.f&&Array.isArray(x.f.makeupEntries)?x.f.makeupEntries:[];
+   makeupEntries.forEach(function(m){
+    if(m&&m.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!m.done,workload:plannedWorkloadMinutes(m,date)});
+   });
+   return;
+  }
   if(isInteractiveDaily(x)){
    var entries=(rec===data)?ensureInteractiveEntries(x):((x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[]);
    var workload=entries.length?entries.reduce(function(sum,c){return sum+plannedWorkloadMinutes(c,date)},0):plannedWorkloadMinutes(x,date);

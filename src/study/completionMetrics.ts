@@ -1,4 +1,6 @@
 export interface CompletionUnit {
+  /** Workload-only additions do not change the original item metric. */
+  itemIncluded?: boolean;
   /** Counts as completed for the original item metric (done or deferred). */
   itemAccepted: boolean;
   /** Counts as actual completed workload (done only; deferred work is not done). */
@@ -25,6 +27,7 @@ export function summarizeCompletionUnits(
   units: CompletionUnit[],
 ): CompletionMetrics {
   let itemCompleted = 0;
+  let itemTotal = 0;
   let workloadCompleted = 0;
   let workloadTotal = 0;
 
@@ -32,12 +35,14 @@ export function summarizeCompletionUnits(
     const workload = Number.isFinite(unit.workload)
       ? Math.max(0, unit.workload)
       : 0;
-    if (unit.itemAccepted) itemCompleted += 1;
+    if (unit.itemIncluded !== false) {
+      itemTotal += 1;
+      if (unit.itemAccepted) itemCompleted += 1;
+    }
     workloadTotal += workload;
     if (unit.workloadCompleted) workloadCompleted += workload;
   }
 
-  const itemTotal = units.length;
   const itemPercent = percentage(itemCompleted, itemTotal);
   const workloadPercent = percentage(workloadCompleted, workloadTotal);
 

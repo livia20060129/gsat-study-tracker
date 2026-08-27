@@ -77,6 +77,7 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
 .settlement-metrics{margin-top:11px;padding-top:10px;border-top:1px dashed #cbd5e1}.settlement-comparison{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:4px;color:var(--muted);font-size:12px}.settlement-comparison[hidden]{display:none!important}.settlement-comparison strong{font-size:14px;color:var(--text)}
 .status{font-size:13px;color:var(--muted);margin-top:10px}.footer{text-align:center;color:var(--muted);font-size:12px;margin-top:18px}
 .makeup-entry,.review-entry{background:#fff}.review-entry .item-top{align-items:end}
+.defer-controls{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px}.defer-target-label{display:flex;align-items:center;gap:6px}.defer-target-label select{width:auto;min-width:104px;padding:6px 28px 6px 9px}
 @media(max-width:720px){
  .grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-row,.english-book-row,.english-book-page-row,.english-title-half,.english-magazine-main,.english-magazine-sub,.stats{grid-template-columns:1fr}
  .chinese-writing-row .cw-topic,.english-book-row .english-book,.english-title-half .english-book,.english-magazine-main .english-book,.english-magazine-main .english-version{grid-column:auto}
