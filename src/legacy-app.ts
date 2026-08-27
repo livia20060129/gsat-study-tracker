@@ -1047,6 +1047,10 @@ function normalizeItem(it,date){
  if(it.type==='chineseWriting'){it.type='chineseReading';it.f.kind='writing'}
  if(it.type==='chineseReading'&&!it.f.kind&&(it.f.start||it.f.end))it.f.kind='reading';
  if(it.type==='extra'&&isTraumaland(it.f.title))normalizeTraumalandTopic(it.f);
+ if(it.type==='extra'&&isEssentialGrammar(it.f.title)){
+  if(!it.f.unitStart&&it.f.start)it.f.unitStart=it.f.start;
+  if(!it.f.unitEnd&&it.f.end)it.f.unitEnd=it.f.end;
+ }
  if(!it.source)it.source='custom';
  if(it.required===undefined)it.required=it.source==='preset';
  if(it.deferred===undefined)it.deferred=false;
@@ -1217,7 +1221,7 @@ function calendarEventToken(value){return String(value||'event').replace(/[^A-Za
 function cloudCalendarDefsForDate(date){
  var parsed=calendarParsedByDate[date]||[],out=[];
  parsed.forEach(function(p){
-  var token=calendarEventToken(p.sourceEventId||p.eventKey);
+  var token=calendarEventToken(p.sourceEventId||p.eventKey),outStart=out.length;
   if(p.kind==='ace'){
    (p.rounds||[]).forEach(function(round){out.push(presetDef('cal_ace_'+round+'_'+token,'extra','英文｜ACE Reading 第 '+round+' 回','Google Calendar API：'+p.title,true,{title:'ACE Reading',round:String(round),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
   }else if(p.kind==='gujin'){
@@ -1228,6 +1232,10 @@ function cloudCalendarDefsForDate(date){
    var gt=String(p.title||'').replace(/^英文文法｜/,'');
    var rt=p.startPage?(p.endPage&&p.endPage!==p.startPage?'p.'+p.startPage+'–'+p.endPage:'p.'+p.startPage):'依 Calendar 說明';
    out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+(p.focus?'｜'+p.focus:''),true,{title:'英文文法總複習講義',start:p.startPage==null?'':String(p.startPage),end:p.endPage==null?'':String(p.endPage),calendarGrammarTitle:gt,calendarRangeText:rt,calendarRangeType:p.startPage?'pages':'calendar',calendarFocus:p.focus||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+  }else if(p.kind==='essentialGrammar'){
+   (p.units||[]).forEach(function(unit){out.push(presetDef('cal_essential_grammar_'+unit+'_'+token,'extra','英文｜Essential Grammar in Use｜Unit '+unit,'Google Calendar API：'+p.title+'｜Unit '+unit,true,{title:'Essential Grammar in Use',unit:String(unit),unitStart:String(unit),unitEnd:String(unit),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
+  }else if(p.kind==='calendarItem'){
+   out.push(presetDef('cal_item_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='natural'){
    var nr=cloudNaturalRecommendedByDate[date]||null,nd='Google Calendar API：'+p.title,ff={subject:p.subject,calendarTopic:p.title,calendarSource:'Google Calendar API',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
    if(nr){
@@ -1241,6 +1249,8 @@ function cloudCalendarDefsForDate(date){
    var ni=cloudNaturalIntegrationDetailsByDate[date]||{};
    out.push(presetDef('cal_natural_'+token,'scienceReview','自然','Google Calendar API：'+p.title+'｜依指定科目與頁碼完成。',true,{subject:'混合',calendarTopic:p.title,calendarSource:'Google Calendar API',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review||'',calendarIntegrationPages:ni.pages||'',calendarIntegrationOutput:ni.output||'',calendarIntegrationMinimum:ni.minimum||'',calendarIntegrationTime:ni.time||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }
+  var route=p.route||(p.kind==='essentialGrammar'?'week':'today');
+  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today';out[oi].f.calendarRoute=route}
  });
  return out;
 }
@@ -1446,7 +1456,7 @@ function ensureDailyPresets(rec,date){
   if(x.type!==d.type){x.type=d.type;changed=true}
   if(x.required!==d.required){x.required=d.required;changed=true}
   x.source='preset';
-  if(/^cal_(ace|writing|grammar|gujin|natural)_/.test(d.key||'')){
+  if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|item)_/.test(d.key||'')){
    if(!x.f)x.f={};
    var df=d.f||{};
    if(/^cal_grammar_/.test(d.key||'')){
@@ -1813,6 +1823,8 @@ function isWritingTest(t){return t==='英文寫作測驗'}
 function isCalendarWritingTest(x){return !!x&&x.source==='preset'&&/^cal_writing_/.test(x.presetKey||'')}
 function isGrammarReview(t){return t==='英文文法總複習講義'}
 function isCalendarGrammarReview(x){return !!x&&x.source==='preset'&&/^cal_grammar_/.test(x.presetKey||'')}
+function isCalendarEssentialGrammar(x){return !!x&&x.source==='preset'&&/^cal_essential_grammar_/.test(x.presetKey||'')}
+function isWeeklyCalendarItem(x){return !!x&&x.source==='preset'&&x.f&&x.f.calendarRoute==='week'}
 
 var GRAMMAR_REVIEW_PAGE_MAP=[
  [1,11,'Chapter 1 英文基本句型'],
@@ -1933,7 +1945,8 @@ function renderExtraFields(x,reviewMode){
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
  }else if(!reviewMode&&isEssentialGrammar(t)){
-  h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select><div class="small" style="margin-top:5px">全書共 115 Unit</div></div><div class="field compact-number"><label>起始 Unit</label><input type="number" min="1" max="115" step="1" inputmode="numeric" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束 Unit</label><input type="number" min="1" max="115" step="1" inputmode="numeric" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
+  if(isCalendarEssentialGrammar(x))h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><div class="fixed-book-value">Essential Grammar in Use</div></div><div class="field compact-number"><label>Unit</label><div class="fixed-book-value">Unit '+esc(f.unit||f.unitStart||'—')+'</div></div></div>';
+  else h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select><div class="small" style="margin-top:5px">全書共 115 Unit</div></div><div class="field compact-number"><label>起始 Unit</label><input type="number" min="1" max="115" step="1" inputmode="numeric" data-field="unitStart" value="'+esc(f.unitStart||'')+'"></div><div class="field compact-number"><label>結束 Unit</label><input type="number" min="1" max="115" step="1" inputmode="numeric" data-field="unitEnd" value="'+esc(f.unitEnd||'')+'"></div></div>';
  }else if(!reviewMode&&isTraumaland(t)){
   if(!f.topic&&f.progress)f.topic=f.progress;
   normalizeTraumalandTopic(f);
@@ -2109,6 +2122,11 @@ function renderCard(x,canDelete){
 }
 function weeklyItemDisplayTitle(x){
  var title=itemTitle(x),book=x&&x.type==='extra'&&x.f&&x.f.title?String(x.f.title):'';
+ if(isEssentialGrammar(book)){
+  if(title.indexOf(book)>=0)return title;
+  var start=x.f.unitStart||x.f.unit||'',end=x.f.unitEnd||start;
+  return title+'｜'+book+(start?'｜Unit '+start+(end&&end!==start?'–'+end:''):'');
+ }
  return book&&book!==title?title+'｜'+book:title;
 }
 function weeklyItemState(x){
@@ -2125,23 +2143,24 @@ function renderWeeklyItems(){
   var dayDate=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(dayDate);
   var rec=data.date===ds?data:loadData(ds);
   ensureDailyPresets(rec,ds);
-  var items=visibleItems(rec),accepted=0;
+  var items=visibleItems(rec).filter(isWeeklyCalendarItem),accepted=0;
+  if(!items.length)continue;
   items.forEach(function(x){if(x.done||x.deferred)accepted++});
   total+=items.length;
-  html+='<details class="weekly-day"'+(ds===data.date?' open':'')+'><summary><span><strong>'+weekdays[dayDate.getDay()]+'</strong><span class="weekly-date">'+esc(ds.slice(5).replace('-','／'))+'</span></span><span class="weekly-day-actions"><span class="small">'+accepted+'／'+items.length+'</span><button type="button" data-action="week-open" data-week-date="'+esc(ds)+'">查看</button></span></summary>';
-  if(items.length){
-   html+='<div class="weekly-day-items">';
-   items.forEach(function(x){var state=weeklyItemState(x);html+='<div class="weekly-item-row"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><span>'+esc(weeklyItemDisplayTitle(x))+'</span></div>'});
-   html+='</div>';
-  }else html+='<div class="small weekly-empty">尚無項目</div>';
+  html+='<details class="weekly-day" open><summary><span><strong>'+weekdays[dayDate.getDay()]+'</strong><span class="weekly-date">'+esc(ds.slice(5).replace('-','／'))+'</span></span><span class="weekly-day-actions"><span class="small">'+accepted+'／'+items.length+'</span></span></summary>';
+  html+='<div class="weekly-day-items">';
+  items.forEach(function(x){var state=weeklyItemState(x);html+='<div class="weekly-item-row"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><label class="weekly-item-check"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span>'+esc(weeklyItemDisplayTitle(x))+'</span></label></div>'});
+  html+='</div>';
   html+='</details>';
  }
+ if(!html)html='<div class="small weekly-empty">本週尚無 Google Calendar 本週項目。可使用「本週項目｜項目名稱」，Essential Grammar in Use 則會自動加入。</div>';
  id('weeklyItemList').innerHTML=html;
  id('weeklyItemBadge').textContent=total+' 項';
 }
 function render(){
  var active=visibleItems(data),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
  active.forEach(function(x){
+  if(isWeeklyCalendarItem(x))return;
   if(x.source==='preset'){
    if(isEnglishReview(x)){englishReview+=renderCard(x,false);erc++}
    else{daily+=renderCard(x,false);dc++}
@@ -2183,7 +2202,7 @@ function refreshAuto(card,x){
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-minutes]')&&x){x.minutes=t.value;updateSummary();persist(false);return}
- if(t.matches('[data-field]')&&x){x.f[t.getAttribute('data-field')]=t.value;var k=t.getAttribute('data-field');if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='start'||k==='end')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit)}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
+ if(t.matches('[data-field]')&&x){x.f[t.getAttribute('data-field')]=t.value;var k=t.getAttribute('data-field');if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit)}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
  if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;updateSummary();persist(false);return}
  if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;persist(false);return}
 }
@@ -2225,7 +2244,7 @@ function handleChange(e){
   var f=t.getAttribute('data-field');x.f[f]=t.value;
   if((x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice')&&(f==='material'||f==='book')){if(f==='material')x.f.book='';x.f.unit='';x.f.chapter=''}
   if(x.type==='scienceReview'&&(f==='subject'||f==='material')){if(f==='subject'&&isCalendarNatural(x)){x.f.subject=calendarNaturalSubject(x.f.calendarTopic||x.description);render();persist(false);return}x.f.unit='';x.f.chapter='';normalizeScience(x.f)}
-  if(x.type==='extra'&&f==='title'){x.f.level='';x.f.start='';x.f.end='';x.f.round='';x.f.topic='';x.f.warriorsBook='';x.f.chapter='';x.f.progress=false;x.f.graded=false;x.f.corrected=false;x.f.reason='';x.required=customCountsOriginal(x)}
+  if(x.type==='extra'&&f==='title'){x.f.level='';x.f.start='';x.f.end='';x.f.unitStart='';x.f.unitEnd='';x.f.unit='';x.f.round='';x.f.topic='';x.f.warriorsBook='';x.f.chapter='';x.f.progress=false;x.f.graded=false;x.f.corrected=false;x.f.reason='';x.required=customCountsOriginal(x)}
   if(x.type==='extra'&&f==='level')x.required=customCountsOriginal(x);
   if(f==='material'||f==='book'||f==='subject'||f==='kind'||f==='title'||f==='level'||f==='interactiveType'){render();persist(false);return}
   refreshAuto(card,x);updateSummary();persist(false);return
@@ -2256,64 +2275,51 @@ function handleClick(e){
  else if(action==='interactive-add'&&x&&isInteractiveDaily(x)){ensureInteractiveEntries(x).push(interactiveDailyChild(''));render();persist(false)}
  else if(action==='interactive-delete'&&x){if(x.locked){render();return}removeNested(x.id,'interactiveEntries');render();persist(false)}
 }
+function handleWeeklyChange(e){
+ var t=e.target;if(!t.matches('[data-week-done]'))return;
+ var ds=t.getAttribute('data-week-date'),itemId=t.getAttribute('data-week-item');if(!ds||!itemId)return;
+ var rec=ds===data.date?data:loadData(ds);ensureDailyPresets(rec,ds);
+ var item=findRecursive(rec.items,itemId);if(!item){renderWeeklyItems();return}
+ item.done=t.checked;
+ if(item.done){item.deferred=false;delete item.deferredTargetDay}
+ if(ds===data.date){persist(false);render();return}
+ rec.localDirty=true;rec.syncConflict=false;
+ if(writeStoredRecord(rec))queueCloudSave(rec);
+ renderWeeklyItems();
+}
 
-var DEFAULT_PLANNED_WORK_MINUTES={
- mathStudy:60,mathLecture:60,mathPractice:45,mathOral:20,
- interactive:20,interactiveDaily:20,englishPractice:25,
- englishVocabInteractive:20,biologyInteractive:20,
- magazine:30,englishMixedWriting:80,chineseReading:45,
- scienceReview:60,mock:100,general:25,extra:30,calendarStudy:45
-};
-function plannedMinuteNumber(value){
- var match=String(value==null?'':value).match(/(\d+(?:\.\d+)?)/);
- return match?Math.max(0,Number(match[1])||0):0;
-}
-function plannedPageCount(x){
- var f=x&&x.f?x.f:{},start=Number(f.start),end=Number(f.end);
- if(Number.isFinite(start)&&Number.isFinite(end)&&start>0&&end>=start)return end-start+1;
- var calendarPages=Number(f.calendarDailyPages||0);
- return Number.isFinite(calendarPages)&&calendarPages>0?calendarPages:0;
-}
-function plannedWorkloadMinutes(x,date){
- if(!x)return 0;
- var f=x.f||{},explicit=plannedMinuteNumber(f.calendarIntegrationTime||f.calendarTime||f.plannedMinutes);
- if(explicit)return explicit;
- var pages=plannedPageCount(x);
- if(pages){
-  var perPage=(x.type==='mathStudy'||x.type==='mathLecture')?6:(x.type==='mathPractice'?8:(x.type==='scienceReview'?5:4));
-  return Math.max(15,pages*perPage);
- }
- return Number(DEFAULT_PLANNED_WORK_MINUTES[x.type]||30);
-}
 function completionUnitsForRecord(rec,date){
  var units=[];
  visibleItems(rec).forEach(function(x){
   if(!x)return;
+  if(isWeeklyCalendarItem(x))return;
   if(!x.required){
-   if(x.source==='custom'&&!isEnglishReview(x)&&x.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done,workload:plannedWorkloadMinutes(x,date)});
+   if(x.source==='custom'&&!isEnglishReview(x)&&x.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!x.done});
    return;
   }
   if(isSaturdayMakeup(x)){
-   units.push({itemAccepted:!!x.done||!!x.deferred,workloadCompleted:false,workload:0});
+   units.push({itemAccepted:!!x.done||!!x.deferred,workloadCompleted:!!x.done});
    var makeupEntries=x.f&&Array.isArray(x.f.makeupEntries)?x.f.makeupEntries:[];
    makeupEntries.forEach(function(m){
-    if(m&&m.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!m.done,workload:plannedWorkloadMinutes(m,date)});
+    if(m&&m.type)units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!m.done});
    });
    return;
   }
   if(isInteractiveDaily(x)){
    var entries=(rec===data)?ensureInteractiveEntries(x):((x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[]);
-   var workload=entries.length?entries.reduce(function(sum,c){return sum+plannedWorkloadMinutes(c,date)},0):plannedWorkloadMinutes(x,date);
    var completed=entries.length>0&&entries.every(function(c){return !!c.done});
-   units.push({itemAccepted:completed||!!x.deferred,workloadCompleted:completed,workload:workload});
+   units.push({itemAccepted:completed||!!x.deferred,workloadCompleted:completed});
    return;
   }
   if(isCalendarNaturalIntegration(x)){
-   var children=ensureCalendarNaturalIntegrationEntries(x,date),total=plannedWorkloadMinutes(x,date),share=children.length?total/children.length:total;
-   children.forEach(function(c){units.push({itemAccepted:!!c.done||!!x.deferred,workloadCompleted:!!c.done,workload:share})});
+   var children=ensureCalendarNaturalIntegrationEntries(x,date);
+   if(children.length){
+    children.forEach(function(c){units.push({workloadIncluded:false,itemAccepted:!!c.done||!!x.deferred,workloadCompleted:!!c.done})});
+    units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:children.every(function(c){return !!c.done})});
+   }else units.push({itemAccepted:!!x.done||!!x.deferred,workloadCompleted:!!x.done});
    return;
   }
-  units.push({itemAccepted:!!x.done||!!x.deferred,workloadCompleted:!!x.done,workload:plannedWorkloadMinutes(x,date)});
+  units.push({itemAccepted:!!x.done||!!x.deferred,workloadCompleted:!!x.done});
  });
  return units;
 }
@@ -2377,7 +2383,7 @@ function updateSummary(){
  id('completionText').textContent=completion.itemCompleted+'/'+completion.itemTotal+' 項';
  id('workloadCompletionPercent').textContent=completion.workloadPercent+'%';
  id('workloadCompletionBar').style.width=completion.workloadPercent+'%';
- id('workloadCompletionText').textContent=Math.round(completion.workloadCompleted)+'/'+Math.round(completion.workloadTotal)+' 分鐘工作量';
+ id('workloadCompletionText').textContent=completion.workloadCompleted+'/'+completion.workloadTotal+' 項工作量';
  updateSettlementMetrics(data.date);
  id('doneMinutes').textContent=mins;
  id('mathPagesTop').textContent=math.dailyNewPages;
@@ -2442,7 +2448,7 @@ function itemDetails(x){
  else if(x.type==='mock')s+='｜科目：'+(isLockedEnglishMock(x)?'英文':line(f.subject))+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
  else if(x.type==='englishVocabInteractive'){var vw=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(vw.length?vw.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
  else if(x.type==='general'&&isEnglishReview(x)){var w=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(w.length?w.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
- else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEssentialGrammar(f.title))s+='｜Essential Grammar in Use｜Unit '+line(f.start)+'～'+line(f.end)+'（全書 115 Unit）';else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
+ else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEssentialGrammar(f.title))s+='｜Essential Grammar in Use｜Unit '+line(f.unitStart||f.unit)+'～'+line(f.unitEnd||f.unitStart||f.unit)+'（全書 115 Unit）';else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
  return s;
 }
 function reviewEntrySummary(x){var d=itemDetails(x).replace(/｜進度：[✓—]｜批改：[✓—]｜訂正：[✓—]/g,'');var s=itemTitle(x)+d;if(x.type!=='mock')s+='｜錯因／不熟觀念：'+line(x.f&&x.f.reason);return s}
@@ -2590,6 +2596,7 @@ function addEnglishReview(){
 function headerInput(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('click',handleClick);
+id('weeklyItemList').addEventListener('change',handleWeeklyChange);
 id('englishReviewList').addEventListener('input',handleInput);id('englishReviewList').addEventListener('change',handleChange);id('englishReviewList').addEventListener('click',handleClick);
 id('itemList').addEventListener('input',handleInput);id('itemList').addEventListener('change',handleChange);id('itemList').addEventListener('click',handleClick);
 id('studyDate').addEventListener('change',function(){if(data)persist(false);load()});

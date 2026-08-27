@@ -152,6 +152,12 @@ src/study/mathProgress.ts
 
 `171.0.10` 將「每日必做」改名為「今日項目」，新增可按日期查看的「本周項目」總覽，並在英文書目加入全書 115 Unit 的 `Essential Grammar in Use`。
 
+`171.0.11` 將 `Essential Grammar in Use` 改為獨立的 Unit 欄位，不再使用頁碼欄位。Google Calendar 標題或說明中的 `Unit 12`、`Unit 12–14`、`Unit 12、14` 會同步到本周項目，且每個 Unit 建立為一個可獨立完成的今日項目。
+
+`171.0.12` 將原定工作量完成率改為項目數比例，不再依分鐘或頁數加權。分母是今日項目加上今日補做項目；分子只計實際勾選完成，延期不算完成工作量。`Essential Grammar in Use` 每個 Calendar Unit 各算一項。
+
+`171.0.13` 將 Google Calendar 項目分流到獨立清單：`Essential Grammar in Use` 預設進入「本周項目」；既有日期型學習排程預設進入「今日項目」。Calendar 標題可使用 `今日項目｜項目名稱` 或 `本週項目｜項目名稱` 明確指定位置；本周項目可直接勾選完成，不會重複出現在今日項目。
+
 ---
 
 # Supabase／Google 一次設定（重建環境或尚未設定 secrets 時）

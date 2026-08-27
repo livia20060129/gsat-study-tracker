@@ -16,6 +16,7 @@ interface ParsedBase {
   date: string;
   title: string;
   description: string;
+  route?: 'today' | 'week';
 }
 
 export type ParsedCalendarTask =
@@ -23,6 +24,7 @@ export type ParsedCalendarTask =
   | (ParsedBase & { kind: 'ace'; rounds: number[] })
   | (ParsedBase & { kind: 'gujin'; rounds: number[] })
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
+  | (ParsedBase & { kind: 'essentialGrammar'; units: number[] })
   | (ParsedBase & { kind: 'writing'; round: number | null; focus: string })
   | (ParsedBase & { kind: 'natural'; subject: '物理' | '化學' | '生物' | '地科'; topic: string })
   | (ParsedBase & {
@@ -35,6 +37,7 @@ export type ParsedCalendarTask =
       time: string;
       pageItems: Array<{ subject: '物理' | '化學' | '生物' | '地科'; start: number; end: number }>;
     })
+  | (ParsedBase & { kind: 'calendarItem' })
   | (ParsedBase & { kind: 'other' });
 
 function normalized(value: string): string {
@@ -50,6 +53,42 @@ function roundsFromTitle(title: string): number[] {
   const rounds: number[] = [];
   for (let round = start; round <= end; round += 1) rounds.push(round);
   return rounds;
+}
+
+function expandEssentialGrammarUnits(value: string): number[] {
+  const units: number[] = [];
+  const seen = new Set<number>();
+  const ranges = /(\d{1,3})(?:\s*(?:[–—~-]|到|至)\s*(\d{1,3}))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = ranges.exec(value))) {
+    const start = Number(match[1]);
+    const end = Number(match[2] ?? match[1]);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) continue;
+    for (let unit = start; unit <= Math.min(end, 115); unit += 1) {
+      if (!seen.has(unit)) {
+        seen.add(unit);
+        units.push(unit);
+      }
+    }
+  }
+  return units;
+}
+
+function essentialGrammarUnits(title: string, description: string): number[] {
+  const sources = `${title}\n${description}`;
+  const captures: string[] = [];
+  const patterns = [
+    /(?:Units?|單元)\s*[:：#]?\s*([0-9、，,及和到至–—~\- \t]+)/gi,
+    /第\s*([0-9、，,及和到至–—~\- \t]+)\s*(?:Units?|單元)/gi,
+  ];
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(sources))) captures.push(match[1]);
+  }
+  if (!captures.length) {
+    captures.push(title.replace(/Essential Grammar in Use/gi, ''));
+  }
+  return expandEssentialGrammarUnits(captures.join('、'));
 }
 
 function pageRange(description: string): [number | null, number | null] {
@@ -97,7 +136,12 @@ function integrationPageItems(description: string) {
 }
 
 export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
-  const title = normalized(row.title ?? '');
+  const rawTitle = normalized(row.title ?? '');
+  const routed = rawTitle.match(/^(今日項目|今日|本週項目|本周項目|本週|本周)｜(.+)$/);
+  const route: 'today' | 'week' | undefined = routed
+    ? (/^(本週|本周)/.test(routed[1]) ? 'week' : 'today')
+    : undefined;
+  const title = normalized(routed?.[2] ?? rawTitle);
   const description = row.description ?? '';
   const base: ParsedBase = {
     eventKey: row.event_key,
@@ -105,6 +149,7 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     date: row.event_date,
     title,
     description,
+    ...(route ? { route } : {}),
   };
 
   if (row.category === 'math' || /^(1|2|3A|4A|2＋4A|2＋3A)｜/.test(title)) {
@@ -130,6 +175,10 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   if (row.category === 'grammar' || /^英文文法｜/.test(title)) {
     const [startPage, endPage] = pageRange(description);
     return { ...base, kind: 'grammar', startPage, endPage, focus: field(description, '重點') };
+  }
+
+  if (row.category === 'essentialGrammar' || /Essential Grammar in Use/i.test(title)) {
+    return { ...base, route: route ?? 'week', kind: 'essentialGrammar', units: essentialGrammarUnits(title, description) };
   }
 
   if (row.category === 'writing' || /^英文寫作測驗｜/.test(title)) {
@@ -161,6 +210,10 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
       time: bracketSection(description, '時間'),
       pageItems: integrationPageItems(description),
     };
+  }
+
+  if (route || row.category === 'studyItem') {
+    return { ...base, route: route ?? 'today', kind: 'calendarItem' };
   }
 
   return { ...base, kind: 'other' };

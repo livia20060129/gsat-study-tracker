@@ -8,24 +8,27 @@ import {
 
 test('keeps accepted items separate from actually completed workload', () => {
   const metrics = summarizeCompletionUnits([
-    { itemAccepted: true, workloadCompleted: true, workload: 60 },
-    { itemAccepted: true, workloadCompleted: false, workload: 40 },
+    { itemAccepted: true, workloadCompleted: true },
+    { itemAccepted: true, workloadCompleted: false },
   ]);
 
   assert.equal(metrics.itemPercent, 100);
-  assert.equal(metrics.workloadPercent, 60);
-  assert.equal(metrics.settlementPercent, 80);
+  assert.equal(metrics.workloadPercent, 50);
+  assert.equal(metrics.settlementPercent, 75);
 });
 
-test('weights heavier planned work without changing item counts', () => {
+test('calculates workload from item counts rather than time weights', () => {
   const metrics = summarizeCompletionUnits([
-    { itemAccepted: true, workloadCompleted: true, workload: 30 },
-    { itemAccepted: false, workloadCompleted: false, workload: 90 },
+    { itemAccepted: true, workloadCompleted: true },
+    { itemAccepted: false, workloadCompleted: false },
+    { itemAccepted: false, workloadCompleted: false },
   ]);
 
-  assert.equal(metrics.itemPercent, 50);
-  assert.equal(metrics.workloadPercent, 25);
-  assert.equal(metrics.settlementPercent, 38);
+  assert.equal(metrics.itemPercent, 33);
+  assert.equal(metrics.workloadCompleted, 1);
+  assert.equal(metrics.workloadTotal, 3);
+  assert.equal(metrics.workloadPercent, 33);
+  assert.equal(metrics.settlementPercent, 33);
 });
 
 test('formats Friday comparison as signed percentage points', () => {
@@ -36,14 +39,25 @@ test('formats Friday comparison as signed percentage points', () => {
 
 test('adds today makeup work to workload without changing original item totals', () => {
   const metrics = summarizeCompletionUnits([
-    { itemAccepted: true, workloadCompleted: true, workload: 60 },
-    { itemIncluded: false, itemAccepted: false, workloadCompleted: false, workload: 30 },
+    { itemAccepted: true, workloadCompleted: true },
+    { itemIncluded: false, itemAccepted: false, workloadCompleted: false },
   ]);
 
   assert.equal(metrics.itemCompleted, 1);
   assert.equal(metrics.itemTotal, 1);
   assert.equal(metrics.itemPercent, 100);
-  assert.equal(metrics.workloadCompleted, 60);
-  assert.equal(metrics.workloadTotal, 90);
-  assert.equal(metrics.workloadPercent, 67);
+  assert.equal(metrics.workloadCompleted, 1);
+  assert.equal(metrics.workloadTotal, 2);
+  assert.equal(metrics.workloadPercent, 50);
+});
+
+test('can count detailed original items as one top-level workload item', () => {
+  const metrics = summarizeCompletionUnits([
+    { workloadIncluded: false, itemAccepted: true, workloadCompleted: true },
+    { workloadIncluded: false, itemAccepted: false, workloadCompleted: false },
+    { itemIncluded: false, itemAccepted: false, workloadCompleted: false },
+  ]);
+
+  assert.equal(metrics.itemTotal, 2);
+  assert.equal(metrics.workloadTotal, 1);
 });

@@ -247,6 +247,8 @@ function eventDate(event: GoogleEvent): string | null {
 }
 
 function classify(title: string): string {
+  if (/Essential Grammar in Use/i.test(title)) return 'essentialGrammar';
+  if (/^(今日項目|今日|本週項目|本周項目|本週|本周)｜/.test(title)) return 'studyItem';
   if (/^ACE Reading｜/.test(title)) return 'ace';
   if (/^古今悅讀一百｜/.test(title)) return 'gujin';
   if (/^英文文法｜/.test(title)) return 'grammar';
