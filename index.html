@@ -13,40 +13,48 @@
 <main>
 <header><h1>每日讀書完成度紀錄卡</h1><div class="subtitle">每日紀錄、完成度、頁數與每週匯出</div></header>
 
-<section class="panel" id="cloudPanel">
- <div class="panel-head"><h2>雲端同步</h2><span class="badge" id="cloudStatusBadge">本機模式</span></div>
- <div class="content">
-  <div id="cloudLoggedOut">
-   <div class="grid-3">
-    <div class="field"><label for="cloudEmail">Email</label><input id="cloudEmail" type="email" autocomplete="email" placeholder="你的 Email"></div>
-    <div class="field"><label for="cloudPassword">密碼</label><input id="cloudPassword" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 碼"></div>
-    <div class="inline" style="align-items:end;gap:8px"><button id="cloudSignInBtn" class="primary" type="button">登入</button><button id="cloudSignUpBtn" type="button">建立帳號</button></div>
+<details class="connection-dock" id="connectionSettings">
+ <summary class="connection-status-bar" aria-label="Cloud 與 Calendar 狀態；展開連線設定">
+  <span class="connection-statuses">
+   <span class="connection-status-item"><span class="connection-status-name">Cloud</span><span class="badge connection-badge" id="cloudStatusBadge" data-state="offline">本機模式</span></span>
+   <span class="connection-divider" aria-hidden="true"></span>
+   <span class="connection-status-item"><span class="connection-status-name">Calendar</span><span class="badge connection-badge" id="calendarStatusBadge" data-state="offline">需先登入</span></span>
+  </span>
+  <span class="connection-settings-toggle">連線設定 <span class="connection-chevron" aria-hidden="true">⌄</span></span>
+ </summary>
+ <div class="connection-settings-content">
+  <section class="connection-settings-group" id="cloudPanel" aria-labelledby="cloudSettingsTitle">
+   <h2 id="cloudSettingsTitle">Cloud 帳號與同步</h2>
+   <div id="cloudLoggedOut">
+    <div class="connection-login-grid">
+     <div class="field"><label for="cloudEmail">Email</label><input id="cloudEmail" type="email" autocomplete="email" placeholder="你的 Email"></div>
+     <div class="field"><label for="cloudPassword">密碼</label><input id="cloudPassword" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 碼"></div>
+     <div class="connection-actions"><button id="cloudSignInBtn" class="primary" type="button">登入</button><button id="cloudSignUpBtn" type="button">建立帳號</button></div>
+    </div>
    </div>
-  </div>
-  <div id="cloudLoggedIn" hidden>
-   <div class="inline" style="gap:10px;flex-wrap:wrap">
-    <strong id="cloudUserEmail"></strong>
-    <button id="cloudSyncLocalBtn" type="button">補上本機舊資料</button>
-    <button id="cloudRefreshBtn" type="button">重新讀取雲端</button>
-    <button id="cloudSignOutBtn" type="button">登出</button>
+   <div id="cloudLoggedIn" hidden>
+    <div class="connection-account"><strong id="cloudUserEmail"></strong></div>
+    <div class="connection-actions">
+     <button id="cloudRefreshBtn" class="secondary" type="button">重新讀取雲端</button>
+     <button id="cloudSyncLocalBtn" type="button">補上本機舊資料</button>
+     <button id="cloudSignOutBtn" type="button">登出</button>
+    </div>
    </div>
-  </div>
-  <div class="small" id="cloudMessage" style="margin-top:8px">未登入時仍可使用，本機資料會照常保留。</div>
- </div>
-</section>
+   <div class="small connection-message" id="cloudMessage" aria-live="polite">未登入時仍可使用，本機資料會照常保留。</div>
+  </section>
 
-<section class="panel" id="calendarPanel">
- <div class="panel-head"><h2>Google Calendar</h2><span class="badge" id="calendarStatusBadge">需先登入</span></div>
- <div class="content">
-  <div class="inline" style="gap:8px;flex-wrap:wrap">
-   <button id="calendarConnectBtn" class="secondary" type="button">連接 Google Calendar</button>
-   <button id="calendarSyncBtn" type="button">立即同步</button>
-   <button id="calendarDisconnectBtn" type="button">解除連線</button>
-  </div>
-  <div class="small" id="calendarMessage" style="margin-top:8px">先登入 Study Tracker 帳號，再連接 Google Calendar。</div>
-  <div class="small" style="margin-top:6px">連接後由 Google Calendar API 讀取排程；每小時同步由伺服器排程觸發，網站不必保持開啟。</div>
+  <section class="connection-settings-group" id="calendarPanel" aria-labelledby="calendarSettingsTitle">
+   <h2 id="calendarSettingsTitle">Google Calendar</h2>
+   <div class="connection-actions">
+    <button id="calendarConnectBtn" class="secondary" type="button">連接 Google Calendar</button>
+    <button id="calendarSyncBtn" type="button">立即同步</button>
+    <button id="calendarDisconnectBtn" type="button">解除連線</button>
+   </div>
+   <div class="small connection-message" id="calendarMessage" aria-live="polite">先登入 Study Tracker 帳號，再連接 Google Calendar。</div>
+   <div class="small connection-note">連接後由 Google Calendar API 讀取排程；每小時同步由伺服器排程觸發，網站不必保持開啟。</div>
+  </section>
  </div>
-</section>
+</details>
 
 <section class="panel">
  <div class="panel-head"><h2>今日資訊</h2><span class="badge" id="weekdayText"></span></div>

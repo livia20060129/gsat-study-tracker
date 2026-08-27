@@ -4,6 +4,31 @@ main{max-width:1050px;margin:0 auto;padding:22px 14px 60px}h1{font-size:28px;mar
 .panel{background:var(--card);border:1px solid var(--line);border-radius:22px;margin-top:14px;overflow:hidden;box-shadow:0 5px 18px rgba(15,23,42,.04)}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
 .panel-head h2{font-size:17px;margin:0}.content{padding:14px 16px}.badge{background:#eef2ff;border-radius:999px;padding:4px 9px;font-size:12px;color:#3f51b5}
+.connection-dock{position:sticky;top:8px;z-index:30;margin-top:14px;max-height:calc(100vh - 16px);overflow:auto;background:rgba(255,255,255,.97);border:1px solid #d7e0ec;border-radius:17px;box-shadow:0 8px 28px rgba(15,23,42,.1);backdrop-filter:blur(12px)}
+.connection-status-bar{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 12px;cursor:pointer;list-style:none;user-select:none}
+.connection-status-bar::-webkit-details-marker{display:none}
+.connection-status-bar:focus-visible{outline:3px solid rgba(49,94,251,.26);outline-offset:-3px;border-radius:16px}
+.connection-statuses,.connection-status-item{display:flex;align-items:center;min-width:0}
+.connection-statuses{gap:10px;flex-wrap:wrap}
+.connection-status-item{gap:6px}
+.connection-status-name{font-size:12px;font-weight:750;color:#475569;letter-spacing:.01em}
+.connection-divider{width:1px;height:20px;background:var(--line)}
+.connection-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;white-space:nowrap;font-weight:700}
+.connection-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:#94a3b8;box-shadow:0 0 0 3px rgba(148,163,184,.14)}
+.connection-badge[data-state="ok"]{background:#ecfdf5;color:#047857}.connection-badge[data-state="ok"]::before{background:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.14)}
+.connection-badge[data-state="busy"]{background:#eff6ff;color:#1d4ed8}.connection-badge[data-state="busy"]::before{background:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.14)}
+.connection-badge[data-state="warning"]{background:#fffbeb;color:#a16207}.connection-badge[data-state="warning"]::before{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.14)}
+.connection-badge[data-state="error"]{background:#fef2f2;color:#b91c1c}.connection-badge[data-state="error"]::before{background:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.14)}
+.connection-settings-toggle{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;font-size:12px;font-weight:750;color:#334155;background:#f1f5f9;border-radius:10px;padding:6px 9px}
+.connection-chevron{display:inline-block;font-size:15px;line-height:1;transition:transform .18s ease}.connection-dock[open] .connection-chevron{transform:rotate(180deg)}
+.connection-settings-content{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;border-top:1px solid var(--line);background:#f8fafc}
+.connection-settings-group{min-width:0;padding:13px;border:1px solid var(--line);border-radius:15px;background:#fff}
+.connection-settings-group h2{margin:0 0 11px;font-size:15px}
+.connection-login-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px}
+.connection-login-grid .connection-actions{grid-column:1/-1}
+.connection-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.connection-account{margin-bottom:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.connection-message{margin-top:9px}.connection-note{margin-top:6px}
 .grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-row,.english-book-row,.english-book-page-row{display:grid;gap:10px}
 .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-4,.math-main-row,.science-main-row{grid-template-columns:repeat(4,minmax(0,1fr))}
 .field-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.chinese-writing-row{grid-template-columns:repeat(4,minmax(0,1fr))}.chinese-writing-row .cw-topic{grid-column:span 2}
@@ -54,6 +79,12 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
  .item-top{flex-wrap:wrap}.minutes-badge{margin-left:0}.add-grid{grid-template-columns:1fr}
  input[type=number]{width:96px}
  [data-minutes],[data-mag-field="minutes"]{width:78px!important}
+ .connection-dock{top:6px;max-height:calc(100vh - 12px)}
+ .connection-status-bar{gap:8px;padding:8px 10px}
+ .connection-statuses{gap:6px}.connection-divider{display:none}
+ .connection-status-name{display:none}
+ .connection-settings-toggle{padding:6px 8px}.connection-settings-toggle{font-size:0}.connection-settings-toggle::before{content:"設定";font-size:12px}
+ .connection-settings-content,.connection-login-grid{grid-template-columns:1fr}
 }
 
 /* v171: larger daily closing notes area. */

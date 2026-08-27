@@ -568,18 +568,23 @@ function saveRecordSyncWatermark(value){
  if(!cloudUser||!value)return;
  try{store.setItem(recordSyncWatermarkKey(cloudUser.id),String(value))}catch(e){}
 }
+function setConnectionBadge(elementId,text,state){
+ var badge=id(elementId);if(!badge)return;
+ badge.textContent=text;badge.setAttribute('data-state',state||'offline');
+}
 function cloudSetMessage(msg,ok){
  var el=id('cloudMessage');if(el)el.textContent=msg||'';
- var b=id('cloudStatusBadge');if(!b)return;
- if(!cloudUser)b.textContent='本機模式';
- else b.textContent=ok===false?'同步異常':((cloudLoading||cloudBootstrapPending)?'雲端同步中':'已連線');
+ if(!cloudUser)setConnectionBadge('cloudStatusBadge','本機模式','offline');
+ else if(ok===false)setConnectionBadge('cloudStatusBadge','同步異常','error');
+ else if(cloudLoading||cloudBootstrapPending)setConnectionBadge('cloudStatusBadge','同步中','busy');
+ else setConnectionBadge('cloudStatusBadge','已連線','ok');
 }
 function cloudUpdateUI(){
  var out=id('cloudLoggedOut'),inn=id('cloudLoggedIn');
  if(!out||!inn)return;
  out.hidden=!!cloudUser;inn.hidden=!cloudUser;
  id('cloudUserEmail').textContent=cloudUser?(cloudUser.email||'已登入'):'';
- id('cloudStatusBadge').textContent=cloudUser?'雲端同步中':'本機模式';
+ setConnectionBadge('cloudStatusBadge',cloudUser?'同步中':'本機模式',cloudUser?'busy':'offline');
  calendarUpdateUI();
 }
 function cloneRecord(rec){
@@ -708,6 +713,7 @@ async function cloudPullAllRecords(options){
  var watermark=recordSyncWatermark(),since=incrementalSyncStart(watermark),mode=since?'incremental':'full';
  try{
   cloudLoading=true;
+  if(!opts.silent)cloudSetMessage('正在讀取雲端紀錄…',true);
   var query=cloudClient.from('study_records').select('study_date,payload,updated_at,revision');
   if(since)query=query.gte('updated_at',since);
   var r=await query.order('study_date',{ascending:true});
@@ -839,11 +845,13 @@ async function cloudSignOut(){
 function calendarSetMessage(msg,ok){
  var el=id('calendarMessage');if(el)el.textContent=msg||'';
  calendarHasError=ok===false;
- var badge=id('calendarStatusBadge');if(!badge)return;
- if(!cloudUser)badge.textContent='需先登入';
- else if(!calendarConnected&&!googleCalendarClientConfig.isConfigured)badge.textContent='設定未完成';
- else if(ok===false)badge.textContent='同步異常';
- else badge.textContent=calendarConnected?'已連接':'未連接';
+ var busy=/正在|同步中/.test(String(msg||''));
+ if(!cloudUser)setConnectionBadge('calendarStatusBadge','需先登入','offline');
+ else if(!calendarConnected&&!googleCalendarClientConfig.isConfigured)setConnectionBadge('calendarStatusBadge','設定未完成','warning');
+ else if(busy)setConnectionBadge('calendarStatusBadge','同步中','busy');
+ else if(ok===false)setConnectionBadge('calendarStatusBadge','同步異常','error');
+ else if(calendarConnected)setConnectionBadge('calendarStatusBadge','已連接','ok');
+ else setConnectionBadge('calendarStatusBadge','未連接','offline');
 }
 function calendarUpdateUI(){
  var connect=id('calendarConnectBtn'),sync=id('calendarSyncBtn'),disconnect=id('calendarDisconnectBtn');
@@ -853,7 +861,11 @@ function calendarUpdateUI(){
  }
  if(sync)sync.disabled=!cloudUser||!calendarConnected;
  if(disconnect)disconnect.disabled=!cloudUser||!calendarConnected;
- var badge=id('calendarStatusBadge');if(badge)badge.textContent=!cloudUser?'需先登入':(calendarConnected?'已連接':(!googleCalendarClientConfig.isConfigured?'設定未完成':(calendarHasError?'同步異常':'未連接')));
+ if(!cloudUser)setConnectionBadge('calendarStatusBadge','需先登入','offline');
+ else if(calendarConnected)setConnectionBadge('calendarStatusBadge','已連接','ok');
+ else if(!googleCalendarClientConfig.isConfigured)setConnectionBadge('calendarStatusBadge','設定未完成','warning');
+ else if(calendarHasError)setConnectionBadge('calendarStatusBadge','同步異常','error');
+ else setConnectionBadge('calendarStatusBadge','未連接','offline');
 }
 function calendarFriendlyError(message,body){
  message=String(message||'Calendar request failed');
