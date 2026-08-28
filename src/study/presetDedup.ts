@@ -39,6 +39,41 @@ function isCalendarDefinition(definition: PresetDefinitionLike): boolean {
   return /^cal_/.test(definition.key);
 }
 
+function normalizedText(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, stableValue(item)]),
+  );
+}
+
+/** Identifies the scheduled work itself, excluding the Google event identity and user progress. */
+export function presetDefinitionSemanticKey(definition: PresetDefinitionLike): string {
+  const fields = definition.f || {};
+  const semanticFields: Record<string, unknown> = {};
+  const meaningfulKeys = [
+    'title', 'round', 'unit', 'unitStart', 'unitEnd', 'start', 'end', 'subject', 'kind',
+    'calendarFixedTemplate', 'calendarOriginalTitle', 'calendarRoute', 'calendarMakeup',
+    'calendarGrammarTitle', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
+    'calendarFocus', 'calendarNaturalIntegration',
+  ];
+  for (const key of meaningfulKeys) {
+    if (fields[key] !== undefined) semanticFields[key] = fields[key];
+  }
+  return JSON.stringify(stableValue({
+    type: definition.type,
+    title: normalizedText(definition.title),
+    description: normalizedText(definition.description),
+    fields: semanticFields,
+  }));
+}
+
 function calendarMetadata(fields: Record<string, unknown>): Record<string, unknown> {
   const metadata: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fields || {})) {
@@ -52,6 +87,7 @@ export function dedupePresetDefinitions<T extends PresetDefinitionLike>(definiti
   const output: T[] = [];
   const builtInIndex = new Map<CalendarFixedTemplate, number>();
   const consumedBuiltIn = new Set<CalendarFixedTemplate>();
+  const seenCalendarWork = new Set<string>();
 
   for (const original of definitions) {
     const definition = {
@@ -65,6 +101,11 @@ export function dedupePresetDefinitions<T extends PresetDefinitionLike>(definiti
       if (template && !builtInIndex.has(template)) builtInIndex.set(template, index);
       continue;
     }
+
+    const semanticKey = presetDefinitionSemanticKey(definition);
+    definition.f.calendarSemanticKey = semanticKey;
+    if (seenCalendarWork.has(semanticKey)) continue;
+    seenCalendarWork.add(semanticKey);
 
     const route = definition.f?.calendarRoute;
     const index = template && route !== 'week' ? builtInIndex.get(template) : undefined;

@@ -18,7 +18,7 @@ import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBri
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
-import { dedupePresetDefinitions } from './study/presetDedup';
+import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -948,11 +948,22 @@ async function refreshCalendarTaskCache(){
  if(r.error)throw r.error;
  buildCalendarRuntime(r.data||[]);calendarCacheLoaded=true;return(r.data||[]).length;
 }
+function reconcileStoredCalendarPresets(){
+ if(!calendarCacheLoaded)return 0;
+ var changedDates=0;
+ localStudyDates().forEach(function(ds){
+  var rec=loadData(ds);
+  if(!ensureDailyPresets(rec,ds))return;
+  rec.localDirty=true;rec.syncConflict=false;
+  if(writeStoredRecord(rec)){changedDates++;queueCloudSave(rec,true)}
+ });
+ return changedDates;
+}
 async function calendarRefreshStatus(showMessage){
  if(!cloudUser){clearCalendarRuntime();calendarSetMessage('先登入 Study Tracker 帳號，再連接 Google Calendar。',true);return false}
  try{
   var s=await calendarInvoke('status');calendarConnected=!!s.connected;
-  if(calendarConnected){var n=await refreshCalendarTaskCache();calendarSetMessage('Google Calendar 已連接；已載入 '+n+' 筆同步排程。',true)}
+  if(calendarConnected){var n=await refreshCalendarTaskCache(),cleaned=cloudBootstrapPending?0:reconcileStoredCalendarPresets();calendarSetMessage('Google Calendar 已連接；已載入 '+n+' 筆同步排程'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true)}
   else{
    calendarCacheLoaded=false;calendarParsedByDate={};
    if(!googleCalendarClientConfig.isConfigured)calendarSetMessage(googleCalendarClientConfig.message,false);
@@ -969,7 +980,7 @@ async function calendarConnect(){
 }
 async function calendarSyncNow(){
  try{
-  calendarSetMessage('正在從 Google Calendar 讀取最新排程…',true);var r=await calendarInvoke('sync');calendarConnected=!!r.connected;var n=await refreshCalendarTaskCache();calendarSetMessage('同步完成：Google API 更新 '+Number(r.synced||0)+' 筆，Tracker 載入 '+n+' 筆。',true);load({skipCloudRead:true});
+  calendarSetMessage('正在從 Google Calendar 讀取最新排程（包含刪除）…',true);var r=await calendarInvoke('sync');calendarConnected=!!r.connected;var n=await refreshCalendarTaskCache(),cleaned=reconcileStoredCalendarPresets();calendarSetMessage('同步完成：Google API 更新 '+Number(r.synced||0)+' 筆、移除 '+Number(r.removed||0)+' 筆；Tracker 載入 '+n+' 筆'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true);load({skipCloudRead:true});
  }catch(e){calendarSetMessage('Calendar 同步失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 async function calendarDisconnect(){
@@ -1002,10 +1013,12 @@ async function activateCloudUser(user){
  }
  if(serial!==cloudActivationSerial)return;
  cloudBootstrapPending=false;
+ var calendarCleaned=calendarConnected?reconcileStoredCalendarPresets():0;
  var queued=queueDirtyCloudRecords();
  var refreshed=refreshVisibleDataAfterBackgroundSync();
  if(recordStats&&recordStats.ok){
   var msg='登入完成；本機快取已立即顯示，'+recordStats.message;
+  if(calendarCleaned)msg+=' Calendar 已更新 '+calendarCleaned+' 天本機項目。';
   if(queued)msg+=' 另有 '+queued+' 天已排入背景上傳。';
   if(!refreshed)msg+=' 目前正在輸入，畫面未強制重繪；切換日期時會套用最新資料。';
   cloudSetMessage(msg,recordStats.conflicts?false:true);
@@ -1451,10 +1464,16 @@ function rebuildDeferredForWeek(originDate){
 function ensureDailyPresets(rec,date){
  if(!rec||date<DAILY_PRESET_START)return false;
  if(!Array.isArray(rec.items))rec.items=[];
- var defs=presetsForDate(date),allowed={},i,x,d,changed=false,legacyCalendarByTemplate={};
+ var defs=presetsForDate(date),allowed={},i,x,d,changed=false,legacyCalendarByTemplate={},legacyCalendarByPresetKey={},calendarDefinitionBySemantic={};
  var oldMathKeys={weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1};
  var oldEnglishKeys={weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1};
- for(i=0;i<defs.length;i++)allowed[defs[i].key]=true;
+ for(i=0;i<defs.length;i++){
+  allowed[defs[i].key]=true;
+  if(/^cal_/.test(defs[i].key||'')){
+   var defSemantic=(defs[i].f&&defs[i].f.calendarSemanticKey)||presetDefinitionSemanticKey(defs[i]);
+   calendarDefinitionBySemantic[defSemantic]=defs[i].key;
+  }
+ }
  var managed={weekday_math_practice:1,fri_math_practice:1,sat_math_practice:1,sun_math_practice:1,english_mixed_writing:1,fri_mock_timed:1,sat_mock_correction:1,fri_mock_check:1,fri_magazine:1,daily_interactive:1,sat_makeup:1,sat_week_review:1,weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1,weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1,sun_math_optional:1,sun_rest:1,sun_plan_optional:1};
  var clean=[];
  for(i=0;i<rec.items.length;i++){
@@ -1463,6 +1482,9 @@ function ensureDailyPresets(rec,date){
   if(x&&x.source==='preset'&&/^cal_/.test(x.presetKey||'')&&!allowed[x.presetKey]){
    var legacyTemplate=(x.f&&x.f.calendarFixedTemplate)||calendarFixedTemplate(itemTitle(x));
    if(legacyTemplate&&(!legacyCalendarByTemplate[legacyTemplate]||x.done))legacyCalendarByTemplate[legacyTemplate]=x;
+   var oldSemantic=(x.f&&x.f.calendarSemanticKey)||presetDefinitionSemanticKey({key:x.presetKey,type:x.type,title:itemTitle(x),description:x.description||'',required:!!x.required,f:x.f||{}});
+   var retainedKey=calendarDefinitionBySemantic[oldSemantic];
+   if(retainedKey&&(!legacyCalendarByPresetKey[retainedKey]||x.done))legacyCalendarByPresetKey[retainedKey]=x;
    changed=true;continue
   }
   if(x&&x.source==='preset'&&managed[x.presetKey]&&!allowed[x.presetKey]){changed=true;continue}
@@ -1483,7 +1505,7 @@ function ensureDailyPresets(rec,date){
   x.source='preset';
   if(!x.f)x.f={};
   if(x.f.calendarMerged&&!(d.f&&d.f.calendarMerged)){
-   ['calendarMerged','calendarEventId','calendarEventKey','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
+   ['calendarMerged','calendarEventId','calendarEventKey','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup','calendarSemanticKey'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
   }
   if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
    var df=d.f||{};
@@ -1501,7 +1523,7 @@ function ensureDailyPresets(rec,date){
     }
    }
   }
-  var mergedTemplate=d.f&&d.f.calendarMerged?d.f.calendarFixedTemplate:null,legacyItem=mergedTemplate?legacyCalendarByTemplate[mergedTemplate]:null;
+  var mergedTemplate=d.f&&d.f.calendarMerged?d.f.calendarFixedTemplate:null,legacyItem=legacyCalendarByPresetKey[d.key]||(mergedTemplate?legacyCalendarByTemplate[mergedTemplate]:null);
   if(legacyItem){
    if(legacyItem.done&&!x.done){x.done=true;changed=true}
    if(!x.minutes&&legacyItem.minutes){x.minutes=legacyItem.minutes;changed=true}
@@ -1511,6 +1533,7 @@ function ensureDailyPresets(rec,date){
     if(currentBlank&&legacyValue!==undefined&&legacyValue!==null&&legacyValue!==''){x.f[lk]=cloneValue(legacyValue);changed=true}
    }
    delete legacyCalendarByTemplate[mergedTemplate];
+   delete legacyCalendarByPresetKey[d.key];
   }
   normalizeItem(x,date);
  }

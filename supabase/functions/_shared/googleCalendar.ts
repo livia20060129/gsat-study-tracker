@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { staleCalendarEventKeys } from './calendarSyncDiff.ts';
 
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 export const CORS_HEADERS = {
@@ -345,9 +346,10 @@ export async function syncCalendarForUser(admin: SupabaseClient, userId: string)
       .gte('event_date', timeMinDate).lte('event_date', timeMaxDate);
     if (existingError) throw existingError;
 
-    const stale = (existing ?? [])
-      .map((row) => row.event_key as string)
-      .filter((key) => !fetchedKeys.has(key));
+    const stale = staleCalendarEventKeys(
+      (existing ?? []).map((row) => row.event_key as string),
+      fetchedKeys,
+    );
     if (stale.length) {
       const { error } = await admin.from('calendar_tasks')
         .delete().eq('user_id', userId).in('event_key', stale);

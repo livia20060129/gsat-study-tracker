@@ -45,14 +45,16 @@ test('merges Calendar magazine makeup and preserves its extra workload marker', 
   assert.equal('calendarMakeup' in output[0].f, false);
 });
 
-test('keeps weekly and additional same-template Calendar events separate', () => {
+test('collapses duplicate Calendar events that schedule the same work', () => {
   const builtIn = definition('fri_mock_timed', '英文歷屆／模考：限時作答');
   const first = definition('cal_fixed_englishMockTimed_event-1', '英文歷屆／模考：限時作答', {
     calendarFixedTemplate: 'englishMockTimed',
+    calendarEventId: 'event-1',
     calendarRoute: 'today',
   });
   const second = definition('cal_fixed_englishMockTimed_event-2', '英文歷屆／模考：限時作答', {
     calendarFixedTemplate: 'englishMockTimed',
+    calendarEventId: 'event-2',
     calendarRoute: 'today',
   });
   const weekly = definition('cal_fixed_englishMockTimed_event-3', '英文歷屆／模考：限時作答', {
@@ -61,8 +63,19 @@ test('keeps weekly and additional same-template Calendar events separate', () =>
   });
   const output = dedupePresetDefinitions([builtIn, first, second, weekly]);
 
-  assert.equal(output.length, 3);
+  assert.equal(output.length, 2);
   assert.equal(output[0].f.calendarMerged, true);
-  assert.equal(output[1].key, second.key);
-  assert.equal(output[2].key, weekly.key);
+  assert.equal(output[1].key, weekly.key);
+});
+
+test('keeps same-template Calendar work separate when its range differs', () => {
+  const first = definition('cal_essential_grammar_12_event-1', '英文｜Essential Grammar in Use｜Unit 12', {
+    title: 'Essential Grammar in Use', unit: '12', unitStart: '12', unitEnd: '12', calendarRoute: 'today',
+  });
+  const second = definition('cal_essential_grammar_13_event-2', '英文｜Essential Grammar in Use｜Unit 13', {
+    title: 'Essential Grammar in Use', unit: '13', unitStart: '13', unitEnd: '13', calendarRoute: 'today',
+  });
+
+  const output = dedupePresetDefinitions([first, second]);
+  assert.equal(output.length, 2);
 });
