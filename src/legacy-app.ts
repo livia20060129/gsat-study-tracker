@@ -19,6 +19,7 @@ import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
+import { futureDeferredDays, nextDeferredDay } from './study/deferDays';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -1397,15 +1398,15 @@ function deferredTargetDay(item){
  return day===0||(day>=2&&day<=6)?day:0;
 }
 function nextDeferredTargetDay(date){
- var next=weekDayOffset(parseDate(date).getDay())+1;
- return next>=6?0:next+1;
+ var next=nextDeferredDay(parseDate(date).getDay());
+ return next===null?0:next;
 }
 function deferredTargetLabel(item){return weekdays[deferredTargetDay(item)]||'星期日'}
 function deferredTargetOptions(date,current){
- var originOffset=weekDayOffset(parseDate(date).getDay()),days=[2,3,4,5,6,0],selected=Number(current);
+ var days=futureDeferredDays(parseDate(date).getDay()),selected=Number(current);
+ if(days.indexOf(selected)<0&&days.length)selected=days[0];
  return days.map(function(day){
-  var disabled=weekDayOffset(day)<=originOffset;
-  return'<option value="'+day+'"'+(day===selected?' selected':'')+(disabled?' disabled':'')+'>'+weekdays[day]+'</option>';
+  return'<option value="'+day+'"'+(day===selected?' selected':'')+'>'+weekdays[day]+'</option>';
  }).join('');
 }
 var WEEKLY_DEFER_LIMIT=6;
