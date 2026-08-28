@@ -1,20 +1,12 @@
 import type { StudyRecord } from '../types';
-import { WEEKLY_DEFER_LIMIT } from '../types';
+import { countDeferredToDay, DEFERRED_TARGET_LIMIT } from './deferDays';
 
-export function countDeferred(records: StudyRecord[]): number {
-  return records.reduce((total, record) => {
-    return total + record.items.filter(item =>
-      item.source === 'preset' &&
-      item.required &&
-      !item.deferredCarry &&
-      item.deferred &&
-      !item.done
-    ).length;
-  }, 0);
+export function countDeferredToTarget(records: StudyRecord[], targetDay: number): number {
+  return countDeferredToDay(records.flatMap(record => record.items), targetDay);
 }
 
-export function canDefer(records: StudyRecord[]): boolean {
-  return countDeferred(records) < WEEKLY_DEFER_LIMIT;
+export function canDeferToTarget(records: StudyRecord[], targetDay: number): boolean {
+  return countDeferredToTarget(records, targetDay) < DEFERRED_TARGET_LIMIT;
 }
 
-export { WEEKLY_DEFER_LIMIT };
+export { DEFERRED_TARGET_LIMIT };

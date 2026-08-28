@@ -93,5 +93,3 @@ export interface CalendarMathPlanEntry {
   unitPages: number;
   weekTarget: number;
 }
-
-export const WEEKLY_DEFER_LIMIT = 6 as const;

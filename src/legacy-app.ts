@@ -19,7 +19,7 @@ import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
-import { futureDeferredDays, nextDeferredDay } from './study/deferDays';
+import { countDeferredToDay, DEFERRED_TARGET_LIMIT, futureDeferredDays } from './study/deferDays';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -1397,30 +1397,39 @@ function deferredTargetDay(item){
  var day=Number(item&&item.deferredTargetDay);
  return day===0||(day>=2&&day<=6)?day:0;
 }
-function nextDeferredTargetDay(date){
- var next=nextDeferredDay(parseDate(date).getDay());
- return next===null?0:next;
-}
 function deferredTargetLabel(item){return weekdays[deferredTargetDay(item)]||'星期日'}
-function deferredTargetOptions(date,current){
- var days=futureDeferredDays(parseDate(date).getDay()),selected=Number(current);
- if(days.indexOf(selected)<0&&days.length)selected=days[0];
- return days.map(function(day){
-  return'<option value="'+day+'"'+(day===selected?' selected':'')+'>'+weekdays[day]+'</option>';
- }).join('');
-}
-var WEEKLY_DEFER_LIMIT=6;
-function weeklyDeferredCount(date){
- var mon=parseDate(mondayDateOfWeek(date)),count=0;
+var deferredCapacityCache=null;
+function deferredCapacityItems(date){
+ var week=mondayDateOfWeek(date);
+ if(deferredCapacityCache&&deferredCapacityCache.week===week)return deferredCapacityCache.items;
+ var mon=parseDate(week),items=[];
  for(var i=0;i<6;i++){
   var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d);
   var r=(data&&data.date===ds)?data:loadData(ds);
-  if(!r||!Array.isArray(r.items))continue;
-  r.items.forEach(function(x){
-   if(x&&x.source==='preset'&&x.required&&!x.deferredCarry&&x.deferred&&!x.done)count++;
-  });
+  if(r&&Array.isArray(r.items))items=items.concat(r.items);
  }
- return count;
+ deferredCapacityCache={week:week,items:items};
+ return items;
+}
+function deferredTargetCount(date,targetDay,excludedItem){
+ return countDeferredToDay(deferredCapacityItems(date),targetDay,excludedItem);
+}
+function availableDeferredTargetDays(date,item){
+ return futureDeferredDays(parseDate(date).getDay()).filter(function(day){
+  return deferredTargetCount(date,day,item)<DEFERRED_TARGET_LIMIT;
+ });
+}
+function nextDeferredTargetDay(date,item){
+ var days=availableDeferredTargetDays(date,item);
+ return days.length?days[0]:null;
+}
+function deferredTargetOptions(date,current,item){
+ var days=futureDeferredDays(parseDate(date).getDay()),selected=Number(current);
+ if(days.indexOf(selected)<0&&days.length)selected=days[0];
+ return days.map(function(day){
+  var full=day!==selected&&deferredTargetCount(date,day,item)>=DEFERRED_TARGET_LIMIT;
+  return'<option value="'+day+'"'+(day===selected?' selected':'')+(full?' disabled':'')+'>'+weekdays[day]+(full?'（已滿 3／3）':'')+'</option>';
+ }).join('');
 }
 function deferredCarryKey(originDate,item){
  return 'deferred_'+originDate.replace(/-/g,'')+'_'+String(item.id||item.presetKey||'item').replace(/[^A-Za-z0-9_-]/g,'_');
@@ -2197,9 +2206,9 @@ function renderCard(x,canDelete){
  var fields=renderItemFields(x,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
  if(canDefer){
-  var deferCount=weeklyDeferredCount(data.date),deferDisabled=!x.deferred&&deferCount>=WEEKLY_DEFER_LIMIT;
-  h+='<div class="defer-controls"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+(deferDisabled?' disabled':'')+'> 延期（本週 '+deferCount+'／'+WEEKLY_DEFER_LIMIT+'）</label>';
-  if(x.deferred)h+='<label class="small defer-target-label">加入 <select data-deferred-target>'+deferredTargetOptions(data.date,deferredTargetDay(x))+'</select></label>';
+  var deferDisabled=!x.deferred&&!availableDeferredTargetDays(data.date,x).length;
+  h+='<div class="defer-controls"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(x.deferred)+(deferDisabled?' disabled':'')+'> 延期（每個目標日最多 3 項）</label>';
+  if(x.deferred)h+='<label class="small defer-target-label">加入 <select data-deferred-target>'+deferredTargetOptions(data.date,deferredTargetDay(x),x)+'</select></label>';
   h+='</div>';
  }
  return h+'</div>';
@@ -2242,6 +2251,7 @@ function renderWeeklyItems(){
  id('weeklyItemBadge').textContent=total+' 項';
 }
 function render(){
+ deferredCapacityCache=null;
  var active=visibleItems(data),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
  active.forEach(function(x){
   if(isWeeklyCalendarItem(x))return;
@@ -2293,14 +2303,10 @@ function handleInput(e){
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-deferred]')&&x){
-  if(t.checked&&!x.deferred&&weeklyDeferredCount(data.date)>=WEEKLY_DEFER_LIMIT){
-   t.checked=false;
-   alert('本週延期已達 6 項上限。');
-   render();
-   return
-  }
+  var nextTarget=t.checked&&!x.deferred?nextDeferredTargetDay(data.date,x):null;
+  if(t.checked&&!x.deferred&&nextTarget===null){t.checked=false;alert('本週後續日期皆已達每個目標日 3 項的上限。');render();return}
   x.deferred=t.checked;
-  if(x.deferred){x.done=false;x.deferredTargetDay=nextDeferredTargetDay(data.date)}
+  if(x.deferred){x.done=false;x.deferredTargetDay=nextTarget}
   else delete x.deferredTargetDay;
   persist(false);
   rebuildDeferredForWeek(data.date);
@@ -2308,7 +2314,10 @@ function handleChange(e){
   return
  }
  if(t.matches('[data-deferred-target]')&&x){
-  x.deferredTargetDay=Number(t.value);
+  var targetDay=Number(t.value),currentTarget=deferredTargetDay(x);
+  if(futureDeferredDays(parseDate(data.date).getDay()).indexOf(targetDay)<0){alert('只能延期到本週原日期之後的星期。');render();return}
+  if(targetDay!==currentTarget&&deferredTargetCount(data.date,targetDay,x)>=DEFERRED_TARGET_LIMIT){alert(weekdays[targetDay]+'已達 3 項延期上限。');render();return}
+  x.deferredTargetDay=targetDay;
   persist(false);
   rebuildDeferredForWeek(data.date);
   render();
