@@ -17,6 +17,7 @@ import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } f
 import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
+import { groupDailyWorkItems, propagateDailyWorkDone, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, requiresDeferredLimitConfirmation } from './study/deferDays';
@@ -1544,7 +1545,7 @@ function rebuildDeferredForWeek(originDate){
  var mon=mondayOf(parseDate(originDate));
  for(var i=1;i<=6;i++){
   var target=dateString(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12)),r=loadData(target);
-  if(ensureDeferredForDate(r,target)){
+  if(ensureDailyPresets(r,target)){
    try{store.setItem(key(target),JSON.stringify(r))}catch(e){}
    if(typeof queueCloudSave==='function')queueCloudSave(r);
   }
@@ -1553,6 +1554,8 @@ function rebuildDeferredForWeek(originDate){
 function ensureDailyPresets(rec,date){
  if(!rec||date<DAILY_PRESET_START)return false;
  if(!Array.isArray(rec.items))rec.items=[];
+ var groupedSnapshot=JSON.stringify(rec.items);
+ rec.items=ungroupDailyWorkItems(rec.items);
  var defs=presetsForDate(date),allowed={},i,x,d,changed=false,legacyCalendarByTemplate={},legacyCalendarByPresetKey={},legacyCalendarByEventKey={},calendarDefinitionBySemantic={};
  var oldMathKeys={weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1};
  var oldEnglishKeys={weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1};
@@ -1667,6 +1670,8 @@ function ensureDailyPresets(rec,date){
   }
  }
  if(ensureDeferredForDate(rec,date))changed=true;
+ rec.items=groupDailyWorkItems(rec.items);
+ if(JSON.stringify(rec.items)!==groupedSnapshot)changed=true;
  return changed;
 }
 
@@ -2322,7 +2327,7 @@ function renderCard(x,canDelete){
   pendingTarget=nextDeferredTargetDay(data.date,x);
   if(pendingTarget===null)clearPendingDeferred(x);else pendingDeferredTargets[x.id]=pendingTarget;
  }
- var calendarMeta=x.f&&x.f.calendarMerged?(x.f.calendarIncludesMakeup?'已合併 Google Calendar 同模板項目｜含補做':'已合併 Google Calendar 同模板項目'):'';
+ var calendarMeta=x.f&&x.f.dailyWorkGroup?(x.f.dailyWorkIncludesDeferred?'已合併當日排程與延期項目':'已合併同項目範圍'):(x.f&&x.f.calendarMerged?(x.f.calendarIncludesMakeup?'已合併 Google Calendar 同模板項目｜含補做':'已合併 Google Calendar 同模板項目'):'');
  var meta=x.deferredCarry?('補做｜沿用 '+(x.deferredOriginDate||'原日期')+' 的完整項目模板'):(isCalendarMakeup(x)?'今日補做｜Google Calendar':(calendarMeta||(isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(isDeferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':'')))));
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
@@ -2434,7 +2439,7 @@ function refreshAuto(card,x){
 
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
- if(t.matches('[data-minutes]')&&x){x.minutes=t.value;updateSummary();persist(false);return}
+ if(t.matches('[data-minutes]')&&x){x.minutes=t.value;var minuteSources=x.f&&x.f.dailyWorkSourceItems;if(Array.isArray(minuteSources)&&minuteSources.length)minuteSources[0].minutes=t.value;updateSummary();persist(false);return}
  if(t.matches('[data-field]')&&x){x.f[t.getAttribute('data-field')]=t.value;var k=t.getAttribute('data-field');if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit)}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
  if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;updateSummary();persist(false);return}
  if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;persist(false);return}
@@ -2475,7 +2480,7 @@ function handleChange(e){
   return
  }
  if(t.matches('[data-done]')&&x){
-  x.done=t.checked;
+   propagateDailyWorkDone(x,t.checked);
   clearPendingDeferred(x);
   clearDeferredLimitPrompt(x);
    if(x.calendarIntegrationChild||x.calendarGroupedChild){
