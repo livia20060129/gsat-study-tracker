@@ -2232,6 +2232,7 @@ function renderGroupedWorkEntry(entry,index){
  var h='<div class="item grouped-work-entry'+(entry.done?' done':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(entry.done)+'><div><div class="item-title">'+esc(groupedWorkLabel(entry,index))+'</div>';
  if(entry.title&&entry.title!==groupedWorkLabel(entry,index))h+='<div class="small">'+esc(entry.title)+'</div>';
+ if(entry.f&&entry.f.calendarMakeup===true)h+='<div class="small">今日補做｜Google Calendar</div>';
  h+='</div></div>';
  var fields=renderItemFields(entry,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
@@ -2570,8 +2571,10 @@ function completionUnitsForRecord(rec,date){
    }
    if(isGroupedWork(x)){
     var groupedChildren=groupedWorkEntries(x),groupDeferred=confirmedDeferred(x);
-    if(x.required)units=units.concat(groupedOriginalCompletionUnits(groupedChildren.map(function(child){return !!child.done}),groupDeferred));
-    else groupedChildren.forEach(function(child){units.push({itemIncluded:false,itemAccepted:false,workloadCompleted:!!child.done})});
+    groupedChildren.forEach(function(child){
+     if(child.required!==false)units=units.concat(groupedOriginalCompletionUnits([!!child.done],groupDeferred));
+     else units=units.concat(groupedMakeupCompletionUnits([!!child.done]));
+    });
     return;
    }
    units.push(makeupCompletionUnit(carryCompleted));
@@ -2642,7 +2645,7 @@ function updateSummary(){
  active.forEach(function(x){
    if(isGroupedWork(x)){
     var grouped=groupedWorkEntries(x);x.done=grouped.length>0&&grouped.every(function(child){return !!child.done});
-    if(x.required){req+=grouped.length;if(confirmedDeferred(x))done+=grouped.length;else grouped.forEach(function(child){if(child.done)done++})}
+    grouped.forEach(function(child){if(child.required!==false){req++;if(child.done||confirmedDeferred(x))done++}});
     if(x.done)mins+=Number(x.minutes||0);
     return;
    }

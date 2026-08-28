@@ -130,3 +130,22 @@ test('groups repeated Calendar rounds into one parent with separate children', (
   const children = output[0].f.groupedWorkEntries as Array<{ f: Record<string, unknown> }>;
   assert.deepEqual(children.map(child => child.f.round), ['1', '2']);
 });
+
+test('groups normal and makeup Calendar rounds while preserving each child metric role', () => {
+  const normal = { ...definition('cal_gujin_14_event-1', '國文｜古今悅讀一百 第 14 回', {
+    kind: 'reading', round: '14', calendarRoute: 'today', calendarMakeup: false, calendarEventKey: 'event-1',
+  }), type: 'chineseReading' };
+  const makeup = { ...definition('cal_gujin_11_event-2', '國文｜古今悅讀一百 第 11 回', {
+    kind: 'reading', round: '11', calendarRoute: 'today', calendarMakeup: true, calendarEventKey: 'event-2',
+  }), type: 'chineseReading', required: false };
+
+  const output = dedupePresetDefinitions([normal, makeup]);
+  assert.equal(output.length, 1);
+  assert.equal(output[0].title, '國文｜古今悅讀一百');
+  assert.equal(output[0].required, true);
+  assert.equal(output[0].f.calendarIncludesMakeup, true);
+  const children = output[0].f.groupedWorkEntries as Array<{ required: boolean; f: Record<string, unknown> }>;
+  assert.deepEqual(children.map(child => [child.f.round, child.required, child.f.calendarMakeup]), [
+    ['14', true, false], ['11', false, true],
+  ]);
+});

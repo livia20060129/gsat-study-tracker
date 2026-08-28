@@ -104,7 +104,6 @@ function calendarRangeIdentity(definition: PresetDefinitionLike): string {
   return JSON.stringify({
     work: rangeWorkIdentity(definition),
     route: normalizedText(definition.f?.calendarRoute),
-    makeup: definition.f?.calendarMakeup === true,
   });
 }
 
@@ -132,7 +131,7 @@ function groupedChild(definition: PresetDefinitionLike, index: number): Record<s
     type: definition.type,
     done: false,
     minutes: '',
-    required: false,
+    required: definition.required,
     source: 'groupedWork',
     presetKey: definition.key,
     templatePresetKey: definition.key,
@@ -153,7 +152,6 @@ function calendarRoundIdentity(definition: PresetDefinitionLike): string {
     title: normalizedText(fields.title),
     kind: normalizedText(fields.kind),
     route: normalizedText(fields.calendarRoute),
-    makeup: fields.calendarMakeup === true,
   });
 }
 
@@ -233,7 +231,10 @@ function groupCalendarWorkDefinitions<T extends PresetDefinitionLike>(definition
         uniqueKeys.set(workKey, unique.length);
         unique.push(entry);
       } else {
-        Object.assign(unique[found].item.f, calendarEventMetadata([unique[found].item, entry.item]));
+        const retained = unique[found].item;
+        retained.required = retained.required || entry.item.required;
+        Object.assign(retained.f, calendarEventMetadata([retained, entry.item]));
+        retained.f.calendarMakeup = retained.f.calendarMakeup === true && entry.item.f?.calendarMakeup === true;
       }
       consumed.add(entry.index);
     }
@@ -244,12 +245,15 @@ function groupCalendarWorkDefinitions<T extends PresetDefinitionLike>(definition
     const first = unique[0];
     const parent = {
       ...first.item,
+      required: unique.some(entry => entry.item.required),
       title: groupedParentTitle(first.item, first.mode),
       description: uniqueText(unique.map(entry => entry.item.description)).join('｜'),
       f: {
         ...(first.item.f || {}),
         ...calendarEventMetadata(unique.map(entry => entry.item)),
         calendarGroupedWork: true,
+        calendarMakeup: unique.every(entry => entry.item.f?.calendarMakeup === true),
+        ...(unique.some(entry => entry.item.f?.calendarMakeup === true) ? { calendarIncludesMakeup: true } : {}),
         groupedWorkEntries: unique.map((entry, index) => groupedChild(entry.item, index)),
       },
     } as T;
@@ -316,7 +320,7 @@ export function dedupePresetDefinitions<T extends PresetDefinitionLike>(definiti
       }
     }
     const metadata = calendarMetadata(definition.f || {});
-    const includesMakeup = metadata.calendarMakeup === true;
+    const includesMakeup = metadata.calendarMakeup === true || metadata.calendarIncludesMakeup === true;
     delete metadata.calendarMakeup;
     output[index] = {
       ...base,
