@@ -100,3 +100,22 @@ test('目標日額滿或超額時要求額外確認', () => {
   assert.equal(requiresDeferredLimitConfirmation(3), true);
   assert.equal(requiresDeferredLimitConfirmation(4), true);
 });
+
+test('已確認延期改選日期時重新計算新目標日容量', () => {
+  const movingItem = {
+    source: 'preset',
+    required: true,
+    deferred: true,
+    done: false,
+    deferredTargetDay: 5,
+  };
+  const saturdayItems = Array.from({ length: DEFERRED_TARGET_LIMIT }, () => ({
+    ...movingItem,
+    deferredTargetDay: 6,
+  }));
+  const items = [movingItem, ...saturdayItems];
+  const targetCount = countDeferredToDay(items, 6, movingItem);
+
+  assert.equal(targetCount, 3);
+  assert.equal(requiresDeferredLimitConfirmation(targetCount), true);
+});

@@ -1437,7 +1437,7 @@ function nextDeferredTargetDay(date,item){
 }
 function deferredCapacityMarkup(date,targetDay){
  var count=deferredTargetCount(date,targetDay),countClass=count>DEFERRED_TARGET_LIMIT?' class="defer-capacity-over"':'';
- return esc(weekdays[targetDay])+'（<span'+countClass+'>'+count+'</span>／'+DEFERRED_TARGET_LIMIT+'）';
+ return '<span'+countClass+'>'+count+'</span>／'+DEFERRED_TARGET_LIMIT;
 }
 function deferredTargetOptions(date,current,item){
  var days=futureDeferredDays(parseDate(date).getDay()),selected=Number(current);
@@ -2207,7 +2207,7 @@ function renderInteractiveDailyFields(x){
 }
 
 function renderCard(x,canDelete){
- var isDeferred=confirmedDeferred(x),pendingTarget=isDeferred?null:pendingDeferredTarget(x),futureTargets=futureDeferredDays(parseDate(data.date).getDay());
+ var isDeferred=confirmedDeferred(x),pendingTarget=pendingDeferredTarget(x),futureTargets=futureDeferredDays(parseDate(data.date).getDay());
  if(pendingTarget!==null&&futureTargets.indexOf(pendingTarget)<0){
   pendingTarget=nextDeferredTargetDay(data.date,x);
   if(pendingTarget===null)clearPendingDeferred(x);else pendingDeferredTargets[x.id]=pendingTarget;
@@ -2227,12 +2227,12 @@ function renderCard(x,canDelete){
  if(fields)h+='<div class="inner">'+fields+'</div>';
  if(canDefer){
   var deferDisabled=!isDeferred&&pendingTarget===null&&!futureTargets.length;
-  h+='<div class="defer-controls"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(isDeferred||pendingTarget!==null)+(deferDisabled?' disabled':'')+'> 延期（每個目標日最多 3 項）</label>';
-  if(isDeferred){
+  h+='<div class="defer-controls"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(isDeferred||pendingTarget!==null)+(deferDisabled?' disabled':'')+'> 延期</label>';
+  if(pendingTarget!==null){
+   h+='<label class="small defer-target-label">加入 <select data-deferred-target-pending>'+deferredTargetOptions(data.date,pendingTarget,x)+'</select></label><span class="small defer-capacity">'+deferredCapacityMarkup(data.date,pendingTarget)+'</span><button class="secondary defer-confirm" data-action="confirm-deferred">確認延期</button>';
+  }else if(isDeferred){
    var confirmedTarget=deferredTargetDay(x);
    h+='<label class="small defer-target-label">加入 <select data-deferred-target>'+deferredTargetOptions(data.date,confirmedTarget,x)+'</select></label><span class="small defer-capacity">'+deferredCapacityMarkup(data.date,confirmedTarget)+'</span>';
-  }else if(pendingTarget!==null){
-   h+='<label class="small defer-target-label">加入 <select data-deferred-target-pending>'+deferredTargetOptions(data.date,pendingTarget,x)+'</select></label><span class="small defer-capacity">'+deferredCapacityMarkup(data.date,pendingTarget)+'</span><button class="secondary defer-confirm" data-action="confirm-deferred">確定延期至'+esc(weekdays[pendingTarget])+'</button><span class="small defer-pending-note">待確認，不影響完成率</span>';
   }
   h+='</div>';
   if(deferredLimitPrompt&&deferredLimitPrompt.itemId===x.id){
@@ -2349,6 +2349,7 @@ function handleChange(e){
   var pendingTargetDay=Number(t.value);
   if(futureDeferredDays(parseDate(data.date).getDay()).indexOf(pendingTargetDay)<0){alert('只能延期到本週原日期之後的星期。');render();return}
   clearDeferredLimitPrompt(x);
+  if(confirmedDeferred(x)&&pendingTargetDay===deferredTargetDay(x)){clearPendingDeferred(x);render();return}
   pendingDeferredTargets[x.id]=pendingTargetDay;
   render();
   return
@@ -2356,11 +2357,9 @@ function handleChange(e){
  if(t.matches('[data-deferred-target]')&&x){
   var targetDay=Number(t.value),currentTarget=deferredTargetDay(x);
   if(futureDeferredDays(parseDate(data.date).getDay()).indexOf(targetDay)<0){alert('只能延期到本週原日期之後的星期。');render();return}
-  if(targetDay!==currentTarget&&requiresDeferredLimitConfirmation(deferredTargetCount(data.date,targetDay,x))){deferredLimitPrompt={itemId:x.id,targetDay:targetDay,mode:'move'};render();return}
   clearDeferredLimitPrompt(x);
-  x.deferredTargetDay=targetDay;
-  persist(false);
-  rebuildDeferredForWeek(data.date);
+  if(targetDay===currentTarget){clearPendingDeferred(x);render();return}
+  pendingDeferredTargets[x.id]=targetDay;
   render();
   return
  }
@@ -2402,7 +2401,7 @@ function handleClick(e){
  else if(action==='defer-limit-yes'&&x&&deferredLimitPrompt&&deferredLimitPrompt.itemId===x.id){
   var approvedPrompt=deferredLimitPrompt;deferredLimitPrompt=null;
   if(approvedPrompt.mode==='confirm'){x.deferred=true;x.done=false;x.deferredTargetDay=approvedPrompt.targetDay;clearPendingDeferred(x)}
-  else if(approvedPrompt.mode==='move')x.deferredTargetDay=approvedPrompt.targetDay;
+  else if(approvedPrompt.mode==='move'){x.deferredTargetDay=approvedPrompt.targetDay;clearPendingDeferred(x)}
   persist(false);rebuildDeferredForWeek(data.date);render();
  }
  else if(action==='defer-limit-no'&&x){clearDeferredLimitPrompt(x);render()}
@@ -2410,7 +2409,8 @@ function handleClick(e){
   var targetDay=pendingDeferredTarget(x);
   if(targetDay===null){render();return}
   if(futureDeferredDays(parseDate(data.date).getDay()).indexOf(targetDay)<0){clearPendingDeferred(x);alert('只能延期到本週原日期之後的星期。');render();return}
-  if(requiresDeferredLimitConfirmation(deferredTargetCount(data.date,targetDay,x))){deferredLimitPrompt={itemId:x.id,targetDay:targetDay,mode:'confirm'};render();return}
+  var confirmMode=confirmedDeferred(x)?'move':'confirm';
+  if(requiresDeferredLimitConfirmation(deferredTargetCount(data.date,targetDay,x))){deferredLimitPrompt={itemId:x.id,targetDay:targetDay,mode:confirmMode};render();return}
   x.deferred=true;x.done=false;x.deferredTargetDay=targetDay;clearPendingDeferred(x);
   persist(false);rebuildDeferredForWeek(data.date);render();
  }
@@ -2558,11 +2558,14 @@ function updateSummary(){
  id('weekMathPercent').textContent=math.weeklyPercent+'%';
 }
 function wakeParts(s){var m=String(s||'').match(/^(\d{1,2}):(\d{1,2})$/);return m?{hour:m[1],minute:m[2]}:{hour:'',minute:''}}
-function composeWake(){var h=id('wakeHour').value,m=id('wakeMinute').value;if(h===''||m==='')return'';h=Number(h);m=Number(m);if(h<0||h>23||m<0||m>60)return'';return pad(h)+':'+pad(m)}
+function composeWake(){var h=id('wakeHour').value,m=id('wakeMinute').value;if(h===''||m==='')return'';h=Number(h);m=Number(m);if(!Number.isInteger(h)||!Number.isInteger(m)||h<0||h>23||m<0||m>59)return'';return pad(h)+':'+pad(m)}
 function readHeader(){data.mood=id('mood').value;data.wakeTime=composeWake();data.biggestBlock=id('biggestBlock').value;data.firstThingTomorrow=id('firstThingTomorrow').value;data.notes=id('notes').value}
 function writeHeader(){id('mood').value=data.mood||'';var w=wakeParts(data.wakeTime);id('wakeHour').value=w.hour;id('wakeMinute').value=w.minute;id('biggestBlock').value=data.biggestBlock||'';id('firstThingTomorrow').value=data.firstThingTomorrow||'';id('notes').value=data.notes||''}
 function validate(){
  var ok=true,msg='';
+ var wakeHour=id('wakeHour'),wakeMinute=id('wakeMinute'),wakeHourValue=wakeHour.value===''?null:Number(wakeHour.value),wakeMinuteValue=wakeMinute.value===''?null:Number(wakeMinute.value);
+ var wakeHourValid=wakeHourValue===null||(Number.isInteger(wakeHourValue)&&wakeHourValue>=0&&wakeHourValue<=23),wakeMinuteValid=wakeMinuteValue===null||(Number.isInteger(wakeMinuteValue)&&wakeMinuteValue>=0&&wakeMinuteValue<=59);
+ wakeHour.setCustomValidity(wakeHourValid?'':'小時請填 00～23。');wakeMinute.setCustomValidity(wakeMinuteValid?'':'分鐘請填 00～59。');if(!wakeHourValid||!wakeMinuteValid){ok=false;msg='起床時間格式不正確；小時請填 00～23，分鐘請填 00～59。'}
  document.querySelectorAll('[data-field="essayScore"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=18);el.setCustomValidity(x?'':'作文範圍起點請填 0～18。');if(!x){ok=false;msg='英文作文分數超出範圍。'}});
  document.querySelectorAll('[data-field="mixedScore"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=10);el.setCustomValidity(x?'':'混合題分數請填 0～10。');if(!x){ok=false;msg='英文混合題分數超出範圍。'}});
  document.querySelectorAll('[data-field="score"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=25);el.setCustomValidity(x?'':'國文寫作分數請填 0～25。');if(!x){ok=false;msg='國文寫作分數超出範圍。'}});
@@ -2769,7 +2772,9 @@ id('mood').addEventListener('change',function(){readHeader();render();persist(fa
 ['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow','notes'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerInput)});
 id('addItemBtn').addEventListener('click',addCustom);
 id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);
-id('saveBtn').addEventListener('click',function(){persist(true);updateSummary()});
+function saveCurrentRecord(){persist(true);updateSummary()}
+id('saveBtn').addEventListener('click',saveCurrentRecord);
+id('topSaveBtn').addEventListener('click',saveCurrentRecord);
 id('weekSummaryBtn').addEventListener('click',buildAndCopyWeekSummary);
 id('copyWeekBtn').addEventListener('click',copyCurrentWeekSummary);
 id('importProgress').addEventListener('change',importProgressFromField);
