@@ -87,7 +87,7 @@ function withoutOriginalDate(value: string): string {
 
 function sourceDateFrom(title: string, description: string): string {
   const match = `${title}\n${description}`.match(
-    /(?:原(?:定|訂)?\s*|延期來源\s*(?:】|\])?\s*[:：]?\s*)(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*\/\s*\d{1,2})/i,
+    /(?:原(?:定|訂)?\s*|延期來源\s*(?:】|\])?\s*[:：]?\s*|補(?:做)?\s*)(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*\/\s*\d{1,2})/i,
   );
   return normalized(match?.[1]?.replace(/\s+/g, '') ?? '');
 }
@@ -141,12 +141,12 @@ export type CalendarFixedTemplate =
 /** Matches the stable template name while allowing date, range, and makeup notes after it. */
 export function calendarFixedTemplate(value: string): CalendarFixedTemplate | null {
   const title = normalized(value);
-  if (/^數學講義題目：理解檢查＋錯題標記＋訂正(?:$|｜)/.test(title)) return 'mathPractice';
-  if (/^數學講義：進度(?:$|｜)/.test(title)) return 'mathStudy';
+  if (/^數學講義題目\s*[｜:：]\s*理解檢查[＋+]錯題標記[＋+]訂正(?:$|｜)/.test(title)) return 'mathPractice';
+  if (/^數學講義\s*[｜:：]\s*進度(?:$|｜)/.test(title)) return 'mathStudy';
   if (/^互動題(?:$|｜)/.test(title)) return 'interactiveDaily';
   if (/^學測英文訓練：英文雜誌(?:$|｜)/.test(title)) return 'fixedMagazine';
   if (/^英文訂正與搭配詞整理(?:$|｜)/.test(title)) return 'englishReview';
-  if (/^英文：混合題與作文練習(?:$|｜)/.test(title)) return 'englishMixedWriting';
+  if (/^英文\s*[：:]?\s*混合題與作文(?:練習)?(?:$|｜)/.test(title)) return 'englishMixedWriting';
   if (/^英文歷屆／模考\s*[｜:：]\s*限時作答(?:$|｜)/.test(title)) return 'englishMockTimed';
   if (/^英文歷屆／模考\s*[｜:：]\s*批改與訂正(?:$|｜)/.test(title)) return 'englishMockCorrection';
   if (/^本週完成度與錯題整理(?:$|｜)/.test(title)) return 'weekReview';
@@ -243,7 +243,10 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const description = calendarDescriptionText(row.description ?? '');
   const deferredSource = /[（(]\s*原(?:定|訂)?\s*\d{1,2}\s*\/\s*\d{1,2}\s*[）)]/i.test(title)
     || /(?:【|\[)\s*延期來源\s*(?:】|\])/.test(description);
-  const makeup = Boolean(makeupPrefix) || /補做(?:項目)?\s*(?:\d|[｜:：]|$)/.test(title) || deferredSource;
+  const makeup = Boolean(makeupPrefix)
+    || /補做(?:項目)?\s*(?:\d|[｜:：]|$)/.test(title)
+    || /(?:^|[｜＋+])\s*補(?:做)?\s*\d{1,2}\s*\/\s*\d{1,2}/.test(title)
+    || deferredSource;
   const route: 'today' | 'week' | undefined = makeup
     ? 'today'
     : routed

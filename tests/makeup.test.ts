@@ -127,3 +127,23 @@ test('preserves the three special templates after defer', () => {
     assert.deepEqual(makeup.f, original.f);
   }
 });
+
+test('preserves the original template key through repeated defer cloning', () => {
+  const original = originalItem();
+  const first = cloneOriginalItemForMakeup(original, {
+    id: 'first-makeup',
+    presetKey: 'deferred-first',
+    originDate: '2026-08-27',
+  });
+  const second = cloneOriginalItemForMakeup(first, {
+    id: 'second-makeup',
+    presetKey: 'deferred-second',
+    originDate: '2026-08-29',
+  });
+
+  assert.equal(second.type, original.type);
+  assert.equal(second.title, original.title);
+  assert.deepEqual(second.f, original.f);
+  assert.equal(second.templatePresetKey, original.presetKey);
+  assert.equal(effectiveTemplatePresetKey(second), original.presetKey);
+});

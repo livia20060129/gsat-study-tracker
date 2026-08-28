@@ -132,6 +132,22 @@ test('recognizes every fixed Calendar template with an appended note', () => {
   }
 });
 
+test('restores fixed templates after the same Calendar item is deferred more than once', () => {
+  const math = parseCalendarTask(row(
+    '數學講義題目｜理解檢查＋錯題標記＋訂正',
+    '日麻花卷 8/25 欠項。針對本週已完成的數學講義進行理解檢查。',
+  ));
+  const english = parseCalendarTask(row('英文混合題與作文｜補8/26＋8/29'));
+
+  assert.equal(math.kind, 'fixedTemplate');
+  if (math.kind === 'fixedTemplate') assert.equal(math.template, 'mathPractice');
+  assert.equal(english.kind, 'fixedTemplate');
+  if (english.kind === 'fixedTemplate') assert.equal(english.template, 'englishMixedWriting');
+  assert.equal(english.makeup, true);
+  assert.equal(english.route, 'today');
+  assert.equal(english.sourceDate, '8/26');
+});
+
 test('recognizes a deferred math event from a standard title and note-only metadata', () => {
   const parsed = parseCalendarTask(row(
     '1｜多項式函數',
