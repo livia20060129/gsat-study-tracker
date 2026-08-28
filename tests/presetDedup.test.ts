@@ -79,3 +79,53 @@ test('keeps same-template Calendar work separate when its range differs', () => 
   const output = dedupePresetDefinitions([first, second]);
   assert.equal(output.length, 2);
 });
+
+test('merges adjacent Calendar page ranges into one normal item', () => {
+  const ranges = [[1, 5], [6, 10], [11, 15]].map(([start, end], index) => definition(
+    `cal_fixed_mathStudy_event-${index}`,
+    '數學講義：進度',
+    {
+      calendarFixedTemplate: 'mathStudy', calendarRoute: 'today',
+      calendarEventKey: `event-${index}`, material: '教學講義',
+      start: String(start), end: String(end),
+    },
+  ));
+
+  const output = dedupePresetDefinitions(ranges);
+  assert.equal(output.length, 1);
+  assert.equal(output[0].f.start, '1');
+  assert.equal(output[0].f.end, '15');
+  assert.equal(output[0].f.groupedWorkEntries, undefined);
+  assert.deepEqual(output[0].f.calendarEventKeys, ['event-0', 'event-1', 'event-2']);
+});
+
+test('groups interrupted Calendar page ranges as separately countable children', () => {
+  const output = dedupePresetDefinitions([
+    definition('cal_fixed_mathStudy_event-1', '數學講義：進度', {
+      calendarFixedTemplate: 'mathStudy', calendarRoute: 'today', calendarEventKey: 'event-1',
+      material: '教學講義', start: '1', end: '5',
+    }),
+    definition('cal_fixed_mathStudy_event-2', '數學講義：進度', {
+      calendarFixedTemplate: 'mathStudy', calendarRoute: 'today', calendarEventKey: 'event-2',
+      material: '教學講義', start: '11', end: '15',
+    }),
+  ]);
+
+  assert.equal(output.length, 1);
+  assert.equal(output[0].f.calendarGroupedWork, true);
+  const children = output[0].f.groupedWorkEntries as Array<{ f: Record<string, unknown> }>;
+  assert.equal(children.length, 2);
+  assert.deepEqual(children.map(child => [child.f.start, child.f.end]), [['1', '5'], ['11', '15']]);
+});
+
+test('groups repeated Calendar rounds into one parent with separate children', () => {
+  const output = dedupePresetDefinitions([
+    { ...definition('cal_ace_1_event-1', '英文｜ACE Reading 第 1 回', { title: 'ACE Reading', round: '1', calendarRoute: 'today', calendarEventKey: 'event-1' }), type: 'extra' },
+    { ...definition('cal_ace_2_event-2', '英文｜ACE Reading 第 2 回', { title: 'ACE Reading', round: '2', calendarRoute: 'today', calendarEventKey: 'event-2' }), type: 'extra' },
+  ]);
+
+  assert.equal(output.length, 1);
+  assert.equal(output[0].title, '英文｜ACE Reading');
+  const children = output[0].f.groupedWorkEntries as Array<{ f: Record<string, unknown> }>;
+  assert.deepEqual(children.map(child => child.f.round), ['1', '2']);
+});

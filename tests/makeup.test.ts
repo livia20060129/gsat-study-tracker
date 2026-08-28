@@ -5,6 +5,7 @@ import {
   cloneOriginalItemForMakeup,
   effectiveTemplatePresetKey,
   mergeMakeupProgress,
+  mergeDeferredCarryRanges,
   specialItemTemplate,
 } from '../src/study/makeup.ts';
 import type { StudyItem, StudyItemType } from '../src/types.ts';
@@ -146,4 +147,64 @@ test('preserves the original template key through repeated defer cloning', () =>
   assert.deepEqual(second.f, original.f);
   assert.equal(second.templatePresetKey, original.presetKey);
   assert.equal(effectiveTemplatePresetKey(second), original.presetKey);
+});
+
+function deferredMath(id: string, start: number, end: number): StudyItem {
+  return {
+    id,
+    type: 'mathStudy',
+    done: false,
+    minutes: '',
+    required: true,
+    source: 'preset',
+    presetKey: `deferred-${id}`,
+    templatePresetKey: 'weekday_math_study',
+    title: '數學講義：進度',
+    description: '延期自 2026-08-25',
+    deferredCarry: true,
+    deferredOriginDate: '2026-08-25',
+    deferredOriginId: id,
+    f: { material: '教學講義', book: '1', start: String(start), end: String(end) },
+  };
+}
+
+test('merges touching deferred ranges into one item', () => {
+  const output = mergeDeferredCarryRanges([
+    deferredMath('a', 1, 5), deferredMath('b', 6, 10), deferredMath('c', 11, 15),
+  ]);
+  assert.equal(output.length, 1);
+  assert.equal(output[0].f.start, '1');
+  assert.equal(output[0].f.end, '15');
+  assert.equal(output[0].f.groupedWorkEntries, undefined);
+});
+
+test('groups interrupted deferred ranges and preserves child progress on rebuild', () => {
+  const template = mergeDeferredCarryRanges([deferredMath('a', 1, 5), deferredMath('b', 11, 15)])[0];
+  const entries = template.f.groupedWorkEntries as StudyItem[];
+  assert.equal(entries.length, 2);
+  const existing = structuredClone(template);
+  (existing.f.groupedWorkEntries as StudyItem[])[0].done = true;
+
+  const merged = mergeMakeupProgress(template, existing);
+  assert.equal((merged.f.groupedWorkEntries as StudyItem[])[0].done, true);
+  assert.equal((merged.f.groupedWorkEntries as StudyItem[])[1].done, false);
+});
+
+test('groups deferred rounds into separately countable children', () => {
+  const base = deferredMath('round-a', 1, 1);
+  delete base.f.start;
+  delete base.f.end;
+  base.type = 'extra';
+  base.title = '英文｜ACE Reading 第 1 回';
+  base.f = { title: 'ACE Reading', round: '1' };
+  const next = structuredClone(base);
+  next.id = 'round-b';
+  next.presetKey = 'deferred-round-b';
+  next.deferredOriginId = 'round-b';
+  next.title = '英文｜ACE Reading 第 2 回';
+  next.f.round = '2';
+
+  const output = mergeDeferredCarryRanges([base, next]);
+  assert.equal(output.length, 1);
+  assert.deepEqual((output[0].f.groupedWorkEntries as StudyItem[]).map(child => child.f.round), ['1', '2']);
 });

@@ -1,4 +1,5 @@
 import { calendarFixedTemplate, type CalendarFixedTemplate } from '../calendar/calendarBridge.ts';
+import { contiguousRangeClusters, numericPageRange } from './rangeMerge.ts';
 
 export interface PresetDefinitionLike {
   key: string;
@@ -62,6 +63,7 @@ export function presetDefinitionSemanticKey(definition: PresetDefinitionLike): s
     'calendarFixedTemplate', 'calendarOriginalTitle', 'calendarRoute', 'calendarMakeup',
     'calendarGrammarTitle', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
     'calendarFocus', 'calendarNaturalIntegration', 'calendarSourceDate',
+    'calendarGroupedWork', 'groupedWorkEntries',
   ];
   for (const key of meaningfulKeys) {
     if (fields[key] !== undefined) semanticFields[key] = fields[key];
@@ -79,7 +81,198 @@ function calendarMetadata(fields: Record<string, unknown>): Record<string, unkno
   for (const [key, value] of Object.entries(fields || {})) {
     if (/^calendar/.test(key)) metadata[key] = value;
   }
+  if (fields.groupedWorkEntries !== undefined) metadata.groupedWorkEntries = fields.groupedWorkEntries;
   return metadata;
+}
+
+function rangeWorkIdentity(definition: PresetDefinitionLike): string {
+  const fields = definition.f || {};
+  return JSON.stringify(stableValue({
+    type: definition.type,
+    title: normalizedText(definition.title),
+    template: presetDefinitionTemplate(definition),
+    material: normalizedText(fields.material),
+    book: normalizedText(fields.book),
+    unit: normalizedText(fields.unit),
+    chapter: normalizedText(fields.chapter),
+    itemTitle: normalizedText(fields.title),
+    subject: normalizedText(fields.subject),
+    kind: normalizedText(fields.kind),
+    grammarTitle: normalizedText(fields.calendarGrammarTitle),
+    planTitle: normalizedText(fields.calendarPlanTitle),
+  }));
+}
+
+function calendarRangeIdentity(definition: PresetDefinitionLike): string {
+  return JSON.stringify({
+    work: rangeWorkIdentity(definition),
+    route: normalizedText(definition.f?.calendarRoute),
+    makeup: definition.f?.calendarMakeup === true,
+  });
+}
+
+function uniqueText(values: unknown[]): string[] {
+  return [...new Set(values.flatMap(value => Array.isArray(value) ? value : [value])
+    .map(normalizedText)
+    .filter(Boolean))];
+}
+
+function calendarEventMetadata(items: PresetDefinitionLike[]): Record<string, unknown> {
+  const fields = items.map(item => item.f || {});
+  const eventIds = uniqueText(fields.flatMap(item => [item.calendarEventIds, item.calendarEventId]));
+  const eventKeys = uniqueText(fields.flatMap(item => [item.calendarEventKeys, item.calendarEventKey]));
+  const sourceDates = uniqueText(fields.flatMap(item => [item.calendarSourceDates, item.calendarSourceDate]));
+  return {
+    ...(eventIds.length ? { calendarEventId: eventIds[0], calendarEventIds: eventIds } : {}),
+    ...(eventKeys.length ? { calendarEventKey: eventKeys[0], calendarEventKeys: eventKeys } : {}),
+    ...(sourceDates.length ? { calendarSourceDate: sourceDates[0], calendarSourceDates: sourceDates } : {}),
+  };
+}
+
+function groupedChild(definition: PresetDefinitionLike, index: number): Record<string, unknown> {
+  return {
+    id: `grouped-${definition.key}-${index}`,
+    type: definition.type,
+    done: false,
+    minutes: '',
+    required: false,
+    source: 'groupedWork',
+    presetKey: definition.key,
+    templatePresetKey: definition.key,
+    title: definition.title,
+    description: definition.description,
+    f: { ...(definition.f || {}) },
+    calendarGroupedChild: true,
+  };
+}
+
+function calendarRoundIdentity(definition: PresetDefinitionLike): string {
+  const fields = definition.f || {};
+  const category = /^cal_(ace|gujin|writing)_/.exec(definition.key)?.[1] || '';
+  if (!category || !normalizedText(fields.round)) return '';
+  return JSON.stringify({
+    category,
+    type: definition.type,
+    title: normalizedText(fields.title),
+    kind: normalizedText(fields.kind),
+    route: normalizedText(fields.calendarRoute),
+    makeup: fields.calendarMakeup === true,
+  });
+}
+
+function groupedParentTitle(definition: PresetDefinitionLike, mode: 'range' | 'round'): string {
+  if (mode === 'range') return definition.title;
+  if (/^cal_ace_/.test(definition.key)) return '英文｜ACE Reading';
+  if (/^cal_gujin_/.test(definition.key)) return '國文｜古今悅讀一百';
+  if (/^cal_writing_/.test(definition.key)) return '英文｜英文寫作測驗';
+  return definition.title;
+}
+
+function mergeCalendarRangeDefinitions<T extends PresetDefinitionLike>(definitions: T[]): T[] {
+  const clusters = contiguousRangeClusters(
+    definitions,
+    calendarRangeIdentity,
+    definition => isCalendarDefinition(definition) ? numericPageRange(definition.f) : null,
+  );
+
+  return clusters.map(cluster => {
+    const base = { ...cluster.items[0], f: { ...(cluster.items[0].f || {}) } } as T;
+    if (!cluster.range || cluster.items.length === 1) return base;
+
+    const descriptions = uniqueText(cluster.items.map(item => item.description));
+
+    base.required = cluster.items.some(item => item.required);
+    base.description = descriptions.join('｜');
+    base.f.start = String(cluster.range.start);
+    base.f.end = String(cluster.range.end);
+    base.f.calendarMergedRange = true;
+    base.f.calendarDailyPages = cluster.range.end - cluster.range.start + 1;
+    base.f.calendarSuggestedStart = cluster.range.start;
+    base.f.calendarSuggestedEnd = cluster.range.end;
+    if (base.f.calendarRangeText !== undefined) {
+      base.f.calendarRangeText = `p.${cluster.range.start}–${cluster.range.end}`;
+    }
+    Object.assign(base.f, calendarEventMetadata(cluster.items));
+    return base;
+  });
+}
+
+/** Groups separated ranges and repeated rounds under one card while keeping each child countable. */
+function groupCalendarWorkDefinitions<T extends PresetDefinitionLike>(definitions: T[]): T[] {
+  const merged = mergeCalendarRangeDefinitions(definitions);
+  const groups = new Map<string, Array<{ item: T; index: number; mode: 'range' | 'round' }>>();
+  const passthrough = new Set<number>();
+
+  merged.forEach((item, index) => {
+    if (!isCalendarDefinition(item)) {
+      passthrough.add(index);
+      return;
+    }
+    const range = numericPageRange(item.f);
+    const roundIdentity = calendarRoundIdentity(item);
+    const mode = range ? 'range' : 'round';
+    const identity = range ? `range:${calendarRangeIdentity(item)}` : (roundIdentity ? `round:${roundIdentity}` : '');
+    if (!identity) {
+      passthrough.add(index);
+      return;
+    }
+    const group = groups.get(identity) || [];
+    group.push({ item, index, mode });
+    groups.set(identity, group);
+  });
+
+  const groupedAt = new Map<number, T>();
+  const consumed = new Set<number>();
+  for (const group of groups.values()) {
+    const unique: typeof group = [];
+    const uniqueKeys = new Map<string, number>();
+    for (const entry of group) {
+      const range = numericPageRange(entry.item.f);
+      const workKey = entry.mode === 'range'
+        ? `${range?.start || ''}-${range?.end || ''}`
+        : normalizedText(entry.item.f?.round);
+      const found = uniqueKeys.get(workKey);
+      if (found === undefined) {
+        uniqueKeys.set(workKey, unique.length);
+        unique.push(entry);
+      } else {
+        Object.assign(unique[found].item.f, calendarEventMetadata([unique[found].item, entry.item]));
+      }
+      consumed.add(entry.index);
+    }
+    if (unique.length < 2) {
+      groupedAt.set(group[0].index, unique[0].item);
+      continue;
+    }
+    const first = unique[0];
+    const parent = {
+      ...first.item,
+      title: groupedParentTitle(first.item, first.mode),
+      description: uniqueText(unique.map(entry => entry.item.description)).join('｜'),
+      f: {
+        ...(first.item.f || {}),
+        ...calendarEventMetadata(unique.map(entry => entry.item)),
+        calendarGroupedWork: true,
+        groupedWorkEntries: unique.map((entry, index) => groupedChild(entry.item, index)),
+      },
+    } as T;
+    groupedAt.set(first.index, parent);
+  }
+
+  const output: T[] = [];
+  merged.forEach((item, index) => {
+    const grouped = groupedAt.get(index);
+    if (grouped) output.push(grouped);
+    else if (passthrough.has(index) || !consumed.has(index)) output.push(item);
+  });
+  return output;
+}
+
+function templateRangeFields(fields: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  const keys = ['material', 'book', 'unit', 'chapter', 'title', 'subject', 'kind', 'start', 'end'];
+  for (const key of keys) if (fields[key] !== undefined) output[key] = fields[key];
+  return output;
 }
 
 /** Merges one matching Calendar definition into the built-in card and leaves intentional extra events separate. */
@@ -89,7 +282,7 @@ export function dedupePresetDefinitions<T extends PresetDefinitionLike>(definiti
   const consumedBuiltIn = new Set<CalendarFixedTemplate>();
   const seenCalendarWork = new Set<string>();
 
-  for (const original of definitions) {
+  for (const original of groupCalendarWorkDefinitions(definitions)) {
     const definition = {
       ...original,
       f: { ...(original.f || {}) },
@@ -115,6 +308,16 @@ export function dedupePresetDefinitions<T extends PresetDefinitionLike>(definiti
     }
 
     const base = output[index];
+    const definitionRange = numericPageRange(definition.f);
+    const baseRange = numericPageRange(base.f);
+    if (definitionRange && baseRange) {
+      const sameWork = rangeWorkIdentity(base) === rangeWorkIdentity(definition);
+      const contiguous = definitionRange.start <= baseRange.end + 1 && baseRange.start <= definitionRange.end + 1;
+      if (!sameWork || !contiguous) {
+        output.push(definition);
+        continue;
+      }
+    }
     const metadata = calendarMetadata(definition.f || {});
     const includesMakeup = metadata.calendarMakeup === true;
     delete metadata.calendarMakeup;
@@ -123,7 +326,12 @@ export function dedupePresetDefinitions<T extends PresetDefinitionLike>(definiti
       description: `${base.description}${definition.title ? `｜Google Calendar：${definition.title}` : ''}`,
       f: {
         ...(base.f || {}),
+        ...(definitionRange ? templateRangeFields(definition.f || {}) : {}),
         ...metadata,
+        ...(definitionRange && baseRange ? {
+          start: String(Math.min(definitionRange.start, baseRange.start)),
+          end: String(Math.max(definitionRange.end, baseRange.end)),
+        } : {}),
         calendarMerged: true,
         ...(includesMakeup ? { calendarIncludesMakeup: true } : {}),
       },

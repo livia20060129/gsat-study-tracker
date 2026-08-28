@@ -35,7 +35,12 @@ export type ParsedCalendarTask =
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
   | (ParsedBase & { kind: 'essentialGrammar'; units: number[] })
   | (ParsedBase & { kind: 'writing'; round: number | null; focus: string })
-  | (ParsedBase & { kind: 'fixedTemplate'; template: CalendarFixedTemplate })
+  | (ParsedBase & {
+      kind: 'fixedTemplate';
+      template: CalendarFixedTemplate;
+      startPage: number | null;
+      endPage: number | null;
+    })
   | (ParsedBase & { kind: 'natural'; subject: '物理' | '化學' | '生物' | '地科'; topic: string })
   | (ParsedBase & {
       kind: 'naturalIntegration';
@@ -330,7 +335,8 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
 
   const fixedTemplate = calendarFixedTemplate(title);
   if (fixedTemplate) {
-    return { ...base, kind: 'fixedTemplate', template: fixedTemplate };
+    const [startPage, endPage] = pageRange(`${title}\n${description}`);
+    return { ...base, kind: 'fixedTemplate', template: fixedTemplate, startPage, endPage };
   }
 
   return { ...base, route: route ?? 'today', kind: 'calendarItem' };

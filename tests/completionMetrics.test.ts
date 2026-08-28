@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   formatPercentagePointDelta,
   makeupCompletionUnit,
+  groupedMakeupCompletionUnits,
+  groupedOriginalCompletionUnits,
   summarizeCompletionUnits,
 } from '../src/study/completionMetrics.ts';
 
@@ -76,4 +78,19 @@ test('can count detailed original items as one top-level workload item', () => {
 
   assert.equal(metrics.itemTotal, 2);
   assert.equal(metrics.workloadTotal, 1);
+});
+
+test('counts every grouped range or round child as a separate original item', () => {
+  const metrics = summarizeCompletionUnits(groupedOriginalCompletionUnits([true, false, true]));
+  assert.equal(metrics.itemTotal, 3);
+  assert.equal(metrics.itemCompleted, 2);
+  assert.equal(metrics.workloadTotal, 3);
+  assert.equal(metrics.workloadCompleted, 2);
+});
+
+test('counts grouped deferred children only in actual workload', () => {
+  const metrics = summarizeCompletionUnits(groupedMakeupCompletionUnits([true, false]));
+  assert.equal(metrics.itemTotal, 0);
+  assert.equal(metrics.workloadTotal, 2);
+  assert.equal(metrics.workloadCompleted, 1);
 });

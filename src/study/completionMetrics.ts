@@ -28,6 +28,19 @@ export function makeupCompletionUnit(completed: boolean): CompletionUnit {
   };
 }
 
+/** One parent card may contain multiple original items; every child remains one completion unit. */
+export function groupedOriginalCompletionUnits(completed: boolean[], deferred = false): CompletionUnit[] {
+  return completed.map(done => ({
+    itemAccepted: done || deferred,
+    workloadCompleted: done,
+  }));
+}
+
+/** Deferred/Calendar makeup children add workload one by one without duplicating original totals. */
+export function groupedMakeupCompletionUnits(completed: boolean[]): CompletionUnit[] {
+  return completed.map(makeupCompletionUnit);
+}
+
 function percentage(completed: number, total: number): number {
   return total > 0 ? Math.round((completed / total) * 100) : 0;
 }

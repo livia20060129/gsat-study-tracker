@@ -31,6 +31,8 @@ export interface StudyItemFields {
   makeupEntries?: StudyItem[];
   reviewEntries?: StudyItem[];
   calendarIntegrationEntries?: CalendarNaturalIntegrationEntry[];
+  /** Repeated ranges/rounds displayed as separately completable children in one parent card. */
+  groupedWorkEntries?: StudyItem[];
 }
 
 export interface StudyItem {
@@ -50,6 +52,8 @@ export interface StudyItem {
   deferredCarry?: boolean;
   deferredOriginDate?: string;
   deferredOriginId?: string;
+  deferredOriginDates?: string[];
+  deferredOriginIds?: string[];
   locked?: boolean;
   mondayFixedVocab?: boolean;
   f: StudyItemFields;
