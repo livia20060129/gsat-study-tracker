@@ -93,13 +93,10 @@ function rangeWorkIdentity(definition: PresetDefinitionLike): string {
     template: presetDefinitionTemplate(definition),
     material: normalizedText(fields.material),
     book: normalizedText(fields.book),
-    unit: normalizedText(fields.unit),
-    chapter: normalizedText(fields.chapter),
     itemTitle: normalizedText(fields.title),
     subject: normalizedText(fields.subject),
     kind: normalizedText(fields.kind),
     grammarTitle: normalizedText(fields.calendarGrammarTitle),
-    planTitle: normalizedText(fields.calendarPlanTitle),
   }));
 }
 

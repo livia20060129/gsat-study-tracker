@@ -25,14 +25,11 @@ function deferredRangeIdentity(item: StudyItem): string {
     title: String(item.title || '').trim(),
     material: String(fields.material || '').trim(),
     book: String(fields.book || '').trim(),
-    unit: String(fields.unit || '').trim(),
-    chapter: String(fields.chapter || '').trim(),
     itemTitle: String(fields.title || '').trim(),
     subject: String(fields.subject || '').trim(),
     kind: String(fields.kind || '').trim(),
     fixedTemplate: String(fields.calendarFixedTemplate || '').trim(),
     grammarTitle: String(fields.calendarGrammarTitle || '').trim(),
-    planTitle: String(fields.calendarPlanTitle || '').trim(),
   });
 }
 

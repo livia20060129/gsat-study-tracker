@@ -88,6 +88,7 @@ test('merges adjacent Calendar page ranges into one normal item', () => {
       calendarFixedTemplate: 'mathStudy', calendarRoute: 'today',
       calendarEventKey: `event-${index}`, material: '教學講義',
       start: String(start), end: String(end),
+      unit: '多項式函數', chapter: index < 2 ? '多項式及其運算' : '簡單多項式函數及其圖形',
     },
   ));
 

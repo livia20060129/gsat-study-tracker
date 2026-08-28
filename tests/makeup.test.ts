@@ -169,9 +169,16 @@ function deferredMath(id: string, start: number, end: number): StudyItem {
 }
 
 test('merges touching deferred ranges into one item', () => {
-  const output = mergeDeferredCarryRanges([
-    deferredMath('a', 1, 5), deferredMath('b', 6, 10), deferredMath('c', 11, 15),
-  ]);
+  const first = deferredMath('a', 1, 5);
+  first.f.unit = '多項式函數';
+  first.f.chapter = '多項式及其運算';
+  const second = deferredMath('b', 6, 10);
+  second.f.unit = '多項式函數';
+  second.f.chapter = '多項式及其運算';
+  const third = deferredMath('c', 11, 15);
+  third.f.unit = '多項式函數';
+  third.f.chapter = '簡單多項式函數及其圖形';
+  const output = mergeDeferredCarryRanges([first, second, third]);
   assert.equal(output.length, 1);
   assert.equal(output[0].f.start, '1');
   assert.equal(output[0].f.end, '15');
