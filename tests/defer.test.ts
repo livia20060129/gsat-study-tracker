@@ -6,7 +6,9 @@ import {
   DEFERRED_TARGET_LIMIT,
   futureDeferredDays,
   hasDeferredTargetCapacity,
+  isConfirmedDeferred,
   nextDeferredDay,
+  requiresDeferredLimitConfirmation,
 } from '../src/study/deferDays.ts';
 
 test('延期只列出本週原日期之後的星期', () => {
@@ -70,4 +72,31 @@ test('編輯既有延期項目時不把自己重複計入上限', () => {
 
   assert.equal(countDeferredToDay(items, 5, selectedItem), 2);
   assert.equal(hasDeferredTargetCapacity(items, 5, selectedItem), true);
+});
+
+test('只有選定目標日並確認後才視為正式延期', () => {
+  assert.equal(isConfirmedDeferred({ deferred: false, deferredTargetDay: 5 }), false);
+  assert.equal(isConfirmedDeferred({ deferred: true }), false);
+  assert.equal(isConfirmedDeferred({ deferred: true, deferredTargetDay: 1 }), false);
+  assert.equal(isConfirmedDeferred({ deferred: true, deferredTargetDay: 5 }), true);
+  assert.equal(isConfirmedDeferred({ deferred: true, deferredTargetDay: 0 }), true);
+});
+
+test('既有超額延期會保留並回報實際數量', () => {
+  const deferredItems = Array.from({ length: 4 }, () => ({
+    source: 'preset',
+    required: true,
+    deferred: true,
+    done: false,
+    deferredTargetDay: 5,
+  }));
+
+  assert.equal(countDeferredToDay(deferredItems, 5), 4);
+  assert.equal(hasDeferredTargetCapacity(deferredItems, 5), false);
+});
+
+test('目標日額滿或超額時要求額外確認', () => {
+  assert.equal(requiresDeferredLimitConfirmation(2), false);
+  assert.equal(requiresDeferredLimitConfirmation(3), true);
+  assert.equal(requiresDeferredLimitConfirmation(4), true);
 });

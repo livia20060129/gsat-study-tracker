@@ -11,6 +11,11 @@ export interface DeferredTargetCandidate {
   deferredTargetDay?: number;
 }
 
+export function isConfirmedDeferred(item: DeferredTargetCandidate): boolean {
+  const targetDay = Number(item.deferredTargetDay);
+  return item.deferred === true && (targetDay === 0 || (targetDay >= 2 && targetDay <= 6));
+}
+
 /** Returns only later days in the same Monday-to-Sunday week. */
 export function futureDeferredDays(originDay: number): number[] {
   const originIndex = WEEK_DAYS_FROM_MONDAY.indexOf(
@@ -35,7 +40,7 @@ export function countDeferredToDay(
     item.source === 'preset' &&
     item.required === true &&
     !item.deferredCarry &&
-    item.deferred === true &&
+    isConfirmedDeferred(item) &&
     !item.done &&
     Number(item.deferredTargetDay) === targetDay
   ).length;
@@ -47,4 +52,8 @@ export function hasDeferredTargetCapacity(
   excludedItem?: DeferredTargetCandidate
 ): boolean {
   return countDeferredToDay(items, targetDay, excludedItem) < DEFERRED_TARGET_LIMIT;
+}
+
+export function requiresDeferredLimitConfirmation(currentCount: number): boolean {
+  return currentCount >= DEFERRED_TARGET_LIMIT;
 }
