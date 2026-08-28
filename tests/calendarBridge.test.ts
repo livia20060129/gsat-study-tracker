@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseCalendarTask, type CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
+import {
+  calendarDescriptionText,
+  parseCalendarTask,
+  type CalendarTaskRow,
+} from '../src/calendar/calendarBridge.ts';
 
 function row(title: string, description = '', category = 'other'): CalendarTaskRow {
   return {
@@ -126,4 +130,56 @@ test('recognizes every fixed Calendar template with an appended note', () => {
     assert.equal(parsed.kind, 'fixedTemplate', title);
     if (parsed.kind === 'fixedTemplate') assert.equal(parsed.template, template, title);
   }
+});
+
+test('recognizes a deferred math event from a standard title and note-only metadata', () => {
+  const parsed = parseCalendarTask(row(
+    '1｜多項式函數',
+    '<p>【延期來源】8/25　【範圍】第一冊數學講義 p.149–157　【單元】多項式函數</p>',
+    'studyItem',
+  ));
+
+  assert.equal(parsed.kind, 'math');
+  assert.equal(parsed.makeup, true);
+  assert.equal(parsed.route, 'today');
+  assert.equal(parsed.sourceDate, '8/25');
+  assert.equal(parsed.title, '1｜多項式函數');
+  assert.doesNotMatch(parsed.description, /<\/?p>/);
+  if (parsed.kind === 'math') {
+    assert.equal(parsed.book, '1');
+    assert.equal(parsed.startPage, 149);
+    assert.equal(parsed.endPage, 157);
+  }
+});
+
+test('recognizes deferred Gujin and writing from standard titles and note-only source dates', () => {
+  const gujin = parseCalendarTask(row(
+    '古今悅讀一百｜第 10 回＋訂正',
+    '<p>【延期來源】8/26　【第 10–11 回延期】本行程只完成第 10 回</p>',
+    'studyItem',
+  ));
+  const writing = parseCalendarTask(row(
+    '英文寫作測驗｜第 1 回：讓步、原因與條件',
+    '<p>【延期來源】8/26　【教材】英文寫作測驗</p>',
+    'studyItem',
+  ));
+
+  assert.equal(gujin.kind, 'gujin');
+  assert.equal(gujin.makeup, true);
+  assert.equal(gujin.sourceDate, '8/26');
+  if (gujin.kind === 'gujin') assert.deepEqual(gujin.rounds, [10]);
+  assert.equal(writing.kind, 'writing');
+  assert.equal(writing.makeup, true);
+  assert.equal(writing.sourceDate, '8/26');
+  if (writing.kind === 'writing') {
+    assert.equal(writing.round, 1);
+    assert.equal(writing.focus, '讓步、原因與條件');
+  }
+});
+
+test('converts Calendar rich text to readable plain text', () => {
+  assert.equal(
+    calendarDescriptionText('<p>第一行&nbsp;&amp;內容</p><p>第二行<br>第三行</p>'),
+    '第一行 &內容\n第二行\n第三行',
+  );
 });

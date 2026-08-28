@@ -253,16 +253,42 @@ function eventDate(event: GoogleEvent): string | null {
 }
 
 function classify(title: string): string {
-  if (/Essential Grammar in Use/i.test(title)) return 'essentialGrammar';
-  if (/^(今日項目|今日|本週項目|本周項目|本週|本周)｜/.test(title)) return 'studyItem';
-  if (/^ACE Reading｜/.test(title)) return 'ace';
-  if (/^古今悅讀一百｜/.test(title)) return 'gujin';
-  if (/^英文文法｜/.test(title)) return 'grammar';
-  if (/^英文寫作測驗｜/.test(title)) return 'writing';
-  if (/^自然整合｜/.test(title)) return 'naturalIntegration';
-  if (/^(物理|化學|生物|地科)｜/.test(title)) return 'natural';
-  if (/^(1|2|3A|4A|2＋4A|2＋3A)｜/.test(title)) return 'math';
+  let value = title.trim();
+  value = value.replace(/^(今日項目|今日|本週項目|本周項目|本週|本周)\s*[｜:：]\s*/, '');
+  value = value.replace(/^(補做項目|補做)\s*[｜:：]\s*/, '');
+  if (/Essential Grammar in Use/i.test(value)) return 'essentialGrammar';
+  if (/^ACE Reading(?:\s*[｜:：]\s*|\s+)第/i.test(value)) return 'ace';
+  if (/^(?:國文\s*[｜:：]\s*)?古今悅讀一百(?:\s*[｜:：]\s*|\s+)第/.test(value)) return 'gujin';
+  if (/^英文文法(?:\s*[｜:：]\s*|\s+)/.test(value)) return 'grammar';
+  if (/^英文寫作測驗(?:\s*[｜:：]\s*|\s+)第/.test(value)) return 'writing';
+  if (/^自然整合(?:\s*[｜:：]\s*|\s+)/.test(value)) return 'naturalIntegration';
+  if (/^(物理|化學|生物|地科)(?:\s*[｜:：]\s*|\s+)/.test(value)) return 'natural';
+  if (/^(1|2|3A|4A|2\s*[＋+]\s*4A|2\s*[＋+]\s*3A)(?:\s*[｜:：]\s*|\s+)\S/.test(value)) return 'math';
   return 'studyItem';
+}
+
+function plainCalendarDescription(value: string): string {
+  const named: Record<string, string> = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  };
+  return value
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/\s*(?:p|div|li|ul|ol)\s*>/gi, '\n')
+    .replace(/<\s*li(?:\s[^>]*)?>/gi, '• ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&([a-z]+);/gi, (entity, name: string) => named[name.toLowerCase()] ?? entity)
+    .replace(/&#(x?[0-9a-f]+);/gi, (entity, rawCode: string) => {
+      const hexadecimal = rawCode[0]?.toLowerCase() === 'x';
+      const codePoint = Number.parseInt(hexadecimal ? rawCode.slice(1) : rawCode, hexadecimal ? 16 : 10);
+      return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : entity;
+    })
+    .replace(/\r/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 async function fetchCalendarEvents(accessToken: string, calendarId: string) {
@@ -328,7 +354,7 @@ export async function syncCalendarForUser(admin: SupabaseClient, userId: string)
         end_at: event.end?.dateTime ?? null,
         is_all_day: Boolean(event.start?.date),
         title: event.summary ?? '(未命名行程)',
-        description: event.description ?? '',
+        description: plainCalendarDescription(event.description ?? ''),
         location: event.location ?? '',
         category: classify(event.summary ?? ''),
         event_updated_at: event.updated ?? null,

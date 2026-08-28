@@ -921,7 +921,8 @@ function naturalRecommendationByTopic(topic){
 function resolveCloudMathPlan(parsed){
  var matches=[];
  Object.keys(CALENDAR_MATH_PLAN||{}).sort().forEach(function(date){var p=CALENDAR_MATH_PLAN[date];if(p&&p.title===parsed.title)matches.push(p)});
- var base=null,idx=Number(parsed.progressIndex||0)-1;
+ var base=null,start=Number(parsed.startPage||0),end=Number(parsed.endPage||parsed.startPage||0),idx=Number(parsed.progressIndex||0)-1;
+ if(start>0)for(var mi=0;mi<matches.length;mi++)if(Number(matches[mi].start)===start&&Number(matches[mi].end)===end){base=matches[mi];break}
  if(idx>=0&&idx<matches.length)base=matches[idx];
  if(!base&&CALENDAR_MATH_PLAN[parsed.date]&&CALENDAR_MATH_PLAN[parsed.date].title===parsed.title)base=CALENDAR_MATH_PLAN[parsed.date];
  if(!base)return null;
@@ -932,7 +933,7 @@ function buildCalendarRuntime(rows){
  (rows||[]).forEach(function(row){
   var parsed=parseCalendarTask(row);if(!parsed||parsed.kind==='other')return;
   var d=parsed.date;(calendarParsedByDate[d]||(calendarParsedByDate[d]=[])).push(parsed);
-  if(parsed.kind==='math'){
+  if(parsed.kind==='math'&&!parsed.makeup){
    var mp=resolveCloudMathPlan(parsed);if(mp)cloudMathPlanByDate[d]=mp;
   }else if(parsed.kind==='natural'){
    var nr=naturalRecommendationByTopic(parsed.topic);if(nr){nr.subject=parsed.subject;cloudNaturalRecommendedByDate[d]=nr}
@@ -1286,6 +1287,9 @@ function cloudCalendarDefsForDate(date){
    out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+(p.focus?'｜'+p.focus:''),true,{title:'英文文法總複習講義',start:p.startPage==null?'':String(p.startPage),end:p.endPage==null?'':String(p.endPage),calendarGrammarTitle:gt,calendarRangeText:rt,calendarRangeType:p.startPage?'pages':'calendar',calendarFocus:p.focus||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='essentialGrammar'){
    (p.units||[]).forEach(function(unit){out.push(presetDef('cal_essential_grammar_'+unit+'_'+token,'extra','英文｜Essential Grammar in Use｜Unit '+unit,'Google Calendar API：'+p.title+'｜Unit '+unit,true,{title:'Essential Grammar in Use',unit:String(unit),unitStart:String(unit),unitEnd:String(unit),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
+  }else if(p.kind==='math'&&p.makeup){
+   var mp=resolveCloudMathPlan(p)||null,ms=Number(p.startPage||(mp&&mp.start)||0),me=Number(p.endPage||(mp&&mp.end)||ms||0),mb=String(p.book||(mp&&mp.book)||'');
+   out.push(presetDef('cal_math_'+token,'mathStudy','數學講義：進度','Google Calendar API：'+p.title+(p.description?'｜'+p.description:''),true,{material:'教學講義',book:mb,start:ms?String(ms):'',end:me?String(me):'',calendarPlanTitle:p.title,calendarDailyPages:ms&&me?me-ms+1:0,calendarSuggestedStart:ms||'',calendarSuggestedEnd:me||'',calendarSuggestedBook:mb,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='fixedTemplate'){
    var fixedDef=calendarFixedTemplateDef(p,token);if(fixedDef)out.push(fixedDef);
   }else if(p.kind==='calendarItem'){
@@ -1304,7 +1308,7 @@ function cloudCalendarDefsForDate(date){
    out.push(presetDef('cal_natural_'+token,'scienceReview','自然','Google Calendar API：'+p.title+'｜依指定科目與頁碼完成。',true,{subject:'混合',calendarTopic:p.title,calendarSource:'Google Calendar API',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review||'',calendarIntegrationPages:ni.pages||'',calendarIntegrationOutput:ni.output||'',calendarIntegrationMinimum:ni.minimum||'',calendarIntegrationTime:ni.time||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }
   var route=p.makeup?'today':(p.route||'today');
-  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup;out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup}
+  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup;out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup;out[oi].f.calendarSourceDate=p.sourceDate||p.date}
  });
  return out;
 }
@@ -1464,7 +1468,7 @@ function rebuildDeferredForWeek(originDate){
 function ensureDailyPresets(rec,date){
  if(!rec||date<DAILY_PRESET_START)return false;
  if(!Array.isArray(rec.items))rec.items=[];
- var defs=presetsForDate(date),allowed={},i,x,d,changed=false,legacyCalendarByTemplate={},legacyCalendarByPresetKey={},calendarDefinitionBySemantic={};
+ var defs=presetsForDate(date),allowed={},i,x,d,changed=false,legacyCalendarByTemplate={},legacyCalendarByPresetKey={},legacyCalendarByEventKey={},calendarDefinitionBySemantic={};
  var oldMathKeys={weekday_math_oral:1,fri_math_oral:1,sat_math_oral:1,sun_math_oral:1};
  var oldEnglishKeys={weekday_english_practice:1,fri_other:1,sat_english_practice:1,sun_english_practice:1};
  for(i=0;i<defs.length;i++){
@@ -1485,6 +1489,8 @@ function ensureDailyPresets(rec,date){
    var oldSemantic=(x.f&&x.f.calendarSemanticKey)||presetDefinitionSemanticKey({key:x.presetKey,type:x.type,title:itemTitle(x),description:x.description||'',required:!!x.required,f:x.f||{}});
    var retainedKey=calendarDefinitionBySemantic[oldSemantic];
    if(retainedKey&&(!legacyCalendarByPresetKey[retainedKey]||x.done))legacyCalendarByPresetKey[retainedKey]=x;
+   var oldEventKey=x.f&&x.f.calendarEventKey;
+   if(oldEventKey&&(!legacyCalendarByEventKey[oldEventKey]||x.done))legacyCalendarByEventKey[oldEventKey]=x;
    changed=true;continue
   }
   if(x&&x.source==='preset'&&managed[x.presetKey]&&!allowed[x.presetKey]){changed=true;continue}
@@ -1505,9 +1511,9 @@ function ensureDailyPresets(rec,date){
   x.source='preset';
   if(!x.f)x.f={};
   if(x.f.calendarMerged&&!(d.f&&d.f.calendarMerged)){
-   ['calendarMerged','calendarEventId','calendarEventKey','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup','calendarSemanticKey'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
+   ['calendarMerged','calendarEventId','calendarEventKey','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup','calendarSemanticKey','calendarSourceDate'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
   }
-  if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
+  if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|math|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
    var df=d.f||{};
    if(/^cal_grammar_/.test(d.key||'')){
     var grammarPagesBlank=!x.f.start&&!x.f.end;
@@ -1523,7 +1529,7 @@ function ensureDailyPresets(rec,date){
     }
    }
   }
-  var mergedTemplate=d.f&&d.f.calendarMerged?d.f.calendarFixedTemplate:null,legacyItem=legacyCalendarByPresetKey[d.key]||(mergedTemplate?legacyCalendarByTemplate[mergedTemplate]:null);
+  var mergedTemplate=d.f&&d.f.calendarMerged?d.f.calendarFixedTemplate:null,newEventKey=d.f&&d.f.calendarEventKey,legacyItem=legacyCalendarByPresetKey[d.key]||(mergedTemplate?legacyCalendarByTemplate[mergedTemplate]:null)||(newEventKey?legacyCalendarByEventKey[newEventKey]:null);
   if(legacyItem){
    if(legacyItem.done&&!x.done){x.done=true;changed=true}
    if(!x.minutes&&legacyItem.minutes){x.minutes=legacyItem.minutes;changed=true}
@@ -1534,6 +1540,7 @@ function ensureDailyPresets(rec,date){
    }
    delete legacyCalendarByTemplate[mergedTemplate];
    delete legacyCalendarByPresetKey[d.key];
+   if(newEventKey)delete legacyCalendarByEventKey[newEventKey];
   }
   normalizeItem(x,date);
  }
@@ -1858,12 +1865,19 @@ function naturalReviewMatches(f,current){
 }
 function naturalReviewText(x){var f=x.f,a=naturalReviewMatches(f,x);if(!a.length)return f.chapter||'尚無對應資料';return a.map(function(z){return z.chapter+'（'+(z.start===z.end?'p.'+z.start:'p.'+z.start+'–'+z.end)+'）'}).join('、')}
 function applyNaturalReview(x){var a=naturalReviewMatches(x.f,x),c=unique(a.map(function(z){return z.chapter}));if(c.length)x.f.chapter=c.join('／')}
+function calendarSourceDateLabel(value){
+ var raw=String(value||'').trim(),m=raw.match(/^(?:\d{4}-)?(\d{1,2})[-\/](\d{1,2})$/);
+ return m?Number(m[1])+'/'+Number(m[2]):(raw||'—');
+}
+function calendarTopicSourceRow(f){
+ return'<div class="calendar-topic-source-row"><div class="field"><label>Google Calendar 當日主題</label><div class="fixed-book-value">'+esc(f.calendarTopic||'—')+'</div></div><div class="field"><label>來源日期</label><div class="fixed-book-value">'+esc(calendarSourceDateLabel(f.calendarSourceDate))+'</div></div></div>';
+}
 function renderScienceFields(x,reviewMode){
  var f=x.f;
  if(isCalendarNaturalIntegration(x)){
   var entries=ensureCalendarNaturalIntegrationEntries(x,(data&&data.date)||'');
   var ih='';
-  if(f.calendarTopic)ih+='<div class="field" style="margin-top:10px"><label>Google Calendar 當日主題</label><div class="fixed-book-value">'+esc(f.calendarTopic)+'</div></div>';
+  if(f.calendarTopic)ih+=calendarTopicSourceRow(f);
   for(var ii=0;ii<entries.length;ii++)ih+=renderCalendarNaturalIntegrationEntry(entries[ii]);
   return ih;
  }
@@ -1873,7 +1887,7 @@ function renderScienceFields(x,reviewMode){
   :'<div class="field"><label>科目</label><select data-field="subject"><option value="">請選擇</option>'+['混合','物理','化學','生物','地科'].map(function(s){return'<option'+selected(s,f.subject)+'>'+s+'</option>'}).join('')+'</select></div>';
  var h='<div class="science-main-row">'+subjectField;
  h+='<div class="field"><label>講義版本</label><select data-field="material">'+scienceMaterialOptions(f.subject,f.material)+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
- if(isCalendarNatural(x)&&f.calendarTopic)h+='<div class="field" style="margin-top:10px"><label>Google Calendar 當日主題</label><div class="fixed-book-value">'+esc(f.calendarTopic)+'</div></div>';
+ if(isCalendarNatural(x)&&f.calendarTopic)h+=calendarTopicSourceRow(f);
  if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))h+='<div class="field" style="margin-top:10px"><label>對應單元／章節</label><div class="small" data-science-auto>'+esc(goodPointCombinedText(f.subject,f.start,f.end))+'</div></div>';
  if(f.material==='123日的淬鍊'&&f.subject!=='混合')h+='<div class="field" style="margin-top:10px"><label>123日的淬鍊｜頁碼對應章節</label><div class="small" data-science-auto>'+esc(day123Text(f.subject,f.start,f.end))+'</div></div>';
  if(f.subject==='混合'&&f.material==='複習週記')h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-science-auto>'+esc(naturalReviewText(x))+'</div></div>';

@@ -95,3 +95,10 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
 
 /* v171: larger daily closing notes area. */
 .notes-large { min-height: 120px; resize: vertical; }
+.calendar-topic-source-row{
+  display:grid;
+  grid-template-columns:minmax(0,3fr) minmax(110px,1fr);
+  gap:10px;
+  margin-top:10px;
+  align-items:end;
+}

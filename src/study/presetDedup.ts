@@ -61,7 +61,7 @@ export function presetDefinitionSemanticKey(definition: PresetDefinitionLike): s
     'title', 'round', 'unit', 'unitStart', 'unitEnd', 'start', 'end', 'subject', 'kind',
     'calendarFixedTemplate', 'calendarOriginalTitle', 'calendarRoute', 'calendarMakeup',
     'calendarGrammarTitle', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
-    'calendarFocus', 'calendarNaturalIntegration',
+    'calendarFocus', 'calendarNaturalIntegration', 'calendarSourceDate',
   ];
   for (const key of meaningfulKeys) {
     if (fields[key] !== undefined) semanticFields[key] = fields[key];

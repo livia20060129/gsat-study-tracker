@@ -178,6 +178,10 @@ src/study/mathProgress.ts
 
 `171.0.23` 修正 Google OAuth callback：Supabase／Google 的物件錯誤會顯示可讀訊息，不再出現 `[object Object]`；callback HTML 使用 ASCII 字元實體與 UTF-8 標頭，避免中文錯誤頁亂碼。Calendar 連線需要套用 `google_calendar_client_id` migration 後再部署 callback Function。
 
+`171.0.24` 修正延期 Calendar 項目的模板辨識：接受空白分隔、前置冊別、`p.起–迄`、`（原日期）` 與 `【延期來源】`，讓數學、古今悅讀、英文寫作等項目回到完整原始模板；延期數學另建補做卡片，不再覆蓋當日原訂數學進度。Google Calendar HTML 描述會先轉為純文字，不再顯示 `<p>` 標籤。
+
+Calendar 自然項目的資訊列採 3:1 配置：左側「Google Calendar 當日主題」佔 3/4，右側「來源日期」佔 1/4；延期項目顯示原日期，一般項目顯示 Calendar 排定日期。
+
 ---
 
 # Supabase／Google 一次設定（重建環境或尚未設定 secrets 時）

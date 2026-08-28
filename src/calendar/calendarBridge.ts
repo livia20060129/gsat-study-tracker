@@ -18,10 +18,18 @@ interface ParsedBase {
   description: string;
   route?: 'today' | 'week';
   makeup?: boolean;
+  sourceDate?: string;
 }
 
 export type ParsedCalendarTask =
-  | (ParsedBase & { kind: 'math'; book: string; progressIndex: number | null; progressTotal: number | null })
+  | (ParsedBase & {
+      kind: 'math';
+      book: string;
+      progressIndex: number | null;
+      progressTotal: number | null;
+      startPage: number | null;
+      endPage: number | null;
+    })
   | (ParsedBase & { kind: 'ace'; rounds: number[] })
   | (ParsedBase & { kind: 'gujin'; rounds: number[] })
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
@@ -44,6 +52,67 @@ export type ParsedCalendarTask =
 
 function normalized(value: string): string {
   return value.replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim();
+}
+
+function decodeHtmlEntities(value: string): string {
+  const named: Record<string, string> = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  };
+  return value
+    .replace(/&([a-z]+);/gi, (entity, name: string) => named[name.toLowerCase()] ?? entity)
+    .replace(/&#(x?[0-9a-f]+);/gi, (entity, rawCode: string) => {
+      const hexadecimal = rawCode[0]?.toLowerCase() === 'x';
+      const codePoint = Number.parseInt(hexadecimal ? rawCode.slice(1) : rawCode, hexadecimal ? 16 : 10);
+      return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : entity;
+    });
+}
+
+/** Converts Google Calendar rich-text descriptions into safe, readable plain text. */
+export function calendarDescriptionText(value: string): string {
+  const decoded = decodeHtmlEntities(String(value ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/\s*(?:p|div|li|ul|ol)\s*>/gi, '\n')
+    .replace(/<\s*li(?:\s[^>]*)?>/gi, '• ')
+    .replace(/<[^>]*>/g, ' '));
+  return normalized(decoded)
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function withoutOriginalDate(value: string): string {
+  return normalized(value.replace(/\s*[（(]\s*原(?:定|訂)?\s*\d{1,2}\s*\/\s*\d{1,2}\s*[）)]\s*$/i, ''));
+}
+
+function sourceDateFrom(title: string, description: string): string {
+  const match = `${title}\n${description}`.match(
+    /(?:原(?:定|訂)?\s*|延期來源\s*(?:】|\])?\s*[:：]?\s*)(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\s*\/\s*\d{1,2})/i,
+  );
+  return normalized(match?.[1]?.replace(/\s+/g, '') ?? '');
+}
+
+function canonicalMathBook(value: string): string {
+  return normalized(value).replace(/\s*[+]\s*/g, '＋').replace(/\s*＋\s*/g, '＋');
+}
+
+function mathHeading(title: string, description: string): { title: string; book: string } | null {
+  const clean = withoutOriginalDate(title);
+  const match = clean.match(/^((?:1|2|3A|4A|2\s*[＋+]\s*4A|2\s*[＋+]\s*3A))\s*(｜|[:：]|\s+)\s*(.+)$/i);
+  if (!match) return null;
+
+  const book = canonicalMathBook(match[1].toUpperCase());
+  const explicitCalendarDelimiter = match[2] === '｜';
+  const rangeInTitle = /p(?:age)?\.?\s*\d+/i.test(match[3]);
+  const hasMathContext = explicitCalendarDelimiter
+    || rangeInTitle
+    || /數學講義|單元進度|完成標準/.test(description);
+  if (!hasMathContext) return null;
+
+  const topic = normalized(match[3]
+    .replace(/\s+p(?:age)?\.?\s*\d+\s*(?:[–—~\-至到]\s*\d+)?\s*$/i, ''));
+  if (!topic) return null;
+  return { title: `${book}｜${topic}`, book };
 }
 
 function roundsFromTitle(title: string): number[] {
@@ -121,8 +190,8 @@ function essentialGrammarUnits(title: string, description: string): number[] {
   return expandEssentialGrammarUnits(captures.join('、'));
 }
 
-function pageRange(description: string): [number | null, number | null] {
-  const match = description.match(/範圍[:：]\s*p\.?\s*(\d+)\s*(?:[–—~-]\s*(\d+))?/i);
+function pageRange(value: string): [number | null, number | null] {
+  const match = value.match(/p(?:age)?\.?\s*(\d+)\s*(?:[–—~\-至到]\s*(\d+))?/i);
   if (!match) return [null, null];
   const start = Number(match[1]);
   const end = Number(match[2] ?? match[1]);
@@ -171,13 +240,15 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const routedTitle = normalized(routed?.[2] ?? rawTitle);
   const makeupPrefix = routedTitle.match(/^(補做項目|補做)\s*[｜:：]\s*(.+)$/);
   const title = normalized(makeupPrefix?.[2] ?? routedTitle);
-  const makeup = Boolean(makeupPrefix) || /補做(?:項目)?\s*(?:\d|[｜:：]|$)/.test(title);
+  const description = calendarDescriptionText(row.description ?? '');
+  const deferredSource = /[（(]\s*原(?:定|訂)?\s*\d{1,2}\s*\/\s*\d{1,2}\s*[）)]/i.test(title)
+    || /(?:【|\[)\s*延期來源\s*(?:】|\])/.test(description);
+  const makeup = Boolean(makeupPrefix) || /補做(?:項目)?\s*(?:\d|[｜:：]|$)/.test(title) || deferredSource;
   const route: 'today' | 'week' | undefined = makeup
     ? 'today'
     : routed
     ? (/^(本週|本周)/.test(routed[1]) ? 'week' : 'today')
     : undefined;
-  const description = row.description ?? '';
   const base: ParsedBase = {
     eventKey: row.event_key,
     sourceEventId: row.source_event_id,
@@ -186,30 +257,36 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     description,
     ...(route ? { route } : {}),
     ...(makeup ? { makeup: true } : {}),
+    ...(sourceDateFrom(title, description) ? { sourceDate: sourceDateFrom(title, description) } : {}),
   };
 
-  if (row.category === 'math' || /^(1|2|3A|4A|2＋4A|2＋3A)｜/.test(title)) {
-    const progress = description.match(/單元進度[:：]\s*(\d+)\s*\/\s*(\d+)/);
+  const parsedMathHeading = mathHeading(title, description);
+  if (row.category === 'math' || parsedMathHeading) {
+    const progress = description.match(/(?:【|\[)?\s*單元進度\s*(?:】|\])?\s*[:：]?\s*(\d+)\s*\/\s*(\d+)/);
     const bookMatch = description.match(/冊別[:：]\s*([^\s]+)/);
+    const [startPage, endPage] = pageRange(`${title}\n${description}`);
     return {
       ...base,
+      title: parsedMathHeading?.title ?? withoutOriginalDate(title),
       kind: 'math',
-      book: normalized(bookMatch?.[1] ?? title.split('｜')[0] ?? ''),
+      book: parsedMathHeading?.book ?? normalized(bookMatch?.[1] ?? title.split('｜')[0] ?? ''),
       progressIndex: progress ? Number(progress[1]) : null,
       progressTotal: progress ? Number(progress[2]) : null,
+      startPage,
+      endPage,
     };
   }
 
-  if (row.category === 'ace' || /^ACE Reading｜/.test(title)) {
-    return { ...base, kind: 'ace', rounds: roundsFromTitle(title) };
+  if (row.category === 'ace' || /^ACE Reading(?:\s*[｜:：]\s*|\s+)第/i.test(title)) {
+    return { ...base, title: withoutOriginalDate(title), kind: 'ace', rounds: roundsFromTitle(title) };
   }
 
-  if (row.category === 'gujin' || /^古今悅讀一百｜/.test(title)) {
-    return { ...base, kind: 'gujin', rounds: roundsFromTitle(title) };
+  if (row.category === 'gujin' || /^(?:國文\s*[｜:：]\s*)?古今悅讀一百(?:\s*[｜:：]\s*|\s+)第/.test(title)) {
+    return { ...base, title: withoutOriginalDate(title), kind: 'gujin', rounds: roundsFromTitle(title) };
   }
 
-  if (row.category === 'grammar' || /^英文文法｜/.test(title)) {
-    const [startPage, endPage] = pageRange(description);
+  if (row.category === 'grammar' || /^英文文法(?:\s*[｜:：]\s*|\s+)/.test(title)) {
+    const [startPage, endPage] = pageRange(`${title}\n${description}`);
     return { ...base, kind: 'grammar', startPage, endPage, focus: field(description, '重點') };
   }
 
@@ -217,12 +294,12 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     return { ...base, route: route ?? 'today', kind: 'essentialGrammar', units: essentialGrammarUnits(title, description) };
   }
 
-  if (row.category === 'writing' || /^英文寫作測驗｜/.test(title)) {
+  if (row.category === 'writing' || /^英文寫作測驗(?:\s*[｜:：]\s*|\s+)第/.test(title)) {
     const rounds = roundsFromTitle(title);
-    return { ...base, kind: 'writing', round: rounds[0] ?? null, focus: focusText(title, description) };
+    return { ...base, title: withoutOriginalDate(title), kind: 'writing', round: rounds[0] ?? null, focus: focusText(title, description) };
   }
 
-  const natural = title.match(/^(物理|化學|生物|地科)｜(.+)$/);
+  const natural = title.match(/^(物理|化學|生物|地科)(?:\s*[｜:：]\s*|\s+)(.+)$/);
   if (row.category === 'natural' || natural) {
     if (natural) {
       return {
