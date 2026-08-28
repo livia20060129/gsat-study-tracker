@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { staleCalendarEventKeys } from './calendarSyncDiff.ts';
+import { readableErrorMessage } from './functionResponse.ts';
 
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 export const CORS_HEADERS = {
@@ -193,7 +194,9 @@ export async function exchangeAuthorizationCode(code: string, clientId: string) 
     }),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error_description ?? data.error ?? 'Google token exchange failed');
+  if (!response.ok) {
+    throw new Error(readableErrorMessage(data.error_description ?? data.error ?? data, 'Google token exchange failed'));
+  }
   return data as { access_token: string; expires_in: number; refresh_token?: string; scope?: string };
 }
 
@@ -210,7 +213,9 @@ async function refreshGoogleAccessToken(refreshToken: string, clientId: string) 
     }),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error_description ?? data.error ?? 'Google token refresh failed');
+  if (!response.ok) {
+    throw new Error(readableErrorMessage(data.error_description ?? data.error ?? data, 'Google token refresh failed'));
+  }
   return data as { access_token: string; expires_in: number };
 }
 
@@ -280,7 +285,9 @@ async function fetchCalendarEvents(accessToken: string, calendarId: string) {
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error?.message ?? 'Google Calendar events.list failed');
+    if (!response.ok) {
+      throw new Error(readableErrorMessage(data.error ?? data, 'Google Calendar events.list failed'));
+    }
     events.push(...(data.items ?? []));
     pageToken = data.nextPageToken ?? '';
   } while (pageToken);
@@ -366,7 +373,7 @@ export async function syncCalendarForUser(admin: SupabaseClient, userId: string)
     return { connected: true, synced: rows.length, removed: stale.length };
   } catch (error) {
     await admin.from('google_calendar_connections').update({
-      sync_error: error instanceof Error ? error.message : String(error),
+      sync_error: readableErrorMessage(error),
       updated_at: new Date().toISOString(),
     }).eq('user_id', userId);
     throw error;

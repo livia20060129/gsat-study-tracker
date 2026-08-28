@@ -7,29 +7,17 @@ import {
   syncCalendarForUser,
   verifyOAuthState,
 } from '../_shared/googleCalendar.ts';
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[char] ?? char));
-}
-
-function html(message: string, status = 200): Response {
-  return new Response(
-    `<!doctype html><meta charset="utf-8"><title>Google Calendar</title><p>${escapeHtml(message)}</p>`,
-    { status, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
-  );
-}
+import { calendarHtmlResponse, readableErrorMessage } from '../_shared/functionResponse.ts';
 
 Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const errorParam = url.searchParams.get('error');
-    if (errorParam) return html(`Google 授權未完成：${errorParam}`, 400);
+    if (errorParam) return calendarHtmlResponse(`Google 授權未完成：${errorParam}`, 400);
 
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
-    if (!code || !state) return html('缺少 Google OAuth callback 參數。', 400);
+    if (!code || !state) return calendarHtmlResponse('缺少 Google OAuth callback 參數。', 400);
 
     const admin = adminClient();
     const cfg = googleConfig();
@@ -66,8 +54,8 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('google-calendar-callback error', error);
     if (error instanceof CalendarConfigurationError) {
-      return html(`Google Calendar 伺服器設定未完成：缺少 ${error.missing.join('、')}。請完成設定後重新連線。`, 503);
+      return calendarHtmlResponse(`Google Calendar 伺服器設定未完成：缺少 ${error.missing.join('、')}。請完成設定後重新連線。`, 503);
     }
-    return html(`Google Calendar 連線失敗：${error instanceof Error ? error.message : String(error)}`, 500);
+    return calendarHtmlResponse(`Google Calendar 連線失敗：${readableErrorMessage(error)}`, 500);
   }
 });

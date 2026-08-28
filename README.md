@@ -176,6 +176,8 @@ src/study/mathProgress.ts
 
 `171.0.22` 修正 Google Calendar 重複與刪除同步：同一天、同內容與同範圍的重複 Calendar 行程只建立一個統計項目，並在合併舊重複卡片時保留已完成狀態；每次重新讀取都會同步 Google 的刪除結果、清除所有本機日期中已不存在的 Calendar 卡片，狀態訊息會顯示移除筆數。
 
+`171.0.23` 修正 Google OAuth callback：Supabase／Google 的物件錯誤會顯示可讀訊息，不再出現 `[object Object]`；callback HTML 使用 ASCII 字元實體與 UTF-8 標頭，避免中文錯誤頁亂碼。Calendar 連線需要套用 `google_calendar_client_id` migration 後再部署 callback Function。
+
 ---
 
 # Supabase／Google 一次設定（重建環境或尚未設定 secrets 時）
