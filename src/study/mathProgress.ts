@@ -57,6 +57,20 @@ function isSaturdayMakeup(item: StudyItem): boolean {
     (item.presetKey === 'sat_makeup' || item.title === '回補本週未完成項目');
 }
 
+/** A grouped card is presentation-only; its children remain the real progress units. */
+function mathProgressLeaves(item: StudyItem): StudyItem[] {
+  const children = item.f?.groupedWorkEntries;
+  if (!Array.isArray(children) || !children.length) return [item];
+  return children.flatMap(mathProgressLeaves);
+}
+
+function addCompletedMathItem(out: PageSetByMaterial, item: StudyItem): void {
+  for (const leaf of mathProgressLeaves(item)) {
+    if (leaf.type === 'mathStudy' && leaf.done) addRange(out, leaf.f);
+    if (leaf.type === 'mathLecture' && leaf.done && Boolean(leaf.f?.progress)) addRange(out, leaf.f);
+  }
+}
+
 /**
  * Pure extraction of completed math pages for one study record.
  * This is the only place that defines which task states count as math progress.
@@ -67,16 +81,13 @@ export function extractCompletedMathPages(record: StudyRecord | null | undefined
 
   for (const item of record.items) {
     if (!item) continue;
-    if (item.type === 'mathStudy' && item.done) addRange(out, item.f);
-    if (item.type === 'mathLecture' && item.done && Boolean(item.f?.progress)) addRange(out, item.f);
+    addCompletedMathItem(out, item);
 
     if (!isSaturdayMakeup(item)) continue;
     const makeupEntries = item.f?.makeupEntries;
     if (!Array.isArray(makeupEntries)) continue;
     for (const makeup of makeupEntries) {
-      if (makeup?.type === 'mathLecture' && makeup.done && Boolean(makeup.f?.progress)) {
-        addRange(out, makeup.f);
-      }
+      if (makeup) addCompletedMathItem(out, makeup);
     }
   }
 

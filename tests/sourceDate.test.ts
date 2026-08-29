@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { groupedSourceDateText, hasDeferredStudySource } from '../src/study/sourceDate.ts';
+import type { StudyItem } from '../src/types.ts';
+
+function item(overrides: Partial<StudyItem> = {}): StudyItem {
+  return {
+    id: 'item',
+    type: 'mathStudy',
+    done: false,
+    minutes: '',
+    required: true,
+    source: 'preset',
+    f: {},
+    ...overrides,
+  };
+}
+
+test('延期子卡片顯示所有實際來源日期', () => {
+  const deferred = item({
+    deferredCarry: true,
+    deferredOriginDates: ['2026-08-28', '2026-08-26'],
+  });
+  assert.equal(hasDeferredStudySource(deferred), true);
+  assert.equal(groupedSourceDateText(deferred, '2026-08-29'), '8/26、8/28');
+});
+
+test('Calendar 補做子卡片使用 Calendar 來源日期', () => {
+  const calendarMakeup = item({ f: { calendarMakeup: true, calendarSourceDate: '2026-08-25' } });
+  assert.equal(hasDeferredStudySource(calendarMakeup), true);
+  assert.equal(groupedSourceDateText(calendarMakeup, '2026-08-29'), '8/25');
+});
+
+test('合併子卡片會從隱藏的延期來源取得日期', () => {
+  const aggregate = item({
+    f: {
+      dailyWorkSourceItems: [item({ deferredCarry: true, deferredOriginDate: '2026-08-27' })],
+    },
+  });
+  assert.equal(hasDeferredStudySource(aggregate), true);
+  assert.equal(groupedSourceDateText(aggregate, '2026-08-29'), '8/27');
+});

@@ -22,6 +22,7 @@ import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCa
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
 import { groupStudyItemsBySubject } from './study/subjectOrder';
+import { groupedSourceDateText, hasDeferredStudySource } from './study/sourceDate';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -1875,7 +1876,9 @@ function renderMathFields(x,reviewMode){
  if(f.material!=='複習週記')h+='<div class="field"><label>冊數</label><select data-field="book">'+mathBookOptions(f.material,f.book)+'</select></div>';
  h+='<div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
  applyMathAuto(f);
- h+='<div class="field" style="margin-top:10px"><label>'+(f.material==='複習週記'?'對應章節':'對應單元／章節')+'</label><div class="small" data-math-auto>'+esc(mathAutoText(f))+'</div></div>';
+ var mathAutoField='<div class="field"><label>'+(f.material==='複習週記'?'對應章節':'對應單元／章節')+'</label><div class="small" data-math-auto>'+esc(mathAutoText(f))+'</div></div>';
+ if(hasDeferredStudySource(x))h+='<div class="math-auto-source-row">'+mathAutoField+'<div class="field"><label>來源日期</label><div class="fixed-book-value">'+esc(groupedSourceDateText(x,(data&&data.date)||''))+'</div></div></div>';
+ else h+='<div style="margin-top:10px">'+mathAutoField+'</div>';
  if(x.type==='mathStudy'&&f.calendarPlanTitle){
   h+='<div class="field" style="margin-top:10px"><label>Google Calendar 數學排程</label><div class="small"><strong>'+esc(f.calendarPlanTitle)+'</strong><br>本單元共 '+esc(f.calendarUnitPages)+' 頁｜建議總量 '+esc(f.calendarUnitTargetPages||f.calendarUnitPages)+' 頁｜本週需要寫約 '+esc(f.calendarWeekTarget)+' 頁｜今日約 '+esc(f.calendarDailyPages)+' 頁<br>建議頁碼：'+esc(f.calendarSuggestedBook)+' 冊 p.'+esc(f.calendarSuggestedStart)+'–'+esc(f.calendarSuggestedEnd)+'</div></div>';
  }
@@ -2260,7 +2263,6 @@ function renderGroupedWorkEntry(entry,index){
  entry.calendarGroupedChild=true;
  var h='<div class="item grouped-work-entry'+(entry.done?' done':'')+(confirmedDeferred(entry)?' deferred':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(entry.done)+'><div><div class="item-title">'+esc(groupedWorkLabel(entry,index))+'</div>';
- if(entry.title&&entry.title!==groupedWorkLabel(entry,index))h+='<div class="small">'+esc(entry.title)+'</div>';
  if(entry.f&&entry.f.calendarMakeup===true)h+='<div class="small">今日補做｜Google Calendar</div>';
  h+='</div></div>';
  var fields=renderItemFields(entry,false);
