@@ -17,10 +17,11 @@ import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } f
 import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
-import { groupDailyWorkItems, propagateDailyWorkDone, ungroupDailyWorkItems } from './study/dailyWorkGroup';
+import { groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkMinutes, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
-import { countDeferredToDay, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, requiresDeferredLimitConfirmation } from './study/deferDays';
+import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, requiresDeferredLimitConfirmation } from './study/deferDays';
+import { groupStudyItemsBySubject } from './study/subjectOrder';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -1488,6 +1489,8 @@ function mergeGroupedEntry(template,existing){
  var next=cloneValue(template),old=existing||null;
  if(!old)return next;
  next.done=!!old.done;next.minutes=old.minutes||'';
+ next.deferred=!!old.deferred;
+ if(old.deferredTargetDay!==undefined)next.deferredTargetDay=old.deferredTargetDay;else delete next.deferredTargetDay;
  next.f=Object.assign({},cloneValue(template.f||{}),cloneValue(old.f||{}));
  ['start','end','round','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarSourceDate','calendarSourceDates'].forEach(function(k){if(template.f&&template.f[k]!==undefined)next.f[k]=cloneValue(template.f[k])});
  return next;
@@ -1518,7 +1521,7 @@ function ensureDeferredForDate(rec,date){
  for(var i=0;i<targetOffset;i++){
   var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d),r=loadData(ds);
   if(!r||!Array.isArray(r.items))continue;
-  r.items.forEach(function(x){
+  deferredCapacityCandidates(r.items).forEach(function(x){
    if(!x||x.deferredCarry||x.source!=='preset'||!x.required||!confirmedDeferred(x)||x.done)return;
    if(deferredTargetDay(x)!==targetDay)return;
    var k=deferredCarryKey(ds,x),c=cloneOriginalItemForMakeup(x,{id:'preset-'+date+'-'+k,presetKey:k,originDate:ds});
@@ -2232,15 +2235,36 @@ function groupedWorkLabel(entry,index){
  if(round)return '第 '+round+' 回';
  return itemTitle(entry)||('子項目 '+(index+1));
 }
+function canDeferItem(x){return !!x&&x.source==='preset'&&x.required&&!x.deferredCarry&&parseDate(data.date).getDay()!==0}
+function renderDeferredControls(x){
+ if(!canDeferItem(x))return'';
+ var isDeferred=confirmedDeferred(x),pendingTarget=pendingDeferredTarget(x),futureTargets=futureDeferredDays(parseDate(data.date).getDay());
+ if(pendingTarget!==null&&futureTargets.indexOf(pendingTarget)<0){
+  pendingTarget=nextDeferredTargetDay(data.date,x);
+  if(pendingTarget===null)clearPendingDeferred(x);else pendingDeferredTargets[x.id]=pendingTarget;
+ }
+ var deferDisabled=!isDeferred&&pendingTarget===null&&!futureTargets.length;
+ var h='<div class="defer-controls"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(isDeferred||pendingTarget!==null)+(deferDisabled?' disabled':'')+'> 延期</label>';
+ if(pendingTarget!==null){
+  h+='<label class="small defer-target-label">加入 <select data-deferred-target-pending>'+deferredTargetOptions(data.date,pendingTarget,x)+'</select></label><span class="small defer-capacity">'+deferredCapacityMarkup(data.date,pendingTarget)+'</span><button class="secondary defer-confirm" data-action="confirm-deferred">確認延期</button>';
+ }else if(isDeferred){
+  var confirmedTarget=deferredTargetDay(x);
+  h+='<label class="small defer-target-label">加入 <select data-deferred-target>'+deferredTargetOptions(data.date,confirmedTarget,x)+'</select></label><span class="small defer-capacity">'+deferredCapacityMarkup(data.date,confirmedTarget)+'</span>';
+ }
+ h+='</div>';
+ if(deferredLimitPrompt&&deferredLimitPrompt.itemId===x.id)h+='<div class="defer-limit-prompt"><span>該日延期項目已經超過限制，是否還要將延期項目新增至該日？</span><div class="defer-limit-actions"><button class="danger" data-action="defer-limit-yes">是</button><button class="secondary" data-action="defer-limit-no">否</button></div></div>';
+ return h;
+}
 function renderGroupedWorkEntry(entry,index){
  entry.calendarGroupedChild=true;
- var h='<div class="item grouped-work-entry'+(entry.done?' done':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
+ var h='<div class="item grouped-work-entry'+(entry.done?' done':'')+(confirmedDeferred(entry)?' deferred':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(entry.done)+'><div><div class="item-title">'+esc(groupedWorkLabel(entry,index))+'</div>';
  if(entry.title&&entry.title!==groupedWorkLabel(entry,index))h+='<div class="small">'+esc(entry.title)+'</div>';
  if(entry.f&&entry.f.calendarMakeup===true)h+='<div class="small">今日補做｜Google Calendar</div>';
  h+='</div></div>';
  var fields=renderItemFields(entry,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
+ h+=renderDeferredControls(entry);
  return h+'</div>';
 }
 function renderGroupedWorkFields(x){
@@ -2322,17 +2346,12 @@ function renderInteractiveDailyFields(x){
 }
 
 function renderCard(x,canDelete){
- var isDeferred=confirmedDeferred(x),pendingTarget=pendingDeferredTarget(x),futureTargets=futureDeferredDays(parseDate(data.date).getDay());
- if(pendingTarget!==null&&futureTargets.indexOf(pendingTarget)<0){
-  pendingTarget=nextDeferredTargetDay(data.date,x);
-  if(pendingTarget===null)clearPendingDeferred(x);else pendingDeferredTargets[x.id]=pendingTarget;
- }
+ var isDeferred=confirmedDeferred(x);
  var calendarMeta=x.f&&x.f.dailyWorkGroup?(x.f.dailyWorkIncludesDeferred?'已合併當日排程與延期項目':'已合併同項目範圍'):(x.f&&x.f.calendarMerged?(x.f.calendarIncludesMakeup?'已合併 Google Calendar 同模板項目｜含補做':'已合併 Google Calendar 同模板項目'):'');
  var meta=x.deferredCarry?('補做｜沿用 '+(x.deferredOriginDate||'原日期')+' 的完整項目模板'):(isCalendarMakeup(x)?'今日補做｜Google Calendar':(calendarMeta||(isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(isDeferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':'')))));
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x)||isGroupedWork(x);
- var canDefer=x.source==='preset'&&x.required&&!x.deferredCarry&&parseDate(data.date).getDay()!==0;
  var h='<div class="item'+(x.done?' done':'')+(isDeferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(noTopDone?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
  if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
  if(canDelete)h+='<button class="delete" data-action="delete-item">刪除此筆</button>';
@@ -2340,20 +2359,7 @@ function renderCard(x,canDelete){
  h+='</div>';
  var fields=renderItemFields(x,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
- if(canDefer){
-  var deferDisabled=!isDeferred&&pendingTarget===null&&!futureTargets.length;
-  h+='<div class="defer-controls"><label class="small" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" data-deferred'+checked(isDeferred||pendingTarget!==null)+(deferDisabled?' disabled':'')+'> 延期</label>';
-  if(pendingTarget!==null){
-   h+='<label class="small defer-target-label">加入 <select data-deferred-target-pending>'+deferredTargetOptions(data.date,pendingTarget,x)+'</select></label><span class="small defer-capacity">'+deferredCapacityMarkup(data.date,pendingTarget)+'</span><button class="secondary defer-confirm" data-action="confirm-deferred">確認延期</button>';
-  }else if(isDeferred){
-   var confirmedTarget=deferredTargetDay(x);
-   h+='<label class="small defer-target-label">加入 <select data-deferred-target>'+deferredTargetOptions(data.date,confirmedTarget,x)+'</select></label><span class="small defer-capacity">'+deferredCapacityMarkup(data.date,confirmedTarget)+'</span>';
-  }
-  h+='</div>';
-  if(deferredLimitPrompt&&deferredLimitPrompt.itemId===x.id){
-   h+='<div class="defer-limit-prompt"><span>該日延期項目已經超過限制，是否還要將延期項目新增至該日？</span><div class="defer-limit-actions"><button class="danger" data-action="defer-limit-yes">是</button><button class="secondary" data-action="defer-limit-no">否</button></div></div>';
-  }
- }
+ if(!isGroupedWork(x))h+=renderDeferredControls(x);
  return h+'</div>';
 }
 function weeklyItemDisplayTitle(x){
@@ -2396,7 +2402,7 @@ function renderWeeklyItems(){
 }
 function render(){
  deferredCapacityCache=null;
- var active=visibleItems(data),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
+ var active=groupStudyItemsBySubject(visibleItems(data)),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
  active.forEach(function(x){
   if(isWeeklyCalendarItem(x))return;
   if(x.source==='preset'){
@@ -2439,7 +2445,7 @@ function refreshAuto(card,x){
 
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
- if(t.matches('[data-minutes]')&&x){x.minutes=t.value;var minuteSources=x.f&&x.f.dailyWorkSourceItems;if(Array.isArray(minuteSources)&&minuteSources.length)minuteSources[0].minutes=t.value;updateSummary();persist(false);return}
+ if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
  if(t.matches('[data-field]')&&x){x.f[t.getAttribute('data-field')]=t.value;var k=t.getAttribute('data-field');if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit)}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
  if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;updateSummary();persist(false);return}
  if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;persist(false);return}
@@ -2458,7 +2464,7 @@ function handleChange(e){
    return
   }
   if(!t.checked&&!isDeferred){clearPendingDeferred(x);clearDeferredLimitPrompt(x);render();return}
-  if(!t.checked&&isDeferred){x.deferred=false;delete x.deferredTargetDay;clearPendingDeferred(x);clearDeferredLimitPrompt(x);persist(false);rebuildDeferredForWeek(data.date);render();return}
+  if(!t.checked&&isDeferred){propagateDailyWorkDeferred(x,false);clearPendingDeferred(x);clearDeferredLimitPrompt(x);persist(false);rebuildDeferredForWeek(data.date);render();return}
   render();return
  }
  if(t.matches('[data-deferred-target-pending]')&&x){
@@ -2487,7 +2493,7 @@ function handleChange(e){
     if(x.calendarGroupedChild)updateGroupedParentDone(x);
     updateSummary();persist(false);render();return
   }
-  if(x.done&&confirmedDeferred(x)){x.deferred=false;delete x.deferredTargetDay;persist(false);rebuildDeferredForWeek(data.date)}
+  if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persist(false);rebuildDeferredForWeek(data.date)}
   else persist(false);
   updateSummary();return
  }
@@ -2517,8 +2523,8 @@ function handleClick(e){
  }
  else if(action==='defer-limit-yes'&&x&&deferredLimitPrompt&&deferredLimitPrompt.itemId===x.id){
   var approvedPrompt=deferredLimitPrompt;deferredLimitPrompt=null;
-  if(approvedPrompt.mode==='confirm'){x.deferred=true;x.done=false;x.deferredTargetDay=approvedPrompt.targetDay;clearPendingDeferred(x)}
-  else if(approvedPrompt.mode==='move'){x.deferredTargetDay=approvedPrompt.targetDay;clearPendingDeferred(x)}
+  if(approvedPrompt.mode==='confirm'){propagateDailyWorkDeferred(x,true,approvedPrompt.targetDay);clearPendingDeferred(x)}
+  else if(approvedPrompt.mode==='move'){propagateDailyWorkDeferred(x,true,approvedPrompt.targetDay);clearPendingDeferred(x)}
   persist(false);rebuildDeferredForWeek(data.date);render();
  }
  else if(action==='defer-limit-no'&&x){clearDeferredLimitPrompt(x);render()}
@@ -2528,7 +2534,7 @@ function handleClick(e){
   if(futureDeferredDays(parseDate(data.date).getDay()).indexOf(targetDay)<0){clearPendingDeferred(x);alert('只能延期到本週原日期之後的星期。');render();return}
   var confirmMode=confirmedDeferred(x)?'move':'confirm';
   if(requiresDeferredLimitConfirmation(deferredTargetCount(data.date,targetDay,x))){deferredLimitPrompt={itemId:x.id,targetDay:targetDay,mode:confirmMode};render();return}
-  x.deferred=true;x.done=false;x.deferredTargetDay=targetDay;clearPendingDeferred(x);
+  propagateDailyWorkDeferred(x,true,targetDay);clearPendingDeferred(x);
   persist(false);rebuildDeferredForWeek(data.date);render();
  }
  else if(action==='delete-item'&&x){clearPendingDeferred(x);clearDeferredLimitPrompt(x);data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
@@ -2561,11 +2567,14 @@ function completionUnitsForRecord(rec,date){
  visibleItems(rec).forEach(function(x){
   if(!x)return;
   if(isWeeklyCalendarItem(x))return;
-   if(x.deferredCarry){
-    if(isGroupedWork(x)){
-     units=units.concat(groupedMakeupCompletionUnits(groupedWorkEntries(x).map(function(child){return !!child.done})));
-     return;
-    }
+  if(isGroupedWork(x)){
+   groupedWorkEntries(x).forEach(function(child){
+    if(x.deferredCarry||child.deferredCarry||child.required===false)units=units.concat(groupedMakeupCompletionUnits([!!child.done]));
+    else units=units.concat(groupedOriginalCompletionUnits([!!child.done],confirmedDeferred(child)));
+   });
+   return;
+  }
+  if(x.deferredCarry){
    var carryCompleted=!!x.done;
    if(isInteractiveDaily(x)){
     var carryEntries=(x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[];
@@ -2573,14 +2582,6 @@ function completionUnitsForRecord(rec,date){
    }else if(isCalendarNaturalIntegration(x)){
     var carryChildren=ensureCalendarNaturalIntegrationEntries(x,date);
     carryCompleted=carryChildren.length>0&&carryChildren.every(function(c){return !!c.done});
-   }
-   if(isGroupedWork(x)){
-    var groupedChildren=groupedWorkEntries(x),groupDeferred=confirmedDeferred(x);
-    groupedChildren.forEach(function(child){
-     if(child.required!==false)units=units.concat(groupedOriginalCompletionUnits([!!child.done],groupDeferred));
-     else units=units.concat(groupedMakeupCompletionUnits([!!child.done]));
-    });
-    return;
    }
    units.push(makeupCompletionUnit(carryCompleted));
    return;
@@ -2650,7 +2651,7 @@ function updateSummary(){
  active.forEach(function(x){
    if(isGroupedWork(x)){
     var grouped=groupedWorkEntries(x);x.done=grouped.length>0&&grouped.every(function(child){return !!child.done});
-    grouped.forEach(function(child){if(child.required!==false){req++;if(child.done||confirmedDeferred(x))done++}});
+    grouped.forEach(function(child){if(child.required!==false){req++;if(child.done||confirmedDeferred(child))done++}});
     if(x.done)mins+=Number(x.minutes||0);
     return;
    }

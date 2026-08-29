@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
   groupDailyWorkItems,
+  propagateDailyWorkDeferred,
   propagateDailyWorkDone,
+  propagateDailyWorkMinutes,
   ungroupDailyWorkItems,
 } from '../src/study/dailyWorkGroup.ts';
 import type { StudyItem } from '../src/types.ts';
@@ -118,4 +120,32 @@ test('preserves a Sunday grouped child checkbox after rebuilding the daily card'
   const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
   const rebuiltChildren = rebuilt[0].f.groupedWorkEntries as StudyItem[];
   assert.equal(rebuiltChildren[1].done, true);
+});
+
+test('stores merged math-study minutes on the preferred source used after rebuilding', () => {
+  const output = groupDailyWorkItems([
+    math('current', 158, 165),
+    math('earlier-makeup', 149, 157, true),
+  ]);
+  assert.deepEqual(
+    (output[0].f.dailyWorkSourceItems as StudyItem[]).map(item => item.id),
+    ['earlier-makeup', 'current'],
+  );
+  propagateDailyWorkMinutes(output[0], '45');
+  const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
+  assert.equal(rebuilt[0].minutes, '45');
+});
+
+test('preserves an independently deferred grouped child after rebuilding', () => {
+  const output = groupDailyWorkItems([
+    mathPractice('original'),
+    mathPractice('scoped', 149, 157),
+  ]);
+  const child = (output[0].f.groupedWorkEntries as StudyItem[])[1];
+  propagateDailyWorkDeferred(child, true, 6);
+  const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
+  const rebuiltChild = (rebuilt[0].f.groupedWorkEntries as StudyItem[])[1];
+  assert.equal(rebuiltChild.deferred, true);
+  assert.equal(rebuiltChild.deferredTargetDay, 6);
+  assert.equal(rebuiltChild.done, false);
 });

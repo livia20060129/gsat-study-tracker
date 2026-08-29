@@ -88,6 +88,16 @@ test('counts every grouped range or round child as a separate original item', ()
   assert.equal(metrics.workloadCompleted, 2);
 });
 
+test('an independently deferred original child changes only its own accepted state', () => {
+  const metrics = summarizeCompletionUnits([
+    ...groupedOriginalCompletionUnits([false], true),
+    ...groupedOriginalCompletionUnits([false], false),
+  ]);
+  assert.equal(metrics.itemTotal, 2);
+  assert.equal(metrics.itemCompleted, 1);
+  assert.equal(metrics.workloadCompleted, 0);
+});
+
 test('counts grouped deferred children only in actual workload', () => {
   const metrics = summarizeCompletionUnits(groupedMakeupCompletionUnits([true, false]));
   assert.equal(metrics.itemTotal, 0);

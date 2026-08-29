@@ -261,3 +261,30 @@ export function propagateDailyWorkDone(item: StudyItem, done: boolean): void {
     source.done = done;
   });
 }
+
+/** Stores a merged card's minutes on the same preferred source used when rebuilding it. */
+export function propagateDailyWorkMinutes(item: StudyItem, minutes: string): void {
+  item.minutes = minutes;
+  const sources = item.f?.dailyWorkSourceItems;
+  if (!Array.isArray(sources) || !sources.length) return;
+  preferredBase(sources).minutes = minutes;
+}
+
+/** Applies a child card's confirmed deferral to every hidden source represented by it. */
+export function propagateDailyWorkDeferred(
+  item: StudyItem,
+  deferred: boolean,
+  targetDay?: number,
+): void {
+  const sources = item.f?.dailyWorkSourceItems;
+  const targets = [item, ...(Array.isArray(sources) ? sources : [])];
+  for (const target of targets) {
+    target.deferred = deferred;
+    if (deferred) {
+      target.done = false;
+      target.deferredTargetDay = targetDay;
+    } else {
+      delete target.deferredTargetDay;
+    }
+  }
+}

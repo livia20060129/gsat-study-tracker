@@ -3,12 +3,17 @@ const WEEK_DAYS_FROM_MONDAY = [1, 2, 3, 4, 5, 6, 0] as const;
 export const DEFERRED_TARGET_LIMIT = 3 as const;
 
 export interface DeferredTargetCandidate {
+  id?: string;
   source?: string;
   required?: boolean;
   deferredCarry?: boolean;
   deferred?: boolean;
   done?: boolean;
   deferredTargetDay?: number;
+  f?: {
+    dailyWorkSourceItems?: DeferredTargetCandidate[];
+    groupedWorkEntries?: DeferredTargetCandidate[];
+  };
 }
 
 export function isConfirmedDeferred(item: DeferredTargetCandidate): boolean {
@@ -30,13 +35,47 @@ export function nextDeferredDay(originDay: number): number | null {
   return futureDeferredDays(originDay)[0] ?? null;
 }
 
+/** Returns the real independently countable rows hidden inside merged parent cards. */
+export function deferredCapacityCandidates(
+  items: DeferredTargetCandidate[],
+): DeferredTargetCandidate[] {
+  const output: DeferredTargetCandidate[] = [];
+  const visit = (item: DeferredTargetCandidate): void => {
+    const sources = item.f?.dailyWorkSourceItems;
+    if (Array.isArray(sources) && sources.length) {
+      sources.forEach(visit);
+      return;
+    }
+    const children = item.f?.groupedWorkEntries;
+    if (Array.isArray(children) && children.length) {
+      children.forEach(visit);
+      return;
+    }
+    output.push(item);
+  };
+  items.forEach(visit);
+  return output;
+}
+
+function excludedCandidateIds(item?: DeferredTargetCandidate): Set<string> {
+  const ids = new Set<string>();
+  if (!item) return ids;
+  if (item.id) ids.add(item.id);
+  deferredCapacityCandidates([item]).forEach(candidate => {
+    if (candidate.id) ids.add(candidate.id);
+  });
+  return ids;
+}
+
 export function countDeferredToDay(
   items: DeferredTargetCandidate[],
   targetDay: number,
   excludedItem?: DeferredTargetCandidate
 ): number {
-  return items.filter(item =>
+  const excludedIds = excludedCandidateIds(excludedItem);
+  return deferredCapacityCandidates(items).filter(item =>
     item !== excludedItem &&
+    !(item.id && excludedIds.has(item.id)) &&
     item.source === 'preset' &&
     item.required === true &&
     !item.deferredCarry &&

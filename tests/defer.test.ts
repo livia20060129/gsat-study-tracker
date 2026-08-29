@@ -119,3 +119,23 @@ test('已確認延期改選日期時重新計算新目標日容量', () => {
   assert.equal(targetCount, 3);
   assert.equal(requiresDeferredLimitConfirmation(targetCount), true);
 });
+
+test('合併卡片中的延期子項目會分別計入目標日容量', () => {
+  const children = Array.from({ length: 3 }, (_, index) => ({
+    id: `child-${index}`,
+    source: 'preset',
+    required: true,
+    deferred: true,
+    done: false,
+    deferredTargetDay: 5,
+  }));
+  const parent = {
+    id: 'parent',
+    f: { dailyWorkSourceItems: children },
+  };
+  assert.equal(countDeferredToDay([parent], 5), 3);
+  assert.equal(countDeferredToDay([parent], 5, {
+    id: 'child-view',
+    f: { dailyWorkSourceItems: [children[0]] },
+  }), 2);
+});
