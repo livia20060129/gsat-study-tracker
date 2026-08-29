@@ -13,12 +13,22 @@ export interface DeferredTargetCandidate {
   f?: {
     dailyWorkSourceItems?: DeferredTargetCandidate[];
     groupedWorkEntries?: DeferredTargetCandidate[];
+    calendarMakeup?: boolean;
   };
 }
 
 export function isConfirmedDeferred(item: DeferredTargetCandidate): boolean {
   const targetDay = Number(item.deferredTargetDay);
   return item.deferred === true && (targetDay === 0 || (targetDay >= 2 && targetDay <= 6));
+}
+
+/** Includes independently displayed Calendar/grouped and carried-forward children. */
+export function isDeferrableStudyItem(item: DeferredTargetCandidate): boolean {
+  const supportedSource = item.source === 'preset' || item.source === 'groupedWork';
+  const countsAsScheduledWork = item.required === true
+    || item.deferredCarry === true
+    || item.f?.calendarMakeup === true;
+  return supportedSource && countsAsScheduledWork;
 }
 
 /** Returns only later days in the same Monday-to-Sunday week. */
@@ -76,9 +86,7 @@ export function countDeferredToDay(
   return deferredCapacityCandidates(items).filter(item =>
     item !== excludedItem &&
     !(item.id && excludedIds.has(item.id)) &&
-    item.source === 'preset' &&
-    item.required === true &&
-    !item.deferredCarry &&
+    isDeferrableStudyItem(item) &&
     isConfirmedDeferred(item) &&
     !item.done &&
     Number(item.deferredTargetDay) === targetDay

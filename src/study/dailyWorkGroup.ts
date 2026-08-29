@@ -270,6 +270,67 @@ export function propagateDailyWorkMinutes(item: StudyItem, minutes: string): voi
   preferredBase(sources).minutes = minutes;
 }
 
+function storeUserFieldOverride(item: StudyItem, field: 'start' | 'end', value: unknown): void {
+  item.f ||= {};
+  const existing = item.f.dailyWorkUserFields;
+  item.f.dailyWorkUserFields = {
+    ...(existing && typeof existing === 'object' && !Array.isArray(existing)
+      ? existing as Record<string, unknown>
+      : {}),
+    [field]: value,
+  };
+}
+
+/**
+ * Stores an edited range boundary on the source item that owns that edge.
+ * The displayed aggregate is rebuilt frequently, so changing only its fields
+ * would otherwise make the value snap back after a reload.
+ */
+export function propagateDailyWorkRangeField(
+  item: StudyItem,
+  field: 'start' | 'end',
+  value: unknown,
+): void {
+  item.f ||= {};
+  item.f[field] = value;
+  storeUserFieldOverride(item, field, value);
+
+  const sources = item.f.dailyWorkSourceItems;
+  if (!Array.isArray(sources) || !sources.length) return;
+  const ranged = sources
+    .map(source => ({ source, range: numericPageRange(source.f) }))
+    .filter((entry): entry is { source: StudyItem; range: { start: number; end: number } } => Boolean(entry.range));
+
+  let target = preferredBase(sources);
+  if (ranged.length) {
+    const edge = field === 'start'
+      ? Math.min(...ranged.map(entry => entry.range.start))
+      : Math.max(...ranged.map(entry => entry.range.end));
+    const edgeSources = ranged
+      .filter(entry => entry.range[field] === edge)
+      .map(entry => entry.source);
+    target = preferredBase(edgeSources);
+  }
+
+  target.f ||= {};
+  target.f[field] = value;
+  storeUserFieldOverride(target, field, value);
+}
+
+/** Restores explicit local range edits after a Calendar definition refresh. */
+export function applyDailyWorkRangeOverrides(item: StudyItem): void {
+  item.f ||= {};
+  const overrides = item.f.dailyWorkUserFields;
+  if (overrides && typeof overrides === 'object' && !Array.isArray(overrides)) {
+    const fields = overrides as Record<string, unknown>;
+    for (const field of ['start', 'end'] as const) {
+      if (Object.prototype.hasOwnProperty.call(fields, field)) item.f[field] = fields[field];
+    }
+  }
+  const children = item.f.groupedWorkEntries;
+  if (Array.isArray(children)) children.forEach(applyDailyWorkRangeOverrides);
+}
+
 /** Applies a child card's confirmed deferral to every hidden source represented by it. */
 export function propagateDailyWorkDeferred(
   item: StudyItem,

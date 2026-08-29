@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  applyDailyWorkRangeOverrides,
   groupDailyWorkItems,
   propagateDailyWorkDeferred,
   propagateDailyWorkDone,
   propagateDailyWorkMinutes,
+  propagateDailyWorkRangeField,
   ungroupDailyWorkItems,
 } from '../src/study/dailyWorkGroup.ts';
 import type { StudyItem } from '../src/types.ts';
@@ -134,6 +136,41 @@ test('stores merged math-study minutes on the preferred source used after rebuil
   propagateDailyWorkMinutes(output[0], '45');
   const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
   assert.equal(rebuilt[0].minutes, '45');
+});
+
+test('stores an edited merged end page on the source that owns the upper boundary', () => {
+  const output = groupDailyWorkItems([
+    math('current', 158, 165),
+    math('earlier-makeup', 149, 157, true),
+  ]);
+  propagateDailyWorkRangeField(output[0], 'end', '170');
+  const sources = ungroupDailyWorkItems(output);
+  assert.equal(sources.find(item => item.id === 'current')?.f.end, '170');
+  assert.equal(sources.find(item => item.id === 'earlier-makeup')?.f.end, '157');
+
+  const rebuilt = groupDailyWorkItems(sources);
+  assert.equal(rebuilt[0].f.start, '149');
+  assert.equal(rebuilt[0].f.end, '170');
+});
+
+test('stores an edited merged start page on the source that owns the lower boundary', () => {
+  const output = groupDailyWorkItems([
+    math('current', 158, 165),
+    math('earlier-makeup', 149, 157, true),
+  ]);
+  propagateDailyWorkRangeField(output[0], 'start', '145');
+  const sources = ungroupDailyWorkItems(output);
+  assert.equal(sources.find(item => item.id === 'current')?.f.start, '158');
+  assert.equal(sources.find(item => item.id === 'earlier-makeup')?.f.start, '145');
+  assert.equal(groupDailyWorkItems(sources)[0].f.start, '145');
+});
+
+test('restores an explicit range edit after Calendar refreshes its suggested pages', () => {
+  const item = math('calendar', 158, 165);
+  propagateDailyWorkRangeField(item, 'end', '170');
+  item.f.end = '165';
+  applyDailyWorkRangeOverrides(item);
+  assert.equal(item.f.end, '170');
 });
 
 test('preserves an independently deferred grouped child after rebuilding', () => {

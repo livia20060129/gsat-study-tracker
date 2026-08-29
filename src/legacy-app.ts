@@ -17,10 +17,10 @@ import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } f
 import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBridge';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
-import { groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkMinutes, ungroupDailyWorkItems } from './study/dailyWorkGroup';
+import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkMinutes, propagateDailyWorkRangeField, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
-import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, requiresDeferredLimitConfirmation } from './study/deferDays';
+import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
 import { groupStudyItemsBySubject } from './study/subjectOrder';
 
 var DAILY_PRESET_START='2026-08-10';
@@ -1522,7 +1522,7 @@ function ensureDeferredForDate(rec,date){
   var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d),r=loadData(ds);
   if(!r||!Array.isArray(r.items))continue;
   deferredCapacityCandidates(r.items).forEach(function(x){
-   if(!x||x.deferredCarry||x.source!=='preset'||!x.required||!confirmedDeferred(x)||x.done)return;
+   if(!x||!isDeferrableStudyItem(x)||!confirmedDeferred(x)||x.done)return;
    if(deferredTargetDay(x)!==targetDay)return;
    var k=deferredCarryKey(ds,x),c=cloneOriginalItemForMakeup(x,{id:'preset-'+date+'-'+k,presetKey:k,originDate:ds});
    wanted[k]=c;
@@ -1658,6 +1658,7 @@ function ensureDailyPresets(rec,date){
    delete legacyCalendarByPresetKey[d.key];
    newEventKeys.forEach(function(newEventKey){delete legacyCalendarByEventKey[newEventKey]});
   }
+  var rangeBefore=JSON.stringify([x.f.start,x.f.end]);applyDailyWorkRangeOverrides(x);if(rangeBefore!==JSON.stringify([x.f.start,x.f.end]))changed=true;
   normalizeItem(x,date);
  }
  if(by.daily_interactive)ensureInteractiveEntries(by.daily_interactive);
@@ -2235,7 +2236,7 @@ function groupedWorkLabel(entry,index){
  if(round)return '第 '+round+' 回';
  return itemTitle(entry)||('子項目 '+(index+1));
 }
-function canDeferItem(x){return !!x&&x.source==='preset'&&x.required&&!x.deferredCarry&&parseDate(data.date).getDay()!==0}
+function canDeferItem(x){return !!x&&isDeferrableStudyItem(x)&&parseDate(data.date).getDay()!==0}
 function renderDeferredControls(x){
  if(!canDeferItem(x))return'';
  var isDeferred=confirmedDeferred(x),pendingTarget=pendingDeferredTarget(x),futureTargets=futureDeferredDays(parseDate(data.date).getDay());
@@ -2446,7 +2447,7 @@ function refreshAuto(card,x){
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
- if(t.matches('[data-field]')&&x){x.f[t.getAttribute('data-field')]=t.value;var k=t.getAttribute('data-field');if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit)}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
+ if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else x.f[k]=t.value;if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit)}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
  if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;updateSummary();persist(false);return}
  if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;persist(false);return}
 }
@@ -2499,7 +2500,7 @@ function handleChange(e){
  }
  if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');x.f[k]=t.checked;if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
  if(t.matches('[data-field]')&&x){
-  var f=t.getAttribute('data-field');x.f[f]=t.value;
+  var f=t.getAttribute('data-field');if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else x.f[f]=t.value;
   if((x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice')&&(f==='material'||f==='book')){if(f==='material')x.f.book='';x.f.unit='';x.f.chapter=''}
   if(x.type==='scienceReview'&&(f==='subject'||f==='material')){if(f==='subject'&&isCalendarNatural(x)){x.f.subject=calendarNaturalSubject(x.f.calendarTopic||x.description);render();persist(false);return}x.f.unit='';x.f.chapter='';normalizeScience(x.f)}
   if(x.type==='extra'&&f==='title'){x.f.level='';x.f.start='';x.f.end='';x.f.unitStart='';x.f.unitEnd='';x.f.unit='';x.f.round='';x.f.topic='';x.f.warriorsBook='';x.f.chapter='';x.f.progress=false;x.f.graded=false;x.f.corrected=false;x.f.reason='';x.required=customCountsOriginal(x)}

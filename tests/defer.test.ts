@@ -7,6 +7,7 @@ import {
   futureDeferredDays,
   hasDeferredTargetCapacity,
   isConfirmedDeferred,
+  isDeferrableStudyItem,
   nextDeferredDay,
   requiresDeferredLimitConfirmation,
 } from '../src/study/deferDays.ts';
@@ -32,7 +33,7 @@ test('無效星期不產生延期選項', () => {
   assert.deepEqual(futureDeferredDays(7), []);
 });
 
-test('每個目標日分別限制最多三個延期項目', () => {
+test('每個目標日分別計算一般項目與再次延期的補做項目', () => {
   const fridayItems = Array.from({ length: DEFERRED_TARGET_LIMIT }, () => ({
     source: 'preset',
     required: true,
@@ -49,15 +50,22 @@ test('每個目標日分別限制最多三個延期項目', () => {
   };
   const ignoredItems = [
     { ...fridayItems[0], source: 'custom' },
-    { ...fridayItems[0], deferredCarry: true },
     { ...fridayItems[0], done: true },
   ];
-  const items = [...fridayItems, saturdayItem, ...ignoredItems];
+  const repeatedDeferredCarry = { ...fridayItems[0], deferredCarry: true };
+  const items = [...fridayItems, saturdayItem, repeatedDeferredCarry, ...ignoredItems];
 
-  assert.equal(countDeferredToDay(items, 5), 3);
+  assert.equal(countDeferredToDay(items, 5), 4);
   assert.equal(countDeferredToDay(items, 6), 1);
   assert.equal(hasDeferredTargetCapacity(items, 5), false);
   assert.equal(hasDeferredTargetCapacity(items, 6), true);
+});
+
+test('Calendar 群組子卡、Calendar 補做與延期補做都可各自再次延期', () => {
+  assert.equal(isDeferrableStudyItem({ source: 'groupedWork', required: true }), true);
+  assert.equal(isDeferrableStudyItem({ source: 'groupedWork', required: false, f: { calendarMakeup: true } }), true);
+  assert.equal(isDeferrableStudyItem({ source: 'groupedWork', required: false, deferredCarry: true }), true);
+  assert.equal(isDeferrableStudyItem({ source: 'groupedWork', required: false }), false);
 });
 
 test('編輯既有延期項目時不把自己重複計入上限', () => {
