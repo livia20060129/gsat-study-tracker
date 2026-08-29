@@ -20,10 +20,18 @@ function item(overrides: Partial<StudyItem> = {}): StudyItem {
 test('延期子卡片顯示所有實際來源日期', () => {
   const deferred = item({
     deferredCarry: true,
-    deferredOriginDates: ['2026-08-28', '2026-08-26'],
+    deferredOriginDates: ['2026-08-29', '2026-08-27', '2026-08-26', '2026-08-28'],
   });
   assert.equal(hasDeferredStudySource(deferred), true);
-  assert.equal(groupedSourceDateText(deferred, '2026-08-29'), '8/26、8/28');
+  assert.equal(groupedSourceDateText(deferred, '2026-08-29'), '8/26-8/29');
+});
+
+test('來源日期中斷時只合併各自連續的區段', () => {
+  const deferred = item({
+    deferredCarry: true,
+    deferredOriginDates: ['2026-08-26', '2026-08-28', '2026-08-29'],
+  });
+  assert.equal(groupedSourceDateText(deferred, '2026-08-29'), '8/26、8/28-8/29');
 });
 
 test('Calendar 補做子卡片使用 Calendar 來源日期', () => {
