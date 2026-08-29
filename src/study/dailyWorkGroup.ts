@@ -1,4 +1,5 @@
 import type { StudyItem } from '../types.ts';
+import { calendarFixedTemplate } from '../calendar/calendarBridge.ts';
 import { contiguousRangeClusters, numericPageRange } from './rangeMerge.ts';
 
 function text(value: unknown): string {
@@ -11,11 +12,26 @@ function stableId(items: StudyItem[], kind: string): string {
     .slice(0, 180);
 }
 
+/**
+ * Fixed study cards can arrive from the preset, Calendar, or an earlier deferral.
+ * Their visible titles have changed punctuation over time, so use the stable
+ * Calendar template id whenever possible instead of treating title text as identity.
+ */
+function workTemplateIdentity(item: StudyItem): string {
+  const declaredTemplate = text(item.f?.calendarFixedTemplate);
+  const inferredTemplate = calendarFixedTemplate(text(item.title));
+  if (declaredTemplate || inferredTemplate) return `fixed:${declaredTemplate || inferredTemplate}`;
+  return text(item.title)
+    .replace(/\s*第\s*\d+\s*回.*$/, '')
+    .replace(/\s*[｜:：]\s*/g, '｜')
+    .replace(/[＋+]/g, '＋');
+}
+
 function workIdentity(item: StudyItem): string {
   const fields = item.f || {};
   return JSON.stringify({
     type: item.type,
-    title: text(item.title).replace(/\s*第\s*\d+\s*回.*$/, ''),
+    template: workTemplateIdentity(item),
     material: text(fields.material),
     book: text(fields.book),
     itemTitle: text(fields.title),
@@ -27,7 +43,7 @@ function workIdentity(item: StudyItem): string {
 function templateIdentity(item: StudyItem): string {
   return JSON.stringify({
     type: item.type,
-    title: text(item.title).replace(/\s*第\s*\d+\s*回.*$/, ''),
+    template: workTemplateIdentity(item),
   });
 }
 

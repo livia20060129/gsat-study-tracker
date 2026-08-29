@@ -112,6 +112,28 @@ test('groups the blank Sunday math-practice template with deferred page ranges',
   assert.deepEqual([children[1].f.start, children[1].f.end], ['149', '165']);
 });
 
+test('groups math-practice across preset, Calendar, and deferred title variants', () => {
+  const original = mathPractice('sunday-original');
+  const calendar = mathPractice('calendar-range', 149, 157);
+  calendar.source = 'calendar';
+  calendar.title = '數學講義題目｜理解檢查＋錯題標記＋訂正';
+  calendar.f.calendarFixedTemplate = 'mathPractice';
+  const deferred = mathPractice('deferred-range', 158, 165, true);
+  deferred.title = '數學講義題目｜理解檢查+錯題標記+訂正';
+
+  const output = groupDailyWorkItems([original, calendar, deferred]);
+
+  assert.equal(output.length, 1);
+  const children = output[0].f.groupedWorkEntries as StudyItem[];
+  assert.equal(children.length, 2);
+  assert.equal(children[0].f.dailyWorkBlankTemplate, true);
+  assert.deepEqual([children[1].f.start, children[1].f.end], ['149', '165']);
+  assert.deepEqual(
+    (children[1].f.dailyWorkSourceItems as StudyItem[]).map(item => item.id).sort(),
+    ['calendar-range', 'deferred-range'],
+  );
+});
+
 test('preserves a Sunday grouped child checkbox after rebuilding the daily card', () => {
   const output = groupDailyWorkItems([
     mathPractice('sunday-original'),
