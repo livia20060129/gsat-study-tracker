@@ -17,10 +17,15 @@ function stableId(items: StudyItem[], kind: string): string {
  * Their visible titles have changed punctuation over time, so use the stable
  * Calendar template id whenever possible instead of treating title text as identity.
  */
-function workTemplateIdentity(item: StudyItem): string {
+function fixedTemplateIdentity(item: StudyItem): string {
   const declaredTemplate = text(item.f?.calendarFixedTemplate);
   const inferredTemplate = calendarFixedTemplate(text(item.title));
-  if (declaredTemplate || inferredTemplate) return `fixed:${declaredTemplate || inferredTemplate}`;
+  return declaredTemplate || inferredTemplate || '';
+}
+
+function workTemplateIdentity(item: StudyItem): string {
+  const fixedTemplate = fixedTemplateIdentity(item);
+  if (fixedTemplate) return `fixed:${fixedTemplate}`;
   return text(item.title)
     .replace(/\s*第\s*\d+\s*回.*$/, '')
     .replace(/\s*[｜:：]\s*/g, '｜')
@@ -207,8 +212,9 @@ function templateChildren(item: StudyItem): StudyItem[] {
 
 /**
  * A built-in daily template can be intentionally blank while Calendar or deferred
- * copies of the same work already contain concrete ranges/rounds. Keep one card,
- * but preserve the blank original and every concrete scope as separate completion units.
+ * copies of the same work already contain concrete ranges/rounds. A Calendar merge
+ * can also fill the built-in card before this pass. Keep every instance of the same
+ * fixed template in one card, but preserve distinct scopes as completion units.
  */
 function groupBlankScheduledTemplates(items: StudyItem[]): StudyItem[] {
   const buckets = new Map<string, StudyItem[]>();
@@ -224,7 +230,10 @@ function groupBlankScheduledTemplates(items: StudyItem[]): StudyItem[] {
   for (const [key, bucket] of buckets) {
     const blanks = bucket.filter(isBlankScheduledTemplate);
     const scoped = bucket.filter(item => !isBlankScheduledTemplate(item) && hasConcreteScope(item));
-    if (blanks.length && scoped.length) {
+    const sameFixedTemplate = bucket.length > 1 && bucket.some(item => Boolean(fixedTemplateIdentity(item)));
+    if (sameFixedTemplate) {
+      selectedByKey.set(key, bucket);
+    } else if (blanks.length && scoped.length) {
       const selected = new Set([...blanks, ...scoped]);
       selectedByKey.set(key, bucket.filter(item => selected.has(item)));
     }

@@ -134,6 +134,26 @@ test('groups math-practice across preset, Calendar, and deferred title variants'
   );
 });
 
+test('groups Sunday Calendar-filled math-practice with a deferred item from another book', () => {
+  const sundayCalendar = mathPractice('sun-calendar', 174, 181);
+  sundayCalendar.f.calendarFixedTemplate = 'mathPractice';
+  sundayCalendar.f.calendarMerged = true;
+  sundayCalendar.f.book = '';
+  const deferred = mathPractice('prior-deferred', 149, 165, true);
+  deferred.f.book = '1';
+
+  const output = groupDailyWorkItems([sundayCalendar, deferred]);
+
+  assert.equal(output.length, 1);
+  const children = output[0].f.groupedWorkEntries as StudyItem[];
+  assert.equal(children.length, 2);
+  assert.deepEqual(children.map(child => [child.f.start, child.f.end]), [
+    ['174', '181'],
+    ['149', '165'],
+  ]);
+  assert.deepEqual(children.map(child => child.required), [true, false]);
+});
+
 test('preserves a Sunday grouped child checkbox after rebuilding the daily card', () => {
   const output = groupDailyWorkItems([
     mathPractice('sunday-original'),
