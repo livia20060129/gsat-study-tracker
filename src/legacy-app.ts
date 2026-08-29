@@ -1377,7 +1377,6 @@ function weekdayPresets(day){
  return[
   presetDef('sun_math_practice','mathPractice','數學講義題目：理解檢查＋錯題標記＋訂正','檢查理解，整理錯因／不熟觀念並完成訂正；若錯題少，可延續講義進度。',true),
   presetDef('daily_interactive','interactiveDaily','互動題','數 A、英文、生物互動題皆由此手動新增。',true),
-  presetDef('sat_week_review','general','本週完成度與錯題整理','可依科目新增多筆整理；不設子項目完成勾選，直接記錄錯因／不熟觀念。',false),
   presetDef('sun_english_optional','extra','英文輕量閱讀','可從既有英文書目中選擇輕量閱讀內容，不要求完整整理。',false)
  ];
 }
@@ -2228,6 +2227,7 @@ function renderInteractiveFields(x){
 
 function groupedWorkLabel(entry,index){
  var f=entry&&entry.f||{},s=Number(f.start),e=Number(f.end),round=String(f.round||'').trim();
+ if(f.dailyWorkBlankTemplate)return'原訂項目';
  if(Number.isFinite(s)&&s>0&&Number.isFinite(e)&&e>=s)return s===e?'p.'+s:'p.'+s+'–'+e;
  if(round)return '第 '+round+' 回';
  return itemTitle(entry)||('子項目 '+(index+1));
@@ -2908,7 +2908,21 @@ id('mood').addEventListener('change',function(){readHeader();render();persist(fa
 ['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow','notes'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerInput)});
 id('addItemBtn').addEventListener('click',addCustom);
 id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);
-function saveCurrentRecord(){persist(true);updateSummary()}
+var saveFeedbackTimer=null;
+function setSaveButtonState(state){
+ var button=id('saveBtn');if(!button)return;
+ if(saveFeedbackTimer){clearTimeout(saveFeedbackTimer);saveFeedbackTimer=null}
+ button.dataset.state=state||'idle';
+ button.disabled=state==='saving';
+ button.setAttribute('aria-busy',state==='saving'?'true':'false');
+ button.textContent=state==='saving'?'儲存中…':state==='success'?'已儲存 ✓':state==='error'?'儲存失敗':'儲存紀錄';
+ if(state==='success'||state==='error')saveFeedbackTimer=setTimeout(function(){setSaveButtonState('idle')},state==='success'?2400:4000);
+}
+function saveCurrentRecord(){
+ var button=id('saveBtn');if(button&&button.dataset.state==='saving')return;
+ setSaveButtonState('saving');id('status').textContent='正在儲存…';
+ setTimeout(function(){var ok=persist(true);updateSummary();setSaveButtonState(ok?'success':'error')},60);
+}
 id('saveBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();saveCurrentRecord()});
 id('weekSummaryBtn').addEventListener('click',buildAndCopyWeekSummary);
 id('copyWeekBtn').addEventListener('click',copyCurrentWeekSummary);

@@ -24,6 +24,13 @@ function workIdentity(item: StudyItem): string {
   });
 }
 
+function templateIdentity(item: StudyItem): string {
+  return JSON.stringify({
+    type: item.type,
+    title: text(item.title).replace(/\s*第\s*\d+\s*回.*$/, ''),
+  });
+}
+
 function isWeekly(item: StudyItem): boolean {
   return item.f?.calendarRoute === 'week';
 }
@@ -80,7 +87,10 @@ function groupedChild(item: StudyItem, index: number): StudyItem {
     ...item,
     id: `${item.id || item.presetKey || 'item'}-daily-child-${index}`,
     calendarGroupedChild: true,
-    f: { ...(item.f || {}) },
+    f: {
+      ...(item.f || {}),
+      dailyWorkSourceItems: sourceItems(item),
+    },
   } as StudyItem;
 }
 
@@ -158,6 +168,75 @@ function groupRounds(items: StudyItem[]): StudyItem[] {
   return output;
 }
 
+function hasConcreteScope(item: StudyItem): boolean {
+  return Boolean(
+    numericPageRange(item.f)
+    || text(item.f?.round)
+    || (Array.isArray(item.f?.groupedWorkEntries) && item.f.groupedWorkEntries.length),
+  );
+}
+
+function isBlankScheduledTemplate(item: StudyItem): boolean {
+  return !isWeekly(item)
+    && item.source === 'preset'
+    && item.required
+    && !item.deferredCarry
+    && !hasConcreteScope(item);
+}
+
+function templateChildren(item: StudyItem): StudyItem[] {
+  const children = item.f?.groupedWorkEntries;
+  return Array.isArray(children) && children.length ? children : [item];
+}
+
+/**
+ * A built-in daily template can be intentionally blank while Calendar or deferred
+ * copies of the same work already contain concrete ranges/rounds. Keep one card,
+ * but preserve the blank original and every concrete scope as separate completion units.
+ */
+function groupBlankScheduledTemplates(items: StudyItem[]): StudyItem[] {
+  const buckets = new Map<string, StudyItem[]>();
+  items.forEach(item => {
+    if (isWeekly(item)) return;
+    const key = templateIdentity(item);
+    const bucket = buckets.get(key) || [];
+    bucket.push(item);
+    buckets.set(key, bucket);
+  });
+
+  const selectedByKey = new Map<string, StudyItem[]>();
+  for (const [key, bucket] of buckets) {
+    const blanks = bucket.filter(isBlankScheduledTemplate);
+    const scoped = bucket.filter(item => !isBlankScheduledTemplate(item) && hasConcreteScope(item));
+    if (blanks.length && scoped.length) {
+      const selected = new Set([...blanks, ...scoped]);
+      selectedByKey.set(key, bucket.filter(item => selected.has(item)));
+    }
+  }
+
+  const emitted = new Set<string>();
+  const output: StudyItem[] = [];
+  for (const item of items) {
+    const key = templateIdentity(item);
+    const selected = selectedByKey.get(key);
+    if (!selected || !selected.includes(item)) {
+      output.push(item);
+      continue;
+    }
+    if (emitted.has(key)) continue;
+    emitted.add(key);
+    const grouped = combinedItem(selected, 'scheduled-template');
+    grouped.f.groupedWorkEntries = selected.flatMap(templateChildren).map((entry, childIndex) => {
+      const child = groupedChild(entry, childIndex);
+      if (isBlankScheduledTemplate(entry)) child.f.dailyWorkBlankTemplate = true;
+      return child;
+    });
+    grouped.done = grouped.f.groupedWorkEntries.every(child => Boolean(child.done));
+    output.push(grouped);
+  }
+  return output;
+}
+
 /** Restores the original top-level items before Calendar/deferred reconciliation. */
 export function ungroupDailyWorkItems(items: StudyItem[]): StudyItem[] {
   return items.flatMap(item => item.f?.dailyWorkGroup ? sourceItems(item) : [item]);
@@ -170,7 +249,7 @@ export function groupDailyWorkItems(items: StudyItem[]): StudyItem[] {
     workIdentity,
     item => isWeekly(item) || Array.isArray(item.f?.groupedWorkEntries) ? null : numericPageRange(item.f),
   ).map(mergeRangeCluster);
-  return groupRounds(groupSeparatedRanges(ranged));
+  return groupBlankScheduledTemplates(groupRounds(groupSeparatedRanges(ranged)));
 }
 
 /** Keeps the hidden source records in sync with a merged card or child checkbox. */

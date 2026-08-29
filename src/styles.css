@@ -23,6 +23,8 @@ main{max-width:1050px;margin:0 auto;padding:22px 14px 60px}h1{font-size:28px;mar
 .connection-settings-toggle{display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;font-size:12px;font-weight:750;color:#334155;background:#f1f5f9;border-radius:10px;padding:6px 9px}
 .connection-quick-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;flex:0 1 auto}
 .connection-save{flex:0 0 auto;padding:7px 12px;box-shadow:0 3px 10px rgba(49,94,251,.18)}
+.connection-save[data-state="saving"]{background:#475569;cursor:wait}.connection-save[data-state="success"]{background:#047857}.connection-save[data-state="error"]{background:var(--danger)}
+.connection-save:disabled{opacity:1}
 .connection-save-feedback{min-width:0;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px}
 .connection-save-feedback:empty{display:none}
 .connection-symbol{display:inline-block;min-width:1em;font-size:11px;line-height:1;text-align:center}

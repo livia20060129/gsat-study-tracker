@@ -40,6 +40,24 @@ function round(id: string, value: number, deferredCarry = false): StudyItem {
   };
 }
 
+function mathPractice(id: string, start?: number, end?: number, deferredCarry = false): StudyItem {
+  return {
+    id,
+    type: 'mathPractice',
+    done: false,
+    minutes: '',
+    required: !deferredCarry,
+    source: 'preset',
+    presetKey: id,
+    title: '數學講義題目：理解檢查＋錯題標記＋訂正',
+    description: deferredCarry ? '延期補做' : '星期日原訂項目',
+    deferredCarry,
+    f: start && end
+      ? { material: '教學講義', book: '1', start: String(start), end: String(end) }
+      : {},
+  };
+}
+
 test('merges the actual daily mix of Calendar and deferred math into one range', () => {
   const sources = [math('current', 158, 165), math('makeup-a', 149, 165, true), math('makeup-b', 166, 173, true)];
   const output = groupDailyWorkItems(sources);
@@ -73,4 +91,31 @@ test('propagates a merged checkbox back to every hidden source record', () => {
   const sources = output[0].f.dailyWorkSourceItems as StudyItem[];
   assert.equal(output[0].done, true);
   assert.equal(sources.every(item => item.done), true);
+});
+
+test('groups the blank Sunday math-practice template with deferred page ranges', () => {
+  const sources = [
+    mathPractice('sunday-original'),
+    mathPractice('makeup-a', 149, 157, true),
+    mathPractice('makeup-b', 158, 165, true),
+  ];
+  const output = groupDailyWorkItems(sources);
+  assert.equal(output.length, 1);
+  const children = output[0].f.groupedWorkEntries as StudyItem[];
+  assert.equal(children.length, 2);
+  assert.equal(children[0].f.dailyWorkBlankTemplate, true);
+  assert.deepEqual(children.map(child => child.required), [true, false]);
+  assert.deepEqual([children[1].f.start, children[1].f.end], ['149', '165']);
+});
+
+test('preserves a Sunday grouped child checkbox after rebuilding the daily card', () => {
+  const output = groupDailyWorkItems([
+    mathPractice('sunday-original'),
+    mathPractice('makeup', 149, 157, true),
+  ]);
+  const children = output[0].f.groupedWorkEntries as StudyItem[];
+  propagateDailyWorkDone(children[1], true);
+  const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
+  const rebuiltChildren = rebuilt[0].f.groupedWorkEntries as StudyItem[];
+  assert.equal(rebuiltChildren[1].done, true);
 });
