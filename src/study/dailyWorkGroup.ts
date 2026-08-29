@@ -210,6 +210,50 @@ function templateChildren(item: StudyItem): StudyItem[] {
   return Array.isArray(children) && children.length ? children : [item];
 }
 
+function templateLeaves(item: StudyItem, visited = new Set<StudyItem>()): StudyItem[] {
+  if (!item || visited.has(item)) return [];
+  visited.add(item);
+  const children = item.f?.groupedWorkEntries;
+  if (Array.isArray(children) && children.length) {
+    return children.flatMap(child => templateLeaves(child, visited));
+  }
+  const sources = item.f?.dailyWorkSourceItems;
+  if (Array.isArray(sources) && sources.length) {
+    return sources.flatMap(source => templateLeaves(source, visited));
+  }
+  return [item];
+}
+
+/** Math-practice is intentionally a single completion card, even with many sources. */
+function mergeMathPracticeTemplate(items: StudyItem[]): StudyItem {
+  const merged = combinedItem(items, 'math-practice-template');
+  const leaves = items.flatMap(item => templateLeaves(item));
+  const ranged = leaves
+    .map(item => ({ item, range: numericPageRange(item.f) }))
+    .filter((entry): entry is { item: StudyItem; range: { start: number; end: number } } => Boolean(entry.range));
+  const scopedBase = ranged.length ? preferredBase(ranged.map(entry => entry.item)) : null;
+
+  if (scopedBase) {
+    for (const field of ['material', 'book', 'unit', 'chapter', 'reason', 'corrected', 'review', 'extended'] as const) {
+      if (!text(merged.f[field]) && scopedBase.f?.[field] !== undefined) merged.f[field] = scopedBase.f[field];
+    }
+  }
+  if (ranged.length) {
+    merged.f.start = String(Math.min(...ranged.map(entry => entry.range.start)));
+    merged.f.end = String(Math.max(...ranged.map(entry => entry.range.end)));
+  }
+
+  delete merged.f.groupedWorkEntries;
+  delete merged.f.calendarGroupedWork;
+  delete merged.f.dailyWorkBlankTemplate;
+  merged.f.dailyWorkFlatTemplate = true;
+  merged.f.dailyWorkIncludesDeferred = leaves.some(item => Boolean(item.deferredCarry)
+    || item.f?.calendarMakeup === true
+    || item.f?.dailyWorkIncludesDeferred === true);
+  merged.done = leaves.length > 0 && leaves.every(item => Boolean(item.done));
+  return merged;
+}
+
 /**
  * A built-in daily template can be intentionally blank while Calendar or deferred
  * copies of the same work already contain concrete ranges/rounds. A Calendar merge
@@ -230,8 +274,11 @@ function groupBlankScheduledTemplates(items: StudyItem[]): StudyItem[] {
   for (const [key, bucket] of buckets) {
     const blanks = bucket.filter(isBlankScheduledTemplate);
     const scoped = bucket.filter(item => !isBlankScheduledTemplate(item) && hasConcreteScope(item));
+    const mathPractice = bucket.some(item => fixedTemplateIdentity(item) === 'mathPractice');
     const sameFixedTemplate = bucket.length > 1 && bucket.some(item => Boolean(fixedTemplateIdentity(item)));
-    if (sameFixedTemplate) {
+    if (mathPractice && (bucket.length > 1 || bucket.some(item => Array.isArray(item.f?.groupedWorkEntries)))) {
+      selectedByKey.set(key, bucket);
+    } else if (sameFixedTemplate) {
       selectedByKey.set(key, bucket);
     } else if (blanks.length && scoped.length) {
       const selected = new Set([...blanks, ...scoped]);
@@ -250,6 +297,10 @@ function groupBlankScheduledTemplates(items: StudyItem[]): StudyItem[] {
     }
     if (emitted.has(key)) continue;
     emitted.add(key);
+    if (selected.some(entry => fixedTemplateIdentity(entry) === 'mathPractice')) {
+      output.push(mergeMathPracticeTemplate(selected));
+      continue;
+    }
     const grouped = combinedItem(selected, 'scheduled-template');
     grouped.f.groupedWorkEntries = selected.flatMap(templateChildren).map((entry, childIndex) => {
       const child = groupedChild(entry, childIndex);
@@ -279,12 +330,17 @@ export function groupDailyWorkItems(items: StudyItem[]): StudyItem[] {
 
 /** Keeps the hidden source records in sync with a merged card or child checkbox. */
 export function propagateDailyWorkDone(item: StudyItem, done: boolean): void {
-  item.done = done;
-  const sources = item.f?.dailyWorkSourceItems;
-  if (!Array.isArray(sources)) return;
-  sources.forEach(source => {
-    source.done = done;
-  });
+  const visited = new Set<StudyItem>();
+  const apply = (target: StudyItem): void => {
+    if (!target || visited.has(target)) return;
+    visited.add(target);
+    target.done = done;
+    const sources = target.f?.dailyWorkSourceItems;
+    if (Array.isArray(sources)) sources.forEach(apply);
+    const children = target.f?.groupedWorkEntries;
+    if (Array.isArray(children)) children.forEach(apply);
+  };
+  apply(item);
 }
 
 /** Stores a merged card's minutes on the same preferred source used when rebuilding it. */
@@ -322,7 +378,8 @@ export function propagateDailyWorkRangeField(
 
   const sources = item.f.dailyWorkSourceItems;
   if (!Array.isArray(sources) || !sources.length) return;
-  const ranged = sources
+  const leaves = sources.flatMap(source => templateLeaves(source));
+  const ranged = leaves
     .map(source => ({ source, range: numericPageRange(source.f) }))
     .filter((entry): entry is { source: StudyItem; range: { start: number; end: number } } => Boolean(entry.range));
 
@@ -362,9 +419,10 @@ export function propagateDailyWorkDeferred(
   deferred: boolean,
   targetDay?: number,
 ): void {
-  const sources = item.f?.dailyWorkSourceItems;
-  const targets = [item, ...(Array.isArray(sources) ? sources : [])];
-  for (const target of targets) {
+  const visited = new Set<StudyItem>();
+  const apply = (target: StudyItem): void => {
+    if (!target || visited.has(target)) return;
+    visited.add(target);
     target.deferred = deferred;
     if (deferred) {
       target.done = false;
@@ -372,5 +430,10 @@ export function propagateDailyWorkDeferred(
     } else {
       delete target.deferredTargetDay;
     }
-  }
+    const sources = target.f?.dailyWorkSourceItems;
+    if (Array.isArray(sources)) sources.forEach(apply);
+    const children = target.f?.groupedWorkEntries;
+    if (Array.isArray(children)) children.forEach(apply);
+  };
+  apply(item);
 }

@@ -105,11 +105,9 @@ test('groups the blank Sunday math-practice template with deferred page ranges',
   ];
   const output = groupDailyWorkItems(sources);
   assert.equal(output.length, 1);
-  const children = output[0].f.groupedWorkEntries as StudyItem[];
-  assert.equal(children.length, 2);
-  assert.equal(children[0].f.dailyWorkBlankTemplate, true);
-  assert.deepEqual(children.map(child => child.required), [true, false]);
-  assert.deepEqual([children[1].f.start, children[1].f.end], ['149', '165']);
+  assert.equal(output[0].f.groupedWorkEntries, undefined);
+  assert.deepEqual([output[0].f.start, output[0].f.end], ['149', '165']);
+  assert.equal((output[0].f.dailyWorkSourceItems as StudyItem[]).length, 3);
 });
 
 test('groups math-practice across preset, Calendar, and deferred title variants', () => {
@@ -124,13 +122,11 @@ test('groups math-practice across preset, Calendar, and deferred title variants'
   const output = groupDailyWorkItems([original, calendar, deferred]);
 
   assert.equal(output.length, 1);
-  const children = output[0].f.groupedWorkEntries as StudyItem[];
-  assert.equal(children.length, 2);
-  assert.equal(children[0].f.dailyWorkBlankTemplate, true);
-  assert.deepEqual([children[1].f.start, children[1].f.end], ['149', '165']);
+  assert.equal(output[0].f.groupedWorkEntries, undefined);
+  assert.deepEqual([output[0].f.start, output[0].f.end], ['149', '165']);
   assert.deepEqual(
-    (children[1].f.dailyWorkSourceItems as StudyItem[]).map(item => item.id).sort(),
-    ['calendar-range', 'deferred-range'],
+    (output[0].f.dailyWorkSourceItems as StudyItem[]).map(item => item.id).sort(),
+    ['calendar-range', 'deferred-range', 'sunday-original'],
   );
 });
 
@@ -145,25 +141,20 @@ test('groups Sunday Calendar-filled math-practice with a deferred item from anot
   const output = groupDailyWorkItems([sundayCalendar, deferred]);
 
   assert.equal(output.length, 1);
-  const children = output[0].f.groupedWorkEntries as StudyItem[];
-  assert.equal(children.length, 2);
-  assert.deepEqual(children.map(child => [child.f.start, child.f.end]), [
-    ['174', '181'],
-    ['149', '165'],
-  ]);
-  assert.deepEqual(children.map(child => child.required), [true, false]);
+  assert.equal(output[0].f.groupedWorkEntries, undefined);
+  assert.deepEqual([output[0].f.start, output[0].f.end], ['149', '181']);
+  assert.equal(output[0].required, true);
 });
 
-test('preserves a Sunday grouped child checkbox after rebuilding the daily card', () => {
+test('preserves the single Sunday math-practice checkbox after rebuilding the daily card', () => {
   const output = groupDailyWorkItems([
     mathPractice('sunday-original'),
     mathPractice('makeup', 149, 157, true),
   ]);
-  const children = output[0].f.groupedWorkEntries as StudyItem[];
-  propagateDailyWorkDone(children[1], true);
+  propagateDailyWorkDone(output[0], true);
   const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
-  const rebuiltChildren = rebuilt[0].f.groupedWorkEntries as StudyItem[];
-  assert.equal(rebuiltChildren[1].done, true);
+  assert.equal(rebuilt[0].done, true);
+  assert.equal((rebuilt[0].f.dailyWorkSourceItems as StudyItem[]).every(item => item.done), true);
 });
 
 test('stores merged math-study minutes on the preferred source used after rebuilding', () => {
@@ -215,16 +206,44 @@ test('restores an explicit range edit after Calendar refreshes its suggested pag
   assert.equal(item.f.end, '170');
 });
 
-test('preserves an independently deferred grouped child after rebuilding', () => {
+test('applies a confirmed deferral to the single math-practice card and all hidden sources', () => {
   const output = groupDailyWorkItems([
     mathPractice('original'),
     mathPractice('scoped', 149, 157),
   ]);
-  const child = (output[0].f.groupedWorkEntries as StudyItem[])[1];
-  propagateDailyWorkDeferred(child, true, 6);
+  propagateDailyWorkDeferred(output[0], true, 6);
   const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
-  const rebuiltChild = (rebuilt[0].f.groupedWorkEntries as StudyItem[])[1];
-  assert.equal(rebuiltChild.deferred, true);
-  assert.equal(rebuiltChild.deferredTargetDay, 6);
-  assert.equal(rebuiltChild.done, false);
+  assert.equal(rebuilt[0].deferred, true);
+  assert.equal(rebuilt[0].deferredTargetDay, 6);
+  assert.equal(rebuilt[0].done, false);
+  assert.equal(
+    (rebuilt[0].f.dailyWorkSourceItems as StudyItem[]).every(item => item.deferredTargetDay === 6),
+    true,
+  );
+});
+
+test('flattens Calendar math-practice children and preserves completion and range edits', () => {
+  const calendarParent = mathPractice('calendar-parent', 1, 5);
+  const first = mathPractice('calendar-child-1', 1, 5);
+  const second = mathPractice('calendar-child-2', 11, 15);
+  calendarParent.f.calendarFixedTemplate = 'mathPractice';
+  calendarParent.f.calendarGroupedWork = true;
+  calendarParent.f.groupedWorkEntries = [first, second];
+
+  const output = groupDailyWorkItems([calendarParent]);
+  assert.equal(output.length, 1);
+  assert.equal(output[0].f.groupedWorkEntries, undefined);
+  assert.deepEqual([output[0].f.start, output[0].f.end], ['1', '15']);
+
+  propagateDailyWorkDone(output[0], true);
+  propagateDailyWorkRangeField(output[0], 'end', '18');
+  const hiddenParent = (output[0].f.dailyWorkSourceItems as StudyItem[])[0];
+  const hiddenChildren = hiddenParent.f.groupedWorkEntries as StudyItem[];
+  assert.equal(hiddenChildren.every(child => child.done), true);
+  assert.equal(hiddenChildren[1].f.end, '18');
+
+  const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
+  assert.equal(rebuilt[0].done, true);
+  assert.equal(rebuilt[0].f.end, '18');
+  assert.equal(rebuilt[0].f.groupedWorkEntries, undefined);
 });
