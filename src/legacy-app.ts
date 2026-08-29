@@ -2909,8 +2909,7 @@ id('mood').addEventListener('change',function(){readHeader();render();persist(fa
 id('addItemBtn').addEventListener('click',addCustom);
 id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);
 function saveCurrentRecord(){persist(true);updateSummary()}
-id('saveBtn').addEventListener('click',saveCurrentRecord);
-id('topSaveBtn').addEventListener('click',saveCurrentRecord);
+id('saveBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();saveCurrentRecord()});
 id('weekSummaryBtn').addEventListener('click',buildAndCopyWeekSummary);
 id('copyWeekBtn').addEventListener('click',copyCurrentWeekSummary);
 id('importProgress').addEventListener('change',importProgressFromField);

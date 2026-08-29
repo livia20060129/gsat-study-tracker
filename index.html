@@ -15,7 +15,6 @@
  <div class="app-heading"><h1>每日讀書完成度紀錄卡</h1><div class="subtitle">每日紀錄、完成度、頁數與每週匯出</div></div>
  <div class="header-actions">
   <a class="prompt-link" href="https://livia20060129.github.io/gsat-study-tracker/gpt.prompt.html" target="_blank" rel="noopener noreferrer">排程建議 GPT Prompt</a>
-  <button id="topSaveBtn" class="primary" type="button">儲存紀錄</button>
  </div>
 </header>
 
@@ -26,7 +25,11 @@
    <span class="connection-divider" aria-hidden="true"></span>
    <span class="connection-status-item"><span class="connection-status-name">Calendar</span><span class="badge connection-badge" id="calendarStatusBadge" data-state="offline">需先登入</span></span>
   </span>
-  <span class="connection-settings-toggle">連線設定<span class="connection-symbol" aria-hidden="true"></span></span>
+  <span class="connection-quick-actions">
+   <span class="connection-save-feedback" id="status" aria-live="polite"></span>
+   <button id="saveBtn" class="primary connection-save" type="button">儲存紀錄</button>
+   <span class="connection-settings-toggle">連線設定<span class="connection-symbol" aria-hidden="true"></span></span>
+  </span>
  </summary>
  <div class="connection-settings-content">
   <section class="connection-settings-group" id="cloudPanel" aria-labelledby="cloudSettingsTitle">
@@ -134,15 +137,14 @@
 </section>
 
 <section class="panel">
- <div class="panel-head"><h2>儲存與匯出</h2><span class="badge">依日期保存</span></div>
+ <div class="panel-head"><h2>匯出與匯入</h2><span class="badge">週紀錄與資料匯入</span></div>
  <div class="content">
-  <div class="btns"><button id="saveBtn" class="primary">儲存今日紀錄</button><button id="weekSummaryBtn" class="secondary">整理本週紀錄</button></div>
+  <div class="btns"><button id="weekSummaryBtn" class="secondary">整理本週紀錄</button></div>
   <div class="field" style="margin-top:12px">
    <label for="importProgress">匯入進度</label>
    <textarea id="importProgress" placeholder="貼上單日或多日 JSON 進度資料"></textarea>
    <div class="small" style="margin-top:6px">貼上後離開欄位即匯入；Ctrl+Enter 可立即匯入。既有內容不會被空值覆蓋，已完成狀態可向前合併。</div>
   </div>
-  <div class="status" id="status"></div>
   <div id="exportBox" hidden style="margin-top:10px">
    <div class="inline" style="justify-content:space-between;align-items:center;gap:10px">
     <label for="weekSummary">本週可複製紀錄</label>
