@@ -15,6 +15,7 @@ import { decideRevisionSync, sameStudyContent, stripRecordSyncMeta } from './sto
 import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBridge';
+import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
 import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkMinutes, propagateDailyWorkRangeField, ungroupDailyWorkItems } from './study/dailyWorkGroup';
@@ -929,10 +930,27 @@ function resolveCloudMathPlan(parsed){
  Object.keys(CALENDAR_MATH_PLAN||{}).sort().forEach(function(date){var p=CALENDAR_MATH_PLAN[date];if(p&&p.title===parsed.title)matches.push(p)});
  var base=null,start=Number(parsed.startPage||0),end=Number(parsed.endPage||parsed.startPage||0),idx=Number(parsed.progressIndex||0)-1;
  if(start>0)for(var mi=0;mi<matches.length;mi++)if(Number(matches[mi].start)===start&&Number(matches[mi].end)===end){base=matches[mi];break}
- if(idx>=0&&idx<matches.length)base=matches[idx];
+ if(!base&&idx>=0&&idx<matches.length)base=matches[idx];
  if(!base&&CALENDAR_MATH_PLAN[parsed.date]&&CALENDAR_MATH_PLAN[parsed.date].title===parsed.title)base=CALENDAR_MATH_PLAN[parsed.date];
- if(!base)return null;
- var out=cloneObj(base);out.title=parsed.title;if(parsed.book)out.book=parsed.book;out.calendarEventKey=parsed.eventKey;out.calendarSourceEventId=parsed.sourceEventId;return out;
+ if(!base&&matches.length)base=matches[0];
+ var selected=prioritizeCalendarPageRanges(parsed.startPage,parsed.endPage,base?[[base.start,base.end]]:[]);
+ if(!base&&!selected.ranges.length)return null;
+ var range=selected.ranges[0],out=cloneObj(base||{unitPages:0,weekTarget:0});
+ out.title=parsed.title;if(parsed.book)out.book=parsed.book;
+ if(range){out.start=range[0];out.end=range[1];out.pages=range[1]-range[0]+1}
+ out.calendarRangeSource=selected.source;out.calendarEventKey=parsed.eventKey;out.calendarSourceEventId=parsed.sourceEventId;return out;
+}
+function resolveCloudGrammarPlan(parsed){
+ var title=String(parsed.title||'').replace(/^英文文法\s*[｜:：]\s*/,''),base=null;
+ Object.keys(CALENDAR_GRAMMAR_PLAN||{}).sort().some(function(date){
+  var p=CALENDAR_GRAMMAR_PLAN[date];if(p&&String(p.title||'')===title){base=p;return true}return false;
+ });
+ if(!base&&CALENDAR_GRAMMAR_PLAN[parsed.date]&&String(CALENDAR_GRAMMAR_PLAN[parsed.date].title||'')===title)base=CALENDAR_GRAMMAR_PLAN[parsed.date];
+ var selected=prioritizeCalendarPageRanges(parsed.startPage,parsed.endPage,base&&base.start?[[base.start,base.end||base.start]]:[]);
+ if(!base&&!selected.ranges.length)return null;
+ var out=cloneObj(base||{}),range=selected.ranges[0];out.title=title;
+ if(range){out.start=range[0];out.end=range[1];out.rangeText=range[0]===range[1]?'p.'+range[0]:'p.'+range[0]+'–'+range[1];out.rangeType='range'}
+ out.focus=parsed.focus||out.focus||'';out.calendarRangeSource=selected.source;return out;
 }
 function buildCalendarRuntime(rows){
  calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalRecommendedByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
@@ -942,7 +960,13 @@ function buildCalendarRuntime(rows){
   if(parsed.kind==='math'&&!parsed.makeup){
    var mp=resolveCloudMathPlan(parsed);if(mp)cloudMathPlanByDate[d]=mp;
   }else if(parsed.kind==='natural'){
-   var nr=naturalRecommendationByTopic(parsed.topic);if(nr){nr.subject=parsed.subject;cloudNaturalRecommendedByDate[d]=nr}
+   var nr=naturalRecommendationByTopic(parsed.topic),selectedNatural=prioritizeCalendarPageRanges(parsed.startPage,parsed.endPage,nr&&nr.ranges);
+   if(nr||selectedNatural.ranges.length){
+    nr=cloneObj(nr||{});nr.subject=parsed.subject;nr.label=parsed.topic;
+    nr.material=parsed.material||nr.material||'123日的淬鍊';nr.ranges=selectedNatural.ranges;nr.calendarRangeSource=selectedNatural.source;
+    if(selectedNatural.source==='calendar')nr.basis='Google Calendar 明確頁碼範圍。';
+    cloudNaturalRecommendedByDate[d]=nr;
+   }
   }else if(parsed.kind==='naturalIntegration'){
    cloudNaturalIntegrationDetailsByDate[d]={review:parsed.review,pages:parsed.pages,output:parsed.output,minimum:parsed.minimum,time:parsed.time};
    if(parsed.pageItems&&parsed.pageItems.length)cloudNaturalIntegrationItemsByDate[d]=parsed.pageItems.map(function(z){return{subject:z.subject,ranges:[[z.start,z.end]]}});
@@ -1297,8 +1321,9 @@ function cloudCalendarDefsForDate(date){
    out.push(presetDef('cal_writing_'+p.round+'_'+token,'extra','英文｜英文寫作測驗 第 '+p.round+' 回','Google Calendar API：'+p.title,true,{title:'英文寫作測驗',round:String(p.round),calendarFocus:p.focus||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='grammar'){
    var gt=String(p.title||'').replace(/^英文文法｜/,'');
-   var rt=p.startPage?(p.endPage&&p.endPage!==p.startPage?'p.'+p.startPage+'–'+p.endPage:'p.'+p.startPage):'依 Calendar 說明';
-   out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+(p.focus?'｜'+p.focus:''),true,{title:'英文文法總複習講義',start:p.startPage==null?'':String(p.startPage),end:p.endPage==null?'':String(p.endPage),calendarGrammarTitle:gt,calendarRangeText:rt,calendarRangeType:p.startPage?'pages':'calendar',calendarFocus:p.focus||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+   var gp=resolveCloudGrammarPlan(p),gs=gp&&gp.start!=null?gp.start:p.startPage,ge=gp&&gp.end!=null?gp.end:p.endPage;
+   var rt=gp&&gp.rangeText?gp.rangeText:(gs?(ge&&ge!==gs?'p.'+gs+'–'+ge:'p.'+gs):'依 Calendar 說明');
+   out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+((p.focus||(gp&&gp.focus))?'｜'+(p.focus||(gp&&gp.focus)):''),true,{title:'英文文法總複習講義',start:gs==null?'':String(gs),end:ge==null?'':String(ge),calendarGrammarTitle:gt,calendarRangeText:rt,calendarRangeType:gp&&gp.rangeType?gp.rangeType:(gs?'pages':'calendar'),calendarRangeSource:gp&&gp.calendarRangeSource||null,calendarFocus:p.focus||(gp&&gp.focus)||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='essentialGrammar'){
    (p.units||[]).forEach(function(unit){out.push(presetDef('cal_essential_grammar_'+unit+'_'+token,'extra','英文｜Essential Grammar in Use｜Unit '+unit,'Google Calendar API：'+p.title+'｜Unit '+unit,true,{title:'Essential Grammar in Use',unit:String(unit),unitStart:String(unit),unitEnd:String(unit),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
   }else if(p.kind==='math'&&p.makeup){
@@ -1314,6 +1339,7 @@ function cloudCalendarDefsForDate(date){
     var ranges=calendarNaturalRanges(nr),nrs=ranges.map(function(r){return Number(r[0])===Number(r[1])?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');
     if(nrs)nd+='｜建議：'+(nr.material||'123日的淬鍊')+' '+nrs;
     if(nr.material)ff.material=nr.material;
+    if(nr.calendarRangeSource)ff.calendarRangeSource=nr.calendarRangeSource;
     if(ranges.length===1){ff.start=String(ranges[0][0]);ff.end=String(ranges[0][1])}
    }
    out.push(presetDef('cal_natural_'+token,'scienceReview','自然',nd,true,ff));
@@ -1343,7 +1369,14 @@ function applyCalendarMathPlan(rec,date){
  if(!x.f)x.f={};
  var changed=false,blank=!x.f.material&&!x.f.book&&!x.f.start&&!x.f.end;
  if(blank){x.f.material='教學講義';x.f.book=p.book;x.f.start=String(p.start);x.f.end=String(p.end);changed=true}
- var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedBook:p.book};
+ var userFields=x.f.dailyWorkUserFields&&typeof x.f.dailyWorkUserFields==='object'?x.f.dailyWorkUserFields:{};
+ if(p.calendarRangeSource==='calendar'){
+  if(!Object.prototype.hasOwnProperty.call(userFields,'start')&&x.f.start!==String(p.start)){x.f.start=String(p.start);changed=true}
+  if(!Object.prototype.hasOwnProperty.call(userFields,'end')&&x.f.end!==String(p.end)){x.f.end=String(p.end);changed=true}
+  if(!x.f.material){x.f.material='教學講義';changed=true}
+  if(p.book&&!x.f.book){x.f.book=p.book;changed=true}
+ }
+ var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedBook:p.book,calendarRangeSource:p.calendarRangeSource||'unit'};
  for(var k in meta)if(Object.prototype.hasOwnProperty.call(meta,k)&&x.f[k]!==meta[k]){x.f[k]=meta[k];changed=true}
  applyMathAuto(x.f);
  return changed;
@@ -1608,12 +1641,14 @@ function ensureDailyPresets(rec,date){
     delete x.f.groupedWorkEntries;delete x.f.calendarGroupedWork;changed=true;
    }
    if(x.f.calendarMerged&&!(d.f&&d.f.calendarMerged)){
-    ['calendarMerged','calendarMergedRange','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup','calendarSemanticKey','calendarSourceDate','calendarSourceDates','calendarGroupedWork'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
+    ['calendarMerged','calendarMergedRange','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup','calendarSemanticKey','calendarSourceDate','calendarSourceDates','calendarGroupedWork','calendarRangeSource'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
   }
   if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|math|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
    var df=d.f||{};
    if(/^cal_grammar_/.test(d.key||'')){
     var grammarPagesBlank=!x.f.start&&!x.f.end;
+    var grammarUserFields=x.f.dailyWorkUserFields&&typeof x.f.dailyWorkUserFields==='object'?x.f.dailyWorkUserFields:{};
+    var grammarExplicitCalendar=df.calendarRangeSource==='calendar';
      for(var dk in df)if(Object.prototype.hasOwnProperty.call(df,dk)){
       if(dk==='groupedWorkEntries'){
        var grammarGrouped=reconcileGroupedWorkEntries(df[dk],x.f[dk],x);
@@ -1621,7 +1656,8 @@ function ensureDailyPresets(rec,date){
        continue
       }
      if(dk==='start'||dk==='end'){
-      if(grammarPagesBlank&&x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
+      var grammarHasUserOverride=Object.prototype.hasOwnProperty.call(grammarUserFields,dk);
+      if((grammarPagesBlank||grammarExplicitCalendar)&&!grammarHasUserOverride&&x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
      }else if(x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
     }
    }else{

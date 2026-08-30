@@ -168,6 +168,23 @@ test('recognizes a deferred math event from a standard title and note-only metad
   }
 });
 
+test('reads explicit Calendar page ranges for every natural-science subject', () => {
+  for (const subject of ['物理', '化學', '生物', '地科'] as const) {
+    const parsed = parseCalendarTask(row(
+      `${subject}｜牛頓定律、摩擦與圓周運動`,
+      '【教材】123日的淬鍊　【頁碼範圍】80–88頁',
+      'natural',
+    ));
+    assert.equal(parsed.kind, 'natural', subject);
+    if (parsed.kind === 'natural') {
+      assert.equal(parsed.subject, subject);
+      assert.equal(parsed.material, '123日的淬鍊');
+      assert.equal(parsed.startPage, 80);
+      assert.equal(parsed.endPage, 88);
+    }
+  }
+});
+
 test('recognizes deferred Gujin and writing from standard titles and note-only source dates', () => {
   const gujin = parseCalendarTask(row(
     '古今悅讀一百｜第 10 回＋訂正',

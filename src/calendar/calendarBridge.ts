@@ -41,7 +41,14 @@ export type ParsedCalendarTask =
       startPage: number | null;
       endPage: number | null;
     })
-  | (ParsedBase & { kind: 'natural'; subject: '物理' | '化學' | '生物' | '地科'; topic: string })
+  | (ParsedBase & {
+      kind: 'natural';
+      subject: '物理' | '化學' | '生物' | '地科';
+      topic: string;
+      material: string;
+      startPage: number | null;
+      endPage: number | null;
+    })
   | (ParsedBase & {
       kind: 'naturalIntegration';
       topic: string;
@@ -203,6 +210,24 @@ function pageRange(value: string): [number | null, number | null] {
   return [Number.isFinite(start) ? start : null, Number.isFinite(end) ? end : null];
 }
 
+function naturalPageRange(value: string): [number | null, number | null] {
+  const direct = pageRange(value);
+  if (direct[0] !== null) return direct;
+  const labelled = value.match(
+    /(?:頁碼(?:範圍)?|範圍)\s*(?:】|\])?\s*[:：]?[^\n\d]{0,40}(\d+)\s*(?:[–—~\-至到]\s*(\d+))?\s*頁?/i,
+  );
+  if (!labelled) return [null, null];
+  const start = Number(labelled[1]);
+  const end = Number(labelled[2] ?? labelled[1]);
+  return Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start
+    ? [start, end]
+    : [null, null];
+}
+
+function naturalMaterial(value: string): string {
+  return ['123日的淬鍊', '好考點', '新關鍵', '大滿貫'].find(material => value.includes(material)) ?? '';
+}
+
 function field(description: string, label: string): string {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = description.match(new RegExp(`${escaped}[:：]\\s*([^\\n]+)`));
@@ -310,11 +335,16 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const natural = title.match(/^(物理|化學|生物|地科)(?:\s*[｜:：]\s*|\s+)(.+)$/);
   if (row.category === 'natural' || natural) {
     if (natural) {
+      const pageSource = `${title}\n${description}`;
+      const [startPage, endPage] = naturalPageRange(pageSource);
       return {
         ...base,
         kind: 'natural',
         subject: natural[1] as '物理' | '化學' | '生物' | '地科',
         topic: normalized(natural[2]),
+        material: naturalMaterial(pageSource),
+        startPage,
+        endPage,
       };
     }
   }
