@@ -45,8 +45,13 @@ function compressDates(rawDates: string[], fallbackDate: string): string {
   return [...segments, ...unparsed].join('、') || '—';
 }
 
-/** Collects the original dates represented by a Calendar/deferred aggregate. */
-export function groupedSourceDateText(item: StudyItem, fallbackDate = ''): string {
+function normalizedDateKey(value: unknown, currentDate: string): string {
+  const raw = String(value ?? '').trim();
+  const year = Number(currentDate.match(/^(\d{4})[-/]/)?.[1] || 2000);
+  return parseDate(raw, year)?.key || raw;
+}
+
+function sourceDates(item: StudyItem): string[] {
   const dates = new Set<string>();
   const visited = new Set<StudyItem>();
   const add = (value: unknown): void => {
@@ -68,8 +73,14 @@ export function groupedSourceDateText(item: StudyItem, fallbackDate = ''): strin
     if (Array.isArray(children)) children.forEach(visit);
   };
   visit(item);
-  if (!dates.size) add(fallbackDate);
-  return compressDates([...dates], fallbackDate);
+  return [...dates];
+}
+
+/** Collects the original dates represented by a Calendar/deferred aggregate. */
+export function groupedSourceDateText(item: StudyItem, fallbackDate = ''): string {
+  const dates = sourceDates(item);
+  if (!dates.length && fallbackDate) dates.push(fallbackDate);
+  return compressDates(dates, fallbackDate);
 }
 
 /** True when a child includes Tracker deferral or Calendar makeup work. */
@@ -86,4 +97,12 @@ export function hasDeferredStudySource(item: StudyItem): boolean {
     return Array.isArray(children) && children.some(visit);
   };
   return visit(item);
+}
+
+/** Shows source dates only for deferred/makeup work or when the source is not the displayed day. */
+export function shouldShowSourceDate(item: StudyItem, currentDate: string): boolean {
+  if (hasDeferredStudySource(item)) return true;
+  const currentKey = normalizedDateKey(currentDate, currentDate);
+  if (!currentKey) return false;
+  return sourceDates(item).some(date => normalizedDateKey(date, currentDate) !== currentKey);
 }

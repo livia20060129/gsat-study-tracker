@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { groupedSourceDateText, hasDeferredStudySource } from '../src/study/sourceDate.ts';
+import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from '../src/study/sourceDate.ts';
 import type { StudyItem } from '../src/types.ts';
 
 function item(overrides: Partial<StudyItem> = {}): StudyItem {
@@ -48,4 +48,16 @@ test('合併子卡片會從隱藏的延期來源取得日期', () => {
   });
   assert.equal(hasDeferredStudySource(aggregate), true);
   assert.equal(groupedSourceDateText(aggregate, '2026-08-29'), '8/27');
+});
+
+test('當日原訂 Calendar 項目不顯示來源日期', () => {
+  const sameDay = item({ f: { calendarSourceDate: '8/31', calendarMakeup: false } });
+  assert.equal(shouldShowSourceDate(sameDay, '2026-08-31'), false);
+});
+
+test('非當日來源或延期補做才顯示來源日期', () => {
+  const otherDay = item({ f: { calendarSourceDate: '2026-08-30', calendarMakeup: false } });
+  const deferredSameDay = item({ deferred: true, f: { calendarSourceDate: '2026-08-31' } });
+  assert.equal(shouldShowSourceDate(otherDay, '2026-08-31'), true);
+  assert.equal(shouldShowSourceDate(deferredSameDay, '2026-08-31'), true);
 });

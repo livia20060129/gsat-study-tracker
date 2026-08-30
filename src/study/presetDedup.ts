@@ -61,7 +61,7 @@ export function presetDefinitionSemanticKey(definition: PresetDefinitionLike): s
   const meaningfulKeys = [
     'title', 'round', 'unit', 'unitStart', 'unitEnd', 'start', 'end', 'subject', 'kind',
     'calendarFixedTemplate', 'calendarOriginalTitle', 'calendarRoute', 'calendarMakeup',
-    'calendarGrammarTitle', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
+    'calendarGrammarTitle', 'calendarUnitProgress', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
     'calendarFocus', 'calendarNaturalIntegration', 'calendarSourceDate',
     'calendarGroupedWork', 'groupedWorkEntries',
   ];

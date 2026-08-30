@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   calendarDescriptionText,
+  calendarStructuredNote,
   parseCalendarTask,
   type CalendarTaskRow,
 } from '../src/calendar/calendarBridge.ts';
@@ -172,13 +173,13 @@ test('reads explicit Calendar page ranges for every natural-science subject', ()
   for (const subject of ['物理', '化學', '生物', '地科'] as const) {
     const parsed = parseCalendarTask(row(
       `${subject}｜牛頓定律、摩擦與圓周運動`,
-      '【教材】123日的淬鍊　【頁碼範圍】80–88頁',
+      '【頁碼範圍】80–88頁\n【單元進度】／\n【重點】牛頓定律\n【來源日期】8/31\n【識別碼】natural-01',
       'natural',
     ));
     assert.equal(parsed.kind, 'natural', subject);
     if (parsed.kind === 'natural') {
       assert.equal(parsed.subject, subject);
-      assert.equal(parsed.material, '123日的淬鍊');
+      assert.equal(parsed.material, '');
       assert.equal(parsed.startPage, 80);
       assert.equal(parsed.endPage, 88);
     }
@@ -215,4 +216,132 @@ test('converts Calendar rich text to readable plain text', () => {
     calendarDescriptionText('<p>第一行&nbsp;&amp;內容</p><p>第二行<br>第三行</p>'),
     '第一行 &內容\n第二行\n第三行',
   );
+});
+
+test('reads every field from the standardized Calendar note', () => {
+  const note = calendarStructuredNote(`
+【冊別】2＋4A
+【頁碼範圍】p.174–181
+【單元進度】／
+【重點】多項式函數與運算
+【來源日期】8/26
+【識別碼】math-polynomial-01
+  `);
+
+  assert.deepEqual(note, {
+    book: '2＋4A',
+    pageRange: 'p.174–181',
+    unitProgress: '',
+    focus: '多項式函數與運算',
+    sourceDate: '8/26',
+    identifier: 'math-polynomial-01',
+    hasStandardFields: true,
+  });
+});
+
+test('standard page range wins and unit progress is ignored when both are present', () => {
+  const parsed = parseCalendarTask(row(
+    '2＋4A｜多項式函數',
+    `【冊別】2＋4A
+【頁碼範圍】174–181
+【單元進度】3/11
+【重點】備註中的其他數字 p.999 不得干擾
+【來源日期】8/26
+【識別碼】math-polynomial-01`,
+    'math',
+  ));
+
+  assert.equal(parsed.kind, 'math');
+  assert.equal(parsed.identifier, 'math-polynomial-01');
+  assert.equal(parsed.sourceDate, '8/26');
+  assert.equal(parsed.makeup, true);
+  if (parsed.kind === 'math') {
+    assert.equal(parsed.book, '2＋4A');
+    assert.equal(parsed.startPage, 174);
+    assert.equal(parsed.endPage, 181);
+    assert.equal(parsed.progressIndex, null);
+    assert.equal(parsed.progressTotal, null);
+  }
+});
+
+test('uses unit progress only when the standardized page-range field is empty', () => {
+  const parsed = parseCalendarTask(row(
+    '1｜多項式函數',
+    `【冊別】1
+【頁碼範圍】／
+【單元進度】3/11
+【重點】自由文字 p.999 不得被當成頁碼
+【來源日期】8/31
+【識別碼】math-unit-progress-03`,
+    'math',
+  ));
+
+  assert.equal(parsed.kind, 'math');
+  assert.equal(parsed.makeup, undefined);
+  if (parsed.kind === 'math') {
+    assert.equal(parsed.title, '1｜多項式函數');
+    assert.equal(parsed.startPage, null);
+    assert.equal(parsed.endPage, null);
+    assert.equal(parsed.progressIndex, 3);
+    assert.equal(parsed.progressTotal, 11);
+  }
+});
+
+test('standardized natural-science notes keep the unit name in the title', () => {
+  const parsed = parseCalendarTask(row(
+    '物理｜牛頓定律、摩擦與圓周運動',
+    `【頁碼範圍】80–88
+【單元進度】／
+【重點】自由文字 p.999 不得干擾
+【來源日期】8/31
+【識別碼】physics-newton-01`,
+    'natural',
+  ));
+
+  assert.equal(parsed.kind, 'natural');
+  if (parsed.kind === 'natural') {
+    assert.equal(parsed.topic, '牛頓定律、摩擦與圓周運動');
+    assert.equal(parsed.startPage, 80);
+    assert.equal(parsed.endPage, 88);
+  }
+});
+
+test('standardized page ranges apply to English grammar and fixed page templates', () => {
+  const description = `【頁碼範圍】20–25
+【單元進度】／
+【重點】關係詞
+【來源日期】8/31
+【識別碼】page-template-01`;
+  const grammar = parseCalendarTask(row('英文文法｜關係詞', description, 'grammar'));
+  const fixed = parseCalendarTask(row('數學講義：進度', description));
+
+  assert.equal(grammar.kind, 'grammar');
+  if (grammar.kind === 'grammar') {
+    assert.equal(grammar.startPage, 20);
+    assert.equal(grammar.endPage, 25);
+    assert.equal(grammar.focus, '關係詞');
+  }
+  assert.equal(fixed.kind, 'fixedTemplate');
+  if (fixed.kind === 'fixedTemplate') {
+    assert.equal(fixed.startPage, 20);
+    assert.equal(fixed.endPage, 25);
+  }
+});
+
+test('non-math standardized notes may omit both book and focus fields', () => {
+  const parsed = parseCalendarTask(row(
+    '英文文法｜Ch.3 被動語態',
+    `【頁碼範圍】28–44
+【單元進度】／
+【來源日期】8/31
+【識別碼】grammar-passive-01`,
+    'grammar',
+  ));
+
+  assert.equal(parsed.kind, 'grammar');
+  if (parsed.kind === 'grammar') {
+    assert.equal(parsed.startPage, 28);
+    assert.equal(parsed.endPage, 44);
+    assert.equal(parsed.focus, '');
+  }
 });

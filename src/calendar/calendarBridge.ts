@@ -13,12 +13,25 @@ export interface CalendarTaskRow {
 interface ParsedBase {
   eventKey: string;
   sourceEventId: string;
+  identifier?: string;
   date: string;
   title: string;
   description: string;
   route?: 'today' | 'week';
   makeup?: boolean;
   sourceDate?: string;
+  unitProgress?: string;
+  standardNote?: boolean;
+}
+
+export interface CalendarStructuredNote {
+  book: string;
+  pageRange: string;
+  unitProgress: string;
+  focus: string;
+  sourceDate: string;
+  identifier: string;
+  hasStandardFields: boolean;
 }
 
 export type ParsedCalendarTask =
@@ -210,6 +223,18 @@ function pageRange(value: string): [number | null, number | null] {
   return [Number.isFinite(start) ? start : null, Number.isFinite(end) ? end : null];
 }
 
+function structuredPageRange(value: string): [number | null, number | null] {
+  const text = normalized(value);
+  if (!text || /^(?:[／/]|無|不適用|none)$/i.test(text)) return [null, null];
+  const match = text.match(/(?:p(?:age)?\.?\s*)?(\d+)\s*(?:[–—~\-至到]\s*(\d+))?\s*(?:頁)?/i);
+  if (!match) return [null, null];
+  const start = Number(match[1]);
+  const end = Number(match[2] ?? match[1]);
+  return Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start
+    ? [start, end]
+    : [null, null];
+}
+
 function naturalPageRange(value: string): [number | null, number | null] {
   const direct = pageRange(value);
   if (direct[0] !== null) return direct;
@@ -238,6 +263,43 @@ function bracketSection(description: string, label: string): string {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = description.match(new RegExp(`【${escaped}】([\\s\\S]*?)(?=\\n?【|$)`));
   return match ? normalized(match[1]) : '';
+}
+
+function structuredValue(value: string): string {
+  const text = normalized(value);
+  return /^(?:[／/]|無|不適用|none)$/i.test(text) ? '' : text;
+}
+
+/** Reads only the agreed labelled fields from a standardized Calendar note. */
+export function calendarStructuredNote(description: string): CalendarStructuredNote {
+  const text = calendarDescriptionText(description ?? '');
+  const labels = ['冊別', '頁碼範圍', '單元進度', '重點', '來源日期', '識別碼'];
+  return {
+    book: structuredValue(bracketSection(text, '冊別')),
+    pageRange: structuredValue(bracketSection(text, '頁碼範圍')),
+    unitProgress: structuredValue(bracketSection(text, '單元進度')),
+    focus: structuredValue(bracketSection(text, '重點')),
+    sourceDate: structuredValue(bracketSection(text, '來源日期')),
+    identifier: structuredValue(bracketSection(text, '識別碼')),
+    hasStandardFields: labels.some(label => text.includes(`【${label}】`)),
+  };
+}
+
+function progressFraction(value: string): [number | null, number | null] {
+  const match = value.match(/(?:第\s*)?(\d+)\s*[／/]\s*(\d+)/);
+  if (!match) return [null, null];
+  const current = Number(match[1]);
+  const total = Number(match[2]);
+  return Number.isInteger(current) && Number.isInteger(total) && current > 0 && total >= current
+    ? [current, total]
+    : [null, null];
+}
+
+function sourceDateDiffersFromEvent(sourceDate: string, eventDate: string): boolean {
+  const source = sourceDate.match(/(?:\d{4}-)?(\d{1,2})[\/-](\d{1,2})/);
+  const event = eventDate.match(/\d{4}-(\d{1,2})-(\d{1,2})/);
+  if (!source || !event) return false;
+  return Number(source[1]) !== Number(event[1]) || Number(source[2]) !== Number(event[2]);
 }
 
 function focusText(title: string, description: string): string {
@@ -271,8 +333,11 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const makeupPrefix = routedTitle.match(/^(補做項目|補做)\s*[｜:：]\s*(.+)$/);
   const title = normalized(makeupPrefix?.[2] ?? routedTitle);
   const description = calendarDescriptionText(row.description ?? '');
+  const note = calendarStructuredNote(description);
+  const structuredSourceDate = note.sourceDate;
   const deferredSource = /[（(]\s*原(?:定|訂)?\s*\d{1,2}\s*\/\s*\d{1,2}\s*[）)]/i.test(title)
-    || /(?:【|\[)\s*延期來源\s*(?:】|\])/.test(description);
+    || /(?:【|\[)\s*延期來源\s*(?:】|\])/.test(description)
+    || sourceDateDiffersFromEvent(structuredSourceDate, row.event_date);
   const makeup = Boolean(makeupPrefix)
     || /補做(?:項目)?\s*(?:\d|[｜:：]|$)/.test(title)
     || /(?:^|[｜＋+])\s*補(?:做)?\s*\d{1,2}\s*\/\s*\d{1,2}/.test(title)
@@ -285,26 +350,36 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const base: ParsedBase = {
     eventKey: row.event_key,
     sourceEventId: row.source_event_id,
+    ...(note.identifier ? { identifier: note.identifier } : {}),
     date: row.event_date,
     title,
     description,
     ...(route ? { route } : {}),
     ...(makeup ? { makeup: true } : {}),
-    ...(sourceDateFrom(title, description) ? { sourceDate: sourceDateFrom(title, description) } : {}),
+    ...(note.unitProgress ? { unitProgress: note.unitProgress } : {}),
+    ...(note.hasStandardFields ? { standardNote: true } : {}),
+    ...((structuredSourceDate || sourceDateFrom(title, description))
+      ? { sourceDate: structuredSourceDate || sourceDateFrom(title, description) }
+      : {}),
   };
 
   const parsedMathHeading = mathHeading(title, description);
   if (row.category === 'math' || parsedMathHeading) {
-    const progress = description.match(/(?:【|\[)?\s*單元進度\s*(?:】|\])?\s*[:：]?\s*(\d+)\s*\/\s*(\d+)/);
+    const legacyProgress = description.match(/(?:【|\[)?\s*單元進度\s*(?:】|\])?\s*[:：]?\s*(\d+)\s*\/\s*(\d+)/);
+    const [structuredProgress, structuredTotal] = note.pageRange
+      ? [null, null]
+      : progressFraction(note.unitProgress);
     const bookMatch = description.match(/冊別[:：]\s*([^\s]+)/);
-    const [startPage, endPage] = pageRange(`${title}\n${description}`);
+    const [startPage, endPage] = note.hasStandardFields
+      ? structuredPageRange(note.pageRange)
+      : pageRange(`${title}\n${description}`);
     return {
       ...base,
       title: parsedMathHeading?.title ?? withoutOriginalDate(title),
       kind: 'math',
-      book: parsedMathHeading?.book ?? normalized(bookMatch?.[1] ?? title.split('｜')[0] ?? ''),
-      progressIndex: progress ? Number(progress[1]) : null,
-      progressTotal: progress ? Number(progress[2]) : null,
+      book: canonicalMathBook(note.book || parsedMathHeading?.book || normalized(bookMatch?.[1] ?? title.split('｜')[0] ?? '')),
+      progressIndex: structuredProgress ?? (note.hasStandardFields ? null : (legacyProgress ? Number(legacyProgress[1]) : null)),
+      progressTotal: structuredTotal ?? (note.hasStandardFields ? null : (legacyProgress ? Number(legacyProgress[2]) : null)),
       startPage,
       endPage,
     };
@@ -319,8 +394,16 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   }
 
   if (row.category === 'grammar' || /^英文文法(?:\s*[｜:：]\s*|\s+)/.test(title)) {
-    const [startPage, endPage] = pageRange(`${title}\n${description}`);
-    return { ...base, kind: 'grammar', startPage, endPage, focus: field(description, '重點') };
+    const [startPage, endPage] = note.hasStandardFields
+      ? structuredPageRange(note.pageRange)
+      : pageRange(`${title}\n${description}`);
+    return {
+      ...base,
+      kind: 'grammar',
+      startPage,
+      endPage,
+      focus: note.focus || (note.hasStandardFields ? '' : field(description, '重點')),
+    };
   }
 
   if (row.category === 'essentialGrammar' || /Essential Grammar in Use/i.test(title)) {
@@ -329,20 +412,28 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
 
   if (row.category === 'writing' || /^英文寫作測驗(?:\s*[｜:：]\s*|\s+)第/.test(title)) {
     const rounds = roundsFromTitle(title);
-    return { ...base, title: withoutOriginalDate(title), kind: 'writing', round: rounds[0] ?? null, focus: focusText(title, description) };
+    return {
+      ...base,
+      title: withoutOriginalDate(title),
+      kind: 'writing',
+      round: rounds[0] ?? null,
+      focus: note.focus || (note.hasStandardFields ? '' : focusText(title, description)),
+    };
   }
 
   const natural = title.match(/^(物理|化學|生物|地科)(?:\s*[｜:：]\s*|\s+)(.+)$/);
   if (row.category === 'natural' || natural) {
     if (natural) {
       const pageSource = `${title}\n${description}`;
-      const [startPage, endPage] = naturalPageRange(pageSource);
+      const [startPage, endPage] = note.hasStandardFields
+        ? structuredPageRange(note.pageRange)
+        : naturalPageRange(pageSource);
       return {
         ...base,
         kind: 'natural',
         subject: natural[1] as '物理' | '化學' | '生物' | '地科',
         topic: normalized(natural[2]),
-        material: naturalMaterial(pageSource),
+        material: note.hasStandardFields ? '' : naturalMaterial(pageSource),
         startPage,
         endPage,
       };
@@ -365,7 +456,9 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
 
   const fixedTemplate = calendarFixedTemplate(title);
   if (fixedTemplate) {
-    const [startPage, endPage] = pageRange(`${title}\n${description}`);
+    const [startPage, endPage] = note.hasStandardFields
+      ? structuredPageRange(note.pageRange)
+      : pageRange(`${title}\n${description}`);
     return { ...base, kind: 'fixedTemplate', template: fixedTemplate, startPage, endPage };
   }
 

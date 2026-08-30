@@ -16,6 +16,8 @@ import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
+import { grammarScheduleSummary } from './calendar/scheduleSummary';
+import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
 import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkMinutes, propagateDailyWorkRangeField, ungroupDailyWorkItems } from './study/dailyWorkGroup';
@@ -23,7 +25,7 @@ import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCa
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
 import { groupStudyItemsBySubject } from './study/subjectOrder';
-import { groupedSourceDateText, hasDeferredStudySource } from './study/sourceDate';
+import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -941,16 +943,13 @@ function resolveCloudMathPlan(parsed){
  out.calendarRangeSource=selected.source;out.calendarEventKey=parsed.eventKey;out.calendarSourceEventId=parsed.sourceEventId;return out;
 }
 function resolveCloudGrammarPlan(parsed){
- var title=String(parsed.title||'').replace(/^英文文法\s*[｜:：]\s*/,''),base=null;
- Object.keys(CALENDAR_GRAMMAR_PLAN||{}).sort().some(function(date){
-  var p=CALENDAR_GRAMMAR_PLAN[date];if(p&&String(p.title||'')===title){base=p;return true}return false;
- });
- if(!base&&CALENDAR_GRAMMAR_PLAN[parsed.date]&&String(CALENDAR_GRAMMAR_PLAN[parsed.date].title||'')===title)base=CALENDAR_GRAMMAR_PLAN[parsed.date];
+ var title=String(parsed.title||'').replace(/^英文文法\s*[｜:：]\s*/,''),plans=Object.keys(CALENDAR_GRAMMAR_PLAN||{}).sort().map(function(date){return CALENDAR_GRAMMAR_PLAN[date]}).filter(Boolean);
+ var base=selectGrammarPlan(title,parsed.unitProgress,parsed.startPage,parsed.endPage,plans);
  var selected=prioritizeCalendarPageRanges(parsed.startPage,parsed.endPage,base&&base.start?[[base.start,base.end||base.start]]:[]);
  if(!base&&!selected.ranges.length)return null;
  var out=cloneObj(base||{}),range=selected.ranges[0];out.title=title;
  if(range){out.start=range[0];out.end=range[1];out.rangeText=range[0]===range[1]?'p.'+range[0]:'p.'+range[0]+'–'+range[1];out.rangeType='range'}
- out.focus=parsed.focus||out.focus||'';out.calendarRangeSource=selected.source;return out;
+ out.displayTitle=normalizedGrammarUnitTitle(title)||title;out.focus=parsed.standardNote?(parsed.focus||''):(parsed.focus||out.focus||'');out.calendarRangeSource=selected.source;return out;
 }
 function buildCalendarRuntime(rows){
  calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalRecommendedByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
@@ -1303,6 +1302,12 @@ function hardcodedCalendarDefsForDate(date){
  return a;
 }
 function calendarEventToken(value){return String(value||'event').replace(/[^A-Za-z0-9_-]/g,'_').slice(0,80)}
+function calendarIdentifierToken(value){
+ var raw=String(value||'item'),hash=2166136261;
+ for(var i=0;i<raw.length;i++){hash^=raw.charCodeAt(i);hash=Math.imul(hash,16777619)}
+ var readable=raw.replace(/[^A-Za-z0-9_-]/g,'_').replace(/^_+|_+$/g,'').slice(0,48)||'item';
+ return readable+'_'+(hash>>>0).toString(36)
+}
 function calendarFixedTemplateDef(p,token){
  var s=calendarFixedTemplateSpec(p.template);if(!s)return null;
  var f=cloneObj(s[3]);f.calendarFixedTemplate=p.template;f.calendarOriginalTitle=p.title;f.calendarEventId=p.sourceEventId;f.calendarEventKey=p.eventKey;
@@ -1312,7 +1317,7 @@ function calendarFixedTemplateDef(p,token){
 function cloudCalendarDefsForDate(date){
  var parsed=calendarParsedByDate[date]||[],out=[];
  parsed.forEach(function(p){
-  var token=calendarEventToken(p.sourceEventId||p.eventKey),outStart=out.length;
+  var token=p.identifier?calendarIdentifierToken(p.identifier):calendarEventToken(p.sourceEventId||p.eventKey),outStart=out.length;
   if(p.kind==='ace'){
    (p.rounds||[]).forEach(function(round){out.push(presetDef('cal_ace_'+round+'_'+token,'extra','英文｜ACE Reading 第 '+round+' 回','Google Calendar API：'+p.title,true,{title:'ACE Reading',round:String(round),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
   }else if(p.kind==='gujin'){
@@ -1320,10 +1325,9 @@ function cloudCalendarDefsForDate(date){
   }else if(p.kind==='writing'&&p.round){
    out.push(presetDef('cal_writing_'+p.round+'_'+token,'extra','英文｜英文寫作測驗 第 '+p.round+' 回','Google Calendar API：'+p.title,true,{title:'英文寫作測驗',round:String(p.round),calendarFocus:p.focus||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='grammar'){
-   var gt=String(p.title||'').replace(/^英文文法｜/,'');
-   var gp=resolveCloudGrammarPlan(p),gs=gp&&gp.start!=null?gp.start:p.startPage,ge=gp&&gp.end!=null?gp.end:p.endPage;
+   var rawGt=String(p.title||'').replace(/^英文文法｜/,''),gp=resolveCloudGrammarPlan(p),gt=gp&&gp.displayTitle?gp.displayTitle:rawGt,gs=gp&&gp.start!=null?gp.start:p.startPage,ge=gp&&gp.end!=null?gp.end:p.endPage;
    var rt=gp&&gp.rangeText?gp.rangeText:(gs?(ge&&ge!==gs?'p.'+gs+'–'+ge:'p.'+gs):'依 Calendar 說明');
-   out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+((p.focus||(gp&&gp.focus))?'｜'+(p.focus||(gp&&gp.focus)):''),true,{title:'英文文法總複習講義',start:gs==null?'':String(gs),end:ge==null?'':String(ge),calendarGrammarTitle:gt,calendarRangeText:rt,calendarRangeType:gp&&gp.rangeType?gp.rangeType:(gs?'pages':'calendar'),calendarRangeSource:gp&&gp.calendarRangeSource||null,calendarFocus:p.focus||(gp&&gp.focus)||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+   out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+((p.focus||(gp&&gp.focus))?'｜'+(p.focus||(gp&&gp.focus)):''),true,{title:'英文文法總複習講義',start:gs==null?'':String(gs),end:ge==null?'':String(ge),calendarGrammarTitle:gt,calendarUnitProgress:p.unitProgress||'',calendarRangeText:rt,calendarRangeType:gp&&gp.rangeType?gp.rangeType:(gs?'pages':'calendar'),calendarRangeSource:gp&&gp.calendarRangeSource||null,calendarFocus:p.focus||(gp&&gp.focus)||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='essentialGrammar'){
    (p.units||[]).forEach(function(unit){out.push(presetDef('cal_essential_grammar_'+unit+'_'+token,'extra','英文｜Essential Grammar in Use｜Unit '+unit,'Google Calendar API：'+p.title+'｜Unit '+unit,true,{title:'Essential Grammar in Use',unit:String(unit),unitStart:String(unit),unitEnd:String(unit),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
   }else if(p.kind==='math'&&p.makeup){
@@ -1348,7 +1352,7 @@ function cloudCalendarDefsForDate(date){
    out.push(presetDef('cal_natural_'+token,'scienceReview','自然','Google Calendar API：'+p.title+'｜依指定科目與頁碼完成。',true,{subject:'混合',calendarTopic:p.title,calendarSource:'Google Calendar API',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review||'',calendarIntegrationPages:ni.pages||'',calendarIntegrationOutput:ni.output||'',calendarIntegrationMinimum:ni.minimum||'',calendarIntegrationTime:ni.time||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }
   var route=p.makeup?'today':(p.route||'today');
-  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup;out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup;out[oi].f.calendarSourceDate=p.sourceDate||p.date}
+  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup;out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup;out[oi].f.calendarSourceDate=p.sourceDate||p.date;if(p.identifier)out[oi].f.calendarIdentifier=p.identifier}
  });
  return out;
 }
@@ -1641,7 +1645,7 @@ function ensureDailyPresets(rec,date){
     delete x.f.groupedWorkEntries;delete x.f.calendarGroupedWork;changed=true;
    }
    if(x.f.calendarMerged&&!(d.f&&d.f.calendarMerged)){
-    ['calendarMerged','calendarMergedRange','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup','calendarSemanticKey','calendarSourceDate','calendarSourceDates','calendarGroupedWork','calendarRangeSource'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
+    ['calendarMerged','calendarMergedRange','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup','calendarSemanticKey','calendarSourceDate','calendarSourceDates','calendarGroupedWork','calendarRangeSource','calendarIdentifier','calendarUnitProgress'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
   }
   if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|math|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
    var df=d.f||{};
@@ -2027,15 +2031,16 @@ function calendarSourceDateLabel(value){
  var raw=String(value||'').trim(),m=raw.match(/^(?:\d{4}-)?(\d{1,2})[-\/](\d{1,2})$/);
  return m?Number(m[1])+'/'+Number(m[2]):(raw||'—');
 }
-function calendarTopicSourceRow(f){
- return'<div class="calendar-topic-source-row"><div class="field"><label>Google Calendar 當日主題</label><div class="fixed-book-value">'+esc(f.calendarTopic||'—')+'</div></div><div class="field"><label>來源日期</label><div class="fixed-book-value">'+esc(calendarSourceDateLabel(f.calendarSourceDate))+'</div></div></div>';
+function calendarTopicSourceRow(x){
+ var f=x.f||{},showSource=shouldShowSourceDate(x,(data&&data.date)||'');
+ return'<div class="calendar-topic-source-row'+(showSource?'':' source-hidden')+'"><div class="field"><label>Google Calendar 當日主題</label><div class="fixed-book-value">'+esc(f.calendarTopic||'—')+'</div></div>'+(showSource?'<div class="field"><label>來源日期</label><div class="fixed-book-value">'+esc(calendarSourceDateLabel(f.calendarSourceDate))+'</div></div>':'')+'</div>';
 }
 function renderScienceFields(x,reviewMode){
  var f=x.f;
  if(isCalendarNaturalIntegration(x)){
   var entries=ensureCalendarNaturalIntegrationEntries(x,(data&&data.date)||'');
   var ih='';
-  if(f.calendarTopic)ih+=calendarTopicSourceRow(f);
+  if(f.calendarTopic)ih+=calendarTopicSourceRow(x);
   for(var ii=0;ii<entries.length;ii++)ih+=renderCalendarNaturalIntegrationEntry(entries[ii]);
   return ih;
  }
@@ -2045,7 +2050,7 @@ function renderScienceFields(x,reviewMode){
   :'<div class="field"><label>科目</label><select data-field="subject"><option value="">請選擇</option>'+['混合','物理','化學','生物','地科'].map(function(s){return'<option'+selected(s,f.subject)+'>'+s+'</option>'}).join('')+'</select></div>';
  var h='<div class="science-main-row">'+subjectField;
  h+='<div class="field"><label>講義版本</label><select data-field="material">'+scienceMaterialOptions(f.subject,f.material)+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
- if(isCalendarNatural(x)&&f.calendarTopic)h+=calendarTopicSourceRow(f);
+ if(isCalendarNatural(x)&&f.calendarTopic)h+=calendarTopicSourceRow(x);
  if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))h+='<div class="field" style="margin-top:10px"><label>對應單元／章節</label><div class="small" data-science-auto>'+esc(goodPointCombinedText(f.subject,f.start,f.end))+'</div></div>';
  if(f.material==='123日的淬鍊'&&f.subject!=='混合')h+='<div class="field" style="margin-top:10px"><label>123日的淬鍊｜頁碼對應章節</label><div class="small" data-science-auto>'+esc(day123Text(f.subject,f.start,f.end))+'</div></div>';
  if(f.subject==='混合'&&f.material==='複習週記')h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-science-auto>'+esc(naturalReviewText(x))+'</div></div>';
@@ -2179,7 +2184,8 @@ function renderExtraFields(x,reviewMode){
   }
   h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-grammar-auto>'+esc(grammarReviewAutoText(f))+'</div></div>';
   if(isCalendarGrammarReview(x)&&f.calendarGrammarTitle){
-   h+='<div class="field" style="margin-top:10px"><label>Google Calendar 英文文法排程</label><div class="small"><strong>'+esc(f.calendarGrammarTitle)+'</strong><br>重點：'+esc(f.calendarFocus||'—')+'<br>建議頁碼：'+esc(f.calendarRangeText||'—')+'</div></div>';
+   var calendarGrammar=grammarScheduleSummary(f.calendarFocus,f.calendarRangeText);
+   h+='<div class="field" style="margin-top:10px"><label>Google Calendar 英文文法排程</label><div class="small">'+calendarGrammar.details.map(function(line){return esc(line)}).join('<br>')+'</div></div>';
   }
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);

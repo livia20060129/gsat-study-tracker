@@ -116,3 +116,4 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
   margin-top:10px;
   align-items:end;
 }
+.calendar-topic-source-row.source-hidden{grid-template-columns:minmax(0,1fr)}
