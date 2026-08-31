@@ -76,16 +76,16 @@ input[type=number]{width:88px;max-width:100%}
 textarea{resize:vertical;min-height:72px}input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
 .inline{display:flex;align-items:center;gap:7px}.checkline{display:flex;flex-wrap:wrap;gap:12px}.checkline label{display:flex;align-items:center;gap:6px;margin:0;color:var(--text);font-size:13px}
 .item{border:1px solid var(--line);border-radius:18px;padding:12px;background:#fff;margin-top:10px}.item.done{background:#f9fbff}.item-top{display:flex;align-items:center;gap:10px}.item-top>div:nth-child(2){flex:1;min-width:0}
-.subject-math{--subject-accent:#cfb273;--subject-soft:#fbf4e5;--subject-child:#fdf8ef;--subject-inner:#fffaf0;--subject-ink:#725b2e}
-.subject-chinese{--subject-accent:#b9958b;--subject-soft:#faf1ef;--subject-child:#fcf6f4;--subject-inner:#fdf8f7;--subject-ink:#76554d}
-.subject-english{--subject-accent:#a898bd;--subject-soft:#f5f1f7;--subject-child:#f9f6fa;--subject-inner:#faf7fb;--subject-ink:#675878}
-.subject-natural{--subject-accent:#8eaea1;--subject-soft:#eef6f2;--subject-child:#f4f9f6;--subject-inner:#f6faf8;--subject-ink:#4f7164}
-.subject-other{--subject-accent:#aab3bd;--subject-soft:#f4f6f8;--subject-child:#f8f9fa;--subject-inner:#fafbfc;--subject-ink:#5d6874}
+.subject-math{--subject-accent:#b9aa88;--subject-soft:#f7f4ed;--subject-child:#fcfbf8;--subject-inner:#fdfcf9;--subject-ink:#665f50}
+.subject-chinese{--subject-accent:#b5a19c;--subject-soft:#f7f3f2;--subject-child:#fcfaf9;--subject-inner:#fdfcfb;--subject-ink:#665854}
+.subject-english{--subject-accent:#aaa2b3;--subject-soft:#f5f3f6;--subject-child:#fbfafb;--subject-inner:#fcfbfc;--subject-ink:#5f5966}
+.subject-natural{--subject-accent:#9eaea7;--subject-soft:#f2f6f4;--subject-child:#fafcfb;--subject-inner:#fbfcfc;--subject-ink:#58665f}
+.subject-other{--subject-accent:#aab0b7;--subject-soft:#f4f5f6;--subject-child:#fafbfb;--subject-inner:#fcfcfd;--subject-ink:#5d636a}
 .item.subject-card{border-color:var(--subject-accent)!important;border-left:4px solid var(--subject-accent)!important;background-color:var(--subject-soft)!important}
 .item.subject-card>.item-top{margin:-6px -6px 10px;padding:8px;border-radius:12px;background:var(--subject-soft)}
 .item.subject-card>.item-top .item-title{color:var(--subject-ink)}
 .item.subject-card .inner{border-color:var(--subject-accent)!important;background-color:var(--subject-inner)!important}
-.item.subject-card .item.subject-card{border-color:var(--subject-accent)!important;background-color:var(--subject-child)!important}
+.item.subject-card .item.subject-card{margin-left:8px;margin-right:2px;border-color:var(--subject-accent)!important;border-left-width:3px!important;border-radius:14px;background-color:var(--subject-child)!important;box-shadow:0 3px 10px rgba(51,65,85,.08)}
 .item.subject-card .item.subject-card>.item-top{background-color:var(--subject-child)!important}
 .item.subject-card.done{box-shadow:inset 0 0 0 1px rgba(255,255,255,.58)}
 .item-title{font-weight:700}.item-desc{font-size:12px;color:var(--muted);margin-top:3px}.inner{margin-top:11px;padding:11px;border:1px solid #e7ecf3;border-radius:16px;background:var(--soft)}
@@ -117,6 +117,7 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
 @keyframes celebration-particle{0%{opacity:0;transform:translate3d(0,0,0) rotate(0)}12%{opacity:.9}100%{opacity:0;transform:translate3d(var(--particle-x),48vh,0) rotate(var(--particle-rotate))}}
 @media(prefers-reduced-motion:reduce){.celebration-card{animation:none}.celebration-particles{display:none}.completion-celebration.is-leaving .celebration-card{transform:none}}
 @media(max-width:720px){
+ .item.subject-card .item.subject-card{margin-left:5px;margin-right:0}
  .app-header{align-items:flex-start;flex-direction:column;gap:10px}.header-actions{width:100%;flex-wrap:wrap}.prompt-link{flex:1 1 auto}
  .grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-row,.english-book-row,.english-book-page-row,.english-title-half,.english-magazine-main,.english-magazine-sub,.stats{grid-template-columns:1fr}
  .chinese-writing-row .cw-topic,.english-book-row .english-book,.english-title-half .english-book,.english-magazine-main .english-book,.english-magazine-main .english-version{grid-column:auto}
