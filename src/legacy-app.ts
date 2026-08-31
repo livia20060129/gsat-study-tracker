@@ -26,6 +26,7 @@ import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/pr
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
 import { groupStudyItemsBySubject, studyItemSubjectClass } from './study/subjectOrder';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
+import { completionCelebrationForChange } from './study/completionCelebration';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -1084,7 +1085,7 @@ function uid(prefix){return(prefix||'i')+'-'+Date.now()+'-'+Math.floor(Math.rand
 function selected(v,current){return String(v)===String(current)?' selected':''}
 function checked(v){return v?' checked':''}
 
-function blank(date){return{date:date,serverRevision:0,serverUpdatedAt:'',localDirty:false,syncConflict:false,mood:'',wakeTime:'',items:[],biggestBlock:'',firstThingTomorrow:'',notes:''}}
+function blank(date){return{date:date,serverRevision:0,serverUpdatedAt:'',localDirty:false,syncConflict:false,mood:'',wakeTime:'',items:[],biggestBlock:'',firstThingTomorrow:'',notes:'',completionCelebrations:{version:3,half:false,complete:false}}}
 function customCountsOriginal(x){return x&&x.type==='extra'&&(isPrism(x.f&&x.f.title)||((x.f&&x.f.title)==='ENGLISH VOCABULARY IN USE'))}
 function normalizeItem(it,date){
  if(!it||typeof it!=='object')return null;
@@ -1114,6 +1115,8 @@ function loadData(date){
   var o=JSON.parse(raw)||{};
   b.serverRevision=Number(o.serverRevision||0);b.serverUpdatedAt=o.serverUpdatedAt||'';b.localDirty=!!o.localDirty;b.syncConflict=!!o.syncConflict;
   b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
+  var storedCelebrations=o.completionCelebrations&&o.completionCelebrations.version===3?o.completionCelebrations:null;
+  b.completionCelebrations={version:3,half:!!(storedCelebrations&&storedCelebrations.half),complete:!!(storedCelebrations&&storedCelebrations.complete)};
   if(Array.isArray(o.items))for(var i=0;i<o.items.length;i++){var it=normalizeItem(o.items[i],date);if(it)b.items.push(it)}
  }catch(e){}
  return b;
@@ -2495,6 +2498,52 @@ function handleInput(e){
  if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;updateSummary();persist(false);return}
  if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;persist(false);return}
 }
+var completionCelebrationTimer=null;
+function currentWorkloadCompletionPercent(){
+ return summarizeCompletionUnits(completionUnitsForRecord(data,data.date)).workloadPercent;
+}
+function showCompletionCelebration(kind){
+ var previous=id('completionCelebration');
+ if(previous)previous.remove();
+ if(completionCelebrationTimer)clearTimeout(completionCelebrationTimer);
+ var layer=document.createElement('div');
+ layer.id='completionCelebration';
+ layer.className='completion-celebration completion-celebration-'+kind;
+ layer.setAttribute('role','status');
+ layer.setAttribute('aria-live','polite');
+ layer.setAttribute('aria-atomic','true');
+ var particles=document.createElement('div');
+ particles.className='celebration-particles';
+ particles.setAttribute('aria-hidden','true');
+ var count=kind==='complete'?42:14,colors=['#8da6c7','#b9958b','#a898bd','#8eaea1','#d3b783'];
+ for(var i=0;i<count;i++){
+  var particle=document.createElement('i');
+  particle.style.setProperty('--particle-x',(((i*37)%101)-50)+'vw');
+  particle.style.setProperty('--particle-delay',((i%9)*-0.055)+'s');
+  particle.style.setProperty('--particle-color',colors[i%colors.length]);
+  particle.style.setProperty('--particle-rotate',((i*71)%240-120)+'deg');
+  particles.appendChild(particle);
+ }
+ var card=document.createElement('div');
+ card.className='celebration-card';
+ var icon=document.createElement('span');icon.className='celebration-check';icon.textContent='✓';icon.setAttribute('aria-hidden','true');
+ var copy=document.createElement('div');copy.className='celebration-copy';
+ var title=document.createElement('strong');title.textContent=kind==='complete'?'今日事今日畢！':'你已經完成一半了，繼續努力！';
+ copy.appendChild(title);
+ if(kind==='complete'){
+  var detail=document.createElement('span');detail.textContent='今天的項目已全部完成';copy.appendChild(detail);
+ }
+ card.appendChild(icon);card.appendChild(copy);layer.appendChild(particles);layer.appendChild(card);document.body.appendChild(layer);
+ completionCelebrationTimer=setTimeout(function(){layer.classList.add('is-leaving');setTimeout(function(){layer.remove()},360)},kind==='complete'?3000:2500);
+}
+function maybeCelebrateCompletion(previousPercent,completedByUser){
+ var currentPercent=currentWorkloadCompletionPercent(),seen=data.completionCelebrations||(data.completionCelebrations={version:3,half:false,complete:false});
+ var kind=completionCelebrationForChange(previousPercent,currentPercent,seen,completedByUser);
+ if(!kind)return false;
+ if(kind==='complete'){seen.complete=true;seen.half=true}else seen.half=true;
+ showCompletionCelebration(kind);
+ return true;
+}
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-deferred]')&&x){
@@ -2531,16 +2580,16 @@ function handleChange(e){
   return
  }
  if(t.matches('[data-done]')&&x){
+  var previousWorkloadPercent=currentWorkloadCompletionPercent();
    propagateDailyWorkDone(x,t.checked);
   clearPendingDeferred(x);
   clearDeferredLimitPrompt(x);
    if(x.calendarIntegrationChild||x.calendarGroupedChild){
     if(x.calendarGroupedChild)updateGroupedParentDone(x);
-    updateSummary();persist(false);render();return
+    updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);persist(false);render();return
   }
   if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persist(false);rebuildDeferredForWeek(data.date)}
-  else persist(false);
-  updateSummary();return
+  updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);persist(false);return
  }
  if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');x.f[k]=t.checked;if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
  if(t.matches('[data-field]')&&x){

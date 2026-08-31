@@ -1,6 +1,7 @@
 export type CompletionCelebration = 'half' | 'complete' | null;
 
 export interface SeenCompletionCelebrations {
+  version?: number;
   half?: boolean;
   complete?: boolean;
 }
@@ -16,7 +17,7 @@ export function completionCelebrationForChange(
   completedByUser = true,
 ): CompletionCelebration {
   if (!completedByUser || currentPercent <= previousPercent) return null;
-  if (currentPercent >= 100 && previousPercent < 100 && !seen.complete) return 'complete';
-  if (currentPercent > 50 && previousPercent <= 50 && !seen.half) return 'half';
+  if (currentPercent >= 100 && previousPercent < 100) return seen.complete ? null : 'complete';
+  if (currentPercent >= 50 && !seen.half) return 'half';
   return null;
 }

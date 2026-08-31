@@ -3,9 +3,13 @@ import test from 'node:test';
 
 import { completionCelebrationForChange } from '../src/study/completionCelebration.ts';
 
-test('celebrates only after crossing above fifty percent', () => {
-  assert.equal(completionCelebrationForChange(40, 50), null);
+test('celebrates as soon as completion reaches fifty percent', () => {
+  assert.equal(completionCelebrationForChange(40, 50), 'half');
   assert.equal(completionCelebrationForChange(50, 60), 'half');
+});
+
+test('recovers an unseen half milestone on the next completed item', () => {
+  assert.equal(completionCelebrationForChange(60, 70), 'half');
 });
 
 test('uses the stronger message when one completion reaches one hundred percent', () => {
