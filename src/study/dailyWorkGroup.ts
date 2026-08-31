@@ -351,6 +351,37 @@ export function propagateDailyWorkMinutes(item: StudyItem, minutes: string): voi
   preferredBase(sources).minutes = minutes;
 }
 
+function cloneFieldValue(value: unknown): unknown {
+  if (value === undefined || value === null || typeof value !== 'object') return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
+/**
+ * Stores an edited form field on the hidden source records used to rebuild a
+ * merged card. Grouped children may represent several equivalent Calendar
+ * records, so every represented source receives the edit. A flat aggregate
+ * keeps the value on its preferred source, matching the minutes behaviour.
+ */
+export function propagateDailyWorkField(
+  item: StudyItem,
+  field: string,
+  value: unknown,
+): void {
+  item.f ||= {};
+  item.f[field] = cloneFieldValue(value);
+
+  const sources = item.f.dailyWorkSourceItems;
+  if (!Array.isArray(sources) || !sources.length) return;
+
+  const leaves = sources.flatMap(source => templateLeaves(source));
+  const candidates = leaves.length ? leaves : sources;
+  const targets = item.calendarGroupedChild ? candidates : [preferredBase(candidates)];
+  for (const target of targets) {
+    target.f ||= {};
+    target.f[field] = cloneFieldValue(value);
+  }
+}
+
 function storeUserFieldOverride(item: StudyItem, field: 'start' | 'end', value: unknown): void {
   item.f ||= {};
   const existing = item.f.dailyWorkUserFields;

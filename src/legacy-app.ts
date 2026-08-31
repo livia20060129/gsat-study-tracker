@@ -20,7 +20,7 @@ import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
-import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkMinutes, propagateDailyWorkRangeField, ungroupDailyWorkItems } from './study/dailyWorkGroup';
+import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
@@ -2494,9 +2494,9 @@ function refreshAuto(card,x){
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
- if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else x.f[k]=t.value;if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit)}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
- if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;updateSummary();persist(false);return}
- if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;persist(false);return}
+ if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
+ if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;propagateDailyWorkField(x,'entries',a);updateSummary();persist(false);return}
+ if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;propagateDailyWorkField(x,'words',w);persist(false);return}
 }
 var completionCelebrationTimer=null;
 function currentWorkloadCompletionPercent(){
@@ -2591,12 +2591,13 @@ function handleChange(e){
   if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persist(false);rebuildDeferredForWeek(data.date)}
   updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);persist(false);return
  }
- if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');x.f[k]=t.checked;if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
+ if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');propagateDailyWorkField(x,k,t.checked);if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
  if(t.matches('[data-field]')&&x){
-  var f=t.getAttribute('data-field');if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else x.f[f]=t.value;
-  if((x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice')&&(f==='material'||f==='book')){if(f==='material')x.f.book='';x.f.unit='';x.f.chapter=''}
-  if(x.type==='scienceReview'&&(f==='subject'||f==='material')){if(f==='subject'&&isCalendarNatural(x)){x.f.subject=calendarNaturalSubject(x.f.calendarTopic||x.description);render();persist(false);return}x.f.unit='';x.f.chapter='';normalizeScience(x.f)}
-  if(x.type==='extra'&&f==='title'){x.f.level='';x.f.start='';x.f.end='';x.f.unitStart='';x.f.unitEnd='';x.f.unit='';x.f.round='';x.f.topic='';x.f.warriorsBook='';x.f.chapter='';x.f.progress=false;x.f.graded=false;x.f.corrected=false;x.f.reason='';x.required=customCountsOriginal(x)}
+  var f=t.getAttribute('data-field'),changedFields=[f];if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else propagateDailyWorkField(x,f,t.value);
+  if((x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice')&&(f==='material'||f==='book')){if(f==='material'){x.f.book='';changedFields.push('book')}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter')}
+  if(x.type==='scienceReview'&&(f==='subject'||f==='material')){if(f==='subject'&&isCalendarNatural(x)){x.f.subject=calendarNaturalSubject(x.f.calendarTopic||x.description);propagateDailyWorkField(x,'subject',x.f.subject);render();persist(false);return}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter');normalizeScience(x.f);changedFields.push('material','subject')}
+  if(x.type==='extra'&&f==='title'){x.f.level='';x.f.start='';x.f.end='';x.f.unitStart='';x.f.unitEnd='';x.f.unit='';x.f.round='';x.f.topic='';x.f.warriorsBook='';x.f.chapter='';x.f.progress=false;x.f.graded=false;x.f.corrected=false;x.f.reason='';changedFields.push('level','start','end','unitStart','unitEnd','unit','round','topic','warriorsBook','chapter','progress','graded','corrected','reason');x.required=customCountsOriginal(x)}
+  changedFields.forEach(function(field){if(field!=='start'&&field!=='end')propagateDailyWorkField(x,field,x.f[field])});
   if(x.type==='extra'&&f==='level')x.required=customCountsOriginal(x);
   if(f==='material'||f==='book'||f==='subject'||f==='kind'||f==='title'||f==='level'||f==='interactiveType'){render();persist(false);return}
   refreshAuto(card,x);updateSummary();persist(false);return
@@ -2607,7 +2608,7 @@ function handleChange(e){
   render();persist(false);return
  }
  if(t.matches('[data-nested-type]')&&x){x.type=t.value;x.done=false;x.minutes='';x.f={};x.source=t.getAttribute('data-nested-type');render();persist(false);return}
- if(t.matches('[data-word-pos]')&&x){var a=x.f.words||(x.f.words=[]),i=Number(t.getAttribute('data-index'));if(!a[i]||typeof a[i]!=='object')a[i]={};a[i][t.getAttribute('data-word-pos')]=t.checked;persist(false);return}
+ if(t.matches('[data-word-pos]')&&x){var a=x.f.words||(x.f.words=[]),i=Number(t.getAttribute('data-index'));if(!a[i]||typeof a[i]!=='object')a[i]={};a[i][t.getAttribute('data-word-pos')]=t.checked;propagateDailyWorkField(x,'words',a);persist(false);return}
 }
 function handleClick(e){
  var b=e.target.closest('[data-action]');if(!b)return;var card=b.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null,action=b.getAttribute('data-action');
@@ -2632,10 +2633,10 @@ function handleClick(e){
   persist(false);rebuildDeferredForWeek(data.date);render();
  }
  else if(action==='delete-item'&&x){clearPendingDeferred(x);clearDeferredLimitPrompt(x);data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
- else if(action==='mag-add'&&x){ensureMagazineEntries(x).push({name:'',month:'',unit:'',minutes:''});render();persist(false)}
- else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x);if(a.length>1)a.splice(Number(b.getAttribute('data-index')),1);render();persist(false)}
- else if(action==='word-add'&&x){(x.f.words||(x.f.words=[])).push({text:'',noun:false,verb:false,adjective:false,adverb:false,preposition:false,conjunction:false,fixedCombination:false,beautifulSentences:false});render();persist(false)}
- else if(action==='word-delete'&&x){x.f.words.splice(Number(b.getAttribute('data-index')),1);render();persist(false)}
+ else if(action==='mag-add'&&x){var entries=ensureMagazineEntries(x);entries.push({name:'',month:'',unit:'',minutes:''});propagateDailyWorkField(x,'entries',entries);render();persist(false)}
+ else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x);if(a.length>1)a.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'entries',a);render();persist(false)}
+ else if(action==='word-add'&&x){var words=x.f.words||(x.f.words=[]);words.push({text:'',noun:false,verb:false,adjective:false,adverb:false,preposition:false,conjunction:false,fixedCombination:false,beautifulSentences:false});propagateDailyWorkField(x,'words',words);render();persist(false)}
+ else if(action==='word-delete'&&x){x.f.words.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'words',x.f.words);render();persist(false)}
  else if(action==='makeup-add'&&x){ensureEntryArray(x,'makeupEntries').push(newItem('','makeup'));render();persist(false)}
  else if(action==='review-add'&&x){ensureEntryArray(x,'reviewEntries').push(newItem('','review'));render();persist(false)}
  else if(action==='makeup-delete'&&x){removeNested(x.id,'makeupEntries');render();persist(false)}

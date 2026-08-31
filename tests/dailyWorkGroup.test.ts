@@ -6,6 +6,7 @@ import {
   groupDailyWorkItems,
   propagateDailyWorkDeferred,
   propagateDailyWorkDone,
+  propagateDailyWorkField,
   propagateDailyWorkMinutes,
   propagateDailyWorkRangeField,
   ungroupDailyWorkItems,
@@ -87,6 +88,49 @@ test('keeps interrupted ranges as separate counted children in one card', () => 
   assert.equal(output.length, 1);
   const children = output[0].f.groupedWorkEntries as StudyItem[];
   assert.deepEqual(children.map(child => [child.f.start, child.f.end]), [['1', '5'], ['11', '15']]);
+});
+
+test('stores every edited child field on its hidden source before rebuilding', () => {
+  const output = groupDailyWorkItems([math('first', 1, 5), math('second', 11, 15, true)]);
+  const children = output[0].f.groupedWorkEntries as StudyItem[];
+
+  propagateDailyWorkField(children[1], 'reason', '第二個範圍的錯因');
+  propagateDailyWorkField(children[1], 'corrected', true);
+
+  const sources = ungroupDailyWorkItems(output);
+  const second = sources.find(item => item.id === 'second');
+  assert.equal(second?.f.reason, '第二個範圍的錯因');
+  assert.equal(second?.f.corrected, true);
+
+  const rebuilt = groupDailyWorkItems(sources);
+  const rebuiltChildren = rebuilt[0].f.groupedWorkEntries as StudyItem[];
+  assert.equal(rebuiltChildren[1].f.reason, '第二個範圍的錯因');
+  assert.equal(rebuiltChildren[1].f.corrected, true);
+});
+
+test('stores object-list fields without sharing the displayed array reference', () => {
+  const output = groupDailyWorkItems([math('first', 1, 5), math('second', 11, 15, true)]);
+  const children = output[0].f.groupedWorkEntries as StudyItem[];
+  const words = [{ text: 'persisted', noun: true }];
+
+  propagateDailyWorkField(children[1], 'words', words);
+  words[0].text = 'display-only mutation';
+
+  const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
+  const rebuiltChildren = rebuilt[0].f.groupedWorkEntries as StudyItem[];
+  assert.equal((rebuiltChildren[1].f.words as Array<{ text: string }>)[0].text, 'persisted');
+});
+
+test('stores a flat merged-card field on the source used after rebuilding', () => {
+  const output = groupDailyWorkItems([
+    math('current', 158, 165),
+    math('earlier-makeup', 149, 157, true),
+  ]);
+
+  propagateDailyWorkField(output[0], 'reason', '整張合併卡的錯因');
+
+  const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
+  assert.equal(rebuilt[0].f.reason, '整張合併卡的錯因');
 });
 
 test('propagates a merged checkbox back to every hidden source record', () => {
