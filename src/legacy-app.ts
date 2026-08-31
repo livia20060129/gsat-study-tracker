@@ -24,7 +24,7 @@ import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDe
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
-import { groupStudyItemsBySubject } from './study/subjectOrder';
+import { groupStudyItemsBySubject, studyItemSubjectClass } from './study/subjectOrder';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 
 var DAILY_PRESET_START='2026-08-10';
@@ -1782,7 +1782,7 @@ function ensureCalendarNaturalIntegrationEntries(x,date){
 function renderCalendarNaturalIntegrationEntry(c){
  var ranges=Array.isArray(c.ranges)?c.ranges:[];
  var single=ranges.length===1&&!c.dynamic&&!c.pageText.match(/ 或 /);
- var h='<div class="item'+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
+ var h='<div class="item subject-card subject-natural'+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
  h+='<div class="item-title">'+esc(c.subject)+'</div></div>';
  h+='<div class="inner"><div class="science-main-row">';
@@ -2303,7 +2303,7 @@ function renderDeferredControls(x){
 }
 function renderGroupedWorkEntry(entry,index){
  entry.calendarGroupedChild=true;
- var h='<div class="item grouped-work-entry'+(entry.done?' done':'')+(confirmedDeferred(entry)?' deferred':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
+ var h='<div class="item grouped-work-entry '+studyItemSubjectClass(entry)+(entry.done?' done':'')+(confirmedDeferred(entry)?' deferred':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(entry.done)+'><div><div class="item-title">'+esc(groupedWorkLabel(entry,index))+'</div>';
  if(entry.f&&entry.f.calendarMakeup===true)h+='<div class="small">今日補做｜Google Calendar</div>';
  h+='</div></div>';
@@ -2342,7 +2342,7 @@ function renderItemFields(x,reviewMode){
 function renderMagazineFields(x){
  var f=x.f;if(!isFixedMagazine(x))return'<div class="grid-3"><div class="field"><label>雜誌</label><select data-field="name"><option value="">請選擇</option><option'+selected('常春藤',f.name)+'>常春藤</option><option'+selected('CNN互動英語',f.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-field="month" value="'+esc(f.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-field="unit" value="'+esc(f.unit||'')+'"></div></div>';
  var a=ensureMagazineEntries(x),h='';
- for(var i=0;i<a.length;i++){var r=a[i];h+='<div class="item" style="margin-top:8px"><div class="item-top">'+(a.length>1?'<button class="delete" data-action="mag-delete" data-index="'+i+'">刪除此筆</button>':'')+'<span class="minutes-badge"><input type="number" min="0" step="1" data-mag-field="minutes" data-index="'+i+'" value="'+esc(r.minutes||'')+'" style="width:76px"> 分</span></div><div class="grid-3" style="margin-top:8px"><div class="field"><label>雜誌</label><select data-mag-field="name" data-index="'+i+'"><option value="">請選擇</option><option'+selected('常春藤',r.name)+'>常春藤</option><option'+selected('CNN互動英語',r.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-mag-field="month" data-index="'+i+'" value="'+esc(r.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-mag-field="unit" data-index="'+i+'" value="'+esc(r.unit||'')+'"></div></div></div>'}
+ for(var i=0;i<a.length;i++){var r=a[i];h+='<div class="item subject-card subject-english" style="margin-top:8px"><div class="item-top">'+(a.length>1?'<button class="delete" data-action="mag-delete" data-index="'+i+'">刪除此筆</button>':'')+'<span class="minutes-badge"><input type="number" min="0" step="1" data-mag-field="minutes" data-index="'+i+'" value="'+esc(r.minutes||'')+'" style="width:76px"> 分</span></div><div class="grid-3" style="margin-top:8px"><div class="field"><label>雜誌</label><select data-mag-field="name" data-index="'+i+'"><option value="">請選擇</option><option'+selected('常春藤',r.name)+'>常春藤</option><option'+selected('CNN互動英語',r.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-mag-field="month" data-index="'+i+'" value="'+esc(r.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-mag-field="unit" data-index="'+i+'" value="'+esc(r.unit||'')+'"></div></div></div>'}
  return h+'<button class="secondary" data-action="mag-add" style="margin-top:8px">新增雜誌紀錄</button>';
 }
 function renderEnglishReview(x){
@@ -2352,7 +2352,7 @@ function renderEnglishReview(x){
  return h+'</div><button class="secondary" data-action="word-add" style="margin-top:8px">新增單字</button>';
 }
 function renderNestedEntry(x,kind){
- var review=kind==='review',h='<div class="item '+(review?'review-entry':'makeup-entry')+'" data-item="'+esc(x.id)+'"><div class="item-top">';
+ var review=kind==='review',h='<div class="item '+(review?'review-entry ':'makeup-entry ')+studyItemSubjectClass(x)+'" data-item="'+esc(x.id)+'"><div class="item-top">';
  if(!review)h+='<input type="checkbox" data-done'+checked(x.done)+'>';
  h+='<div class="field" style="flex:1"><label>項目類型</label><select data-nested-type="'+kind+'">'+(review?reviewTypeOptions(x.type):nestedTypeOptions(x.type))+'</select></div><button class="delete" data-action="'+kind+'-delete">刪除此筆</button>';
  if(!review)h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" style="width:76px"> 分</span>';
@@ -2370,7 +2370,7 @@ function renderGeneralFields(x){
 
 
 function renderDailyInteractiveEntry(c){
- var h='<div class="item'+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
+ var h='<div class="item '+studyItemSubjectClass(c)+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
  if(c.locked)h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><div class="fixed-book-value">'+esc(itemTitle(c))+'</div>'+(c.description?'<div class="small" style="margin-top:5px">'+esc(c.description)+'</div>':'')+'</div>';
  else h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><select data-interactive-type>'+interactiveDailyTypeOptions(c.type)+'</select></div>';
@@ -2397,7 +2397,7 @@ function renderCard(x,canDelete){
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x)||isGroupedWork(x);
- var h='<div class="item'+(x.done?' done':'')+(isDeferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(noTopDone?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
+ var h='<div class="item '+studyItemSubjectClass(x)+(x.done?' done':'')+(isDeferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(noTopDone?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
  if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
  if(canDelete)h+='<button class="delete" data-action="delete-item">刪除此筆</button>';
  if(!hidesTopMinutes(x))h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" style="width:76px"> 分</span>';
@@ -2437,7 +2437,7 @@ function renderWeeklyItems(){
   total+=items.length;
   html+='<details class="weekly-day" open><summary><span><strong>'+weekdays[dayDate.getDay()]+'</strong><span class="weekly-date">'+esc(ds.slice(5).replace('-','／'))+'</span></span><span class="weekly-day-actions"><span class="small">'+accepted+'／'+items.length+'</span></span></summary>';
   html+='<div class="weekly-day-items">';
-  items.forEach(function(x){var state=weeklyItemState(x);html+='<div class="weekly-item-row"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><label class="weekly-item-check"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span>'+esc(weeklyItemDisplayTitle(x))+'</span></label></div>'});
+  items.forEach(function(x){var state=weeklyItemState(x);html+='<div class="weekly-item-row '+studyItemSubjectClass(x)+'"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><label class="weekly-item-check"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span>'+esc(weeklyItemDisplayTitle(x))+'</span></label></div>'});
   html+='</div>';
   html+='</details>';
  }

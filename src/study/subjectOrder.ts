@@ -19,6 +19,20 @@ export function studyItemSubject(item: StudyItem): string {
   return '其他';
 }
 
+export function studyItemSubjectClass(item: StudyItem): string {
+  const subject = studyItemSubject(item);
+  const tone = subject === '數學'
+    ? 'math'
+    : subject === '國文'
+      ? 'chinese'
+      : subject === '英文'
+        ? 'english'
+        : subject === '自然'
+          ? 'natural'
+          : 'other';
+  return `subject-card subject-${tone}`;
+}
+
 /** Groups matching subjects together while preserving first-seen subject and item order. */
 export function groupStudyItemsBySubject(items: StudyItem[]): StudyItem[] {
   const subjectOrder = new Map<string, number>();

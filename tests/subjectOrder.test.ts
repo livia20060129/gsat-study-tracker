@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { groupStudyItemsBySubject, studyItemSubject } from '../src/study/subjectOrder.ts';
+import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } from '../src/study/subjectOrder.ts';
 import type { StudyItem } from '../src/types.ts';
 
 function item(id: string, type: string, title: string, subject = ''): StudyItem {
@@ -37,4 +37,13 @@ test('同科目卡片相鄰且維持原本的科目與卡片先後順序', () =>
     groupStudyItemsBySubject(input).map(entry => entry.id),
     ['math-1', 'math-2', 'english-1', 'english-2', 'natural-1'],
   );
+});
+
+test('每個主要科目使用固定淡色類別且自然整合沿用自然色', () => {
+  assert.equal(studyItemSubjectClass(item('m', 'mathStudy', '數學講義：進度')), 'subject-card subject-math');
+  assert.equal(studyItemSubjectClass(item('c', 'chineseReading', '古今悅讀一百')), 'subject-card subject-chinese');
+  assert.equal(studyItemSubjectClass(item('e', 'extra', 'Essential Grammar in Use')), 'subject-card subject-english');
+  assert.equal(studyItemSubjectClass(item('s', 'scienceReview', '自然')), 'subject-card subject-natural');
+  assert.equal(studyItemSubjectClass(item('si', 'scienceReview', '自然整合', '混合')), 'subject-card subject-natural');
+  assert.equal(studyItemSubjectClass(item('o', 'general', '自訂項目')), 'subject-card subject-other');
 });
