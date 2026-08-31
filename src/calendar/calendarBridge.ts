@@ -270,6 +270,10 @@ function structuredValue(value: string): string {
   return /^(?:[／/]|無|不適用|none)$/i.test(text) ? '' : text;
 }
 
+function structuredIdentifier(value: string): string {
+  return structuredValue(value).replace(/[\s\u200b-\u200d\ufeff]+/g, '');
+}
+
 /** Reads only the agreed labelled fields from a standardized Calendar note. */
 export function calendarStructuredNote(description: string): CalendarStructuredNote {
   const text = calendarDescriptionText(description ?? '');
@@ -280,7 +284,7 @@ export function calendarStructuredNote(description: string): CalendarStructuredN
     unitProgress: structuredValue(bracketSection(text, '單元進度')),
     focus: structuredValue(bracketSection(text, '重點')),
     sourceDate: structuredValue(bracketSection(text, '來源日期')),
-    identifier: structuredValue(bracketSection(text, '識別碼')),
+    identifier: structuredIdentifier(bracketSection(text, '識別碼')),
     hasStandardFields: labels.some(label => text.includes(`【${label}】`)),
   };
 }
@@ -445,8 +449,8 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
       ...base,
       kind: 'naturalIntegration',
       topic: normalized(title.replace(/^自然整合｜/, '')),
-      review: bracketSection(description, '複習'),
-      pages: bracketSection(description, '講義／頁碼'),
+      review: note.focus || bracketSection(description, '複習') || bracketSection(description, '複習規則'),
+      pages: note.pageRange || bracketSection(description, '講義／頁碼'),
       output: bracketSection(description, '指定輸出'),
       minimum: bracketSection(description, '最低完成版'),
       time: bracketSection(description, '時間'),

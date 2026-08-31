@@ -239,6 +239,53 @@ test('reads every field from the standardized Calendar note', () => {
   });
 });
 
+test('removes Calendar line wrapping and whitespace from standardized identifiers', () => {
+  const note = calendarStructuredNote(
+    '【單元進度】第29回 【重點】分詞、比較與目的 【識別碼】 GSAT-\n WRITING-TEST-2026-17 ',
+  );
+
+  assert.equal(note.identifier, 'GSAT-WRITING-TEST-2026-17');
+  const parsed = parseCalendarTask(row(
+    '英文寫作測驗｜第29回：分詞、比較與目的',
+    '【單元進度】第29回 【重點】named／or／so that 【識別碼】GSAT-\nWRITING-TEST-2026-17',
+    'writing',
+  ));
+  assert.equal(parsed.identifier, 'GSAT-WRITING-TEST-2026-17');
+});
+
+test('reads standardized natural-integration pages and focus from a real Calendar note', () => {
+  const parsed = parseCalendarTask(row(
+    '自然整合｜微觀作用：鍵結、酵素、ATP、受力',
+    '【頁碼範圍】生物 p.14–15；化學 p.45–83；物理 p.20–55 【來源日期】2026/8/29 【重點】鍵結、酵素、ATP、基本交互作用與受力\n【識別碼】GSAT-CALENDAR-NATURAL-INTEGRATION',
+    'naturalIntegration',
+  ));
+
+  assert.equal(parsed.kind, 'naturalIntegration');
+  if (parsed.kind === 'naturalIntegration') {
+    assert.equal(parsed.review, '鍵結、酵素、ATP、基本交互作用與受力');
+    assert.equal(parsed.pages, '生物 p.14–15；化學 p.45–83；物理 p.20–55');
+    assert.deepEqual(parsed.pageItems, [
+      { subject: '生物', start: 14, end: 15 },
+      { subject: '化學', start: 45, end: 83 },
+      { subject: '物理', start: 20, end: 55 },
+    ]);
+  }
+});
+
+test('keeps legacy natural-integration review labels compatible', () => {
+  const parsed = parseCalendarTask(row(
+    '自然整合｜108 診斷選題（作答後回查）',
+    '【複習規則】作答後回查觀念\n【講義／頁碼】物理 p.20–25\n【指定輸出】整理錯題',
+    'naturalIntegration',
+  ));
+
+  assert.equal(parsed.kind, 'naturalIntegration');
+  if (parsed.kind === 'naturalIntegration') {
+    assert.equal(parsed.review, '作答後回查觀念');
+    assert.equal(parsed.pages, '物理 p.20–25');
+  }
+});
+
 test('standard page range wins and unit progress is ignored when both are present', () => {
   const parsed = parseCalendarTask(row(
     '2＋4A｜多項式函數',
