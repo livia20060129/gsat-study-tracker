@@ -220,6 +220,7 @@ test('converts Calendar rich text to readable plain text', () => {
 
 test('reads every field from the standardized Calendar note', () => {
   const note = calendarStructuredNote(`
+【講義版本】智慧型
 【冊別】2＋4A
 【頁碼範圍】p.174–181
 【單元進度】／
@@ -229,6 +230,7 @@ test('reads every field from the standardized Calendar note', () => {
   `);
 
   assert.deepEqual(note, {
+    material: '智慧型',
     book: '2＋4A',
     pageRange: 'p.174–181',
     unitProgress: '',
@@ -289,7 +291,8 @@ test('keeps legacy natural-integration review labels compatible', () => {
 test('standard page range wins and unit progress is ignored when both are present', () => {
   const parsed = parseCalendarTask(row(
     '2＋4A｜多項式函數',
-    `【冊別】2＋4A
+    `【講義版本】智慧型
+【冊別】2＋4A
 【頁碼範圍】174–181
 【單元進度】3/11
 【重點】備註中的其他數字 p.999 不得干擾
@@ -303,6 +306,7 @@ test('standard page range wins and unit progress is ignored when both are presen
   assert.equal(parsed.sourceDate, '8/26');
   assert.equal(parsed.makeup, true);
   if (parsed.kind === 'math') {
+    assert.equal(parsed.material, '智慧型');
     assert.equal(parsed.book, '2＋4A');
     assert.equal(parsed.startPage, 174);
     assert.equal(parsed.endPage, 181);
@@ -337,7 +341,8 @@ test('uses unit progress only when the standardized page-range field is empty', 
 test('standardized natural-science notes keep the unit name in the title', () => {
   const parsed = parseCalendarTask(row(
     '物理｜牛頓定律、摩擦與圓周運動',
-    `【頁碼範圍】80–88
+    `【講義版本】好考點
+【頁碼範圍】80–88
 【單元進度】／
 【重點】自由文字 p.999 不得干擾
 【來源日期】8/31
@@ -348,6 +353,7 @@ test('standardized natural-science notes keep the unit name in the title', () =>
   assert.equal(parsed.kind, 'natural');
   if (parsed.kind === 'natural') {
     assert.equal(parsed.topic, '牛頓定律、摩擦與圓周運動');
+    assert.equal(parsed.material, '好考點');
     assert.equal(parsed.startPage, 80);
     assert.equal(parsed.endPage, 88);
   }

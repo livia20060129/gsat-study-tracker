@@ -25,6 +25,7 @@ interface ParsedBase {
 }
 
 export interface CalendarStructuredNote {
+  material: string;
   book: string;
   pageRange: string;
   unitProgress: string;
@@ -37,6 +38,7 @@ export interface CalendarStructuredNote {
 export type ParsedCalendarTask =
   | (ParsedBase & {
       kind: 'math';
+      material: string;
       book: string;
       progressIndex: number | null;
       progressTotal: number | null;
@@ -277,8 +279,9 @@ function structuredIdentifier(value: string): string {
 /** Reads only the agreed labelled fields from a standardized Calendar note. */
 export function calendarStructuredNote(description: string): CalendarStructuredNote {
   const text = calendarDescriptionText(description ?? '');
-  const labels = ['冊別', '頁碼範圍', '單元進度', '重點', '來源日期', '識別碼'];
+  const labels = ['講義版本', '冊別', '頁碼範圍', '單元進度', '重點', '來源日期', '識別碼'];
   return {
+    material: structuredValue(bracketSection(text, '講義版本')),
     book: structuredValue(bracketSection(text, '冊別')),
     pageRange: structuredValue(bracketSection(text, '頁碼範圍')),
     unitProgress: structuredValue(bracketSection(text, '單元進度')),
@@ -381,6 +384,7 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
       ...base,
       title: parsedMathHeading?.title ?? withoutOriginalDate(title),
       kind: 'math',
+      material: note.material || (note.hasStandardFields ? '' : field(description, '講義版本')),
       book: canonicalMathBook(note.book || parsedMathHeading?.book || normalized(bookMatch?.[1] ?? title.split('｜')[0] ?? '')),
       progressIndex: structuredProgress ?? (note.hasStandardFields ? null : (legacyProgress ? Number(legacyProgress[1]) : null)),
       progressTotal: structuredTotal ?? (note.hasStandardFields ? null : (legacyProgress ? Number(legacyProgress[2]) : null)),
@@ -437,7 +441,7 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
         kind: 'natural',
         subject: natural[1] as '物理' | '化學' | '生物' | '地科',
         topic: normalized(natural[2]),
-        material: note.hasStandardFields ? '' : naturalMaterial(pageSource),
+        material: note.material || (note.hasStandardFields ? '' : naturalMaterial(pageSource)),
         startPage,
         endPage,
       };

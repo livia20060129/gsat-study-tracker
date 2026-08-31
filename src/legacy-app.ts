@@ -939,7 +939,7 @@ function resolveCloudMathPlan(parsed){
  var selected=prioritizeCalendarPageRanges(parsed.startPage,parsed.endPage,base?[[base.start,base.end]]:[]);
  if(!base&&!selected.ranges.length)return null;
  var range=selected.ranges[0],out=cloneObj(base||{unitPages:0,weekTarget:0});
- out.title=parsed.title;if(parsed.book)out.book=parsed.book;
+ out.title=parsed.title;if(parsed.material)out.material=parsed.material;if(parsed.book)out.book=parsed.book;
  if(range){out.start=range[0];out.end=range[1];out.pages=range[1]-range[0]+1}
  out.calendarRangeSource=selected.source;out.calendarEventKey=parsed.eventKey;out.calendarSourceEventId=parsed.sourceEventId;return out;
 }
@@ -1334,8 +1334,8 @@ function cloudCalendarDefsForDate(date){
   }else if(p.kind==='essentialGrammar'){
    (p.units||[]).forEach(function(unit){out.push(presetDef('cal_essential_grammar_'+unit+'_'+token,'extra','英文｜Essential Grammar in Use｜Unit '+unit,'Google Calendar API：'+p.title+'｜Unit '+unit,true,{title:'Essential Grammar in Use',unit:String(unit),unitStart:String(unit),unitEnd:String(unit),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
   }else if(p.kind==='math'&&p.makeup){
-   var mp=resolveCloudMathPlan(p)||null,ms=Number(p.startPage||(mp&&mp.start)||0),me=Number(p.endPage||(mp&&mp.end)||ms||0),mb=String(p.book||(mp&&mp.book)||'');
-   out.push(presetDef('cal_math_'+token,'mathStudy','數學講義：進度','Google Calendar API：'+p.title+(p.description?'｜'+p.description:''),true,{material:'教學講義',book:mb,start:ms?String(ms):'',end:me?String(me):'',calendarPlanTitle:p.title,calendarDailyPages:ms&&me?me-ms+1:0,calendarSuggestedStart:ms||'',calendarSuggestedEnd:me||'',calendarSuggestedBook:mb,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+   var mp=resolveCloudMathPlan(p)||null,ms=Number(p.startPage||(mp&&mp.start)||0),me=Number(p.endPage||(mp&&mp.end)||ms||0),mm=String(p.material||(mp&&mp.material)||'教學講義'),mb=String(p.book||(mp&&mp.book)||'');
+   out.push(presetDef('cal_math_'+token,'mathStudy','數學講義：進度','Google Calendar API：'+p.title+(p.description?'｜'+p.description:''),true,{material:mm,book:mb,start:ms?String(ms):'',end:me?String(me):'',calendarPlanTitle:p.title,calendarDailyPages:ms&&me?me-ms+1:0,calendarSuggestedStart:ms||'',calendarSuggestedEnd:me||'',calendarSuggestedMaterial:mm,calendarSuggestedBook:mb,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='fixedTemplate'){
    var fixedDef=calendarFixedTemplateDef(p,token);if(fixedDef)out.push(fixedDef);
   }else if(p.kind==='calendarItem'){
@@ -1375,15 +1375,15 @@ function applyCalendarMathPlan(rec,date){
  if(!x)return false;
  if(!x.f)x.f={};
  var changed=false,blank=!x.f.material&&!x.f.book&&!x.f.start&&!x.f.end;
- if(blank){x.f.material='教學講義';x.f.book=p.book;x.f.start=String(p.start);x.f.end=String(p.end);changed=true}
+ if(blank){x.f.material=p.material||'教學講義';x.f.book=p.book;x.f.start=String(p.start);x.f.end=String(p.end);changed=true}
  var userFields=x.f.dailyWorkUserFields&&typeof x.f.dailyWorkUserFields==='object'?x.f.dailyWorkUserFields:{};
  if(p.calendarRangeSource==='calendar'){
   if(!Object.prototype.hasOwnProperty.call(userFields,'start')&&x.f.start!==String(p.start)){x.f.start=String(p.start);changed=true}
   if(!Object.prototype.hasOwnProperty.call(userFields,'end')&&x.f.end!==String(p.end)){x.f.end=String(p.end);changed=true}
-  if(!x.f.material){x.f.material='教學講義';changed=true}
+  if(!x.f.material){x.f.material=p.material||'教學講義';changed=true}
   if(p.book&&!x.f.book){x.f.book=p.book;changed=true}
  }
- var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedBook:p.book,calendarRangeSource:p.calendarRangeSource||'unit'};
+ var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedMaterial:p.material||'教學講義',calendarSuggestedBook:p.book,calendarRangeSource:p.calendarRangeSource||'unit'};
  for(var k in meta)if(Object.prototype.hasOwnProperty.call(meta,k)&&x.f[k]!==meta[k]){x.f[k]=meta[k];changed=true}
  applyMathAuto(x.f);
  return changed;
