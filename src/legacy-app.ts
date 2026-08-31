@@ -27,6 +27,7 @@ import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, 
 import { groupStudyItemsBySubject, studyItemSubjectClass } from './study/subjectOrder';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
+import { LatestTaskQueue } from './storage/latestTaskQueue';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -556,7 +557,7 @@ var cloudClient=null;
 var cloudUser=null;
 var cloudLoading=false;
 var cloudBootstrapPending=false;
-var cloudSaveTimers=new Map();
+var cloudSaveQueue=new LatestTaskQueue(450,async function(_date,record){await cloudSaveRecord(record)});
 var cloudActivationSerial=0;
 
 var calendarConnected=false;
@@ -706,8 +707,7 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
 function queueCloudSave(rec,allowDuringBootstrap){
  if(!cloudClient||!cloudUser||!rec||cloudLoading||(!allowDuringBootstrap&&cloudBootstrapPending)||rec.syncConflict||!currentStorageIsUserScoped())return;
  var snap=cloneRecord(rec),date=String(rec.date||'');if(!date)return;
- var previous=cloudSaveTimers.get(date);if(previous)clearTimeout(previous);
- cloudSaveTimers.set(date,setTimeout(function(){cloudSaveTimers.delete(date);cloudSaveRecord(snap)},450));
+ cloudSaveQueue.enqueue(date,snap);
 }
 function queueDirtyCloudRecords(){
  if(!cloudClient||!cloudUser||!currentStorageIsUserScoped())return 0;
@@ -2818,7 +2818,7 @@ function persist(show){
  }
  var payload=JSON.stringify(data),ok=false;
  try{ok=writeStoredRecord(data)&&store.getItem(key(data.date))===payload}catch(e){}
- if(ok&&changed)queueCloudSave(data);
+ if(ok&&(changed||data.localDirty))queueCloudSave(data);
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
 function load(options){
@@ -3016,7 +3016,20 @@ function setSaveButtonState(state){
 function saveCurrentRecord(){
  var button=id('saveBtn');if(button&&button.dataset.state==='saving')return;
  setSaveButtonState('saving');id('status').textContent='正在儲存…';
- setTimeout(function(){var ok=persist(true);updateSummary();setSaveButtonState(ok?'success':'error')},60);
+ setTimeout(async function(){
+  var ok=persist(true),savingDate=data&&data.date;updateSummary();
+  if(!ok){setSaveButtonState('error');return}
+  if(cloudUser&&cloudClient&&currentStorageIsUserScoped()&&!cloudLoading&&!cloudBootstrapPending&&savingDate){
+   id('status').textContent='已儲存本機；正在同步 '+savingDate+' 的完整紀錄到雲端…';
+   await cloudSaveQueue.flush(savingDate);
+   var saved=readStoredRecord(savingDate),synced=!!saved&&!saved.localDirty&&!saved.syncConflict;
+   if(synced){id('status').textContent='已儲存 '+savingDate+'，並完成雲端同步。';setSaveButtonState('success')}
+   else{if(saved&&saved.syncConflict)id('status').textContent='已儲存本機，但此日期有同步衝突；請重新讀取後確認。';else id('status').textContent='已儲存本機，但雲端同步尚未完成；請確認連線後再按一次儲存。';setSaveButtonState('error')}
+   return
+  }
+  if(cloudUser&&(cloudLoading||cloudBootstrapPending))id('status').textContent='已儲存本機；雲端資料載入完成後會自動同步。';
+  setSaveButtonState('success');
+ },60);
 }
 id('saveBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();saveCurrentRecord()});
 id('weekSummaryBtn').addEventListener('click',buildAndCopyWeekSummary);
