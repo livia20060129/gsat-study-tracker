@@ -3,18 +3,18 @@
  * v171 compatibility runtime, progressively extracted into typed modules.
  *
  * This is the existing v167 application logic moved out of the single HTML file
- * into a TypeScript module. It still uses @ts-nocheck for the remaining legacy UI surface; storage, sync,
- * math progress, and Calendar parsing are delegated to typed/server modules.
+ * into a TypeScript module. It still uses @ts-nocheck for the remaining legacy UI surface; record repositories,
+ * sync, math progress, Calendar parsing, and Calendar task creation are delegated to typed modules.
  *
  * New/rewritten logic should move into typed modules under:
- *   data/ · study/ · items/ · storage/ · ui/
+ *   application/ · domain/ · infrastructure/ · data/ · study/ · items/ · storage/ · ui/
  */
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
-import { decideRevisionSync, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
+import { decideRevisionSync, sameStudyContent } from './storage/recordSync';
 import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
-import { calendarFixedTemplate, parseCalendarTask } from './calendar/calendarBridge';
+import { calendarFixedTemplate } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
 import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
@@ -29,9 +29,12 @@ import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } f
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, startStudyTimer, timerMinutesValue } from './study/studyTimer';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
-import { CURRENT_STUDY_RECORD_SCHEMA_VERSION, decodeStudyRecord, encodeStudyRecord } from './storage/studyRecordCodec';
+import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
 import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEMS, CALENDAR_NATURAL_PLAN } from './data/naturalCalendar';
+import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository';
+import { SupabaseStudyRecordRepository } from './infrastructure/storage/supabaseStudyRecordRepository';
+import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudyTaskService';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -271,6 +274,7 @@ var store=(function(){
  }
 })();
 var STORE_PREFIX=storagePrefixForUser(null);
+var localRecordRepository=new LocalStudyRecordRepository(store,STORE_PREFIX);
 var weekdays=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
 var labels={mathStudy:'數學講義：進度',mathLecture:'數學講義',mathPractice:'數學講義題目：理解檢查＋錯題標記＋訂正',mathOral:'數 A 互動題：觀念題',magazine:'英文雜誌',englishPractice:'英文互動題：英聽及學測練習',englishMixedWriting:'英文：混合題與作文練習',chineseReading:'國文',aceReading:'英文：ACE Reading',scienceReview:'自然',mock:'歷屆／模考',general:'一般學習／整理',extra:'英文',interactive:'互動題',interactiveDaily:'互動題',biologyInteractive:'生物互動題',englishVocabInteractive:'英文單字／片語互動題',calendarStudy:'Google Calendar 排程'};
 var TRAUMALAND_TOPICS=[{"chapter":1,"title":"MY OVERWHELMING EMPTINESS"},{"chapter":2,"title":"GHOST VAMPIRE"},{"chapter":3,"title":"DING-DONG"},{"chapter":4,"title":"FEEL ALIVE"},{"chapter":5,"title":"THUNDERCLAP"},{"chapter":6,"title":"6 (66)"},{"chapter":7,"title":"BIRD IN FLIGHT"},{"chapter":8,"title":"THE INCIDENT"},{"chapter":9,"title":"PART OF"},{"chapter":10,"title":"GUESS WHO?"},{"chapter":11,"title":"PISTACHIO ICE CREAM"},{"chapter":12,"title":"NDA"},{"chapter":13,"title":"TO FEEL IS TO LIVE"},{"chapter":14,"title":"NO AIR"},{"chapter":15,"title":"THE SOLAR SYSTEM"},{"chapter":16,"title":"WONKY"},{"chapter":17,"title":"POLLY’S"},{"chapter":18,"title":"LIKE CRY, OR LIKE RIP"},{"chapter":19,"title":"USABLE"},{"chapter":20,"title":"SYCAMORE"},{"chapter":21,"title":"CLASSIFIED"},{"chapter":22,"title":"A BRIGHT FUTURE"},{"chapter":23,"title":"MARKED *ANONYMOUS*"},{"chapter":24,"title":"IN CASE OF EMERGENCY"},{"chapter":25,"title":"A STORY"},{"chapter":26,"title":"TURNING TIDES"},{"chapter":27,"title":"DECEPTIVE AND UNRELIABLE"},{"chapter":28,"title":"HELL"},{"chapter":29,"title":"FIND YOURSELF"},{"chapter":30,"title":"PRAYING TO THE STARS"},{"chapter":31,"title":"OK. OK. OK."},{"chapter":32,"title":"PSYCHO"},{"chapter":33,"title":"THE GREATER GOOD"},{"chapter":34,"title":"THE OMEN"},{"chapter":35,"title":"CLINIC ROOM 2"},{"chapter":36,"title":"FAITH IN GOODNESS"}];
@@ -553,6 +557,7 @@ var deferredLimitPrompt=null;
 var SUPABASE_URL='https://arxbirgujbrtzhoficdf.supabase.co';
 var SUPABASE_PUBLISHABLE_KEY='sb_publishable_x8YXDSe-6rvX25o38jEl4w_OYn971PA';
 var cloudClient=null;
+var cloudRecordRepository=null;
 var cloudUser=null;
 var cloudLoading=false;
 var cloudBootstrapPending=false;
@@ -570,6 +575,7 @@ var cloudNaturalIntegrationDetailsByDate={};
 
 function setStorageScope(userId){
  STORE_PREFIX=storagePrefixForUser(userId||null);
+ localRecordRepository.setPrefix(STORE_PREFIX);
  mathProgressIndex.replaceAll([]);
  data=null;
 }
@@ -605,41 +611,22 @@ function cloneRecord(rec){
  try{return JSON.parse(JSON.stringify(rec))}catch(e){return rec}
 }
 function readStoredRecord(date){
- var raw=store.getItem(key(date));if(!raw)return null;
- var decoded=decodeStudyRecord(raw,date);return decoded.ok?decoded.record:null;
+ return localRecordRepository.load(date);
 }
 function readRecordFromPrefix(prefix,date){
- var raw=store.getItem(prefix+date);if(!raw)return null;
- var decoded=decodeStudyRecord(raw,date);return decoded.ok?decoded.record:null;
+ return localRecordRepository.loadFromPrefix(prefix,date);
 }
 function recordDatesForPrefix(prefix){
- var a=[];
- for(var i=0;i<store.length;i++){
-  var k=store.key(i);if(!k||k.indexOf(prefix)!==0)continue;
-  var d=k.slice(prefix.length);if(/^\d{4}-\d{2}-\d{2}$/.test(d))a.push(d);
- }
- return a.sort();
+ return localRecordRepository.listDates(prefix);
 }
 function writeStoredRecord(rec){
  if(!rec||!rec.date)return false;
  try{
   rec.schemaVersion=CURRENT_STUDY_RECORD_SCHEMA_VERSION;
-  store.setItem(key(rec.date),encodeStudyRecord(rec));
+  if(!localRecordRepository.save(rec))return false;
   mathProgressIndex.upsert(rec);
   return true;
  }catch(e){return false}
-}
-function cloudRecordFromRow(row){
- if(!row||!row.study_date||!row.payload)return null;
- var decoded=decodeStudyRecord(row.payload,String(row.study_date));if(!decoded.ok)return null;
- var rec=decoded.record;
- delete rec.updatedAt;
- rec.date=String(row.study_date);
- rec.serverRevision=Number(row.revision||0);
- rec.serverUpdatedAt=String(row.updated_at||'');
- rec.localDirty=false;
- rec.syncConflict=false;
- return rec;
 }
 function updateCurrentRecordSyncMeta(date,serverRec){
  if(!data||data.date!==date||!serverRec)return;
@@ -650,28 +637,20 @@ function updateCurrentRecordSyncMeta(date,serverRec){
  data.syncConflict=false;
 }
 async function cloudSaveRecord(rec,forcedBaseRevision){
- if(!cloudClient||!cloudUser||!rec||!currentStorageIsUserScoped())return false;
+ if(!cloudRecordRepository||!cloudUser||!rec||!currentStorageIsUserScoped())return false;
  if(rec.syncConflict&&forcedBaseRevision===undefined){
   cloudSetMessage(rec.date+' 有同步衝突；自動上傳已停止，避免覆蓋其他裝置資料。',false);
   return false;
  }
  try{
   var snapshot=cloneRecord(rec);
-  var payload=stripRecordSyncMeta(snapshot);
   var baseRevision=forcedBaseRevision===undefined?Number(snapshot.serverRevision||0):Number(forcedBaseRevision||0);
-  var r=await cloudClient.rpc('upsert_study_record',{
-   p_study_date:snapshot.date,
-   p_payload:payload,
-   p_base_revision:baseRevision
-  });
-  if(r.error)throw r.error;
-  var result=Array.isArray(r.data)?r.data[0]:r.data;
-  if(!result)throw new Error('雲端未回傳儲存結果。');
+  var result=await cloudRecordRepository.save(snapshot,baseRevision);
   var current=readStoredRecord(snapshot.date)||snapshot;
   if(!result.applied){
    current.syncConflict=true;
    current.localDirty=true;
-   if(result.updated_at)current.serverUpdatedAt=String(result.updated_at);
+   if(result.updatedAt)current.serverUpdatedAt=String(result.updatedAt);
    writeStoredRecord(current);
    if(data&&data.date===snapshot.date&&sameStudyContent(data,current)){
     data.syncConflict=true;data.localDirty=true;data.serverUpdatedAt=current.serverUpdatedAt||'';
@@ -680,7 +659,7 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
    return false;
   }
 
-  var saved=cloudRecordFromRow({study_date:snapshot.date,payload:result.payload,revision:result.revision,updated_at:result.updated_at});
+  var saved=result.record;
   if(!saved)throw new Error('無法解析雲端儲存結果。');
   current=readStoredRecord(snapshot.date);
   if(current&&!sameStudyContent(current,snapshot)){
@@ -723,20 +702,17 @@ function queueDirtyCloudRecords(){
 async function cloudPullAllRecords(options){
  var opts=options||{};
  var empty={ok:false,mode:'none',total:0,accepted:0,queued:0,conflicts:0};
- if(!cloudClient||!cloudUser||!currentStorageIsUserScoped())return empty;
+ if(!cloudRecordRepository||!cloudUser||!currentStorageIsUserScoped())return empty;
  var pendingByDate={},cloudDates={},conflicts=0,accepted=0,total=0,errorMessage='';
  var watermark=recordSyncWatermark(),since=incrementalSyncStart(watermark),mode=since?'incremental':'full';
  try{
   cloudLoading=true;
   if(!opts.silent)cloudSetMessage('正在讀取雲端紀錄…',true);
-  var query=cloudClient.from('study_records').select('study_date,payload,updated_at,revision');
-  if(since)query=query.gte('updated_at',since);
-  var r=await query.order('study_date',{ascending:true});
-  if(r.error)throw r.error;
-  (r.data||[]).forEach(function(row){
-   if(!row||!row.study_date||!row.payload)return;total++;
-   cloudDates[String(row.study_date)]=true;
-   var local=readStoredRecord(row.study_date),cloud=cloudRecordFromRow(row);
+  var snapshots=await cloudRecordRepository.loadMany(since);total=snapshots.length;
+  snapshots.forEach(function(snapshot){
+   var cloud=snapshot.record,date=snapshot.studyDate;
+   cloudDates[date]=true;
+   var local=readStoredRecord(date);
    var decision=decideRevisionSync(local,cloud);
     if(decision==='use-cloud'||decision==='equal'){
      if(cloud){writeStoredRecord(cloud);accepted++}
@@ -750,7 +726,7 @@ async function cloudPullAllRecords(options){
    if(cloudDates[date])return;
    var local=readStoredRecord(date);if(local)pendingByDate[date]=local;
   });
-  var nextWatermark=latestServerWatermark(r.data||[],watermark);if(nextWatermark)saveRecordSyncWatermark(nextWatermark);
+  var nextWatermark=latestServerWatermark(snapshots.map(function(snapshot){return{updated_at:snapshot.updatedAt}}),watermark);if(nextWatermark)saveRecordSyncWatermark(nextWatermark);
  }catch(e){errorMessage=e&&e.message?e.message:String(e)}
  finally{cloudLoading=false}
  if(errorMessage){cloudSetMessage('讀取雲端失敗：'+errorMessage,false);return Object.assign({},empty,{mode:mode,error:errorMessage})}
@@ -766,14 +742,12 @@ async function cloudPullAllRecords(options){
  return{ok:true,mode:mode,total:total,accepted:accepted,queued:pending.length,conflicts:conflicts,message:msg+'。'};
 }
 async function cloudPullDate(date,force){
- if(!cloudClient||!cloudUser||!date||!currentStorageIsUserScoped())return false;
+ if(!cloudRecordRepository||!cloudUser||!date||!currentStorageIsUserScoped())return false;
  var localToPush=null,cloud=null,conflict=false;
  try{
   cloudLoading=true;
-  var r=await cloudClient.from('study_records').select('study_date,payload,updated_at,revision').eq('study_date',date).maybeSingle();
-  if(r.error)throw r.error;
   var local=readStoredRecord(date);
-  cloud=r.data?cloudRecordFromRow(r.data):null;
+  var snapshot=await cloudRecordRepository.loadDate(date);cloud=snapshot?snapshot.record:null;
   var decision=decideRevisionSync(local,cloud);
   if(decision==='use-cloud'||decision==='equal'){
    if(cloud)writeStoredRecord(cloud);
@@ -808,9 +782,8 @@ function legacyCandidate(date){
  return{ambiguous:false,record:guest||old||null};
 }
 async function cloudForceLocalRecord(rec){
- var r=await cloudClient.from('study_records').select('revision').eq('study_date',rec.date).maybeSingle();
- if(r.error)throw r.error;
- var base=r.data?Number(r.data.revision||0):0;
+ if(!cloudRecordRepository)throw new Error('雲端 Repository 尚未初始化。');
+ var base=await cloudRecordRepository.loadRevision(rec.date);
  rec.serverRevision=base;rec.localDirty=true;rec.syncConflict=false;
  writeStoredRecord(rec);
  return cloudSaveRecord(rec,base);
@@ -955,9 +928,9 @@ function resolveCloudGrammarPlan(parsed){
 }
 function buildCalendarRuntime(rows){
  calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalRecommendedByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
- (rows||[]).forEach(function(row){
-  var parsed=parseCalendarTask(row);if(!parsed||parsed.kind==='other')return;
-  var d=parsed.date;(calendarParsedByDate[d]||(calendarParsedByDate[d]=[])).push(parsed);
+ var plan=buildCalendarStudyTaskPlan(rows||[]);calendarParsedByDate=plan.byDate;
+ plan.tasks.forEach(function(parsed){
+  var d=parsed.date;
   if(parsed.kind==='math'&&!parsed.makeup){
    var mp=resolveCloudMathPlan(parsed);if(mp)cloudMathPlanByDate[d]=mp;
   }else if(parsed.kind==='natural'){
@@ -1063,6 +1036,7 @@ async function initCloud(){
   setStorageScope(null);rebuildMathProgressIndex();cloudSetMessage('Supabase 程式庫載入失敗；目前使用本機模式。',false);cloudUpdateUI();load();return
  }
  cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+ cloudRecordRepository=new SupabaseStudyRecordRepository(cloudClient);
  var s=await cloudClient.auth.getSession();await activateCloudUser(s.data&&s.data.session?s.data.session.user:null);
  cloudClient.auth.onAuthStateChange(function(event,session){
   var next=session?session.user:null;
@@ -1110,10 +1084,9 @@ function normalizeItem(it,date){
  return it;
 }
 function loadData(date){
- var b=blank(date),raw=store.getItem(key(date));
- if(!raw)return b;
+ var b=blank(date),o=readStoredRecord(date);
+ if(!o)return b;
  try{
-  var decoded=decodeStudyRecord(raw,date);if(!decoded.ok)return b;var o=decoded.record;
   b.serverRevision=Number(o.serverRevision||0);b.serverUpdatedAt=o.serverUpdatedAt||'';b.localDirty=!!o.localDirty;b.syncConflict=!!o.syncConflict;
   b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
   var storedCelebrations=o.completionCelebrations&&o.completionCelebrations.version===3?o.completionCelebrations:null;
@@ -1216,12 +1189,7 @@ function completedNaturalIntervalsBefore(date,subject){
   });
  }
  try{
-  for(var i=0;i<store.length;i++){
-   var sk=store.key(i);if(!sk||sk.indexOf(STORE_PREFIX)!==0||sk.indexOf('imported-')>=0)continue;
-   var ds=sk.slice(STORE_PREFIX.length);if(!/^\d{4}-\d{2}-\d{2}$/.test(ds)||ds>=date)continue;
-   var raw=store.getItem(sk);if(!raw)continue;
-   var decoded=decodeStudyRecord(raw,ds);if(decoded.ok)scanRecord(decoded.record,ds);
-  }
+  localStudyDates().forEach(function(ds){if(ds<date)scanRecord(readStoredRecord(ds),ds)});
  }catch(e2){}
  out.sort(function(a,b){return a[0]-b[0]||a[1]-b[1]});
  var merged=[];
@@ -1590,7 +1558,7 @@ function rebuildDeferredForWeek(originDate){
  for(var i=1;i<=6;i++){
   var target=dateString(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12)),r=loadData(target);
   if(ensureDailyPresets(r,target)){
-   try{store.setItem(key(target),JSON.stringify(r))}catch(e){}
+   writeStoredRecord(r);
    if(typeof queueCloudSave==='function')queueCloudSave(r);
   }
  }
@@ -2115,7 +2083,7 @@ function naturalReviewMatches(f,current){
  var s=Number(f.start),e=Number(f.end),out=[],seen={};if(!Number.isFinite(s)||s<1)return out;if(!Number.isFinite(e)||e<1)e=s;if(e<s){var t=s;s=e;e=t}
  function add(it){if(!it||it===current||it.type!=='scienceReview'||!it.f)return;var q=it.f;if(q.subject!=='混合'||q.material!=='複習週記'||!q.chapter)return;var a=Number(q.start),b=Number(q.end);if(!Number.isFinite(a)||a<1)return;if(!Number.isFinite(b)||b<1)b=a;if(b<a){var z=a;a=b;b=z}if(e<a||s>b)return;var k=a+'|'+b+'|'+q.chapter;if(seen[k])return;seen[k]=1;out.push({start:Math.max(s,a),end:Math.min(e,b),chapter:q.chapter})}
  if(data&&Array.isArray(data.items))data.items.forEach(add);
- try{for(var i=0;i<store.length;i++){var sk=store.key(i);if(!sk||sk.indexOf(STORE_PREFIX)!==0||sk.indexOf('imported-')>=0)continue;var o=JSON.parse(store.getItem(sk)||'null');if(o&&Array.isArray(o.items))o.items.forEach(add)}}catch(e2){}
+ try{localStudyDates().forEach(function(date){var o=readStoredRecord(date);if(o&&Array.isArray(o.items))o.items.forEach(add)})}catch(e2){}
  return out.sort(function(a,b){return a.start-b.start});
 }
 function naturalReviewText(x){var f=x.f,a=naturalReviewMatches(f,x);if(!a.length)return f.chapter||'尚無對應資料';return a.map(function(z){return z.chapter+'（'+(z.start===z.end?'p.'+z.start:'p.'+z.start+'–'+z.end)+'）'}).join('、')}
@@ -2949,8 +2917,8 @@ function persist(show){
  }else if(previous){
   data.serverRevision=Number(previous.serverRevision||0);data.serverUpdatedAt=previous.serverUpdatedAt||'';data.localDirty=!!previous.localDirty;data.syncConflict=!!previous.syncConflict;
  }
- var payload=encodeStudyRecord(data),ok=false;
- try{ok=writeStoredRecord(data)&&store.getItem(key(data.date))===payload}catch(e){}
+ var ok=false;
+ try{ok=writeStoredRecord(data)&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
  if(ok&&(changed||data.localDirty))queueCloudSave(data);
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }

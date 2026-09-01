@@ -1,4 +1,5 @@
 import type { StudyItem, StudyItemFields, StudyRecord } from '../types';
+import { isMathProgressStudyItem } from '../domain/study/studyItemTypes.ts';
 
 export interface MathProgressSummary {
   dailyNewPages: number;
@@ -66,8 +67,9 @@ function mathProgressLeaves(item: StudyItem): StudyItem[] {
 
 function addCompletedMathItem(out: PageSetByMaterial, item: StudyItem): void {
   for (const leaf of mathProgressLeaves(item)) {
-    if (leaf.type === 'mathStudy' && leaf.done) addRange(out, leaf.f);
-    if (leaf.type === 'mathLecture' && leaf.done && Boolean(leaf.f?.progress)) addRange(out, leaf.f);
+    if (!isMathProgressStudyItem(leaf) || !leaf.done) continue;
+    if (leaf.type === 'mathStudy') addRange(out, leaf.f);
+    if (leaf.type === 'mathLecture' && Boolean(leaf.f.progress)) addRange(out, leaf.f);
   }
 }
 
