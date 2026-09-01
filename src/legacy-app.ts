@@ -1946,7 +1946,7 @@ function ensureTimerTicker(){
 function renderTimeControl(x,entry){
  var target={item:x,entry:entry||null},holder=entry||x.f||(x.f={}),state=normalizeStudyTimerState(holder.timeTracking),entryAttr=entry?' data-timer-entry="'+esc(entry.id)+'"':'',mode=state.mode;
  holder.timeTracking=state;
- var h='<span class="time-control"'+entryAttr+'><label class="sr-only">時間輸入方式</label><select class="time-mode-select" data-time-mode'+entryAttr+' aria-label="時間輸入方式"><option value="manual"'+selected('manual',mode)+'>手動</option><option value="timer"'+selected('timer',mode)+'>計時</option></select>';
+ var h='<span class="time-control"'+entryAttr+'><button class="time-mode-toggle" type="button" data-action="time-mode-toggle"'+entryAttr+' aria-label="目前為'+(mode==='manual'?'手動填寫':'計時')+'，點擊切換為'+(mode==='manual'?'計時':'手動填寫')+'" title="點擊切換為'+(mode==='manual'?'計時':'手動')+'">'+(mode==='manual'?'手動':'計時')+'</button>';
  if(mode==='manual'){
   if(entry)h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-mag-field="minutes" data-index="'+ensureMagazineEntries(x).indexOf(entry)+'" value="'+esc(entry.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
   else h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
@@ -2583,10 +2583,10 @@ function refreshAuto(card,x){
 }
 
 function timerTargetFromControl(item,control){return currentTimerTarget(item,control&&control.getAttribute('data-timer-entry'))}
-function setTimerModeFromControl(item,control){
+function toggleTimerModeFromControl(item,control){
  var target=timerTargetFromControl(item,control);if(!target)return;
  var state=timerStateForTarget(target),pointer=readTimerPointer();
- if(control.value==='manual'){
+ if(state.mode==='timer'){
   if(state.startedAt!==null)state=pauseStudyTimer(state);
   state.mode='manual';setTimerStateForTarget(target,state);
   if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
@@ -2672,7 +2672,6 @@ function maybeCelebrateCompletion(previousPercent,completedByUser){
 }
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
- if(t.matches('[data-time-mode]')&&x){setTimerModeFromControl(x,t);return}
  if(t.matches('[data-deferred]')&&x){
   var isDeferred=confirmedDeferred(x);
   if(t.checked&&!isDeferred){
@@ -2743,6 +2742,7 @@ function handleClick(e){
  if(action==='timer-pause-active'){
   e.preventDefault();e.stopPropagation();var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI();
  }
+ else if(action==='time-mode-toggle'&&x){e.preventDefault();toggleTimerModeFromControl(x,b)}
  else if((action==='timer-toggle'||action==='timer-finish'||action==='timer-reset')&&x){e.preventDefault();runTimerAction(x,b,action)}
  else if(action==='week-open'){
   var target=b.getAttribute('data-week-date');
