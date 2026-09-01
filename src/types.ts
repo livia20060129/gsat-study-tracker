@@ -73,6 +73,8 @@ export interface StudyItem {
 }
 
 export interface StudyRecord {
+  /** Explicit JSON payload schema; absent records are decoded as legacy schema 0. */
+  schemaVersion?: number;
   date: string;
   /** @deprecated v170 legacy client timestamp; never used for sync ordering in v171. */
   updatedAt?: string;
