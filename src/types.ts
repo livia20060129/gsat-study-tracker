@@ -35,6 +35,16 @@ export interface StudyItemFields {
   groupedWorkEntries?: StudyItem[];
   /** Original top-level items preserved inside a final daily aggregate. */
   dailyWorkSourceItems?: StudyItem[];
+  /** Manual/timer mode and resumable elapsed-time state for this item. */
+  timeTracking?: StudyTimerState;
+}
+
+export type StudyTimeMode = 'manual' | 'timer';
+
+export interface StudyTimerState {
+  mode: StudyTimeMode;
+  accumulatedSeconds: number;
+  startedAt: number | null;
 }
 
 export interface StudyItem {

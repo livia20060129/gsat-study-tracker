@@ -1,0 +1,62 @@
+import type { StudyTimerState, StudyTimeMode } from '../types.ts';
+
+function wholeNonNegative(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : 0;
+}
+
+export function normalizeStudyTimerState(value: unknown): StudyTimerState {
+  const source = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Partial<StudyTimerState>
+    : {};
+  const mode: StudyTimeMode = source.mode === 'timer' ? 'timer' : 'manual';
+  const startedAt = Number(source.startedAt);
+  return {
+    mode,
+    accumulatedSeconds: wholeNonNegative(source.accumulatedSeconds),
+    startedAt: Number.isFinite(startedAt) && startedAt > 0 ? startedAt : null,
+  };
+}
+
+export function studyTimerElapsedSeconds(value: unknown, now = Date.now()): number {
+  const state = normalizeStudyTimerState(value);
+  if (state.startedAt === null) return state.accumulatedSeconds;
+  const runningSeconds = Math.max(0, Math.floor((now - state.startedAt) / 1000));
+  return state.accumulatedSeconds + runningSeconds;
+}
+
+export function startStudyTimer(value: unknown, now = Date.now()): StudyTimerState {
+  const state = normalizeStudyTimerState(value);
+  return {
+    ...state,
+    mode: 'timer',
+    startedAt: state.startedAt ?? now,
+  };
+}
+
+export function pauseStudyTimer(value: unknown, now = Date.now()): StudyTimerState {
+  const state = normalizeStudyTimerState(value);
+  return {
+    ...state,
+    accumulatedSeconds: studyTimerElapsedSeconds(state, now),
+    startedAt: null,
+  };
+}
+
+export function resetStudyTimer(): StudyTimerState {
+  return { mode: 'timer', accumulatedSeconds: 0, startedAt: null };
+}
+
+/** Timer display deliberately stays in minutes:seconds, including values above 59 minutes. */
+export function formatStudyTimer(value: unknown, now = Date.now()): string {
+  const totalSeconds = studyTimerElapsedSeconds(value, now);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+/** Existing records store whole minutes; a non-zero timed session is at least one minute. */
+export function timerMinutesValue(value: unknown, now = Date.now()): string {
+  const seconds = studyTimerElapsedSeconds(value, now);
+  return seconds > 0 ? String(Math.max(1, Math.round(seconds / 60))) : '';
+}

@@ -27,6 +27,7 @@ import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, 
 import { groupStudyItemsBySubject, studyItemSubjectClass } from './study/subjectOrder';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
+import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, startStudyTimer, timerMinutesValue } from './study/studyTimer';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
 
 var DAILY_PRESET_START='2026-08-10';
@@ -1876,10 +1877,99 @@ function interactiveDailyTypeOptions(v){
 }
 function ensureMagazineEntries(x){
  if(!x.f)x.f={};if(!Array.isArray(x.f.entries))x.f.entries=[{name:x.f.name||'',month:x.f.month||'',unit:x.f.unit||'',minutes:x.minutes||''}];
- if(!x.f.entries.length)x.f.entries.push({name:'',month:'',unit:'',minutes:''});return x.f.entries;
+ if(!x.f.entries.length)x.f.entries.push({name:'',month:'',unit:'',minutes:''});
+ x.f.entries.forEach(function(entry){if(!entry.id)entry.id=uid('mag')});
+ return x.f.entries;
 }
 function fixedMagazineMinutes(x){return ensureMagazineEntries(x).reduce(function(s,r){return s+Number(r.minutes||0)},0)}
 function hidesTopMinutes(x){return isEnglishReview(x)||isFixedMagazine(x)||isSaturdayMakeup(x)||isInteractiveDaily(x)}
+
+var studyTimerTicker=null;
+function timerPointerKey(){return STORE_PREFIX+'active-timer'}
+function readTimerPointer(){
+ try{var raw=store.getItem(timerPointerKey()),value=raw?JSON.parse(raw):null;return value&&value.date&&value.itemId?value:null}catch(e){return null}
+}
+function writeTimerPointer(pointer){
+ try{if(pointer)store.setItem(timerPointerKey(),JSON.stringify(pointer));else store.removeItem(timerPointerKey())}catch(e){}
+}
+function sameTimerPointer(a,b){return !!a&&!!b&&a.date===b.date&&a.itemId===b.itemId&&String(a.entryId||'')===String(b.entryId||'')}
+function timerTargetForRecord(rec,pointer){
+ if(!rec||!pointer)return null;
+ var item=findRecursive(rec.items,pointer.itemId);if(!item)return null;
+ var entry=null;
+ if(pointer.entryId){var entries=ensureMagazineEntries(item);entry=entries.find(function(row){return row.id===pointer.entryId})||null;if(!entry)return null}
+ return{record:rec,item:item,entry:entry,pointer:pointer};
+}
+function currentTimerTarget(item,entryId){
+ if(!item)return null;
+ var pointer={date:data.date,itemId:item.id};
+ if(entryId)pointer.entryId=entryId;
+ return timerTargetForRecord(data,pointer);
+}
+function timerStateForTarget(target){
+ var holder=target.entry||target.item.f||(target.item.f={});
+ holder.timeTracking=normalizeStudyTimerState(holder.timeTracking);
+ return holder.timeTracking;
+}
+function setTimerStateForTarget(target,state){
+ var normalized=normalizeStudyTimerState(state);
+ if(target.entry){target.entry.timeTracking=normalized;if(target.record===data)propagateDailyWorkField(target.item,'entries',ensureMagazineEntries(target.item))}
+ else{if(!target.item.f)target.item.f={};target.item.f.timeTracking=normalized;if(target.record===data)propagateDailyWorkField(target.item,'timeTracking',normalized)}
+ return normalized;
+}
+function setTimerMinutesForTarget(target,value){
+ if(target.entry){target.entry.minutes=value;if(target.record===data)propagateDailyWorkField(target.item,'entries',ensureMagazineEntries(target.item))}
+ else{target.item.minutes=value;if(target.record===data)propagateDailyWorkMinutes(target.item,value)}
+}
+function persistTimerTarget(target){
+ if(target.record===data){persist(false);return}
+ target.record.localDirty=true;target.record.syncConflict=false;
+ if(writeStoredRecord(target.record))queueCloudSave(target.record);
+}
+function recordForTimerDate(date){return data&&data.date===date?data:readStoredRecord(date)}
+function activeTimerTarget(){var pointer=readTimerPointer();return pointer?timerTargetForRecord(recordForTimerDate(pointer.date),pointer):null}
+function timerTargetTitle(target){
+ var title=itemTitle(target.item);
+ if(target.entry){var index=ensureMagazineEntries(target.item).indexOf(target.entry);title+='｜第'+(index+1)+'筆'}
+ return title;
+}
+function pauseActiveTimer(now){
+ var target=activeTimerTarget();if(!target){writeTimerPointer(null);return null}
+ var state=timerStateForTarget(target);if(state.startedAt!==null)setTimerStateForTarget(target,pauseStudyTimer(state,now||Date.now()));
+ persistTimerTarget(target);writeTimerPointer(null);return target;
+}
+function ensureTimerTicker(){
+ var pointer=readTimerPointer();
+ if(pointer&&!studyTimerTicker)studyTimerTicker=setInterval(refreshTimerUI,1000);
+ if(!pointer&&studyTimerTicker){clearInterval(studyTimerTicker);studyTimerTicker=null}
+}
+function renderTimeControl(x,entry){
+ var target={item:x,entry:entry||null},holder=entry||x.f||(x.f={}),state=normalizeStudyTimerState(holder.timeTracking),entryAttr=entry?' data-timer-entry="'+esc(entry.id)+'"':'',mode=state.mode;
+ holder.timeTracking=state;
+ var h='<span class="time-control"'+entryAttr+'><label class="sr-only">時間輸入方式</label><select class="time-mode-select" data-time-mode'+entryAttr+' aria-label="時間輸入方式"><option value="manual"'+selected('manual',mode)+'>手動</option><option value="timer"'+selected('timer',mode)+'>計時</option></select>';
+ if(mode==='manual'){
+  if(entry)h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-mag-field="minutes" data-index="'+ensureMagazineEntries(x).indexOf(entry)+'" value="'+esc(entry.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
+  else h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
+ }else{
+  h+='<strong class="timer-display" data-timer-display'+entryAttr+'>'+formatStudyTimer(state)+'</strong>';
+  h+='<button class="secondary timer-button" type="button" data-action="timer-toggle"'+entryAttr+'>'+(state.startedAt!==null?'暫停':(state.accumulatedSeconds?'繼續':'開始'))+'</button>';
+  h+='<button class="primary timer-button" type="button" data-action="timer-finish"'+entryAttr+'>完成並填入</button>';
+  h+='<button class="timer-reset" type="button" data-action="timer-reset"'+entryAttr+'>重設</button>';
+  if((entry?entry.minutes:x.minutes)!=='')h+='<span class="timer-filled">已填 '+esc(entry?entry.minutes:x.minutes)+' 分</span>';
+ }
+ return h+'</span>';
+}
+function refreshTimerUI(){
+ var now=Date.now();
+ document.querySelectorAll('[data-timer-display]').forEach(function(display){
+  var card=display.closest('[data-item]'),item=card?findItem(card.getAttribute('data-item')):null,entryId=display.getAttribute('data-timer-entry'),target=currentTimerTarget(item,entryId);
+  if(target)display.textContent=formatStudyTimer(timerStateForTarget(target),now);
+ });
+ var summary=id('activeTimerSummary'),display=id('activeTimerDisplay'),title=id('activeTimerTitle'),target=activeTimerTarget();
+ if(summary&&target){summary.hidden=false;if(display)display.textContent=formatStudyTimer(timerStateForTarget(target),now);if(title)title.textContent=timerTargetTitle(target)}
+ else if(summary){summary.hidden=true;if(readTimerPointer())writeTimerPointer(null)}
+ ensureTimerTicker();
+}
 function nestedTypeOptions(v){return'<option value="">請選擇</option>'+[['mathLecture','數學'],['scienceReview','自然'],['extra','英文'],['chineseReading','國文'],['mock','歷屆／模考']].map(function(a){return'<option value="'+a[0]+'"'+selected(a[0],v)+'>'+a[1]+'</option>'}).join('')}
 function reviewTypeOptions(v){return'<option value="">請選擇</option>'+[['mathLecture','數學'],['scienceReview','自然'],['extra','英文'],['chineseReading','國文'],['mock','歷屆／模考']].map(function(a){return'<option value="'+a[0]+'"'+selected(a[0],v)+'>'+a[1]+'</option>'}).join('')}
 
@@ -2345,7 +2435,7 @@ function renderItemFields(x,reviewMode){
 function renderMagazineFields(x){
  var f=x.f;if(!isFixedMagazine(x))return'<div class="grid-3"><div class="field"><label>雜誌</label><select data-field="name"><option value="">請選擇</option><option'+selected('常春藤',f.name)+'>常春藤</option><option'+selected('CNN互動英語',f.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-field="month" value="'+esc(f.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-field="unit" value="'+esc(f.unit||'')+'"></div></div>';
  var a=ensureMagazineEntries(x),h='';
- for(var i=0;i<a.length;i++){var r=a[i];h+='<div class="item subject-card subject-english" style="margin-top:8px"><div class="item-top">'+(a.length>1?'<button class="delete" data-action="mag-delete" data-index="'+i+'">刪除此筆</button>':'')+'<span class="minutes-badge"><input type="number" min="0" step="1" data-mag-field="minutes" data-index="'+i+'" value="'+esc(r.minutes||'')+'" style="width:76px"> 分</span></div><div class="grid-3" style="margin-top:8px"><div class="field"><label>雜誌</label><select data-mag-field="name" data-index="'+i+'"><option value="">請選擇</option><option'+selected('常春藤',r.name)+'>常春藤</option><option'+selected('CNN互動英語',r.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-mag-field="month" data-index="'+i+'" value="'+esc(r.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-mag-field="unit" data-index="'+i+'" value="'+esc(r.unit||'')+'"></div></div></div>'}
+ for(var i=0;i<a.length;i++){var r=a[i];h+='<div class="item subject-card subject-english" style="margin-top:8px"><div class="item-top">'+(a.length>1?'<button class="delete" data-action="mag-delete" data-index="'+i+'">刪除此筆</button>':'')+renderTimeControl(x,r)+'</div><div class="grid-3" style="margin-top:8px"><div class="field"><label>雜誌</label><select data-mag-field="name" data-index="'+i+'"><option value="">請選擇</option><option'+selected('常春藤',r.name)+'>常春藤</option><option'+selected('CNN互動英語',r.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-mag-field="month" data-index="'+i+'" value="'+esc(r.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-mag-field="unit" data-index="'+i+'" value="'+esc(r.unit||'')+'"></div></div></div>'}
  return h+'<button class="secondary" data-action="mag-add" style="margin-top:8px">新增雜誌紀錄</button>';
 }
 function renderEnglishReview(x){
@@ -2358,7 +2448,7 @@ function renderNestedEntry(x,kind){
  var review=kind==='review',h='<div class="item '+(review?'review-entry ':'makeup-entry ')+studyItemSubjectClass(x)+'" data-item="'+esc(x.id)+'"><div class="item-top">';
  if(!review)h+='<input type="checkbox" data-done'+checked(x.done)+'>';
  h+='<div class="field" style="flex:1"><label>項目類型</label><select data-nested-type="'+kind+'">'+(review?reviewTypeOptions(x.type):nestedTypeOptions(x.type))+'</select></div><button class="delete" data-action="'+kind+'-delete">刪除此筆</button>';
- if(!review)h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" style="width:76px"> 分</span>';
+ if(!review)h+=renderTimeControl(x);
  h+='</div>';
  if(x.type){var fields=renderItemFields(x,review);if(fields)h+='<div class="inner">'+fields+'</div>'}
  return h+'</div>';
@@ -2378,7 +2468,7 @@ function renderDailyInteractiveEntry(c){
  if(c.locked)h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><div class="fixed-book-value">'+esc(itemTitle(c))+'</div>'+(c.description?'<div class="small" style="margin-top:5px">'+esc(c.description)+'</div>':'')+'</div>';
  else h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><select data-interactive-type>'+interactiveDailyTypeOptions(c.type)+'</select></div>';
  if(!c.locked)h+='<button class="delete" data-action="interactive-delete">刪除此筆</button>';
- h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(c.minutes||'')+'" style="width:76px"> 分</span></div>';
+ h+=renderTimeControl(c)+'</div>';
  if(c.type){
   var fields=renderItemFields(c,false);
   if(fields)h+='<div class="inner">'+fields+'</div>';
@@ -2403,7 +2493,7 @@ function renderCard(x,canDelete){
  var h='<div class="item '+studyItemSubjectClass(x)+(x.done?' done':'')+(isDeferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(noTopDone?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
  if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
  if(canDelete)h+='<button class="delete" data-action="delete-item">刪除此筆</button>';
- if(!hidesTopMinutes(x))h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" style="width:76px"> 分</span>';
+ if(!hidesTopMinutes(x))h+=renderTimeControl(x);
  h+='</div>';
  var fields=renderItemFields(x,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
@@ -2467,6 +2557,7 @@ function render(){
  id('dailyNotice').textContent=isAway(data)?'今日外出：固定排程全部取消；自行新增項目仍可照常記錄。':(data.date>=DAILY_PRESET_START?dailyMessageForDate(data.date):'歷史日期：不自動改寫原有紀錄。');
  updateSummary();
  renderWeeklyItems();
+ refreshTimerUI();
 }
 function findRecursive(list,target){
  if(!Array.isArray(list))return null;
@@ -2489,6 +2580,41 @@ function refreshAuto(card,x){
   else if(x.f.material==='123日的淬鍊'){if(s)s.textContent=day123Text(x.f.subject,x.f.start,x.f.end)}
   else if(x.f.subject==='混合'){applyNaturalReview(x);if(s)s.textContent=naturalReviewText(x)}
  }
+}
+
+function timerTargetFromControl(item,control){return currentTimerTarget(item,control&&control.getAttribute('data-timer-entry'))}
+function setTimerModeFromControl(item,control){
+ var target=timerTargetFromControl(item,control);if(!target)return;
+ var state=timerStateForTarget(target),pointer=readTimerPointer();
+ if(control.value==='manual'){
+  if(state.startedAt!==null)state=pauseStudyTimer(state);
+  state.mode='manual';setTimerStateForTarget(target,state);
+  if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
+ }else{state.mode='timer';setTimerStateForTarget(target,state)}
+ persistTimerTarget(target);render();
+}
+function runTimerAction(item,control,action){
+ var target=timerTargetFromControl(item,control);if(!target)return;
+ var now=Date.now(),pointer=readTimerPointer(),state=timerStateForTarget(target);
+ if(action==='timer-toggle'&&state.startedAt===null){
+  if(pointer&&!sameTimerPointer(pointer,target.pointer)){
+   var previous=activeTimerTarget();
+   if(previous&&!confirm('「'+timerTargetTitle(previous)+'」正在計時。是否先暫停它，再開始此項目？'))return;
+   pauseActiveTimer(now);
+  }
+  setTimerStateForTarget(target,startStudyTimer(state,now));writeTimerPointer(target.pointer);
+ }else if(action==='timer-toggle'){
+  setTimerStateForTarget(target,pauseStudyTimer(state,now));
+  if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
+ }else if(action==='timer-finish'){
+  var finished=state.startedAt===null?state:pauseStudyTimer(state,now);
+  setTimerStateForTarget(target,finished);setTimerMinutesForTarget(target,timerMinutesValue(finished,now));
+  if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
+ }else if(action==='timer-reset'){
+  setTimerStateForTarget(target,resetStudyTimer());setTimerMinutesForTarget(target,'');
+  if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
+ }
+ persistTimerTarget(target);render();
 }
 
 function handleInput(e){
@@ -2546,6 +2672,7 @@ function maybeCelebrateCompletion(previousPercent,completedByUser){
 }
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
+ if(t.matches('[data-time-mode]')&&x){setTimerModeFromControl(x,t);return}
  if(t.matches('[data-deferred]')&&x){
   var isDeferred=confirmedDeferred(x);
   if(t.checked&&!isDeferred){
@@ -2603,16 +2730,21 @@ function handleChange(e){
   refreshAuto(card,x);updateSummary();persist(false);return
  }
  if(t.matches('[data-interactive-type]')&&x){
+  var interactivePointer=readTimerPointer();if(interactivePointer&&interactivePointer.itemId===x.id)pauseActiveTimer();
   if(x.locked){render();return}
   x.type=t.value;x.done=false;x.minutes='';x.f={};x.source='dailyInteractive';x.required=true;
   render();persist(false);return
  }
- if(t.matches('[data-nested-type]')&&x){x.type=t.value;x.done=false;x.minutes='';x.f={};x.source=t.getAttribute('data-nested-type');render();persist(false);return}
+ if(t.matches('[data-nested-type]')&&x){var nestedPointer=readTimerPointer();if(nestedPointer&&nestedPointer.itemId===x.id)pauseActiveTimer();x.type=t.value;x.done=false;x.minutes='';x.f={};x.source=t.getAttribute('data-nested-type');render();persist(false);return}
  if(t.matches('[data-word-pos]')&&x){var a=x.f.words||(x.f.words=[]),i=Number(t.getAttribute('data-index'));if(!a[i]||typeof a[i]!=='object')a[i]={};a[i][t.getAttribute('data-word-pos')]=t.checked;propagateDailyWorkField(x,'words',a);persist(false);return}
 }
 function handleClick(e){
  var b=e.target.closest('[data-action]');if(!b)return;var card=b.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null,action=b.getAttribute('data-action');
- if(action==='week-open'){
+ if(action==='timer-pause-active'){
+  e.preventDefault();e.stopPropagation();var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI();
+ }
+ else if((action==='timer-toggle'||action==='timer-finish'||action==='timer-reset')&&x){e.preventDefault();runTimerAction(x,b,action)}
+ else if(action==='week-open'){
   var target=b.getAttribute('data-week-date');
   if(target){persist(false);id('studyDate').value=target;load();var panel=id('dailyItemList').closest('.panel');if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'})}
  }
@@ -2632,17 +2764,17 @@ function handleClick(e){
   propagateDailyWorkDeferred(x,true,targetDay);clearPendingDeferred(x);
   persist(false);rebuildDeferredForWeek(data.date);render();
  }
- else if(action==='delete-item'&&x){clearPendingDeferred(x);clearDeferredLimitPrompt(x);data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
- else if(action==='mag-add'&&x){var entries=ensureMagazineEntries(x);entries.push({name:'',month:'',unit:'',minutes:''});propagateDailyWorkField(x,'entries',entries);render();persist(false)}
- else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x);if(a.length>1)a.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'entries',a);render();persist(false)}
+ else if(action==='delete-item'&&x){var deletingPointer=readTimerPointer();if(deletingPointer&&deletingPointer.itemId===x.id)pauseActiveTimer();clearPendingDeferred(x);clearDeferredLimitPrompt(x);data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
+ else if(action==='mag-add'&&x){var entries=ensureMagazineEntries(x);entries.push({id:uid('mag'),name:'',month:'',unit:'',minutes:''});propagateDailyWorkField(x,'entries',entries);render();persist(false)}
+ else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x),removed=a[Number(b.getAttribute('data-index'))],pointer=readTimerPointer();if(removed&&pointer&&pointer.entryId===removed.id&&pointer.itemId===x.id)pauseActiveTimer();if(a.length>1)a.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'entries',a);render();persist(false)}
  else if(action==='word-add'&&x){var words=x.f.words||(x.f.words=[]);words.push({text:'',noun:false,verb:false,adjective:false,adverb:false,preposition:false,conjunction:false,fixedCombination:false,beautifulSentences:false});propagateDailyWorkField(x,'words',words);render();persist(false)}
  else if(action==='word-delete'&&x){x.f.words.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'words',x.f.words);render();persist(false)}
  else if(action==='makeup-add'&&x){ensureEntryArray(x,'makeupEntries').push(newItem('','makeup'));render();persist(false)}
  else if(action==='review-add'&&x){ensureEntryArray(x,'reviewEntries').push(newItem('','review'));render();persist(false)}
- else if(action==='makeup-delete'&&x){removeNested(x.id,'makeupEntries');render();persist(false)}
- else if(action==='review-delete'&&x){removeNested(x.id,'reviewEntries');render();persist(false)}
+ else if(action==='makeup-delete'&&x){var makeupPointer=readTimerPointer();if(makeupPointer&&makeupPointer.itemId===x.id)pauseActiveTimer();removeNested(x.id,'makeupEntries');render();persist(false)}
+ else if(action==='review-delete'&&x){var reviewPointer=readTimerPointer();if(reviewPointer&&reviewPointer.itemId===x.id)pauseActiveTimer();removeNested(x.id,'reviewEntries');render();persist(false)}
  else if(action==='interactive-add'&&x&&isInteractiveDaily(x)){ensureInteractiveEntries(x).push(interactiveDailyChild(''));render();persist(false)}
- else if(action==='interactive-delete'&&x){if(x.locked){render();return}removeNested(x.id,'interactiveEntries');render();persist(false)}
+ else if(action==='interactive-delete'&&x){if(x.locked){render();return}var deletingInteractivePointer=readTimerPointer();if(deletingInteractivePointer&&deletingInteractivePointer.itemId===x.id)pauseActiveTimer();removeNested(x.id,'interactiveEntries');render();persist(false)}
 }
 function handleWeeklyChange(e){
  var t=e.target;if(!t.matches('[data-week-done]'))return;
@@ -2995,6 +3127,7 @@ function addEnglishReview(){
 }
 function headerInput(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
+id('activeTimerSummary').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('change',handleWeeklyChange);
 id('englishReviewList').addEventListener('input',handleInput);id('englishReviewList').addEventListener('change',handleChange);id('englishReviewList').addEventListener('click',handleClick);

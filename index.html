@@ -26,6 +26,11 @@
    <span class="connection-status-item"><span class="connection-status-name">Calendar</span><span class="badge connection-badge" id="calendarStatusBadge" data-state="offline">需先登入</span></span>
   </span>
   <span class="connection-quick-actions">
+   <span class="active-timer-summary" id="activeTimerSummary" hidden aria-live="polite">
+    <span class="active-timer-title" id="activeTimerTitle"></span>
+    <strong id="activeTimerDisplay">00:00</strong>
+    <button class="secondary" type="button" data-action="timer-pause-active">暫停</button>
+   </span>
    <span class="connection-save-feedback" id="status" aria-live="polite"></span>
    <button id="saveBtn" class="primary connection-save" type="button">儲存紀錄</button>
    <span class="connection-settings-toggle">連線設定<span class="connection-symbol" aria-hidden="true"></span></span>
