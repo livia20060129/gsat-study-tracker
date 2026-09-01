@@ -1914,7 +1914,7 @@ function ensureTimerTicker(){
 function renderTimeControl(x,entry){
  var target={item:x,entry:entry||null},holder=entry||x.f||(x.f={}),state=normalizeStudyTimerState(holder.timeTracking),entryAttr=entry?' data-timer-entry="'+esc(entry.id)+'"':'',mode=state.mode;
  holder.timeTracking=state;
- var h='<span class="time-control"'+entryAttr+'><button class="time-mode-toggle" type="button" data-action="time-mode-toggle"'+entryAttr+' aria-label="目前為'+(mode==='manual'?'手動填寫':'計時')+'，點擊切換為'+(mode==='manual'?'計時':'手動填寫')+'" title="點擊切換為'+(mode==='manual'?'計時':'手動')+'">'+(mode==='manual'?'手動':'計時')+'</button>';
+ var h='<span class="time-control"'+entryAttr+'><span class="time-mode-content">';
  if(mode==='manual'){
   if(entry)h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-mag-field="minutes" data-index="'+ensureMagazineEntries(x).indexOf(entry)+'" value="'+esc(entry.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
   else h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
@@ -1925,6 +1925,7 @@ function renderTimeControl(x,entry){
   h+='<button class="timer-reset" type="button" data-action="timer-reset"'+entryAttr+'>重設</button>';
   if((entry?entry.minutes:x.minutes)!=='')h+='<span class="timer-filled">已填 '+esc(entry?entry.minutes:x.minutes)+' 分</span>';
  }
+ h+='</span><button class="time-mode-toggle" type="button" data-action="time-mode-toggle"'+entryAttr+' aria-label="目前為'+(mode==='manual'?'手動填寫':'計時')+'，點擊切換為'+(mode==='manual'?'計時':'手動填寫')+'" title="點擊切換為'+(mode==='manual'?'計時':'手動')+'">'+(mode==='manual'?'手動':'計時')+'</button>';
  return h+'</span>';
 }
 function refreshTimerUI(){

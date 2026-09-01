@@ -1,14 +1,12 @@
 # 最新更新
 
-版本：v171.0.68
+版本：v171.0.69
 
 ## 本次有更新的項目
 
-- 本機 Study Record 的讀取、儲存、帳號範圍與舊資料解碼，已移到獨立 Local Repository。
-- Supabase `study_records` 的讀取、版本查詢及儲存 RPC，已移到獨立 Supabase Repository；`legacy-app.ts` 不再直接操作這張資料表。
-- 新增 Calendar → StudyTask application service；既有 Calendar parser 保留，解析後的路由、補做狀態、穩定識別碼及日期索引由應用層統一產生。
-- 先為 `mathStudy`、`mathLecture`、`mathPractice` 三種頁碼型卡片建立 discriminated union 與型別守衛，其他卡片維持原格式，避免一次轉換造成大量風險。
-- 新增 Repository、Calendar application service 與漸進卡片型別測試；完整測試目前共 137 項。
+- 將「手動／計時」切換按鈕固定在完成時間控制列的最右側。
+- 完成時間控制列改為固定欄位配置，切換手動輸入與計時模式時，按鈕位置不再跟著內容寬度左右移動。
+- 行動版維持滿寬排列，切換按鈕仍固定在該列最右側。
 
 ## 部署範圍
 
@@ -16,4 +14,4 @@
 
 ## Commit 建議
 
-`refactor(core): extract record repositories and calendar task service`
+`fix(timer): pin mode toggle to the right without layout shift`
