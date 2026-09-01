@@ -28,6 +28,7 @@ import { groupStudyItemsBySubject, studyItemSubjectClass } from './study/subject
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, startStudyTimer, timerMinutesValue } from './study/studyTimer';
+import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
@@ -1242,12 +1243,10 @@ function applyCalendarNaturalRecommended(rec,date){
   calendarSuggestedLabel:p.label,
   calendarSuggestedBasis:p.basis,
   calendarSuggestedTotalPages:cov.total,
-  calendarSuggestedDonePages:cov.done,
-  calendarSuggestedAutoDone:cov.all
+  calendarSuggestedDonePages:cov.done
  };
  for(var k in meta)if(Object.prototype.hasOwnProperty.call(meta,k)&&JSON.stringify(x.f[k])!==JSON.stringify(meta[k])){x.f[k]=cloneObj(meta[k]);changed=true}
- if(cov.all&&!x.done){x.done=true;changed=true}
- if(cov.all&&!x.f.progress){x.f.progress=true;changed=true}
+ if(reconcileCalendarNaturalPriorCoverage(x,cov.all))changed=true;
  return changed;
 }
 
@@ -2676,6 +2675,11 @@ function handleChange(e){
  }
  if(t.matches('[data-done]')&&x){
   var previousWorkloadPercent=currentWorkloadCompletionPercent();
+   if(x.type==='scienceReview'){
+    markCalendarNaturalCompletionByUser(x,t.checked);
+    propagateDailyWorkField(x,'calendarCompletionSetByUser',true);
+    propagateDailyWorkField(x,'calendarCompletionUserValue',t.checked);
+   }
    propagateDailyWorkDone(x,t.checked);
   clearPendingDeferred(x);
   clearDeferredLimitPrompt(x);
@@ -2686,7 +2690,7 @@ function handleChange(e){
   if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persist(false);rebuildDeferredForWeek(data.date)}
   updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);persist(false);return
  }
- if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');propagateDailyWorkField(x,k,t.checked);if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
+ if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');if(k==='progress'&&x.type==='scienceReview'){markCalendarNaturalProgressByUser(x,t.checked);propagateDailyWorkField(x,'calendarProgressSetByUser',true);propagateDailyWorkField(x,'calendarProgressUserValue',t.checked)}propagateDailyWorkField(x,k,t.checked);if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
  if(t.matches('[data-field]')&&x){
   var f=t.getAttribute('data-field'),changedFields=[f];if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else propagateDailyWorkField(x,f,t.value);
   if((x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice')&&(f==='material'||f==='book')){if(f==='material'){x.f.book='';changedFields.push('book')}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter')}
@@ -2750,6 +2754,7 @@ function handleWeeklyChange(e){
  var ds=t.getAttribute('data-week-date'),itemId=t.getAttribute('data-week-item');if(!ds||!itemId)return;
  var rec=ds===data.date?data:loadData(ds);ensureDailyPresets(rec,ds);
  var item=findRecursive(rec.items,itemId);if(!item){renderWeeklyItems();return}
+ if(item.type==='scienceReview')markCalendarNaturalCompletionByUser(item,t.checked);
  item.done=t.checked;
  if(item.done){item.deferred=false;delete item.deferredTargetDay}
  if(ds===data.date){persist(false);render();return}

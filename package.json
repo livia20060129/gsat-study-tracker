@@ -1,14 +1,14 @@
 {
   "name": "gsat-study-tracker-v171",
   "private": true,
-  "version": "171.0.69",
+  "version": "171.0.71",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/googleCalendarConfig.test.ts tests/syncWatermark.test.ts tests/latestTaskQueue.test.ts tests/completionMetrics.test.ts tests/completionCelebration.test.ts tests/calendarBridge.test.ts tests/calendarPagePriority.test.ts tests/scheduleSummary.test.ts tests/calendarSyncDiff.test.ts tests/functionResponse.test.ts tests/makeup.test.ts tests/presetDedup.test.ts tests/dailyWorkGroup.test.ts tests/defer.test.ts tests/subjectOrder.test.ts tests/mathProgress.test.ts tests/sourceDate.test.ts tests/studyTimer.test.ts tests/studyRecordCodec.test.ts tests/studyRecordRoundTrip.test.ts tests/studyRecordRepositories.test.ts tests/calendarStudyTaskService.test.ts tests/studyItemTypes.test.ts"
+    "test": "node --experimental-strip-types --test tests/googleCalendarConfig.test.ts tests/syncWatermark.test.ts tests/latestTaskQueue.test.ts tests/completionMetrics.test.ts tests/completionCelebration.test.ts tests/calendarBridge.test.ts tests/calendarPagePriority.test.ts tests/scheduleSummary.test.ts tests/calendarSyncDiff.test.ts tests/functionResponse.test.ts tests/makeup.test.ts tests/presetDedup.test.ts tests/dailyWorkGroup.test.ts tests/defer.test.ts tests/subjectOrder.test.ts tests/mathProgress.test.ts tests/sourceDate.test.ts tests/studyTimer.test.ts tests/studyRecordCodec.test.ts tests/studyRecordRoundTrip.test.ts tests/studyRecordRepositories.test.ts tests/calendarStudyTaskService.test.ts tests/studyItemTypes.test.ts tests/calendarNaturalCompletion.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
