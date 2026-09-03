@@ -9,6 +9,7 @@ import {
   propagateDailyWorkField,
   propagateDailyWorkMinutes,
   propagateDailyWorkRangeField,
+  replaceDailyWorkMinutes,
   ungroupDailyWorkItems,
 } from '../src/study/dailyWorkGroup.ts';
 import type { StudyItem } from '../src/types.ts';
@@ -106,6 +107,28 @@ test('stores every edited child field on its hidden source before rebuilding', (
   const rebuiltChildren = rebuilt[0].f.groupedWorkEntries as StudyItem[];
   assert.equal(rebuiltChildren[1].f.reason, '第二個範圍的錯因');
   assert.equal(rebuiltChildren[1].f.corrected, true);
+});
+
+test('grouped children keep separate minutes and timer states after rebuilding', () => {
+  const output = groupDailyWorkItems([math('first', 1, 5), math('second', 11, 15, true)]);
+  const children = output[0].f.groupedWorkEntries as StudyItem[];
+
+  propagateDailyWorkMinutes(children[0], '12');
+  propagateDailyWorkField(children[0], 'timeTracking', {
+    mode: 'timer', accumulatedSeconds: 720, startedAt: null,
+  });
+  propagateDailyWorkMinutes(children[1], '34');
+  propagateDailyWorkField(children[1], 'timeTracking', {
+    mode: 'manual', accumulatedSeconds: 0, startedAt: null,
+  });
+
+  const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
+  const rebuiltChildren = rebuilt[0].f.groupedWorkEntries as StudyItem[];
+  assert.deepEqual(rebuiltChildren.map(child => child.minutes), ['12', '34']);
+  assert.deepEqual(rebuiltChildren.map(child => child.f.timeTracking), [
+    { mode: 'timer', accumulatedSeconds: 720, startedAt: null },
+    { mode: 'manual', accumulatedSeconds: 0, startedAt: null },
+  ]);
 });
 
 test('stores object-list fields without sharing the displayed array reference', () => {
@@ -213,6 +236,22 @@ test('stores merged math-study minutes on the preferred source used after rebuil
   propagateDailyWorkMinutes(output[0], '45');
   const rebuilt = groupDailyWorkItems(ungroupDailyWorkItems(output));
   assert.equal(rebuilt[0].minutes, '45');
+});
+
+test('a completed timer replaces older manual minutes across grouped sources', () => {
+  const sources = [
+    math('current', 158, 165),
+    math('earlier-makeup', 149, 157, true),
+  ];
+  sources[0].minutes = '25';
+  sources[1].minutes = '10';
+  const output = groupDailyWorkItems(sources);
+
+  replaceDailyWorkMinutes(output[0], '6');
+
+  const stored = ungroupDailyWorkItems(output);
+  assert.equal(stored.filter(item => item.minutes).length, 1);
+  assert.equal(groupDailyWorkItems(stored)[0].minutes, '6');
 });
 
 test('stores an edited merged end page on the source that owns the upper boundary', () => {

@@ -112,7 +112,11 @@
 
 <section class="panel" id="studyItemsPanel">
  <div class="panel-head">
-  <button class="panel-view-toggle" id="studyItemsViewToggle" type="button" aria-label="目前顯示今日項目；按一下切換至本週項目">今日項目</button>
+  <div class="study-items-segments" id="studyItemsViewTabs" role="tablist" aria-label="讀書項目範圍" data-active="0">
+   <span class="study-items-segment-indicator" aria-hidden="true"></span>
+   <button type="button" role="tab" aria-selected="true" aria-controls="dailyItemsView" data-study-items-view="today">今日項目</button>
+   <button type="button" role="tab" aria-selected="false" aria-controls="weeklyItemsView" data-study-items-view="week" tabindex="-1">本週項目</button>
+  </div>
   <span class="badge view-badge" id="dailyPresetBadge">0 項</span>
   <span class="badge view-badge" id="weeklyItemBadge" hidden>0 項</span>
  </div>

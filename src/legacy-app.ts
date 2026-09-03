@@ -20,7 +20,7 @@ import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
-import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, ungroupDailyWorkItems } from './study/dailyWorkGroup';
+import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, replaceDailyWorkMinutes, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
@@ -31,6 +31,7 @@ import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudy
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
+import { adjacentStudyItemsView, normalizeStudyItemsView, studyItemsViewIndex } from './ui/studyItemsView';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
@@ -1889,7 +1890,7 @@ function setTimerStateForTarget(target,state){
 }
 function setTimerMinutesForTarget(target,value){
  if(target.entry){target.entry.minutes=value;if(target.record===data)propagateDailyWorkField(target.item,'entries',ensureMagazineEntries(target.item))}
- else{target.item.minutes=value;if(target.record===data)propagateDailyWorkMinutes(target.item,value)}
+ else{target.item.minutes=value;if(target.record===data)replaceDailyWorkMinutes(target.item,value)}
 }
 function persistTimerTarget(target){
  if(target.record===data){persist(false);return}
@@ -1927,7 +1928,7 @@ function renderTimeControl(x,entry){
   h+='<button class="timer-reset" type="button" data-action="timer-reset"'+entryAttr+'>重設</button>';
   if((entry?entry.minutes:x.minutes)!=='')h+='<span class="timer-filled">已填 '+esc(entry?entry.minutes:x.minutes)+' 分</span>';
  }
- h+='</span><button class="time-mode-toggle" type="button" data-action="time-mode-toggle"'+entryAttr+' aria-label="目前為'+(mode==='manual'?'手動填寫':'計時')+'，點擊切換為'+(mode==='manual'?'計時':'手動填寫')+'" title="點擊切換為'+(mode==='manual'?'計時':'手動')+'">'+(mode==='manual'?'手動':'計時')+'</button>';
+ h+='</span><span class="time-mode-segments" role="group" aria-label="時間填寫方式" data-active="'+(mode==='manual'?'0':'1')+'"><span class="time-mode-segment-indicator" aria-hidden="true"></span><button type="button" data-action="time-mode-select" data-time-mode="manual"'+entryAttr+' aria-pressed="'+(mode==='manual'?'true':'false')+'">手動</button><button type="button" data-action="time-mode-select" data-time-mode="timer"'+entryAttr+' aria-pressed="'+(mode==='timer'?'true':'false')+'">計時</button></span>';
  return h+'</span>';
 }
 function refreshTimerUI(){
@@ -2510,11 +2511,12 @@ function renderWeeklyItems(){
  id('weeklyItemBadge').textContent=total+' 項';
 }
 var studyItemsView='today',overviewMetricView='minutes';
-function updateStudyItemsView(){
- var today=studyItemsView==='today';
+function updateStudyItemsView(focusSelected){
+ studyItemsView=normalizeStudyItemsView(studyItemsView);
+ var today=studyItemsView==='today',tabs=id('studyItemsViewTabs'),index=studyItemsViewIndex(studyItemsView);tabs.dataset.active=String(index);
+ tabs.querySelectorAll('[data-study-items-view]').forEach(function(button){var selected=button.getAttribute('data-study-items-view')===studyItemsView;button.setAttribute('aria-selected',selected?'true':'false');button.tabIndex=selected?0:-1;if(selected&&focusSelected)button.focus()});
  id('dailyItemsView').hidden=!today;id('weeklyItemsView').hidden=today;
  id('dailyPresetBadge').hidden=!today;id('weeklyItemBadge').hidden=today;
- var button=id('studyItemsViewToggle');button.textContent=today?'今日項目':'本週項目';button.setAttribute('aria-label',today?'目前顯示今日項目；按一下切換至本週項目':'目前顯示本週項目；按一下切換至今日項目');
 }
 function updateOverviewMetricView(focusSelected){
  overviewMetricView=normalizeOverviewMetric(overviewMetricView);
@@ -2568,10 +2570,11 @@ function refreshAuto(card,x){
 }
 
 function timerTargetFromControl(item,control){return currentTimerTarget(item,control&&control.getAttribute('data-timer-entry'))}
-function toggleTimerModeFromControl(item,control){
+function selectTimerModeFromControl(item,control){
  var target=timerTargetFromControl(item,control);if(!target)return;
- var state=timerStateForTarget(target),pointer=readTimerPointer();
- if(state.mode==='timer'){
+ var state=timerStateForTarget(target),pointer=readTimerPointer(),nextMode=control.getAttribute('data-time-mode')==='timer'?'timer':'manual';
+ if(state.mode===nextMode)return;
+ if(nextMode==='manual'){
   if(state.startedAt!==null)state=pauseStudyTimer(state);
   state.mode='manual';setTimerStateForTarget(target,state);
   if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
@@ -2732,7 +2735,7 @@ function handleClick(e){
  if(action==='timer-pause-active'){
   e.preventDefault();e.stopPropagation();var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI();
  }
- else if(action==='time-mode-toggle'&&x){e.preventDefault();toggleTimerModeFromControl(x,b)}
+ else if(action==='time-mode-select'&&x){e.preventDefault();selectTimerModeFromControl(x,b)}
  else if((action==='timer-toggle'||action==='timer-finish'||action==='timer-reset')&&x){e.preventDefault();runTimerAction(x,b,action)}
  else if(action==='week-open'){
   var target=b.getAttribute('data-week-date');
@@ -3118,7 +3121,8 @@ function addEnglishReview(){
 }
 function headerInput(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
-id('studyItemsViewToggle').addEventListener('click',function(){studyItemsView=studyItemsView==='today'?'week':'today';updateStudyItemsView()});
+id('studyItemsViewTabs').addEventListener('click',function(e){var button=e.target.closest('[data-study-items-view]');if(!button)return;studyItemsView=button.getAttribute('data-study-items-view');updateStudyItemsView(false)});
+id('studyItemsViewTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')studyItemsView='today';else if(e.key==='End')studyItemsView='week';else studyItemsView=adjacentStudyItemsView(studyItemsView,e.key==='ArrowRight'?1:-1);updateStudyItemsView(true)});
 id('overviewMetricTabs').addEventListener('click',function(e){var button=e.target.closest('[data-overview-metric]');if(!button)return;overviewMetricView=button.getAttribute('data-overview-metric');updateOverviewMetricView(false)});
 id('overviewMetricTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')overviewMetricView='minutes';else if(e.key==='End')overviewMetricView='mathWeek';else overviewMetricView=adjacentOverviewMetric(overviewMetricView,e.key==='ArrowRight'?1:-1);updateOverviewMetricView(true)});
 id('activeTimerSummary').addEventListener('click',handleClick);

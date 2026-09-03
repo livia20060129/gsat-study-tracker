@@ -351,6 +351,21 @@ export function propagateDailyWorkMinutes(item: StudyItem, minutes: string): voi
   preferredBase(sources).minutes = minutes;
 }
 
+/**
+ * Replaces a card's previously entered minutes with a completed timer result.
+ * Clearing represented sources first prevents an older manual value from
+ * reappearing when Calendar or deferred work is grouped again.
+ */
+export function replaceDailyWorkMinutes(item: StudyItem, minutes: string): void {
+  item.minutes = minutes;
+  const sources = item.f?.dailyWorkSourceItems;
+  if (!Array.isArray(sources) || !sources.length) return;
+  const leaves = sources.flatMap(source => templateLeaves(source));
+  const candidates = leaves.length ? leaves : sources;
+  candidates.forEach(source => { source.minutes = ''; });
+  preferredBase(candidates).minutes = minutes;
+}
+
 function cloneFieldValue(value: unknown): unknown {
   if (value === undefined || value === null || typeof value !== 'object') return value;
   return JSON.parse(JSON.stringify(value));
