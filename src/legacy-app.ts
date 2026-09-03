@@ -29,6 +29,7 @@ import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } f
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, startStudyTimer, timerMinutesValue } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
+import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
@@ -1843,9 +1844,10 @@ function interactiveDailyTypeOptions(v){
  return'<option value="">請選擇</option>'+a.map(function(x){return'<option value="'+x[0]+'"'+selected(x[0],v)+'>'+x[1]+'</option>'}).join('');
 }
 function ensureMagazineEntries(x){
- if(!x.f)x.f={};if(!Array.isArray(x.f.entries))x.f.entries=[{name:x.f.name||'',month:x.f.month||'',unit:x.f.unit||'',minutes:x.minutes||''}];
- if(!x.f.entries.length)x.f.entries.push({name:'',month:'',unit:'',minutes:''});
- x.f.entries.forEach(function(entry){if(!entry.id)entry.id=uid('mag')});
+ if(!x.f)x.f={};var studyDate=(data&&data.date)||'';
+ if(!Array.isArray(x.f.entries))x.f.entries=[{name:x.f.name||'',month:x.f.month||'',unit:x.f.unit||'',minutes:x.minutes||''}];
+ if(!x.f.entries.length)x.f.entries.push({name:'',month:magazineMonthForDate(studyDate),magazineMonthInitialized:true,unit:'',minutes:''});
+ x.f.entries.forEach(function(entry){if(!entry.id)entry.id=uid('mag');initializeMagazineMonth(entry,studyDate)});
  return x.f.entries;
 }
 function fixedMagazineMinutes(x){return ensureMagazineEntries(x).reduce(function(s,r){return s+Number(r.minutes||0)},0)}
@@ -2367,7 +2369,7 @@ function renderGroupedWorkEntry(entry,index){
  var h='<div class="item grouped-work-entry '+studyItemSubjectClass(entry)+(entry.done?' done':'')+(confirmedDeferred(entry)?' deferred':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(entry.done)+'><div><div class="item-title">'+esc(groupedWorkLabel(entry,index))+'</div>';
  if(entry.f&&entry.f.calendarMakeup===true)h+='<div class="small">今日補做｜Google Calendar</div>';
- h+='</div></div>';
+ h+='</div>'+renderTimeControl(entry)+'</div>';
  var fields=renderItemFields(entry,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
  h+=renderDeferredControls(entry);
@@ -2401,7 +2403,7 @@ function renderItemFields(x,reviewMode){
  return'';
 }
 function renderMagazineFields(x){
- var f=x.f;if(!isFixedMagazine(x))return'<div class="grid-3"><div class="field"><label>雜誌</label><select data-field="name"><option value="">請選擇</option><option'+selected('常春藤',f.name)+'>常春藤</option><option'+selected('CNN互動英語',f.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-field="month" value="'+esc(f.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-field="unit" value="'+esc(f.unit||'')+'"></div></div>';
+ var f=x.f;if(!isFixedMagazine(x)){initializeMagazineMonth(f,(data&&data.date)||'');return'<div class="grid-3"><div class="field"><label>雜誌</label><select data-field="name"><option value="">請選擇</option><option'+selected('常春藤',f.name)+'>常春藤</option><option'+selected('CNN互動英語',f.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-field="month" value="'+esc(f.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-field="unit" value="'+esc(f.unit||'')+'"></div></div>'}
  var a=ensureMagazineEntries(x),h='';
  for(var i=0;i<a.length;i++){var r=a[i];h+='<div class="item subject-card subject-english" style="margin-top:8px"><div class="item-top">'+(a.length>1?'<button class="delete" data-action="mag-delete" data-index="'+i+'">刪除此筆</button>':'')+renderTimeControl(x,r)+'</div><div class="grid-3" style="margin-top:8px"><div class="field"><label>雜誌</label><select data-mag-field="name" data-index="'+i+'"><option value="">請選擇</option><option'+selected('常春藤',r.name)+'>常春藤</option><option'+selected('CNN互動英語',r.name)+'>CNN互動英語</option></select></div><div class="field compact-number"><label>月份</label><div class="inline"><input type="number" min="1" max="12" data-mag-field="month" data-index="'+i+'" value="'+esc(r.month||'')+'"><span>月號</span></div></div><div class="field compact-number"><label>Unit</label><input type="number" min="1" step="1" inputmode="numeric" data-mag-field="unit" data-index="'+i+'" value="'+esc(r.unit||'')+'"></div></div></div>'}
  return h+'<button class="secondary" data-action="mag-add" style="margin-top:8px">新增雜誌紀錄</button>';
@@ -2461,7 +2463,7 @@ function renderCard(x,canDelete){
  var h='<div class="item '+studyItemSubjectClass(x)+(x.done?' done':'')+(isDeferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(noTopDone?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
  if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
  if(canDelete)h+='<button class="delete" data-action="delete-item">刪除此筆</button>';
- if(!hidesTopMinutes(x))h+=renderTimeControl(x);
+ if(!hidesTopMinutes(x)&&!isGroupedWork(x))h+=renderTimeControl(x);
  h+='</div>';
  var fields=renderItemFields(x,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
@@ -2506,6 +2508,18 @@ function renderWeeklyItems(){
  id('weeklyItemList').innerHTML=html;
  id('weeklyItemBadge').textContent=total+' 項';
 }
+var studyItemsView='today',mathPagesView='today';
+function updateStudyItemsView(){
+ var today=studyItemsView==='today';
+ id('dailyItemsView').hidden=!today;id('weeklyItemsView').hidden=today;
+ id('dailyPresetBadge').hidden=!today;id('weeklyItemBadge').hidden=today;
+ var button=id('studyItemsViewToggle');button.textContent=today?'今日項目':'本週項目';button.setAttribute('aria-label',today?'目前顯示今日項目；按一下切換至本週項目':'目前顯示本週項目；按一下切換至今日項目');
+}
+function updateMathPagesView(){
+ var today=mathPagesView==='today';
+ id('dailyMathPagesView').hidden=!today;id('weeklyMathPagesView').hidden=today;
+ id('mathPagesViewToggle').setAttribute('aria-label',today?'目前顯示今日完成數學頁數；按一下切換至本週':'目前顯示本週完成數學頁數；按一下切換至今日');
+}
 function render(){
  deferredCapacityCache=null;
  var active=groupStudyItemsBySubject(visibleItems(data)),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
@@ -2525,6 +2539,7 @@ function render(){
  id('dailyNotice').textContent=isAway(data)?'今日外出：固定排程全部取消；自行新增項目仍可照常記錄。':(data.date>=DAILY_PRESET_START?dailyMessageForDate(data.date):'歷史日期：不自動改寫原有紀錄。');
  updateSummary();
  renderWeeklyItems();
+ updateStudyItemsView();updateMathPagesView();
  refreshTimerUI();
 }
 function findRecursive(list,target){
@@ -2738,7 +2753,7 @@ function handleClick(e){
   persist(false);rebuildDeferredForWeek(data.date);render();
  }
  else if(action==='delete-item'&&x){var deletingPointer=readTimerPointer();if(deletingPointer&&deletingPointer.itemId===x.id)pauseActiveTimer();clearPendingDeferred(x);clearDeferredLimitPrompt(x);data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
- else if(action==='mag-add'&&x){var entries=ensureMagazineEntries(x);entries.push({id:uid('mag'),name:'',month:'',unit:'',minutes:''});propagateDailyWorkField(x,'entries',entries);render();persist(false)}
+ else if(action==='mag-add'&&x){var entries=ensureMagazineEntries(x);entries.push({id:uid('mag'),name:'',month:magazineMonthForDate(data.date),magazineMonthInitialized:true,unit:'',minutes:''});propagateDailyWorkField(x,'entries',entries);render();persist(false)}
  else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x),removed=a[Number(b.getAttribute('data-index'))],pointer=readTimerPointer();if(removed&&pointer&&pointer.entryId===removed.id&&pointer.itemId===x.id)pauseActiveTimer();if(a.length>1)a.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'entries',a);render();persist(false)}
  else if(action==='word-add'&&x){var words=x.f.words||(x.f.words=[]);words.push({text:'',noun:false,verb:false,adjective:false,adverb:false,preposition:false,conjunction:false,fixedCombination:false,beautifulSentences:false});propagateDailyWorkField(x,'words',words);render();persist(false)}
  else if(action==='word-delete'&&x){x.f.words.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'words',x.f.words);render();persist(false)}
@@ -3101,6 +3116,8 @@ function addEnglishReview(){
 }
 function headerInput(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
+id('studyItemsViewToggle').addEventListener('click',function(){studyItemsView=studyItemsView==='today'?'week':'today';updateStudyItemsView()});
+id('mathPagesViewToggle').addEventListener('click',function(){mathPagesView=mathPagesView==='today'?'week':'today';updateMathPagesView()});
 id('activeTimerSummary').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('change',handleWeeklyChange);

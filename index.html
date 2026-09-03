@@ -80,8 +80,10 @@
   </div>
   <div class="stats overview-stats" style="margin-top:12px">
    <div class="stat"><span class="small">今日完成時間</span><strong><span id="doneMinutes">0</span> 分</strong></div>
-   <div class="stat"><span class="small">今日數學講義頁數</span><strong><span id="mathPagesTop">0</span> 頁</strong></div>
-   <div class="stat"><span class="small">本週數學已完成</span><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span></div></div>
+   <button class="stat stat-switch" id="mathPagesViewToggle" type="button" aria-label="目前顯示今日完成數學頁數；按一下切換至本週">
+    <span class="stat-view" id="dailyMathPagesView"><span class="small">今日完成數學頁數</span><strong><span id="mathPagesTop">0</span> 頁</strong></span>
+    <span class="stat-view" id="weeklyMathPagesView" hidden><span class="small">本週完成數學頁數</span><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><span class="progress"><span id="weekMathBar" style="width:0"></span></span><span class="small"><span id="weekMathPercent">0%</span></span></span>
+   </button>
    <div class="stat completion-stat">
     <div class="completion-metric">
      <div class="completion-metric-head"><span>原訂今日項目完成率</span><strong id="completionPercent">0%</strong></div>
@@ -102,14 +104,14 @@
  </div>
 </section>
 
-<section class="panel">
- <div class="panel-head"><h2>今日項目</h2><span class="badge" id="dailyPresetBadge">0 項</span></div>
- <div class="content"><div class="small" id="dailyNotice" style="margin-bottom:10px"></div><div id="dailyItemList"></div></div>
-</section>
-
-<section class="panel">
- <div class="panel-head"><h2>本週項目</h2><span class="badge" id="weeklyItemBadge">0 項</span></div>
- <div class="content" id="weeklyItemList"></div>
+<section class="panel" id="studyItemsPanel">
+ <div class="panel-head">
+  <button class="panel-view-toggle" id="studyItemsViewToggle" type="button" aria-label="目前顯示今日項目；按一下切換至本週項目">今日項目</button>
+  <span class="badge view-badge" id="dailyPresetBadge">0 項</span>
+  <span class="badge view-badge" id="weeklyItemBadge" hidden>0 項</span>
+ </div>
+ <div class="view-pane" id="dailyItemsView"><div class="content"><div class="small" id="dailyNotice" style="margin-bottom:10px"></div><div id="dailyItemList"></div></div></div>
+ <div class="view-pane" id="weeklyItemsView" hidden><div class="content" id="weeklyItemList"></div></div>
 </section>
 
 <section class="panel" id="englishReviewPanel">
