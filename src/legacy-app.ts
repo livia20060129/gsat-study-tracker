@@ -27,7 +27,7 @@ import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, 
 import { groupStudyItemsBySubject, studyItemSubjectClass } from './study/subjectOrder';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
-import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, startStudyTimer, timerMinutesValue } from './study/studyTimer';
+import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, startStudyTimer } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
@@ -2595,8 +2595,8 @@ function runTimerAction(item,control,action){
   setTimerStateForTarget(target,pauseStudyTimer(state,now));
   if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
  }else if(action==='timer-finish'){
-  var finished=state.startedAt===null?state:pauseStudyTimer(state,now);
-  setTimerStateForTarget(target,finished);setTimerMinutesForTarget(target,timerMinutesValue(finished,now));
+  var completedTimer=finishStudyTimer(state,now);
+  setTimerStateForTarget(target,completedTimer.state);setTimerMinutesForTarget(target,completedTimer.minutes);
   if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
  }else if(action==='timer-reset'){
   setTimerStateForTarget(target,resetStudyTimer());setTimerMinutesForTarget(target,'');

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  finishStudyTimer,
   formatStudyTimer,
   normalizeStudyTimerState,
   pauseStudyTimer,
@@ -53,4 +54,23 @@ test('converts a completed timer to the existing whole-minute field', () => {
   assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 15, startedAt: null }), '1');
   assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 89, startedAt: null }), '1');
   assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 90, startedAt: null }), '2');
+});
+
+test('finish fills the manual field and makes even a very short active session visible', () => {
+  const completed = finishStudyTimer({ mode: 'timer', accumulatedSeconds: 0, startedAt: 1_000 }, 1_200);
+  assert.deepEqual(completed, {
+    state: { mode: 'manual', accumulatedSeconds: 0, startedAt: null },
+    minutes: '1',
+  });
+});
+
+test('finish rounds a longer timer and does not invent time before a session starts', () => {
+  assert.deepEqual(
+    finishStudyTimer({ mode: 'timer', accumulatedSeconds: 90, startedAt: null }),
+    { state: { mode: 'manual', accumulatedSeconds: 90, startedAt: null }, minutes: '2' },
+  );
+  assert.deepEqual(
+    finishStudyTimer({ mode: 'timer', accumulatedSeconds: 0, startedAt: null }),
+    { state: { mode: 'manual', accumulatedSeconds: 0, startedAt: null }, minutes: '' },
+  );
 });

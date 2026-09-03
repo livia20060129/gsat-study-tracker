@@ -60,3 +60,23 @@ export function timerMinutesValue(value: unknown, now = Date.now()): string {
   const seconds = studyTimerElapsedSeconds(value, now);
   return seconds > 0 ? String(Math.max(1, Math.round(seconds / 60))) : '';
 }
+
+/**
+ * Finishes an active timed session and returns to the visible manual field.
+ * A session that was actually started always fills at least one minute, even
+ * when it is completed before the first whole second has elapsed.
+ */
+export function finishStudyTimer(
+  value: unknown,
+  now = Date.now(),
+): { state: StudyTimerState; minutes: string } {
+  const source = normalizeStudyTimerState(value);
+  const wasStarted = source.startedAt !== null || source.accumulatedSeconds > 0;
+  const paused = source.startedAt === null ? source : pauseStudyTimer(source, now);
+  return {
+    state: { ...paused, mode: 'manual' },
+    minutes: wasStarted
+      ? String(Math.max(1, Math.round(studyTimerElapsedSeconds(paused, now) / 60)))
+      : '',
+  };
+}
