@@ -26,6 +26,28 @@ test('parses an Essential Grammar unit range into individual units', () => {
   if (parsed.kind === 'essentialGrammar') assert.deepEqual(parsed.units, [12, 13, 14]);
 });
 
+test('parses 大考英聽A攻略 Test 1-10 as the ACE-style test template', () => {
+  const single = parseCalendarTask(row('大考英聽A攻略｜Test 3'));
+  const range = parseCalendarTask(row('英文｜大考英聽A攻略｜Test 8-12'));
+  const spaced = parseCalendarTask(row('大考英聽A攻略 Test 5'));
+
+  assert.equal(single.kind, 'listeningA');
+  if (single.kind === 'listeningA') assert.deepEqual(single.tests, [3]);
+  assert.equal(range.kind, 'listeningA');
+  if (range.kind === 'listeningA') assert.deepEqual(range.tests, [8, 9, 10]);
+  assert.equal(spaced.kind, 'listeningA');
+  if (spaced.kind === 'listeningA') assert.deepEqual(spaced.tests, [5]);
+});
+
+test('reads 大考英聽A攻略 Test from the Calendar note and does not drop an invalid event', () => {
+  const fromNote = parseCalendarTask(row('大考英聽A攻略', '【單元進度】Test 6'));
+  const invalid = parseCalendarTask(row('大考英聽A攻略｜Test 11'));
+
+  assert.equal(fromNote.kind, 'listeningA');
+  if (fromNote.kind === 'listeningA') assert.deepEqual(fromNote.tests, [6]);
+  assert.equal(invalid.kind, 'calendarItem');
+});
+
 test('parses separate Essential Grammar units from the description', () => {
   const parsed = parseCalendarTask(row('Essential Grammar in Use', 'Unit：1、3、5'));
   assert.equal(parsed.kind, 'essentialGrammar');

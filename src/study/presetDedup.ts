@@ -144,7 +144,7 @@ function groupedChild(definition: PresetDefinitionLike, index: number): Record<s
 
 function calendarRoundIdentity(definition: PresetDefinitionLike): string {
   const fields = definition.f || {};
-  const category = /^cal_(ace|gujin|writing)_/.exec(definition.key)?.[1] || '';
+  const category = /^cal_(ace|listening_a|gujin|writing)_/.exec(definition.key)?.[1] || '';
   if (!category || !normalizedText(fields.round)) return '';
   return JSON.stringify({
     category,
@@ -158,6 +158,7 @@ function calendarRoundIdentity(definition: PresetDefinitionLike): string {
 function groupedParentTitle(definition: PresetDefinitionLike, mode: 'range' | 'round'): string {
   if (mode === 'range') return definition.title;
   if (/^cal_ace_/.test(definition.key)) return '英文｜ACE Reading';
+  if (/^cal_listening_a_/.test(definition.key)) return '英文｜大考英聽A攻略';
   if (/^cal_gujin_/.test(definition.key)) return '國文｜古今悅讀一百';
   if (/^cal_writing_/.test(definition.key)) return '英文｜英文寫作測驗';
   return definition.title;

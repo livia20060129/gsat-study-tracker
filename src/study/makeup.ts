@@ -38,7 +38,10 @@ function deferredRoundIdentity(item: StudyItem): string {
   if (!String(fields.round || '').trim()) return '';
   return JSON.stringify({
     type: item.type,
-    title: String(fields.title || item.title || '').replace(/\s*第\s*\d+\s*回.*$/, '').trim(),
+    title: String(fields.title || item.title || '')
+      .replace(/\s*第\s*\d+\s*回.*$/, '')
+      .replace(/\s*Test\s*\d+.*$/i, '')
+      .trim(),
     kind: String(fields.kind || '').trim(),
     fixedTemplate: String(fields.calendarFixedTemplate || '').trim(),
   });

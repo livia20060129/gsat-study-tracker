@@ -215,3 +215,23 @@ test('groups deferred rounds into separately countable children', () => {
   assert.equal(output.length, 1);
   assert.deepEqual((output[0].f.groupedWorkEntries as StudyItem[]).map(child => child.f.round), ['1', '2']);
 });
+
+test('groups deferred 大考英聽A攻略 tests without losing the book template', () => {
+  const base = deferredMath('listening-a', 1, 1);
+  delete base.f.start;
+  delete base.f.end;
+  base.type = 'extra';
+  base.title = '英文｜大考英聽A攻略 Test 2';
+  base.f = { title: '大考英聽A攻略', round: '2' };
+  const next = structuredClone(base);
+  next.id = 'listening-b';
+  next.presetKey = 'deferred-listening-b';
+  next.deferredOriginId = 'listening-b';
+  next.title = '英文｜大考英聽A攻略 Test 4';
+  next.f.round = '4';
+
+  const output = mergeDeferredCarryRanges([base, next]);
+  assert.equal(output.length, 1);
+  assert.equal(output[0].f.title, '大考英聽A攻略');
+  assert.deepEqual((output[0].f.groupedWorkEntries as StudyItem[]).map(child => child.f.round), ['2', '4']);
+});

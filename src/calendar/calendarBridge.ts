@@ -1,3 +1,5 @@
+import { isListeningTestBookTitle, listeningTestNumbers } from '../data/englishBooks.ts';
+
 export interface CalendarTaskRow {
   event_key: string;
   source_event_id: string;
@@ -46,6 +48,7 @@ export type ParsedCalendarTask =
       endPage: number | null;
     })
   | (ParsedBase & { kind: 'ace'; rounds: number[] })
+  | (ParsedBase & { kind: 'listeningA'; tests: number[] })
   | (ParsedBase & { kind: 'gujin'; rounds: number[] })
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
   | (ParsedBase & { kind: 'essentialGrammar'; units: number[] })
@@ -395,6 +398,12 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
 
   if (row.category === 'ace' || /^ACE Reading(?:\s*[｜:：]\s*|\s+)第/i.test(title)) {
     return { ...base, title: withoutOriginalDate(title), kind: 'ace', rounds: roundsFromTitle(title) };
+  }
+
+  const listeningTests = listeningTestNumbers(`${title}\n${description}`);
+  const listeningBookHeading = title.match(/^(?:英文\s*[｜:：]\s*)?(大考英聽A攻略)(?=$|\s|[｜:：])/)?.[1] ?? '';
+  if ((row.category === 'listeningA' || isListeningTestBookTitle(listeningBookHeading)) && listeningTests.length) {
+    return { ...base, title: withoutOriginalDate(title), kind: 'listeningA', tests: listeningTests };
   }
 
   if (row.category === 'gujin' || /^(?:國文\s*[｜:：]\s*)?古今悅讀一百(?:\s*[｜:：]\s*|\s+)第/.test(title)) {

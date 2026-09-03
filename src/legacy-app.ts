@@ -37,6 +37,7 @@ import { withCrossTabLock } from './storage/crossTabLock';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
 import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEMS, CALENDAR_NATURAL_PLAN } from './data/naturalCalendar';
+import { isListeningTestBookTitle, LISTENING_TEST_BOOK_TITLE, LISTENING_TEST_MAX } from './data/englishBooks';
 import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository';
 import { SupabaseStudyRecordRepository } from './infrastructure/storage/supabaseStudyRecordRepository';
 import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudyTaskService';
@@ -543,6 +544,7 @@ var CALENDAR_WRITING_TEST_PLAN={"2026-08-21":{"round":17,"focus":"基礎連接�
 var EXTRA_READING_TITLES=[
  '雜誌',
  'ACE Reading',
+ '大考英聽A攻略',
  '英文寫作測驗',
  '英文文法總複習講義',
  'Prism Reading',
@@ -1388,6 +1390,8 @@ function cloudCalendarDefsForDate(date){
   var token=p.identifier?calendarIdentifierToken(p.identifier):calendarEventToken(p.sourceEventId||p.eventKey),outStart=out.length;
   if(p.kind==='ace'){
    (p.rounds||[]).forEach(function(round){out.push(presetDef('cal_ace_'+round+'_'+token,'extra','英文｜ACE Reading 第 '+round+' 回','Google Calendar API：'+p.title,true,{title:'ACE Reading',round:String(round),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
+  }else if(p.kind==='listeningA'){
+   (p.tests||[]).forEach(function(test){out.push(presetDef('cal_listening_a_'+test+'_'+token,'extra','英文｜'+LISTENING_TEST_BOOK_TITLE+' Test '+test,'Google Calendar API：'+p.title,true,{title:LISTENING_TEST_BOOK_TITLE,round:String(test),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
   }else if(p.kind==='gujin'){
    (p.rounds||[]).forEach(function(round){out.push(presetDef('cal_gujin_'+round+'_'+token,'chineseReading','國文｜古今悅讀一百 第 '+round+' 回','Google Calendar API：'+p.title,true,{kind:'reading',round:String(round),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
   }else if(p.kind==='writing'&&p.round){
@@ -1715,7 +1719,7 @@ function ensureDailyPresets(rec,date){
    if(x.f.calendarMerged&&!(d.f&&d.f.calendarMerged)){
     ['calendarMerged','calendarMergedRange','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarRoute','calendarOriginalTitle','calendarFixedTemplate','calendarIncludesMakeup','calendarSemanticKey','calendarSourceDate','calendarSourceDates','calendarGroupedWork','calendarRangeSource','calendarIdentifier','calendarUnitProgress'].forEach(function(mk){if(Object.prototype.hasOwnProperty.call(x.f,mk)){delete x.f[mk];changed=true}});
   }
-  if(/^cal_(ace|writing|grammar|gujin|natural|essential_grammar|math|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
+  if(/^cal_(ace|listening_a|writing|grammar|gujin|natural|essential_grammar|math|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
    var df=d.f||{};
    if(/^cal_grammar_/.test(d.key||'')){
     var grammarPagesBlank=!x.f.start&&!x.f.end;
@@ -1806,6 +1810,7 @@ function isSaturdayMakeup(x){return !!x&&x.type==='general'&&(effectiveTemplateP
 function isSaturdayReview(x){return !!x&&x.type==='general'&&(effectiveTemplatePresetKey(x)==='sat_week_review'||x.title==='本週完成度與錯題整理')}
 function isInteractiveDaily(x){return specialItemTemplate(x)==='interactiveDaily'}
 function isCalendarAce(x){return !!x&&(x.source==='preset'||x.calendarGroupedChild)&&/^cal_ace_/.test(effectiveTemplatePresetKey(x))}
+function isCalendarListeningTestBook(x){return !!x&&(x.source==='preset'||x.calendarGroupedChild)&&/^cal_listening_a_/.test(effectiveTemplatePresetKey(x))}
 function isCalendarGujin(x){return !!x&&(x.source==='preset'||x.calendarGroupedChild)&&/^cal_gujin_/.test(effectiveTemplatePresetKey(x))}
 function isCalendarNatural(x){return !!x&&(x.source==='preset'||x.calendarGroupedChild)&&/^cal_natural_/.test(effectiveTemplatePresetKey(x))}
 function isCalendarNaturalIntegration(x){return !!x&&isCalendarNatural(x)&&x.f&&x.f.calendarNaturalIntegration}
@@ -2224,6 +2229,7 @@ function renderScienceFields(x,reviewMode){
 
 function isMagazineTitle(t){return t==='雜誌'||t==='英文雜誌'}
 function isAce(t){return t==='ACE Reading'||t==='英文：ACE Reading'}
+function isListeningTestBook(t){return isListeningTestBookTitle(t)}
 function isWritingTest(t){return t==='英文寫作測驗'}
 function isCalendarWritingTest(x){return !!x&&x.source==='preset'&&/^cal_writing_/.test(effectiveTemplatePresetKey(x))}
 function isGrammarReview(t){return t==='英文文法總複習講義'}
@@ -2304,14 +2310,14 @@ function isPrism(t){return t==='Prism Reading'||/^Prism Reading [234]$/.test(Str
 function isEssentialGrammar(t){return t==='Essential Grammar in Use'}
 function readingOptions(v){return'<option value="">請選擇</option>'+EXTRA_READING_TITLES.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('')}
 function reviewEnglishOptions(v){
- var a=['ACE Reading','英文寫作測驗','英文文法總複習講義','Prism Reading'];
+ var a=['ACE Reading',LISTENING_TEST_BOOK_TITLE,'英文寫作測驗','英文文法總複習講義','Prism Reading'];
  return'<option value="">請選擇</option>'+a.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('');
 }
 function prismLevel(f){if(f.level)return String(f.level);var m=String(f.title||'').match(/^Prism Reading ([234])$/);return m?m[1]:''}
 function prismCefr(v){return String(v)==='2'?'B1':String(v)==='3'?'B2':String(v)==='4'?'C1':'尚未選擇'}
 function renderExtraFields(x,reviewMode){
  var f=x.f,t=f.title||'',h='',bookOptions;
- if(reviewMode&&!isPrism(t)&&!isAce(t)&&!isWritingTest(t)&&!isGrammarReview(t)){
+ if(reviewMode&&!isPrism(t)&&!isAce(t)&&!isListeningTestBook(t)&&!isWritingTest(t)&&!isGrammarReview(t)){
   f.title='';f.level='';f.start='';f.end='';f.round='';f.topic='';f.warriorsBook='';f.chapter='';f.name='';f.month='';f.unit='';f.progress=false;f.graded=false;f.corrected=false;
   t='';
  }
@@ -2327,6 +2333,14 @@ function renderExtraFields(x,reviewMode){
    h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><div class="fixed-book-value">ACE Reading</div></div><div class="field compact-number"><label>回數</label><div class="fixed-book-value">第 '+esc(f.round||'—')+' 回</div></div></div>';
   }else{
    h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>回數</label><div class="inline"><span>第</span><input type="number" min="1" max="60" step="1" inputmode="numeric" data-field="round" value="'+esc(f.round||'')+'"><span>回</span></div></div></div>';
+  }
+ if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
+ if(reviewMode||f.corrected)h+=reasonField(f);
+ }else if(isListeningTestBook(t)){
+  if(isCalendarListeningTestBook(x)){
+   h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><div class="fixed-book-value">'+esc(LISTENING_TEST_BOOK_TITLE)+'</div></div><div class="field compact-number"><label>Test</label><div class="fixed-book-value">Test '+esc(f.round||'—')+'</div></div></div>';
+  }else{
+   h+='<div class="english-title-half"><div class="field english-book"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>Test</label><input type="number" min="1" max="'+LISTENING_TEST_MAX+'" step="1" inputmode="numeric" data-field="round" data-round-book="listening-test" value="'+esc(f.round||'')+'" placeholder="1～10"></div></div>';
   }
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
@@ -2441,7 +2455,7 @@ function groupedWorkLabel(entry,index){
  var f=entry&&entry.f||{},s=Number(f.start),e=Number(f.end),round=String(f.round||'').trim();
  if(f.dailyWorkBlankTemplate)return'原訂項目';
  if(Number.isFinite(s)&&s>0&&Number.isFinite(e)&&e>=s)return s===e?'p.'+s:'p.'+s+'–'+e;
- if(round)return '第 '+round+' 回';
+ if(round)return isListeningTestBook(f.title)?'Test '+round:'第 '+round+' 回';
  return itemTitle(entry)||('子項目 '+(index+1));
 }
 function canDeferItem(x){return !!x&&isDeferrableStudyItem(x)&&parseDate(data.date).getDay()!==0}
@@ -3028,6 +3042,7 @@ function validate(){
  document.querySelectorAll('[data-field="translationScore1"],[data-field="translationScore2"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(v>=0&&v<=4&&Math.abs(v*2-Math.round(v*2))<1e-9);el.setCustomValidity(x?'':'中翻英分數請填 0～4.0，並以 0.5 為單位。');if(!x){ok=false;msg='中翻英分數格式不正確。'}});
  document.querySelectorAll('[data-field="round"][max="40"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=1&&v<=40);el.setCustomValidity(x?'':'英文寫作測驗回數請填 1～40。');if(!x){ok=false;msg='英文寫作測驗回數超出範圍。'}});
  document.querySelectorAll('[data-field="round"][max="60"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=1&&v<=60);el.setCustomValidity(x?'':'ACE Reading 回數請填 1～60。');if(!x){ok=false;msg='ACE Reading 回數超出範圍。'}});
+ document.querySelectorAll('[data-round-book="listening-test"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=1&&v<=LISTENING_TEST_MAX);el.setCustomValidity(x?'':'大考英聽A攻略 Test 請填 1～10。');if(!x){ok=false;msg='大考英聽A攻略 Test 超出範圍。'}});
  document.querySelectorAll('[data-field="round"][max="100"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=1&&v<=100);el.setCustomValidity(x?'':'古今悅讀一百回數請填 1～100。');if(!x){ok=false;msg='古今悅讀一百回數超出範圍。'}});
  return{ok:ok,msg:msg};
 }
@@ -3072,7 +3087,7 @@ function itemDetails(x){
  else if(x.type==='mock')s+='｜科目：'+(isLockedEnglishMock(x)?'英文':line(f.subject))+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
  else if(x.type==='englishVocabInteractive'){var vw=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(vw.length?vw.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
  else if(x.type==='general'&&isEnglishReview(x)){var w=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(w.length?w.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
- else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEssentialGrammar(f.title))s+='｜Essential Grammar in Use｜Unit '+line(f.unitStart||f.unit)+'～'+line(f.unitEnd||f.unitStart||f.unit)+'（全書 115 Unit）';else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
+ else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isListeningTestBook(f.title)){s+='｜'+LISTENING_TEST_BOOK_TITLE+'｜Test '+line(f.round)+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEssentialGrammar(f.title))s+='｜Essential Grammar in Use｜Unit '+line(f.unitStart||f.unit)+'～'+line(f.unitEnd||f.unitStart||f.unit)+'（全書 115 Unit）';else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
  return s;
 }
 function reviewEntrySummary(x){var d=itemDetails(x).replace(/｜進度：[✓—]｜批改：[✓—]｜訂正：[✓—]/g,'');var s=itemTitle(x)+d;if(x.type!=='mock')s+='｜錯因／不熟觀念：'+line(x.f&&x.f.reason);return s}

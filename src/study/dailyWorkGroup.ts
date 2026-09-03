@@ -28,6 +28,7 @@ function workTemplateIdentity(item: StudyItem): string {
   if (fixedTemplate) return `fixed:${fixedTemplate}`;
   return text(item.title)
     .replace(/\s*第\s*\d+\s*回.*$/, '')
+    .replace(/\s*Test\s*\d+.*$/i, '')
     .replace(/\s*[｜:：]\s*/g, '｜')
     .replace(/[＋+]/g, '＋');
 }
@@ -181,7 +182,9 @@ function groupRounds(items: StudyItem[]): StudyItem[] {
     }
     const roundItems = [...byRound.values()].map(entries => entries.length > 1 ? combinedItem(entries, 'same-round') : entries[0]);
     const grouped = combinedItem(bucket, 'rounds');
-    grouped.title = text(grouped.title).replace(/\s*第\s*\d+\s*回.*$/, '');
+    grouped.title = text(grouped.title)
+      .replace(/\s*第\s*\d+\s*回.*$/, '')
+      .replace(/\s*Test\s*\d+.*$/i, '');
     grouped.f.groupedWorkEntries = roundItems.map(groupedChild);
     grouped.done = grouped.f.groupedWorkEntries.every(child => Boolean(child.done));
     output.push(grouped);

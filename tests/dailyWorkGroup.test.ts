@@ -46,6 +46,22 @@ function round(id: string, value: number, deferredCarry = false): StudyItem {
   };
 }
 
+function listeningTest(id: string, value: number, deferredCarry = false): StudyItem {
+  return {
+    id,
+    type: 'extra',
+    done: false,
+    minutes: '',
+    required: !deferredCarry,
+    source: 'preset',
+    presetKey: id,
+    title: `英文｜大考英聽A攻略 Test ${value}`,
+    description: deferredCarry ? '延期補做' : 'Google Calendar 當日排程',
+    deferredCarry,
+    f: { title: '大考英聽A攻略', round: String(value) },
+  };
+}
+
 function mathPractice(id: string, start?: number, end?: number, deferredCarry = false): StudyItem {
   return {
     id,
@@ -81,6 +97,15 @@ test('groups different rounds across Calendar and Tracker deferral sources', () 
   assert.equal(output.length, 1);
   const children = output[0].f.groupedWorkEntries as StudyItem[];
   assert.deepEqual(children.map(child => child.f.round), ['14', '11']);
+  assert.deepEqual(children.map(child => child.required), [true, false]);
+});
+
+test('groups different 大考英聽A攻略 tests across Calendar and Tracker deferral sources', () => {
+  const output = groupDailyWorkItems([listeningTest('current-2', 2), listeningTest('makeup-4', 4, true)]);
+  assert.equal(output.length, 1);
+  assert.equal(output[0].title, '英文｜大考英聽A攻略');
+  const children = output[0].f.groupedWorkEntries as StudyItem[];
+  assert.deepEqual(children.map(child => child.f.round), ['2', '4']);
   assert.deepEqual(children.map(child => child.required), [true, false]);
 });
 

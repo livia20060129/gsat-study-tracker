@@ -131,6 +131,18 @@ test('groups repeated Calendar rounds into one parent with separate children', (
   assert.deepEqual(children.map(child => child.f.round), ['1', '2']);
 });
 
+test('groups 大考英聽A攻略 Calendar tests into one parent with separate Test children', () => {
+  const output = dedupePresetDefinitions([
+    { ...definition('cal_listening_a_2_event-1', '英文｜大考英聽A攻略 Test 2', { title: '大考英聽A攻略', round: '2', calendarRoute: 'today', calendarEventKey: 'event-1' }), type: 'extra' },
+    { ...definition('cal_listening_a_4_event-2', '英文｜大考英聽A攻略 Test 4', { title: '大考英聽A攻略', round: '4', calendarRoute: 'today', calendarEventKey: 'event-2' }), type: 'extra' },
+  ]);
+
+  assert.equal(output.length, 1);
+  assert.equal(output[0].title, '英文｜大考英聽A攻略');
+  const children = output[0].f.groupedWorkEntries as Array<{ f: Record<string, unknown> }>;
+  assert.deepEqual(children.map(child => child.f.round), ['2', '4']);
+});
+
 test('groups normal and makeup Calendar rounds while preserving each child metric role', () => {
   const normal = { ...definition('cal_gujin_14_event-1', '國文｜古今悅讀一百 第 14 回', {
     kind: 'reading', round: '14', calendarRoute: 'today', calendarMakeup: false, calendarEventKey: 'event-1',
