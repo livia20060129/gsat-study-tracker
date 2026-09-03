@@ -30,6 +30,7 @@ import { completionCelebrationForChange } from './study/completionCelebration';
 import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, startStudyTimer, timerMinutesValue } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
+import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
@@ -2508,17 +2509,18 @@ function renderWeeklyItems(){
  id('weeklyItemList').innerHTML=html;
  id('weeklyItemBadge').textContent=total+' 項';
 }
-var studyItemsView='today',mathPagesView='today';
+var studyItemsView='today',overviewMetricView='minutes';
 function updateStudyItemsView(){
  var today=studyItemsView==='today';
  id('dailyItemsView').hidden=!today;id('weeklyItemsView').hidden=today;
  id('dailyPresetBadge').hidden=!today;id('weeklyItemBadge').hidden=today;
  var button=id('studyItemsViewToggle');button.textContent=today?'今日項目':'本週項目';button.setAttribute('aria-label',today?'目前顯示今日項目；按一下切換至本週項目':'目前顯示本週項目；按一下切換至今日項目');
 }
-function updateMathPagesView(){
- var today=mathPagesView==='today';
- id('dailyMathPagesView').hidden=!today;id('weeklyMathPagesView').hidden=today;
- id('mathPagesViewToggle').setAttribute('aria-label',today?'目前顯示今日完成數學頁數；按一下切換至本週':'目前顯示本週完成數學頁數；按一下切換至今日');
+function updateOverviewMetricView(focusSelected){
+ overviewMetricView=normalizeOverviewMetric(overviewMetricView);
+ var tabs=id('overviewMetricTabs'),index=overviewMetricIndex(overviewMetricView);tabs.dataset.active=String(index);
+ tabs.querySelectorAll('[data-overview-metric]').forEach(function(button){var selected=button.getAttribute('data-overview-metric')===overviewMetricView;button.setAttribute('aria-selected',selected?'true':'false');button.tabIndex=selected?0:-1;if(selected&&focusSelected)button.focus()});
+ document.querySelectorAll('[data-metric-panel]').forEach(function(panel){panel.hidden=panel.getAttribute('data-metric-panel')!==overviewMetricView});
 }
 function render(){
  deferredCapacityCache=null;
@@ -2539,7 +2541,7 @@ function render(){
  id('dailyNotice').textContent=isAway(data)?'今日外出：固定排程全部取消；自行新增項目仍可照常記錄。':(data.date>=DAILY_PRESET_START?dailyMessageForDate(data.date):'歷史日期：不自動改寫原有紀錄。');
  updateSummary();
  renderWeeklyItems();
- updateStudyItemsView();updateMathPagesView();
+ updateStudyItemsView();updateOverviewMetricView(false);
  refreshTimerUI();
 }
 function findRecursive(list,target){
@@ -3117,7 +3119,8 @@ function addEnglishReview(){
 function headerInput(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
 id('studyItemsViewToggle').addEventListener('click',function(){studyItemsView=studyItemsView==='today'?'week':'today';updateStudyItemsView()});
-id('mathPagesViewToggle').addEventListener('click',function(){mathPagesView=mathPagesView==='today'?'week':'today';updateMathPagesView()});
+id('overviewMetricTabs').addEventListener('click',function(e){var button=e.target.closest('[data-overview-metric]');if(!button)return;overviewMetricView=button.getAttribute('data-overview-metric');updateOverviewMetricView(false)});
+id('overviewMetricTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')overviewMetricView='minutes';else if(e.key==='End')overviewMetricView='mathWeek';else overviewMetricView=adjacentOverviewMetric(overviewMetricView,e.key==='ArrowRight'?1:-1);updateOverviewMetricView(true)});
 id('activeTimerSummary').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('change',handleWeeklyChange);
