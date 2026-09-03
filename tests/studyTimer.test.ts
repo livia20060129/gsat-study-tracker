@@ -7,6 +7,7 @@ import {
   normalizeStudyTimerState,
   pauseStudyTimer,
   resetStudyTimer,
+  setTimedEntryMinutes,
   startStudyTimer,
   studyTimerElapsedSeconds,
   timerMinutesValue,
@@ -73,4 +74,21 @@ test('finish rounds a longer timer and does not invent time before a session sta
     finishStudyTimer({ mode: 'timer', accumulatedSeconds: 0, startedAt: null }),
     { state: { mode: 'manual', accumulatedSeconds: 0, startedAt: null }, minutes: '' },
   );
+});
+
+test('writes completed minutes to the current magazine entry instead of a stale clone', () => {
+  const staleEntry = { id: 'mag-1', minutes: '', timeTracking: { mode: 'timer' } };
+  const currentEntries = JSON.parse(JSON.stringify([staleEntry]));
+
+  const currentEntry = setTimedEntryMinutes(currentEntries, staleEntry.id, '12');
+
+  assert.equal(currentEntry, currentEntries[0]);
+  assert.equal(currentEntries[0].minutes, '12');
+  assert.equal(staleEntry.minutes, '');
+});
+
+test('does not write to a different magazine entry when the id is missing', () => {
+  const entries = [{ id: 'mag-1', minutes: '8' }];
+  assert.equal(setTimedEntryMinutes(entries, 'mag-missing', '20'), null);
+  assert.equal(entries[0].minutes, '8');
 });

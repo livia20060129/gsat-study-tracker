@@ -27,7 +27,7 @@ import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, 
 import { groupStudyItemsBySubject, studyItemSubjectClass } from './study/subjectOrder';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
-import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, startStudyTimer } from './study/studyTimer';
+import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
@@ -1889,7 +1889,11 @@ function setTimerStateForTarget(target,state){
  return normalized;
 }
 function setTimerMinutesForTarget(target,value){
- if(target.entry){target.entry.minutes=value;if(target.record===data)propagateDailyWorkField(target.item,'entries',ensureMagazineEntries(target.item))}
+ if(target.entry){
+  var entries=ensureMagazineEntries(target.item),entryId=(target.pointer&&target.pointer.entryId)||target.entry.id,currentEntry=setTimedEntryMinutes(entries,entryId,value);
+  if(!currentEntry)return;target.entry=currentEntry;
+  if(target.record===data)propagateDailyWorkField(target.item,'entries',entries)
+ }
  else{target.item.minutes=value;if(target.record===data)replaceDailyWorkMinutes(target.item,value)}
 }
 function persistTimerTarget(target){

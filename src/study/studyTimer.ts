@@ -80,3 +80,16 @@ export function finishStudyTimer(
       : '',
   };
 }
+
+/** Finds the current entry by stable id before writing its timer result. */
+export function setTimedEntryMinutes<T extends { id?: string; minutes?: string }>(
+  entries: T[],
+  entryId: unknown,
+  minutes: string,
+): T | null {
+  const id = String(entryId ?? '');
+  if (!id) return null;
+  const entry = entries.find(candidate => String(candidate?.id ?? '') === id) ?? null;
+  if (entry) entry.minutes = minutes;
+  return entry;
+}
