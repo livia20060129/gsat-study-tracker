@@ -39,6 +39,8 @@ main{max-width:1050px;margin:0 auto;padding:22px 14px 60px}h1{font-size:28px;mar
 .connection-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .connection-account{margin-bottom:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
 .connection-message{margin-top:9px}.connection-note{margin-top:6px}
+.cloud-conflict-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:10px;border:1px solid #f4c7c7;border-radius:12px;background:#fff7f7;color:#9f1239;font-size:12px}
+.cloud-conflict-actions[hidden]{display:none}.cloud-conflict-actions span{flex:1 1 220px;font-weight:700}.cloud-conflict-actions button{flex:0 0 auto}
 .grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-row,.english-book-row,.english-book-page-row{display:grid;gap:10px}
 .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-4,.math-main-row,.science-main-row{grid-template-columns:repeat(4,minmax(0,1fr))}
 .field-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.chinese-writing-row{grid-template-columns:repeat(4,minmax(0,1fr))}.chinese-writing-row .cw-topic{grid-column:span 2}
