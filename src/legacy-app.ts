@@ -40,6 +40,8 @@ import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEM
 import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository';
 import { SupabaseStudyRecordRepository } from './infrastructure/storage/supabaseStudyRecordRepository';
 import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudyTaskService';
+import { createClient } from '@supabase/supabase-js';
+import { parseProgressImportText, progressImportBackupPayload, progressImportResultText } from './application/progressImport';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -594,6 +596,7 @@ function setStorageScope(userId){
  localRecordRepository.setPrefix(STORE_PREFIX);
  mathProgressIndex.replaceAll([]);
  data=null;
+ updateImportBackupButton();
 }
 function currentStorageIsUserScoped(){return !!cloudUser&&STORE_PREFIX===storagePrefixForUser(cloudUser.id)}
 function recordSyncWatermark(){
@@ -1130,10 +1133,7 @@ async function activateCloudUser(user){
  }
 }
 async function initCloud(){
- if(!window.supabase||!window.supabase.createClient){
-  setStorageScope(null);rebuildMathProgressIndex();cloudSetMessage('Supabase 程式庫載入失敗；目前使用本機模式。',false);cloudUpdateUI();load();return
- }
- cloudClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+ cloudClient=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
  cloudRecordRepository=new SupabaseStudyRecordRepository(cloudClient);
  var s=await cloudClient.auth.getSession();await activateCloudUser(s.data&&s.data.session?s.data.session.user:null);
  cloudClient.auth.onAuthStateChange(function(event,session){
@@ -3119,52 +3119,148 @@ function mergeImportedProgressItems(existing,incoming,date){
  });
  return out;
 }
-function normalizeImportedProgressRecords(obj){
- var out=[];
- function pushRecord(rec,dateHint){
-  if(!rec||typeof rec!=='object'||Array.isArray(rec))return;
-  var d=String(rec.date||dateHint||'');
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return;
-  var x=cloneObj(rec);x.date=d;out.push(x);
- }
- if(Array.isArray(obj)){obj.forEach(function(x){pushRecord(x,'')});return out}
- if(!obj||typeof obj!=='object')return out;
- if(Array.isArray(obj.records)){obj.records.forEach(function(x){pushRecord(x,'')});return out}
- if(obj.date){pushRecord(obj,'');return out}
- for(var k in obj)if(Object.prototype.hasOwnProperty.call(obj,k)&&/^\d{4}-\d{2}-\d{2}$/.test(k))pushRecord(obj[k],k);
- return out;
-}
-function mergeImportedProgressRecord(incoming){
- var d=incoming.date,current=loadData(d);
- current.mood=mergeImportedProgressValue(current.mood,incoming.mood)||'';
- current.wakeTime=mergeImportedProgressValue(current.wakeTime,incoming.wakeTime)||'';
- current.biggestBlock=mergeImportedProgressValue(current.biggestBlock,incoming.biggestBlock)||'';
- current.firstThingTomorrow=mergeImportedProgressValue(current.firstThingTomorrow,incoming.firstThingTomorrow)||'';
- current.notes=mergeImportedProgressValue(current.notes,incoming.notes)||'';
- current.items=mergeImportedProgressItems(current.items,incoming.items,d);
- ensureDailyPresets(current,d);
- current.localDirty=true;current.syncConflict=false;writeStoredRecord(current);
- return current;
-}
-async function importProgressFromField(){
- var el=id('importProgress'),text=el?el.value.trim():'';
- if(!text)return;
- var parsed,records;
- try{parsed=JSON.parse(text)}catch(e){id('status').textContent='匯入失敗：內容不是有效的 JSON。';return}
- records=normalizeImportedProgressRecords(parsed);
- if(!records.length){id('status').textContent='匯入失敗：找不到 YYYY-MM-DD 日期格式的進度紀錄。';return}
- var merged=[];
+var importProgressPreview=null;
+var importProgressBusy=false;
+function importBackupKey(){return STORE_PREFIX+'__progress-import-backup__'}
+function readProgressImportBackup(){
  try{
-  for(var i=0;i<records.length;i++)merged.push(mergeImportedProgressRecord(records[i]));
-  if(cloudClient&&cloudUser){
-   for(var j=0;j<merged.length;j++)await cloudSaveRecord(merged[j]);
+  var raw=store.getItem(importBackupKey()),parsed=raw?JSON.parse(raw):null;
+  return parsed&&parsed.version===1&&Array.isArray(parsed.records)?parsed:null;
+ }catch(e){return null}
+}
+function updateImportBackupButton(){var button=id('undoImportBtn');if(button)button.hidden=!readProgressImportBackup()}
+function saveProgressImportBackup(entries){
+ try{
+  var records=entries.map(function(entry){return cloneObj(entry.before)});
+  store.setItem(importBackupKey(),JSON.stringify(progressImportBackupPayload(records)));
+  updateImportBackupButton();return true;
+ }catch(e){return false}
+}
+function mergedImportedProgressRecord(current,incoming){
+ var next=cloneObj(current),d=incoming.date;
+ next.date=d;
+ next.mood=mergeImportedProgressValue(next.mood,incoming.mood)||'';
+ next.wakeTime=mergeImportedProgressValue(next.wakeTime,incoming.wakeTime)||'';
+ next.biggestBlock=mergeImportedProgressValue(next.biggestBlock,incoming.biggestBlock)||'';
+ next.firstThingTomorrow=mergeImportedProgressValue(next.firstThingTomorrow,incoming.firstThingTomorrow)||'';
+ next.notes=mergeImportedProgressValue(next.notes,incoming.notes)||'';
+ next.items=mergeImportedProgressItems(next.items,incoming.items,d);
+ ensureDailyPresets(next,d);
+ var changed=!sameStudyContent(current,next);
+ next.serverRevision=Number(current.serverRevision||0);
+ next.serverUpdatedAt=current.serverUpdatedAt||'';
+ next.localDirty=changed?true:!!current.localDirty;
+ // Importing is not conflict resolution. Never make an unresolved date writable.
+ next.syncConflict=!!current.syncConflict;
+ return next;
+}
+function createProgressImportPreview(records,text){
+ var byDate={},order=[];
+ records.forEach(function(incoming){
+  var d=incoming.date,entry=byDate[d];
+  if(!entry){
+   var before=loadData(d),stored=readStoredRecord(d);ensureDailyPresets(before,d);
+   entry=byDate[d]={date:d,before:cloneObj(before),after:cloneObj(before),existed:!!stored,hadConflict:!!before.syncConflict};order.push(d);
   }
-  el.value='';
-  load();
-  id('status').textContent='已匯入 '+merged.length+' 天進度'+(cloudUser?'，並同步到雲端。':'。');
- }catch(e2){
-  id('status').textContent='匯入失敗：'+(e2&&e2.message?e2.message:String(e2));
+  entry.after=mergedImportedProgressRecord(entry.after,incoming);
+ });
+ var entries=order.map(function(d){var entry=byDate[d];entry.changed=!sameStudyContent(entry.before,entry.after);return entry});
+ return{sourceText:text,entries:entries};
+}
+function setImportButtons(options){
+ var opts=options||{},preview=id('previewImportBtn'),confirm=id('confirmImportBtn'),cancel=id('cancelImportBtn'),undo=id('undoImportBtn'),field=id('importProgress');
+ if(preview){preview.disabled=!!opts.busy;preview.textContent=opts.busy?'處理中…':'預覽匯入'}
+ if(confirm){confirm.hidden=!opts.showConfirm;confirm.disabled=!!opts.busy||!!opts.disableConfirm}
+ if(cancel){cancel.hidden=!opts.showCancel;cancel.disabled=!!opts.busy}
+ if(undo)undo.disabled=!!opts.busy;
+ if(field)field.disabled=!!opts.busy;
+ importProgressBusy=!!opts.busy;
+}
+function showImportPanel(title,summary,lines,state){
+ var panel=id('importPreviewPanel'),list=id('importPreviewList');
+ panel.hidden=false;panel.dataset.state=state||'preview';id('importPreviewTitle').textContent=title;id('importPreviewSummary').textContent=summary||'';list.replaceChildren();
+ (lines||[]).forEach(function(line){var li=document.createElement('li');li.textContent=line;list.appendChild(li)});
+}
+function hideImportPreview(clearText){
+ importProgressPreview=null;id('importPreviewPanel').hidden=true;setImportButtons({showConfirm:false,showCancel:false});
+ if(clearText)id('importProgress').value='';
+}
+function previewProgressImport(){
+ if(importProgressBusy)return;
+ var el=id('importProgress'),text=el.value.trim();
+ if(!text){showImportPanel('無法預覽','請先貼上 JSON 進度資料。',[],'error');setImportButtons({showCancel:true});return}
+ var parsed=parseProgressImportText(text);
+ if(!parsed.ok){importProgressPreview=null;showImportPanel('資料格式有誤','尚未修改任何紀錄。',parsed.errors,'error');setImportButtons({showCancel:true});return}
+ var plan=createProgressImportPreview(parsed.records,text),changed=plan.entries.filter(function(entry){return entry.changed}),added=changed.filter(function(entry){return !entry.existed}).length,updated=changed.length-added,unchanged=plan.entries.length-changed.length,conflicts=changed.filter(function(entry){return entry.hadConflict}).length;
+ importProgressPreview=plan;
+ var summary='共 '+plan.entries.length+' 個日期；新增 '+added+'、更新 '+updated+'、無變更 '+unchanged+(conflicts?'、既有衝突 '+conflicts:'')+'。尚未修改任何紀錄。';
+ var lines=plan.entries.map(function(entry){var action=entry.changed?(entry.existed?'將更新':'將新增'):'無變更';return entry.date+'：'+action+(entry.hadConflict?'（保留同步衝突，不會覆蓋雲端）':'')});
+ showImportPanel('匯入預覽',summary,lines,'preview');
+ setImportButtons({showConfirm:true,disableConfirm:changed.length===0,showCancel:true});
+ id('status').textContent=changed.length?'預覽完成；確認前不會修改資料。':'預覽完成；沒有可匯入的變更。';
+}
+function restoreLocalImportEntries(entries){
+ var ok=true;
+ for(var i=entries.length-1;i>=0;i--)if(!writeStoredRecord(cloneObj(entries[i].before)))ok=false;
+ return ok;
+}
+async function syncImportedEntries(entries,summary,outcomes){
+ if(!cloudClient||!cloudUser||!currentStorageIsUserScoped()){
+  summary.cloudSkipped+=entries.length;entries.forEach(function(entry){outcomes[entry.date]='未登入，保留待同步'});return;
  }
+ for(var i=0;i<entries.length;i++){
+  var entry=entries[i],current=readStoredRecord(entry.date)||entry.after;
+  if(current.syncConflict){summary.cloudConflicts++;outcomes[entry.date]='本機完成，雲端衝突待確認';continue}
+  var saved=await withCloudDateLock(entry.date,function(){return cloudSaveRecord(readStoredRecord(entry.date)||entry.after)}),latest=readStoredRecord(entry.date);
+  if(saved){summary.cloudSucceeded++;outcomes[entry.date]='本機與雲端完成'}
+  else if(latest&&latest.syncConflict){summary.cloudConflicts++;outcomes[entry.date]='本機完成，雲端衝突待確認'}
+  else{summary.cloudFailed++;outcomes[entry.date]='本機完成，雲端同步失敗，可稍後重試'}
+ }
+}
+async function confirmProgressImport(){
+ if(importProgressBusy)return;
+ var el=id('importProgress'),plan=importProgressPreview;
+ if(!plan||el.value.trim()!==plan.sourceText){previewProgressImport();return}
+ var changed=plan.entries.filter(function(entry){return entry.changed});if(!changed.length)return;
+ setImportButtons({busy:true,showConfirm:true,showCancel:true});id('status').textContent='正在匯入並逐日確認結果…';
+ var summary={localSucceeded:0,localFailed:0,cloudSucceeded:0,cloudConflicts:0,cloudFailed:0,cloudSkipped:0},written=[],outcomes={};
+ try{
+  if(!saveProgressImportBackup(changed))throw new Error('無法建立匯入前備份，因此未修改資料。');
+  for(var i=0;i<changed.length;i++){
+   var entry=changed[i];
+   if(!writeStoredRecord(cloneObj(entry.after))){summary.localFailed++;throw new Error(entry.date+' 無法寫入本機。')}
+   written.push(entry);summary.localSucceeded++;outcomes[entry.date]='本機完成，等待雲端';
+  }
+  await syncImportedEntries(changed,summary,outcomes);
+  el.value='';importProgressPreview=null;load({skipCloudRead:true});
+  var message=progressImportResultText(summary),hasIssue=summary.localFailed||summary.cloudConflicts||summary.cloudFailed;
+  showImportPanel(hasIssue?'匯入完成，但有項目待處理':'匯入完成',message,changed.map(function(entry){return entry.date+'：'+outcomes[entry.date]}),hasIssue?'error':'success');
+  id('status').textContent=message;setImportButtons({showConfirm:false,showCancel:false});updateImportBackupButton();
+ }catch(e){
+  var rolledBack=restoreLocalImportEntries(written);rebuildMathProgressIndex();
+  var detail=(e&&e.message?e.message:String(e))+(rolledBack?'；已復原本次本機變更。':'；本機復原不完整，請勿關閉頁面。');
+  showImportPanel('匯入未完成',detail,[],'error');id('status').textContent=detail;setImportButtons({showConfirm:true,showCancel:true});
+ }
+}
+async function undoLastProgressImport(){
+ if(importProgressBusy)return;
+ var backup=readProgressImportBackup();if(!backup)return;
+ if(!window.confirm('要復原上次匯入前的紀錄嗎？匯入後對相同日期所做的修改也會被復原。'))return;
+ setImportButtons({busy:true,showConfirm:false,showCancel:false});id('status').textContent='正在復原上次匯入…';
+ var prior=[],restored=[],summary={localSucceeded:0,localFailed:0,cloudSucceeded:0,cloudConflicts:0,cloudFailed:0,cloudSkipped:0},outcomes={};
+ try{
+  for(var i=0;i<backup.records.length;i++){
+   var savedBefore=cloneObj(backup.records[i]),current=readStoredRecord(savedBefore.date)||loadData(savedBefore.date);prior.push({before:cloneObj(current)});
+   savedBefore.serverRevision=Number(current.serverRevision||0);savedBefore.serverUpdatedAt=current.serverUpdatedAt||'';savedBefore.localDirty=true;savedBefore.syncConflict=!!current.syncConflict;
+   if(!writeStoredRecord(savedBefore)){summary.localFailed++;throw new Error(savedBefore.date+' 無法復原本機紀錄。')}
+   var entry={date:savedBefore.date,before:current,after:savedBefore,changed:true};restored.push(entry);summary.localSucceeded++;outcomes[entry.date]='本機已復原，等待雲端';
+  }
+  await syncImportedEntries(restored,summary,outcomes);store.removeItem(importBackupKey());updateImportBackupButton();load({skipCloudRead:true});
+  var message=progressImportResultText(summary),hasIssue=summary.localFailed||summary.cloudConflicts||summary.cloudFailed;
+  showImportPanel(hasIssue?'已復原本機，但有項目待處理':'已復原上次匯入',message,restored.map(function(entry){return entry.date+'：'+outcomes[entry.date]}),hasIssue?'error':'success');id('status').textContent=message;
+ }catch(e){
+  restoreLocalImportEntries(prior);rebuildMathProgressIndex();var detail='復原失敗：'+(e&&e.message?e.message:String(e));showImportPanel('無法復原',detail,[],'error');id('status').textContent=detail;
+ }finally{setImportButtons({showConfirm:false,showCancel:false});updateImportBackupButton()}
 }
 
 async function copyTextToClipboard(text){
@@ -3264,8 +3360,12 @@ function saveCurrentRecord(){
 id('saveBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();saveCurrentRecord()});
 id('weekSummaryBtn').addEventListener('click',buildAndCopyWeekSummary);
 id('copyWeekBtn').addEventListener('click',copyCurrentWeekSummary);
-id('importProgress').addEventListener('change',importProgressFromField);
-id('importProgress').addEventListener('keydown',function(e){if(e.key==='Enter'&&e.ctrlKey){e.preventDefault();importProgressFromField()}});
+id('importProgress').addEventListener('input',function(){if(importProgressPreview)hideImportPreview(false)});
+id('importProgress').addEventListener('keydown',function(e){if(e.key==='Enter'&&e.ctrlKey){e.preventDefault();previewProgressImport()}});
+id('previewImportBtn').addEventListener('click',previewProgressImport);
+id('confirmImportBtn').addEventListener('click',confirmProgressImport);
+id('cancelImportBtn').addEventListener('click',function(){hideImportPreview(true);id('status').textContent='已取消匯入，紀錄沒有變更。'});
+id('undoImportBtn').addEventListener('click',undoLastProgressImport);
 
 id('cloudSignInBtn').addEventListener('click',cloudSignIn);
 id('cloudSignUpBtn').addEventListener('click',cloudSignUp);
@@ -3277,4 +3377,4 @@ id('cloudUseCloudBtn').addEventListener('click',cloudUseCloudConflict);
 id('calendarConnectBtn').addEventListener('click',calendarConnect);
 id('calendarSyncBtn').addEventListener('click',calendarSyncNow);
 id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);
-id('studyDate').value=dateString(new Date());initCloud();
+id('studyDate').value=dateString(new Date());updateImportBackupButton();initCloud();

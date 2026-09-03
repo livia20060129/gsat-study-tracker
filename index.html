@@ -7,7 +7,6 @@
   <link rel="icon" type="image/png" href="/book.png" />
   <link rel="apple-touch-icon" href="/book.png" />
   <title>每日讀書完成度紀錄卡 v171</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <main>
@@ -165,7 +164,18 @@
   <div class="field" style="margin-top:12px">
    <label for="importProgress">匯入進度</label>
    <textarea id="importProgress" placeholder="貼上單日或多日 JSON 進度資料"></textarea>
-   <div class="small" style="margin-top:6px">貼上後離開欄位即匯入；Ctrl+Enter 可立即匯入。既有內容不會被空值覆蓋，已完成狀態可向前合併。</div>
+   <div class="small" style="margin-top:6px">貼上後先預覽，不會自動修改紀錄；Ctrl+Enter 可快速預覽。確認匯入前會保留一份可復原的本機備份。</div>
+   <div class="btns import-actions" style="margin-top:10px">
+    <button id="previewImportBtn" class="secondary" type="button">預覽匯入</button>
+    <button id="confirmImportBtn" class="primary" type="button" hidden disabled>確認匯入</button>
+    <button id="cancelImportBtn" type="button" hidden>取消</button>
+    <button id="undoImportBtn" type="button" hidden>復原上次匯入</button>
+   </div>
+   <div class="import-preview" id="importPreviewPanel" hidden aria-live="polite">
+    <strong id="importPreviewTitle">匯入預覽</strong>
+    <div class="small" id="importPreviewSummary"></div>
+    <ul id="importPreviewList"></ul>
+   </div>
   </div>
   <div id="exportBox" hidden style="margin-top:10px">
    <div class="inline" style="justify-content:space-between;align-items:center;gap:10px">

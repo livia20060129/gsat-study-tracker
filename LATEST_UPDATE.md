@@ -1,30 +1,31 @@
 # 最新更新
 
-版本：v171.0.78
+版本：v171.0.79
 
 ## 本次有更新的項目
 
-- 同一日期的雲端儲存新增跨分頁鎖定，避免兩個 Tracker 分頁同時使用舊 revision 寫入。
-- 等待鎖定的分頁會重新讀取 localStorage 最新完整紀錄，而非上傳排隊當下的舊快照。
-- 切換日期或重新讀取該日雲端資料前，會先等候該日期尚未完成的儲存。
-- 「重新讀取雲端」與「補上本機舊資料」執行期間會停用兩個按鈕，並防止同一瀏覽器的其他分頁同時執行。
-- 手動重新讀取雲端前，會先完成目前排隊中的雲端儲存。
-- Calendar 重新整理項目時不再清除既有同步衝突，避免尚未處理的兩端資料被重新排入覆蓋流程。
-- 保留 Supabase revision 防護；真正來自不同內容的衝突仍不會自動覆蓋。
-- 連線設定會在目前日期發生衝突時顯示「保留本機並上傳」與「改用雲端」，可安全處理既有的 2026-09-03 衝突。
-- 新增 2 項同步鎖測試，完整測試目前共 159 項。
+- JSON 不再於離開欄位時直接匯入，改為「預覽匯入」後再按「確認匯入」。
+- `Ctrl+Enter` 只會開啟預覽，不會直接改動紀錄。
+- 匯入前會完整檢查所有日期與項目格式；任一筆格式錯誤時整批停止，且不修改任何本機或雲端資料。
+- 預覽會逐日列出新增、更新、無變更及既有同步衝突。
+- 確認匯入前會保存可復原的本機備份，並提供「復原上次匯入」。
+- 本機多日寫入若中途失敗，會復原本次已寫入的日期；不會留下只有一部分日期完成的本機匯入。
+- 雲端同步改為逐日檢查實際結果，分別回報成功、衝突、失敗與未同步，不再把失敗誤報為全部成功。
+- 匯入不再清除既有 `syncConflict`；有衝突的日期不會自動覆蓋雲端。
+- Supabase JS 已改為固定版本的 npm dependency，由 Vite 隨前端一起打包，不再於執行時載入浮動 CDN 版本。
+- 新增 7 項匯入與 Supabase 打包測試，完整測試目前共 166 項。
 
 ## 部署範圍
 
 - 僅需重新部署前端。
-- 不需更新 Supabase Database、Migration 或 Edge Functions。
-- 部署後請關閉仍開著的舊 Tracker 分頁，再重新開啟網站，避免舊程式繼續執行同步。
+- 不需更新 Supabase Database、Migration、Secrets 或 Edge Functions。
+- 部署平台必須使用 `npm ci`（或依 `package-lock.json` 安裝）後再執行 `npm run build`，以包含固定的 Supabase dependency。
 
 ## 更新資料夾
 
-- `gsat-study-tracker-v171.0.78-update`
+- `gsat-study-tracker-v171.0.79-update`
 - 僅包含本次有修改或新增的檔案，並保留原本目錄結構；未建立 ZIP。
 
 ## Commit 建議
 
-`fix(sync): prevent duplicate cloud writes across tabs`
+`fix(import): add safe preview and bundle Supabase client`
