@@ -2608,12 +2608,18 @@ function weeklyItemState(x){
  if(!x.required)return{label:'選做',kind:'optional'};
  return{label:'未完成',kind:'pending'};
 }
+function studyRecordForOverview(date){
+ // A summary must not regroup the live cards after their DOM has been rendered.
+ // In particular, a partially typed range can temporarily overlap another task,
+ // replacing its ID and leaving later input/change events with no matching item.
+ if(data&&data.date===date)return cloneValue(data);
+ var rec=loadData(date);ensureDailyPresets(rec,date);return rec;
+}
 function renderWeeklyItems(){
  var mon=mondayOf(parseDate(data.date)),html='',total=0;
  for(var i=0;i<7;i++){
   var dayDate=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(dayDate);
-  var rec=data.date===ds?data:loadData(ds);
-  ensureDailyPresets(rec,ds);
+  var rec=studyRecordForOverview(ds);
   var items=visibleItems(rec).filter(isWeeklyCalendarItem),accepted=0;
   if(!items.length)continue;
   items.forEach(function(x){if(x.done||confirmedDeferred(x))accepted++});
@@ -2890,7 +2896,7 @@ function handleClick(e){
 function handleWeeklyChange(e){
  var t=e.target;if(!t.matches('[data-week-done]'))return;
  var ds=t.getAttribute('data-week-date'),itemId=t.getAttribute('data-week-item');if(!ds||!itemId)return;
- var rec=ds===data.date?data:loadData(ds);ensureDailyPresets(rec,ds);
+ var rec=ds===data.date?data:studyRecordForOverview(ds);
  var item=findRecursive(rec.items,itemId);if(!item){renderWeeklyItems();return}
  if(item.type==='scienceReview')markCalendarNaturalCompletionByUser(item,t.checked);
  item.done=t.checked;
@@ -2962,8 +2968,7 @@ function completionMetricsForWeek(date,lastDayIndex){
  var mon=mondayOf(parseDate(date)),units=[];
  for(var i=0;i<=lastDayIndex;i++){
   var day=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(day);
-  var rec=data&&data.date===ds?data:loadData(ds);
-  ensureDailyPresets(rec,ds);
+  var rec=studyRecordForOverview(ds);
   units=units.concat(completionUnitsForRecord(rec,ds));
  }
  return summarizeCompletionUnits(units);
