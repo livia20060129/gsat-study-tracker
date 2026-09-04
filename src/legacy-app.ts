@@ -16,6 +16,7 @@ import { LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
+import { combineNaturalCalendarPlans, resolveNaturalCalendarPlan } from './calendar/naturalPlan';
 import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
@@ -590,7 +591,6 @@ var calendarCacheLoaded=false;
 var calendarHasError=false;
 var calendarParsedByDate={};
 var cloudMathPlanByDate={};
-var cloudNaturalRecommendedByDate={};
 var cloudNaturalIntegrationItemsByDate={};
 var cloudNaturalIntegrationDetailsByDate={};
 
@@ -992,7 +992,7 @@ async function calendarInvoke(action,payload){
  return r.data||{};
 }
 function clearCalendarRuntime(){
- calendarConnected=false;calendarCacheLoaded=false;calendarHasError=false;calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalRecommendedByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
+ calendarConnected=false;calendarCacheLoaded=false;calendarHasError=false;calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
  calendarUpdateUI();
 }
 function naturalRecommendationByTopic(topic){
@@ -1028,20 +1028,12 @@ function resolveCloudGrammarPlan(parsed){
  out.displayTitle=normalizedGrammarUnitTitle(title)||title;out.focus=parsed.standardNote?(parsed.focus||''):(parsed.focus||out.focus||'');out.calendarRangeSource=selected.source;return out;
 }
 function buildCalendarRuntime(rows){
- calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalRecommendedByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
+ calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
  var plan=buildCalendarStudyTaskPlan(rows||[]);calendarParsedByDate=plan.byDate;
  plan.tasks.forEach(function(parsed){
   var d=parsed.date;
   if(parsed.kind==='math'&&!parsed.makeup){
    var mp=resolveCloudMathPlan(parsed);if(mp)cloudMathPlanByDate[d]=mp;
-  }else if(parsed.kind==='natural'){
-   var nr=naturalRecommendationByTopic(parsed.topic),selectedNatural=prioritizeCalendarPageRanges(parsed.startPage,parsed.endPage,nr&&nr.ranges);
-   if(nr||selectedNatural.ranges.length){
-    nr=cloneObj(nr||{});nr.subject=parsed.subject;nr.label=parsed.topic;
-    nr.material=parsed.material||nr.material||'123日的淬鍊';nr.ranges=selectedNatural.ranges;nr.calendarRangeSource=selectedNatural.source;
-    if(selectedNatural.source==='calendar')nr.basis='Google Calendar 明確頁碼範圍。';
-    cloudNaturalRecommendedByDate[d]=nr;
-   }
   }else if(parsed.kind==='naturalIntegration'){
    cloudNaturalIntegrationDetailsByDate[d]={review:parsed.review,pages:parsed.pages,output:parsed.output,minimum:parsed.minimum,time:parsed.time};
    if(parsed.pageItems&&parsed.pageItems.length)cloudNaturalIntegrationItemsByDate[d]=parsed.pageItems.map(function(z){return{subject:z.subject,ranges:[[z.start,z.end]]}});
@@ -1057,7 +1049,7 @@ async function refreshCalendarTaskCache(){
 function reconcileStoredCalendarPresets(){
  if(!calendarCacheLoaded)return 0;
  var changedDates=0;
- localStudyDates().forEach(function(ds){
+ localStudyDates().sort().forEach(function(ds){
   var rec=loadData(ds);
   if(!ensureDailyPresets(rec,ds))return;
   // Calendar reconciliation may add or remove preset items, but it must not
@@ -1260,7 +1252,13 @@ function calendarWritingTest(date){
 function calendarGrammarReview(date){
  return CALENDAR_GRAMMAR_PLAN[date]||null;
 }
-function calendarNaturalRecommended(date){return calendarConnected&&calendarCacheLoaded?(cloudNaturalRecommendedByDate[date]||null):(CALENDAR_NATURAL_RECOMMENDED_PAGES[date]||null)}
+function calendarNaturalRecommended(date,item){
+ if(!(calendarConnected&&calendarCacheLoaded))return CALENDAR_NATURAL_RECOMMENDED_PAGES[date]||null;
+ if(!item)return null;
+ var keys=calendarEventKeysFromFields(item.f||{});
+ var plans=(calendarParsedByDate[date]||[]).filter(function(p){return p.kind==='natural'&&keys.indexOf(p.eventKey)>=0}).map(function(p){return resolveNaturalCalendarPlan(p,naturalRecommendationByTopic(p.topic))}).filter(Boolean);
+ return combineNaturalCalendarPlans(plans);
+}
 function calendarNaturalRanges(p){
  if(!p)return[];
  var a=Array.isArray(p.ranges)?p.ranges:((p.start&&p.end)?[[p.start,p.end]]:[]),out=[];
@@ -1322,15 +1320,14 @@ function calendarNaturalPriorCoverage(date,p){
  return{total:total,done:done,all:total>0&&done===total};
 }
 function applyCalendarNaturalRecommended(rec,date){
- var p=calendarNaturalRecommended(date);if(!p||!rec||!Array.isArray(rec.items))return false;
- var x=null;
- for(var i=0;i<rec.items.length;i++){
-  var z=rec.items[i];
-  if(z&&z.type==='scienceReview'&&z.source==='preset'&&/^cal_natural_/.test(z.presetKey||'')){x=z;break}
- }
- if(!x)return false;
+ if(!rec||!Array.isArray(rec.items))return false;
+ var changed=false;
+ function apply(x){
+ if(isGroupedWork(x)){groupedWorkEntries(x).forEach(apply);return}
+ if(!isCalendarNatural(x)||x.type!=='scienceReview'||isCalendarNaturalIntegration(x))return;
  if(!x.f)x.f={};
- var changed=false,ranges=calendarNaturalRanges(p);
+ var p=calendarNaturalRecommended(date,x);if(!p||p.subject!==x.f.subject)return;
+ var ranges=calendarNaturalRanges(p);
  if(!x.f.material){x.f.material=p.material;changed=true}
  if(ranges.length===1){
   if(!x.f.start){x.f.start=String(ranges[0][0]);changed=true}
@@ -1347,6 +1344,8 @@ function applyCalendarNaturalRecommended(rec,date){
  };
  for(var k in meta)if(Object.prototype.hasOwnProperty.call(meta,k)&&JSON.stringify(x.f[k])!==JSON.stringify(meta[k])){x.f[k]=cloneObj(meta[k]);changed=true}
  if(reconcileCalendarNaturalPriorCoverage(x,cov.all))changed=true;
+ }
+ rec.items.forEach(apply);
  return changed;
 }
 
@@ -1411,7 +1410,7 @@ function cloudCalendarDefsForDate(date){
   }else if(p.kind==='calendarItem'){
    out.push(presetDef('cal_item_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='natural'){
-   var nr=cloudNaturalRecommendedByDate[date]||null,nd='Google Calendar API：'+p.title,ff={subject:p.subject,calendarTopic:p.title,calendarSource:'Google Calendar API',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
+   var nr=resolveNaturalCalendarPlan(p,naturalRecommendationByTopic(p.topic)),nd='Google Calendar API：'+p.title,ff={subject:p.subject,calendarTopic:p.title,calendarSource:'Google Calendar API',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
    if(nr){
     var ranges=calendarNaturalRanges(nr),nrs=ranges.map(function(r){return Number(r[0])===Number(r[1])?'p.'+r[0]:'p.'+r[0]+'–'+r[1]}).join('、');
     if(nrs)nd+='｜建議：'+(nr.material||'123日的淬鍊')+' '+nrs;

@@ -12,6 +12,22 @@ function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+/** Refresh inherited Calendar pages, without discarding edits made on the makeup card. */
+function restoreNaturalCalendarSchedule(merged: StudyItem, template: StudyItem): void {
+  if (template.type !== 'scienceReview' || template.f?.calendarRangeSource !== 'calendar'
+    || !template.f.calendarEventKey) return;
+  const overrides = merged.f.dailyWorkUserFields;
+  for (const key of ['start', 'end', 'material', 'subject', 'calendarTopic', 'calendarRangeSource',
+    'calendarSuggestedMaterial', 'calendarSuggestedRanges', 'calendarSuggestedLabel', 'calendarSuggestedBasis']) {
+    if (template.f[key] === undefined) continue;
+    merged.f[key] = cloneJson(template.f[key]);
+    if ((key === 'start' || key === 'end') && overrides && typeof overrides === 'object'
+      && Object.prototype.hasOwnProperty.call(overrides, key)) {
+      merged.f[key] = (overrides as Record<string, unknown>)[key];
+    }
+  }
+}
+
 function uniqueStrings(values: unknown[]): string[] {
   return [...new Set(values.flatMap(value => Array.isArray(value) ? value : [value])
     .map(value => String(value ?? '').trim())
@@ -82,6 +98,7 @@ function mergeGroupedEntryProgress(templateEntries: StudyItem[], existingEntries
     for (const key of ['start', 'end', 'round', 'calendarEventId', 'calendarEventIds', 'calendarEventKey', 'calendarEventKeys', 'calendarSourceDate', 'calendarSourceDates']) {
       if (template.f?.[key] !== undefined) merged.f[key] = cloneJson(template.f[key]);
     }
+    restoreNaturalCalendarSchedule(merged, template);
     return merged;
   });
 }
@@ -186,6 +203,7 @@ export function mergeMakeupProgress(template: StudyItem, existing: StudyItem): S
     delete merged.f.groupedWorkEntries;
     delete merged.f.deferredGroupedWork;
   }
+  restoreNaturalCalendarSchedule(merged, template);
   return merged;
 }
 
