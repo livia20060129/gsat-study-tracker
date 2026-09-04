@@ -1,9 +1,9 @@
 export interface CompletionUnit {
-  /** Workload-only additions do not change the original item metric. */
+  /** Confirmed deferrals and workload-only additions do not enter the original item metric. */
   itemIncluded?: boolean;
-  /** Counts as completed for the original item metric (done or deferred). */
+  /** Actual completion only; deferral never earns completion credit. */
   itemAccepted: boolean;
-  /** Item-metric-only detail rows do not change the workload denominator. */
+  /** Confirmed deferrals and item-metric-only detail rows do not enter the workload metric. */
   workloadIncluded?: boolean;
   /** Counts as actual completed workload (done only; deferred work is not done). */
   workloadCompleted: boolean;
@@ -19,26 +19,34 @@ export interface CompletionMetrics {
   settlementPercent: number;
 }
 
-/** A makeup item adds one unit of actual workload without becoming another originally scheduled item. */
-export function makeupCompletionUnit(completed: boolean): CompletionUnit {
+/** Confirmed deferral removes the unit from both denominators instead of counting it as completed. */
+export function originalCompletionUnit(completed: boolean, deferred = false): CompletionUnit {
+  return {
+    itemIncluded: !deferred,
+    itemAccepted: completed && !deferred,
+    workloadIncluded: !deferred,
+    workloadCompleted: completed && !deferred,
+  };
+}
+
+/** Makeup enters the target day's workload only, unless it has been deferred again. */
+export function makeupCompletionUnit(completed: boolean, deferred = false): CompletionUnit {
   return {
     itemIncluded: false,
     itemAccepted: false,
-    workloadCompleted: completed,
+    workloadIncluded: !deferred,
+    workloadCompleted: completed && !deferred,
   };
 }
 
 /** One parent card may contain multiple original items; every child remains one completion unit. */
 export function groupedOriginalCompletionUnits(completed: boolean[], deferred = false): CompletionUnit[] {
-  return completed.map(done => ({
-    itemAccepted: done || deferred,
-    workloadCompleted: done,
-  }));
+  return completed.map(done => originalCompletionUnit(done, deferred));
 }
 
 /** Deferred/Calendar makeup children add workload one by one without duplicating original totals. */
-export function groupedMakeupCompletionUnits(completed: boolean[]): CompletionUnit[] {
-  return completed.map(makeupCompletionUnit);
+export function groupedMakeupCompletionUnits(completed: boolean[], deferred = false): CompletionUnit[] {
+  return completed.map(done => makeupCompletionUnit(done, deferred));
 }
 
 function percentage(completed: number, total: number): number {
