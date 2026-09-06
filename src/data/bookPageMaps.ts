@@ -144,6 +144,12 @@ export function bookDetailsForTopic(bookValue: unknown, topicValue: unknown): st
     .map(section => section.detail);
 }
 
+export function bookDetails(bookValue: unknown): string[] {
+  const book = canonicalPageMappedBook(bookValue);
+  if (!book) return [];
+  return [...new Set(BOOK_PAGE_MAPS[book].map(section => section.detail))];
+}
+
 export function bookSectionForSelection(
   bookValue: unknown,
   topicValue: unknown,
@@ -169,6 +175,27 @@ export function bookPageMatches(bookValue: unknown, startValue: unknown, endValu
     matchedStart: Math.max(low, section.start),
     matchedEnd: Math.min(high, section.end),
   }));
+}
+
+function bookPageFacetText(
+  bookValue: unknown,
+  startValue: unknown,
+  endValue: unknown,
+  facet: 'topic' | 'detail',
+): string {
+  const book = canonicalPageMappedBook(bookValue);
+  if (!book) return '尚未建立此書的頁碼對照。';
+  const matches = bookPageMatches(book, startValue, endValue);
+  if (!matches.length) return '頁碼不在已建立的教材本文範圍內。';
+  return [...new Set(matches.map(match => match[facet]))].join('、');
+}
+
+export function bookPageTopicText(bookValue: unknown, startValue: unknown, endValue: unknown): string {
+  return bookPageFacetText(bookValue, startValue, endValue, 'topic');
+}
+
+export function bookPageDetailText(bookValue: unknown, startValue: unknown, endValue: unknown): string {
+  return bookPageFacetText(bookValue, startValue, endValue, 'detail');
 }
 
 export function bookPageText(bookValue: unknown, startValue: unknown, endValue: unknown): string {

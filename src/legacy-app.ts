@@ -41,8 +41,11 @@ import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalen
 import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEMS, CALENDAR_NATURAL_PLAN } from './data/naturalCalendar';
 import { isListeningTestBookTitle, LISTENING_TEST_BOOK_TITLE, LISTENING_TEST_MAX } from './data/englishBooks';
 import {
+  bookDetails,
   bookDetailsForTopic,
+  bookPageDetailText,
   bookPageText,
+  bookPageTopicText,
   bookTopics,
   canonicalPageMappedBook,
   CHINESE_TOPIC_BOOK,
@@ -2368,25 +2371,22 @@ function pageMappedBookOptions(values,current,placeholder){
  return h;
 }
 function englishPageBookTopicOptions(book,current){return pageMappedBookOptions(bookTopics(book),current,'請選擇主題')}
-function englishPageBookRoundOptions(book,topic,current){return pageMappedBookOptions(bookDetailsForTopic(book,topic),current,'請選擇回次')}
-function fixedCalendarBookRange(f){
- var start=Number(f&&(f.calendarSourceStart||f.start)),end=Number(f&&(f.calendarSourceEnd||f.end));
- if(!Number.isFinite(start)||start<1)return'Calendar 未提供可辨識的頁碼範圍';
- if(!Number.isFinite(end)||end<start)end=start;
- return start===end?'p.'+start:'p.'+start+'–'+end;
-}
+function englishPageBookRoundOptions(book,topic,current){return pageMappedBookOptions(topic?bookDetailsForTopic(book,topic):bookDetails(book),current,'請選擇回次')}
 function applyEnglishPageBookSelection(item,field,value){
  var f=item.f||(item.f={}),book=canonicalPageMappedBook(f.title||f.book),next=String(value||'');
  if(!book||pageMappedBookSubject(book)!=='英文'||isCalendarPageMappedBook(item))return false;
  if(field==='topic'){
-  propagateDailyWorkField(item,'topic',next);propagateDailyWorkField(item,'round','');
+  var currentRound=String(f.round||''),allowedRounds=bookDetailsForTopic(book,next);
+  propagateDailyWorkField(item,'topic',next);
+  if(currentRound&&allowedRounds.indexOf(currentRound)<0)propagateDailyWorkField(item,'round','');
  }else if(field==='round'){
   propagateDailyWorkField(item,'round',next);
  }
  return true;
 }
-function bookPageAutoLabel(book){return book===DEEP_FIFTEEN_BOOK?'對應主題／課文':book===CHINESE_TOPIC_BOOK?'對應主題／級別':'對應主題／回次'}
-function bookPageAutoField(book,start,end){return'<div class="field" style="margin-top:10px"><label>'+bookPageAutoLabel(book)+'</label><div class="small" data-book-page-auto>'+esc(bookPageText(book,start,end))+'</div></div>'}
+function bookPageAutoField(book,start,end){
+ return'<div class="chinese-book-map-row"><div class="field"><label>對應主題</label><div class="small" data-book-topic-auto>'+esc(bookPageTopicText(book,start,end))+'</div></div><div class="field"><label>對應章節</label><div class="small" data-book-detail-auto>'+esc(bookPageDetailText(book,start,end))+'</div></div></div>'
+}
 function applyChineseItemSelection(item,value){
  var book=canonicalPageMappedBook(value),visited=[];
  if(book&&pageMappedBookSubject(book)!=='國文')book=null;
@@ -2431,7 +2431,7 @@ function renderExtraFields(x,reviewMode){
    h+='<div class="grid-3"><div class="field"><label>書名</label><div class="fixed-book-value">'+esc(englishPageBook)+'</div></div><div class="field"><label>主題</label><div class="fixed-book-value">'+esc(f.topic||'—')+'</div></div><div class="field"><label>回次</label><div class="fixed-book-value">'+esc(f.round||'—')+'</div></div></div>';
    if(f.calendarScopeParseError||!f.topic||!f.round)h+='<div class="small calendar-scope-error" role="alert">'+esc(f.calendarScopeParseError||'Calendar 未提供可辨識的主題與回次。')+'</div>';
   }else{
-   h+='<div class="grid-3"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field"><label>主題</label><select data-book-topic>'+englishPageBookTopicOptions(englishPageBook,f.topic||'')+'</select></div><div class="field"><label>回次</label><select data-book-round'+(f.topic?'':' disabled')+'>'+englishPageBookRoundOptions(englishPageBook,f.topic||'',f.round||'')+'</select></div></div>';
+   h+='<div class="grid-3"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field"><label>主題</label><select data-book-topic>'+englishPageBookTopicOptions(englishPageBook,f.topic||'')+'</select></div><div class="field"><label>回次</label><select data-book-round>'+englishPageBookRoundOptions(englishPageBook,f.topic||'',f.round||'')+'</select></div></div>';
   }
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
@@ -2500,9 +2500,9 @@ function renderChineseFields(x,reviewMode){
  }
 
  if(f.kind==='book'&&isCalendarPageMappedBook(x)){
-  var lockedBook=canonicalPageMappedBook(f.book),lockedChinese='<div class="field"><label>國文項目</label><div class="fixed-book-value">'+esc(lockedBook||f.book||'—')+'</div></div>';
-  lockedChinese+='<div class="field" style="margin-top:10px"><label>Google Calendar 範圍</label><div class="fixed-book-value">'+esc(fixedCalendarBookRange(f))+'（固定）</div></div>';
-  if(lockedBook)lockedChinese+=bookPageAutoField(lockedBook,f.start,f.end);
+  var lockedBook=canonicalPageMappedBook(f.book),lockedStart=Number(f.calendarSourceStart||f.start),lockedEnd=Number(f.calendarSourceEnd||f.end);
+  var lockedChinese='<div class="chinese-book-main-row"><div class="field chinese-book-item"><label>國文項目</label><div class="fixed-book-value">'+esc(lockedBook||f.book||'—')+'</div></div><div class="field compact-number"><label>起始頁</label><div class="fixed-book-value">'+esc(Number.isFinite(lockedStart)&&lockedStart>0?lockedStart:'—')+'</div></div><div class="field compact-number"><label>結束頁</label><div class="fixed-book-value">'+esc(Number.isFinite(lockedEnd)&&lockedEnd>0?lockedEnd:'—')+'</div></div></div>';
+  if(lockedBook)lockedChinese+=bookPageAutoField(lockedBook,lockedStart,lockedEnd);
   if(reviewMode)lockedChinese+=reasonField(f);
   return lockedChinese;
  }
@@ -2510,12 +2510,12 @@ function renderChineseFields(x,reviewMode){
  var chineseSelection=f.kind==='book'&&canonicalPageMappedBook(f.book)?canonicalPageMappedBook(f.book):f.kind;
  var kindOptions='<option value="">請選擇</option><option value="reading"'+selected('reading',chineseSelection)+'>古今悅讀一百</option><option value="'+esc(DEEP_FIFTEEN_BOOK)+'"'+selected(DEEP_FIFTEEN_BOOK,chineseSelection)+'>'+esc(DEEP_FIFTEEN_BOOK)+'</option><option value="'+esc(CHINESE_TOPIC_BOOK)+'"'+selected(CHINESE_TOPIC_BOOK,chineseSelection)+'>'+esc(CHINESE_TOPIC_BOOK)+'</option>';
  if(!reviewMode)kindOptions+='<option value="writing"'+selected('writing',chineseSelection)+'>寫作</option>';
- var h='<div class="field"><label>國文項目</label><select data-chinese-kind>'+kindOptions+'</select></div>';
+ var chineseItemField='<div class="field chinese-book-item"><label>國文項目</label><select data-chinese-kind>'+kindOptions+'</select></div>',h=chineseItemField;
  if(f.kind==='reading'){
   h+='<div class="field compact-number" style="margin-top:10px"><label>回數</label><div class="inline"><span>第</span><input type="number" min="1" max="100" step="1" inputmode="numeric" data-field="round" value="'+esc(f.round||'')+'"><span>回</span></div></div>';
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
  }else if(f.kind==='book'){
-  h+='<div class="grid-2" style="margin-top:10px"><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
+  h='<div class="chinese-book-main-row">'+chineseItemField+'<div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
   if(canonicalPageMappedBook(f.book))h+=bookPageAutoField(canonicalPageMappedBook(f.book),f.start,f.end);
  }else if(f.kind==='writing'&&!reviewMode){
   h+='<div class="chinese-writing-row" style="margin-top:10px"><div class="field cw-topic"><label>題目</label><input data-field="topic" value="'+esc(f.topic||'')+'"></div><div class="field compact-number"><label>分數</label><input type="number" min="0" max="25" step="1" data-field="score" value="'+esc(f.score||'')+'"></div><div class="field"><label>題型</label><select data-field="writingType"><option value="">請選擇</option><option value="知性題"'+selected('知性題',f.writingType)+'>知性題</option><option value="感性題"'+selected('感性題',f.writingType)+'>感性題</option></select></div></div>';
@@ -2805,7 +2805,11 @@ function refreshAuto(card,x){
   else if(x.f.subject==='混合'){applyNaturalReview(x);if(s)s.textContent=naturalReviewText(x)}
  }
  var mappedBook=x.type==='chineseReading'?canonicalPageMappedBook(x.f&&x.f.book):(x.type==='extra'?canonicalPageMappedBook(x.f&&x.f.title):null);
- if(mappedBook){var pageMap=card.querySelector('[data-book-page-auto]');if(pageMap)pageMap.textContent=bookPageText(mappedBook,x.f.start,x.f.end)}
+ if(mappedBook){
+  var pageMap=card.querySelector('[data-book-page-auto]');if(pageMap)pageMap.textContent=bookPageText(mappedBook,x.f.start,x.f.end);
+  var topicMap=card.querySelector('[data-book-topic-auto]');if(topicMap)topicMap.textContent=bookPageTopicText(mappedBook,x.f.start,x.f.end);
+  var detailMap=card.querySelector('[data-book-detail-auto]');if(detailMap)detailMap.textContent=bookPageDetailText(mappedBook,x.f.start,x.f.end);
+ }
 }
 
 function timerTargetFromControl(item,control){return currentTimerTarget(item,control&&control.getAttribute('data-timer-entry'))}

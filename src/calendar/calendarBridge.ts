@@ -3,6 +3,8 @@ import {
   bookDetailsForTopic,
   bookTopics,
   canonicalPageMappedBook,
+  ENGLISH_TOPIC_CLOZE_BOOK,
+  ENGLISH_TOPIC_READING_BOOK,
   pageMappedBookSubject,
   type PageMappedBook,
 } from '../data/bookPageMaps.ts';
@@ -326,6 +328,38 @@ function progressFraction(value: string): [number | null, number | null] {
     : [null, null];
 }
 
+function calendarPageMappedBook(value: string): PageMappedBook | null {
+  const exact = canonicalPageMappedBook(value);
+  if (exact) return exact;
+  const text = normalized(value);
+  if (!text.includes('主題百匯')) return null;
+  const englishCandidates = ([ENGLISH_TOPIC_READING_BOOK, ENGLISH_TOPIC_CLOZE_BOOK] as PageMappedBook[])
+    .filter(book => bookTopics(book).some(topic => text.includes(topic)));
+  return englishCandidates.length === 1 ? englishCandidates[0] : null;
+}
+
+function asciiDigits(value: string): string {
+  return value.replace(/[０-９]/g, digit => String(digit.charCodeAt(0) - 0xff10));
+}
+
+function bookScopeRoundNumbers(title: string, unitProgress: string): number[] {
+  const found = new Set<number>();
+  const addRange = (startValue: string, endValue?: string) => {
+    const start = Number(startValue);
+    const end = Number(endValue || startValue);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end - start > 20) return;
+    for (let value = start; value <= end; value += 1) found.add(value);
+  };
+  const text = asciiDigits(`${title}\n${unitProgress}`);
+  for (const match of text.matchAll(/(?:第\s*)?([1-9]\d*)\s*(?:[–—~\-至到]\s*(?:第\s*)?([1-9]\d*))?\s*回/g)) {
+    addRange(match[1], match[2]);
+  }
+  const plainProgress = normalized(asciiDigits(unitProgress));
+  const plain = plainProgress.match(/^(?:第\s*)?([1-9]\d*)\s*(?:[–—~\-至到]\s*(?:第\s*)?([1-9]\d*))?\s*(?:回)?$/);
+  if (plain) addRange(plain[1], plain[2]);
+  return [...found];
+}
+
 function sourceDateDiffersFromEvent(sourceDate: string, eventDate: string): boolean {
   const source = sourceDate.match(/(?:\d{4}-)?(\d{1,2})[\/-](\d{1,2})/);
   const event = eventDate.match(/\d{4}-(\d{1,2})-(\d{1,2})/);
@@ -431,24 +465,17 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     return { ...base, title: withoutOriginalDate(title), kind: 'gujin', rounds: roundsFromTitle(title) };
   }
 
-  const pageMappedBook = canonicalPageMappedBook(`${title}\n${note.material}\n${note.book}\n${description}`);
+  const pageMappedBook = calendarPageMappedBook(`${title}\n${note.material}\n${note.book}\n${description}`);
   if (pageMappedBook) {
     const subject = pageMappedBookSubject(pageMappedBook);
     if (subject === '英文') {
       const scopeText = normalized(`${title}\n${note.unitProgress}\n${description}`);
       const topic = bookTopics(pageMappedBook).find(candidate => scopeText.includes(candidate)) ?? '';
       const knownRounds = topic ? bookDetailsForTopic(pageMappedBook, topic) : [];
-      const numericRounds = [...scopeText.matchAll(/第\s*([1-9]\d*)\s*回/g)].map(match => Number(match[1]));
-      const chineseRoundNumbers: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
-      const chineseRounds = [...scopeText.matchAll(/第\s*([一二三四五六七八九十])\s*回/g)]
-        .map(match => chineseRoundNumbers[match[1]])
-        .filter((value): value is number => Boolean(value));
-      const ordinal = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
-      const requestedRounds = [...new Set([...numericRounds, ...chineseRounds])]
-        .map(value => `第${ordinal[value] ?? value}回`);
+      const requestedRoundNumbers = bookScopeRoundNumbers(title, note.unitProgress);
       const rounds = topic
-        ? knownRounds.filter(round => scopeText.includes(round) || requestedRounds.includes(round))
-        : requestedRounds;
+        ? knownRounds.filter((round, index) => scopeText.includes(round) || requestedRoundNumbers.includes(index + 1))
+        : [];
       return {
         ...base,
         title: withoutOriginalDate(title),

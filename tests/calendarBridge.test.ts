@@ -286,6 +286,25 @@ test('a deferred English topic book stays typed and never falls back to page par
   }
 });
 
+test('infers an abbreviated English Topic Collection title from its topic and reads flexible round notation', () => {
+  const cases = [
+    ['英文｜主題百匯｜新新世代', '【單元進度】第２回', '主題百匯：克漏字', '新新世代', '第二回'],
+    ['英文｜主題百匯｜科技生活', '【單元進度】2', '主題百匯：篇章結構·閱讀測驗', '科技生活', '第二回'],
+    ['英文｜主題百匯', '【單元進度】新新世代｜第二回', '主題百匯：克漏字', '新新世代', '第二回'],
+  ] as const;
+
+  for (const [title, progress, book, topic, round] of cases) {
+    const parsed = parseCalendarTask(row(title, `${progress}\n【識別碼】topic-short-title`, 'studyItem'));
+    assert.equal(parsed.kind, 'bookScope', title);
+    if (parsed.kind === 'bookScope') {
+      assert.equal(parsed.book, book);
+      assert.equal(parsed.topic, topic);
+      assert.deepEqual(parsed.rounds, [round]);
+      assert.equal('startPage' in parsed, false);
+    }
+  }
+});
+
 test('converts Calendar rich text to readable plain text', () => {
   assert.equal(
     calendarDescriptionText('<p>第一行&nbsp;&amp;內容</p><p>第二行<br>第三行</p>'),

@@ -3,9 +3,12 @@ import test from 'node:test';
 
 import {
   BOOK_PAGE_MAPS,
+  bookDetails,
   bookDetailsForTopic,
+  bookPageDetailText,
   bookPageMatches,
   bookPageText,
+  bookPageTopicText,
   bookTopics,
   canonicalPageMappedBook,
   CHINESE_TOPIC_BOOK,
@@ -26,9 +29,15 @@ test('identifies every supported book from punctuation and surrounding Calendar 
 test('looks up the requested topic and lesson, level, or round', () => {
   assert.equal(bookPageText(DEEP_FIFTEEN_BOOK, 8, 25), '先秦文學主流與發展｜燭之武退秦師（p.8–25）');
   assert.equal(bookPageText(CHINESE_TOPIC_BOOK, 2, 6), '自我覺察與生命教育｜新手級（p.2–6）');
+  assert.equal(bookPageTopicText(DEEP_FIFTEEN_BOOK, 8, 25), '先秦文學主流與發展');
+  assert.equal(bookPageDetailText(DEEP_FIFTEEN_BOOK, 8, 25), '燭之武退秦師');
+  assert.equal(bookPageTopicText(CHINESE_TOPIC_BOOK, 2, 6), '自我覺察與生命教育');
+  assert.equal(bookPageDetailText(CHINESE_TOPIC_BOOK, 2, 6), '新手級');
   assert.ok(bookTopics(ENGLISH_TOPIC_READING_BOOK).includes('科技生活'));
   assert.deepEqual(bookDetailsForTopic(ENGLISH_TOPIC_READING_BOOK, '科技生活'), ['第一回', '第二回']);
   assert.ok(bookTopics(ENGLISH_TOPIC_CLOZE_BOOK).includes('新新世代'));
+  assert.deepEqual(bookDetails(ENGLISH_TOPIC_READING_BOOK), ['第一回', '第二回']);
+  assert.deepEqual(bookDetails(ENGLISH_TOPIC_CLOZE_BOOK), ['第一回', '第二回', '第三回', '第四回']);
   assert.deepEqual(bookDetailsForTopic(ENGLISH_TOPIC_CLOZE_BOOK, '新新世代'), ['第一回', '第二回', '第三回', '第四回']);
 });
 
@@ -37,6 +46,8 @@ test('a page range crossing sections lists each affected section with its own cl
     bookPageText(DEEP_FIFTEEN_BOOK, 24, 28),
     '先秦文學主流與發展｜燭之武退秦師（p.24–25）、先秦文學主流與發展｜大同與小康（p.26–28）',
   );
+  assert.equal(bookPageTopicText(DEEP_FIFTEEN_BOOK, 24, 28), '先秦文學主流與發展');
+  assert.equal(bookPageDetailText(DEEP_FIFTEEN_BOOK, 24, 28), '燭之武退秦師、大同與小康');
 });
 
 test('every book map is ordered and has no overlap or gap inside its mapped textbook pages', () => {

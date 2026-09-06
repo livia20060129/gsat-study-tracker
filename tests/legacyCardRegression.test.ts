@@ -197,11 +197,30 @@ test('Chinese page-mapped books are selected directly from 國文項目 without 
   }), false);
 
   assert.match(html, /<label>國文項目<\/label><select data-chinese-kind>/);
+  assert.match(html, /class="chinese-book-main-row"/);
   assert.match(html, /value="深耕十五" selected>深耕十五<\/option>/);
   assert.match(html, /value="主題百匯：閱讀寫作新進化">主題百匯：閱讀寫作新進化<\/option>/);
   assert.doesNotMatch(html, /<label>書名<\/label>/);
   assert.equal((html.match(/data-field="start"/g) || []).length, 1);
   assert.equal((html.match(/data-field="end"/g) || []).length, 1);
+  assert.ok(html.indexOf('data-chinese-kind') < html.indexOf('data-field="start"'));
+  assert.ok(html.indexOf('data-field="start"') < html.indexOf('data-field="end"'));
+});
+
+test('Chinese book page mapping is split into topic and chapter half rows', () => {
+  const render = runtimeFunction<(book: string, start: unknown, end: unknown) => string>('bookPageAutoField', {
+    bookPageTopicText: (book: string) => book === DEEP_FIFTEEN_BOOK ? '先秦文學主流與發展' : '自我覺察與生命教育',
+    bookPageDetailText: (book: string) => book === DEEP_FIFTEEN_BOOK ? '燭之武退秦師' : '新手級',
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  const deepHtml = render(DEEP_FIFTEEN_BOOK, 8, 25);
+  assert.match(deepHtml, /class="chinese-book-map-row"/);
+  assert.match(deepHtml, /<label>對應主題<\/label>.*先秦文學主流與發展/);
+  assert.match(deepHtml, /<label>對應章節<\/label>.*燭之武退秦師/);
+
+  const topicHtml = render(CHINESE_TOPIC_BOOK, 2, 6);
+  assert.match(topicHtml, /<label>對應主題<\/label>.*自我覺察與生命教育/);
+  assert.match(topicHtml, /<label>對應章節<\/label>.*新手級/);
 });
 
 test('English Topic Collection books use ACE-style topic and round fields without page inputs', () => {
@@ -227,6 +246,10 @@ test('English Topic Collection books use ACE-style topic and round fields withou
   assert.match(html, /data-check="graded"/);
   assert.match(html, /data-check="corrected"/);
   assert.doesNotMatch(html, /data-field="start"|data-field="end"|起始頁|結束頁/);
+
+  const emptyTopicHtml = render(item({ f: { title: ENGLISH_TOPIC_CLOZE_BOOK, book: ENGLISH_TOPIC_CLOZE_BOOK, topic: '', round: '' } }), false);
+  assert.match(emptyTopicHtml, /<label>回次<\/label><select data-book-round>/);
+  assert.doesNotMatch(emptyTopicHtml, /data-book-round disabled/);
 });
 
 test('Calendar book scopes render as fixed fields for all four supported books', () => {
@@ -254,8 +277,7 @@ test('Calendar book scopes render as fixed fields for all four supported books',
     isCalendarGujin: () => false,
     isCalendarPageMappedBook: (x: StudyItem) => x.f.calendarBookRangeLocked === true,
     canonicalPageMappedBook,
-    fixedCalendarBookRange: () => 'p.8–25',
-    bookPageAutoField: () => '<div data-book-page-auto>對應課文</div>',
+    bookPageAutoField: () => '<div class="chinese-book-map-row"><label>對應主題</label><label>對應章節</label></div>',
     reasonField: () => '',
     esc: (value: unknown) => String(value ?? ''),
   });
@@ -264,20 +286,26 @@ test('Calendar book scopes render as fixed fields for all four supported books',
     f: { kind: 'book', book: DEEP_FIFTEEN_BOOK, start: '8', end: '25', calendarBookRangeLocked: true },
   }), false);
   assert.match(chineseHtml, /<label>國文項目<\/label>/);
-  assert.match(chineseHtml, /p\.8–25（固定）/);
+  assert.match(chineseHtml, /class="chinese-book-main-row"/);
+  assert.match(chineseHtml, /<label>起始頁<\/label><div class="fixed-book-value">8<\/div>/);
+  assert.match(chineseHtml, /<label>結束頁<\/label><div class="fixed-book-value">25<\/div>/);
+  assert.match(chineseHtml, /<label>對應主題<\/label><label>對應章節<\/label>/);
   assert.doesNotMatch(chineseHtml, /<select|data-field="start"|data-field="end"/);
 });
 
-test('manual English topic selection clears only the round and never creates page fields', () => {
+test('manual English topic selection keeps a compatible round and never creates page fields', () => {
   const applySelection = runtimeFunction<(x: StudyItem, field: string, value: string) => boolean>('applyEnglishPageBookSelection', {
     canonicalPageMappedBook,
+    bookDetailsForTopic: (_book: unknown, topic: unknown) => topic === '人生哲理'
+      ? ['第一回', '第二回', '第三回', '第四回']
+      : ['第一回', '第二回', '第三回', '第四回'],
     pageMappedBookSubject,
     isCalendarPageMappedBook: (x: StudyItem) => x.f.calendarBookRangeLocked === true,
     propagateDailyWorkField,
   });
   const candidate = item({ f: { title: ENGLISH_TOPIC_CLOZE_BOOK, book: ENGLISH_TOPIC_CLOZE_BOOK, topic: '新新世代', round: '第一回' } });
   assert.equal(applySelection(candidate, 'topic', '人生哲理'), true);
-  assert.deepEqual([candidate.f.topic, candidate.f.round], ['人生哲理', '']);
+  assert.deepEqual([candidate.f.topic, candidate.f.round], ['人生哲理', '第一回']);
   assert.equal(candidate.f.start, undefined);
   assert.equal(candidate.f.end, undefined);
   assert.equal(applySelection(candidate, 'round', '第三回'), true);
