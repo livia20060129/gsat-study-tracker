@@ -6,6 +6,12 @@
 
 ## v171 重點
 
+### 0. v171.0.87 每小時 Google Calendar 同步
+
+補回 `.github/workflows/calendar-sync.yml`。GitHub Actions 會在每小時第 7 分鐘呼叫既有的 Supabase `google-calendar` Edge Function，執行所有已連線帳號的 Calendar 同步；網站不需要保持開啟，也可從 Actions 手動執行驗收。
+
+排程只讀取 GitHub Actions 的 `CALENDAR_CRON_SECRET`，不保存 Client Secret、refresh token、service role key 或其他 Google 憑證。工作流程不取得 GitHub repository token 權限，且不會把同步結果中的使用者識別碼輸出到公開 log；設定缺漏、HTTP 失敗、回應格式錯誤或任一帳號同步失敗時，該次 Action 都會明確標記失敗。新增回歸測試，避免 workflow 日後再次遺失或失去排程／驗證設定。
+
 ### 0. v171.0.86 國文教材兩列式頁碼對照
 
 《深耕十五》與《主題百匯：閱讀寫作新進化》改用相同的兩列式卡片：第一列依 `1/2＋1/4＋1/4` 顯示「國文項目、起始頁、結束頁」，第二列依 `1/2＋1/2` 分開顯示「對應主題、對應章節」。《深耕十五》的對應章節為課文名稱，國文《主題百匯》的對應章節為級別；跨範圍會列出所有涵蓋內容。Calendar 匯入的書名與起訖頁維持固定不可修改，延期與重新載入不改變原有頁碼對照。
@@ -187,7 +193,11 @@ Calendar API 尚未成功連線或 `calendar_tasks` 尚無資料時，現有 har
 
 ### 8. 每小時 Calendar 同步
 
-`.github/workflows/calendar-sync.yml` 每小時觸發一次 server-side Calendar sync。網站不需要保持開啟。
+`.github/workflows/calendar-sync.yml` 會在每小時第 7 分鐘觸發一次 server-side Calendar sync。網站不需要保持開啟；GitHub Actions 偶爾可能因平台負載延後數分鐘執行。
+
+workflow 只需要一個 GitHub Actions secret：`CALENDAR_CRON_SECRET`。它必須與 Supabase Edge Function 中的同名 secret 完全相同，不可寫入 workflow、README、`.env` 或任何會 commit 的檔案。若 secret 缺少、HTTP 呼叫失敗，或任何已連線帳號同步失敗，Action 會直接標記失敗，而不是留下看似成功的綠色紀錄。
+
+GitHub 的公開 repository 若連續 60 天沒有任何活動，排程 workflow 可能被平台自動停用；屆時到 Actions 頁面重新啟用即可。不要同時再建立另一個每小時 Supabase Cron，避免同一時間重複同步。
 
 ### 9. 數學進度仍維持單一實作
 
@@ -445,24 +455,24 @@ supabase functions deploy google-calendar-callback --project-ref arxbirgujbrtzho
 
 ## 6. GitHub Actions Secrets
 
-Repo → Settings → Secrets and variables → Actions，新增：
+Repo → Settings → Secrets and variables → Actions → **New repository secret**，新增：
 
 ```text
 Variable: VITE_GOOGLE_CLIENT_ID=<Google Web OAuth Client ID>
-Secret:   SUPABASE_PROJECT_URL=https://arxbirgujbrtzhoficdf.supabase.co
 Secret:   CALENDAR_CRON_SECRET=<與 Supabase secret 相同>
 ```
 
 若原本已用 Actions secret 保存 `VITE_GOOGLE_CLIENT_ID` 也可繼續使用，workflow 會以 repository variable 優先。Client ID 本身不是敏感資料，建議使用 Variable。
 
-其餘兩個是每小時同步 workflow 使用的 secrets：
+每小時同步 workflow 只使用：
 
 ```text
-SUPABASE_PROJECT_URL=https://arxbirgujbrtzhoficdf.supabase.co
 CALENDAR_CRON_SECRET=<與 Supabase secret 相同>
 ```
 
-之後 `Hourly Google Calendar Sync` 會在每小時第 7 分鐘觸發同步，也可從 Actions 手動 Run workflow。
+Supabase 專案網址是公開設定，workflow 已固定指向本專案，不會把排程密鑰送往可由 repository variable 任意替換的網址；舊的 `SUPABASE_PROJECT_URL` Actions secret 不再需要。
+
+完成兩端設定並推送 workflow 後，到 **Actions → Hourly Google Calendar Sync → Run workflow** 手動執行一次。顯示綠色成功後，之後會在每小時第 7 分鐘自動執行。
 
 ---
 
