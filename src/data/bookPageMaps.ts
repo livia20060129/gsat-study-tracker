@@ -124,6 +124,38 @@ export function pageMappedBookSubject(book: PageMappedBook): '國文' | '英文'
   return book === DEEP_FIFTEEN_BOOK || book === CHINESE_TOPIC_BOOK ? '國文' : '英文';
 }
 
+export function isEnglishPageMappedBook(value: unknown): boolean {
+  const book = canonicalPageMappedBook(value);
+  return Boolean(book && pageMappedBookSubject(book) === '英文');
+}
+
+export function bookTopics(bookValue: unknown): string[] {
+  const book = canonicalPageMappedBook(bookValue);
+  if (!book) return [];
+  return [...new Set(BOOK_PAGE_MAPS[book].map(section => section.topic))];
+}
+
+export function bookDetailsForTopic(bookValue: unknown, topicValue: unknown): string[] {
+  const book = canonicalPageMappedBook(bookValue);
+  const topic = String(topicValue ?? '').trim();
+  if (!book || !topic) return [];
+  return BOOK_PAGE_MAPS[book]
+    .filter(section => section.topic === topic)
+    .map(section => section.detail);
+}
+
+export function bookSectionForSelection(
+  bookValue: unknown,
+  topicValue: unknown,
+  detailValue: unknown,
+): BookPageSection | null {
+  const book = canonicalPageMappedBook(bookValue);
+  const topic = String(topicValue ?? '').trim();
+  const detail = String(detailValue ?? '').trim();
+  if (!book || !topic || !detail) return null;
+  return BOOK_PAGE_MAPS[book].find(section => section.topic === topic && section.detail === detail) ?? null;
+}
+
 export function bookPageMatches(bookValue: unknown, startValue: unknown, endValue: unknown): BookPageMatch[] {
   const book = canonicalPageMappedBook(bookValue);
   const start = Number(startValue);

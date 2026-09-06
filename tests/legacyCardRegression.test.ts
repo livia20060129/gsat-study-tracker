@@ -5,7 +5,16 @@ import { runInNewContext } from 'node:vm';
 import * as completion from '../src/study/completionMetrics.ts';
 import { isConfirmedDeferred } from '../src/study/deferDays.ts';
 import { renderItemDeleteFooter } from '../src/ui/itemActions.ts';
+import { propagateDailyWorkField } from '../src/study/dailyWorkGroup.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
+import {
+  canonicalPageMappedBook,
+  CHINESE_TOPIC_BOOK,
+  DEEP_FIFTEEN_BOOK,
+  ENGLISH_TOPIC_CLOZE_BOOK,
+  isEnglishPageMappedBook,
+  pageMappedBookSubject,
+} from '../src/data/bookPageMaps.ts';
 
 const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
 
@@ -167,6 +176,115 @@ test('magazine entries keep their delete index in their own footer and retain th
     assert.ok(html.indexOf(`data-mag-field="unit" data-index="${index}"`) < html.indexOf(footer));
   }
   assert.doesNotMatch(render(item({ f: { entries: [{ unit: '1' }] } })), /刪除此筆/);
+});
+
+test('Chinese page-mapped books are selected directly from 國文項目 without another book selector', () => {
+  const render = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderChineseFields', {
+    isCalendarGujin: () => false,
+    isCalendarPageMappedBook: () => false,
+    canonicalPageMappedBook,
+    CHINESE_TOPIC_BOOK,
+    DEEP_FIFTEEN_BOOK,
+    esc: (value: unknown) => String(value ?? ''),
+    selected: (left: unknown, right: unknown) => left === right ? ' selected' : '',
+    checked: (value: unknown) => value ? ' checked' : '',
+    bookPageAutoField: () => '<div data-book-page-auto>fixture</div>',
+  });
+  const html = render(item({
+    type: 'chineseReading',
+    title: '國文',
+    f: { kind: 'book', book: DEEP_FIFTEEN_BOOK, start: '8', end: '25' },
+  }), false);
+
+  assert.match(html, /<label>國文項目<\/label><select data-chinese-kind>/);
+  assert.match(html, /value="深耕十五" selected>深耕十五<\/option>/);
+  assert.match(html, /value="主題百匯：閱讀寫作新進化">主題百匯：閱讀寫作新進化<\/option>/);
+  assert.doesNotMatch(html, /<label>書名<\/label>/);
+  assert.equal((html.match(/data-field="start"/g) || []).length, 1);
+  assert.equal((html.match(/data-field="end"/g) || []).length, 1);
+});
+
+test('English Topic Collection books use ACE-style topic and round fields without page inputs', () => {
+  const render = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderExtraFields', {
+    isPrism: () => false,
+    isAce: () => false,
+    isEnglishPageMappedBook,
+    canonicalPageMappedBook,
+    isCalendarPageMappedBook: () => false,
+    readingOptions: () => `<option selected>${ENGLISH_TOPIC_CLOZE_BOOK}</option>`,
+    reviewEnglishOptions: () => '',
+    englishPageBookTopicOptions: () => '<option selected>新新世代</option>',
+    englishPageBookRoundOptions: () => '<option selected>第二回</option>',
+    checked: (value: unknown) => value ? ' checked' : '',
+    reasonField: () => '<textarea data-field="reason"></textarea>',
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  const html = render(item({ f: { title: ENGLISH_TOPIC_CLOZE_BOOK, book: ENGLISH_TOPIC_CLOZE_BOOK, topic: '新新世代', round: '第二回' } }), false);
+
+  assert.match(html, /<label>主題<\/label><select data-book-topic>/);
+  assert.match(html, /<label>回次<\/label><select data-book-round>/);
+  assert.match(html, /data-check="progress"/);
+  assert.match(html, /data-check="graded"/);
+  assert.match(html, /data-check="corrected"/);
+  assert.doesNotMatch(html, /data-field="start"|data-field="end"|起始頁|結束頁/);
+});
+
+test('Calendar book scopes render as fixed fields for all four supported books', () => {
+  const renderEnglish = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderExtraFields', {
+    isPrism: () => false,
+    isAce: () => false,
+    isEnglishPageMappedBook,
+    canonicalPageMappedBook,
+    isCalendarPageMappedBook: (x: StudyItem) => x.f.calendarBookRangeLocked === true,
+    readingOptions: () => '',
+    reviewEnglishOptions: () => '',
+    checked: () => '',
+    reasonField: () => '',
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  const englishHtml = renderEnglish(item({
+    source: 'preset', presetKey: 'cal_book_scope',
+    f: { title: ENGLISH_TOPIC_CLOZE_BOOK, book: ENGLISH_TOPIC_CLOZE_BOOK, topic: '新新世代', round: '第二回', calendarBookRangeLocked: true },
+  }), false);
+  assert.match(englishHtml, /新新世代/);
+  assert.match(englishHtml, /第二回/);
+  assert.doesNotMatch(englishHtml, /<select|data-field="start"|data-field="end"/);
+
+  const renderChinese = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderChineseFields', {
+    isCalendarGujin: () => false,
+    isCalendarPageMappedBook: (x: StudyItem) => x.f.calendarBookRangeLocked === true,
+    canonicalPageMappedBook,
+    fixedCalendarBookRange: () => 'p.8–25',
+    bookPageAutoField: () => '<div data-book-page-auto>對應課文</div>',
+    reasonField: () => '',
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  const chineseHtml = renderChinese(item({
+    type: 'chineseReading', source: 'preset', presetKey: 'cal_book_pages',
+    f: { kind: 'book', book: DEEP_FIFTEEN_BOOK, start: '8', end: '25', calendarBookRangeLocked: true },
+  }), false);
+  assert.match(chineseHtml, /<label>國文項目<\/label>/);
+  assert.match(chineseHtml, /p\.8–25（固定）/);
+  assert.doesNotMatch(chineseHtml, /<select|data-field="start"|data-field="end"/);
+});
+
+test('manual English topic selection clears only the round and never creates page fields', () => {
+  const applySelection = runtimeFunction<(x: StudyItem, field: string, value: string) => boolean>('applyEnglishPageBookSelection', {
+    canonicalPageMappedBook,
+    pageMappedBookSubject,
+    isCalendarPageMappedBook: (x: StudyItem) => x.f.calendarBookRangeLocked === true,
+    propagateDailyWorkField,
+  });
+  const candidate = item({ f: { title: ENGLISH_TOPIC_CLOZE_BOOK, book: ENGLISH_TOPIC_CLOZE_BOOK, topic: '新新世代', round: '第一回' } });
+  assert.equal(applySelection(candidate, 'topic', '人生哲理'), true);
+  assert.deepEqual([candidate.f.topic, candidate.f.round], ['人生哲理', '']);
+  assert.equal(candidate.f.start, undefined);
+  assert.equal(candidate.f.end, undefined);
+  assert.equal(applySelection(candidate, 'round', '第三回'), true);
+  assert.equal(candidate.f.round, '第三回');
+  candidate.f.calendarBookRangeLocked = true;
+  assert.equal(applySelection(candidate, 'round', '第四回'), false);
+  assert.equal(candidate.f.round, '第三回');
 });
 
 test('card footer uses left-aligned normal flow rather than overlapping fields', () => {

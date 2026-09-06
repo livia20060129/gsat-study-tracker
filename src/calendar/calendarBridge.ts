@@ -1,5 +1,7 @@
 import { isListeningTestBookTitle, listeningTestNumbers } from '../data/englishBooks.ts';
 import {
+  bookDetailsForTopic,
+  bookTopics,
   canonicalPageMappedBook,
   pageMappedBookSubject,
   type PageMappedBook,
@@ -57,10 +59,17 @@ export type ParsedCalendarTask =
   | (ParsedBase & { kind: 'gujin'; rounds: number[] })
   | (ParsedBase & {
       kind: 'bookPages';
-      subject: '國文' | '英文';
+      subject: '國文';
       book: PageMappedBook;
       startPage: number | null;
       endPage: number | null;
+    })
+  | (ParsedBase & {
+      kind: 'bookScope';
+      subject: '英文';
+      book: PageMappedBook;
+      topic: string;
+      rounds: string[];
     })
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
   | (ParsedBase & { kind: 'essentialGrammar'; units: number[] })
@@ -424,6 +433,32 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
 
   const pageMappedBook = canonicalPageMappedBook(`${title}\n${note.material}\n${note.book}\n${description}`);
   if (pageMappedBook) {
+    const subject = pageMappedBookSubject(pageMappedBook);
+    if (subject === '英文') {
+      const scopeText = normalized(`${title}\n${note.unitProgress}\n${description}`);
+      const topic = bookTopics(pageMappedBook).find(candidate => scopeText.includes(candidate)) ?? '';
+      const knownRounds = topic ? bookDetailsForTopic(pageMappedBook, topic) : [];
+      const numericRounds = [...scopeText.matchAll(/第\s*([1-9]\d*)\s*回/g)].map(match => Number(match[1]));
+      const chineseRoundNumbers: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+      const chineseRounds = [...scopeText.matchAll(/第\s*([一二三四五六七八九十])\s*回/g)]
+        .map(match => chineseRoundNumbers[match[1]])
+        .filter((value): value is number => Boolean(value));
+      const ordinal = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+      const requestedRounds = [...new Set([...numericRounds, ...chineseRounds])]
+        .map(value => `第${ordinal[value] ?? value}回`);
+      const rounds = topic
+        ? knownRounds.filter(round => scopeText.includes(round) || requestedRounds.includes(round))
+        : requestedRounds;
+      return {
+        ...base,
+        title: withoutOriginalDate(title),
+        kind: 'bookScope',
+        subject,
+        book: pageMappedBook,
+        topic,
+        rounds,
+      };
+    }
     const [startPage, endPage] = note.hasStandardFields
       ? structuredPageRange(note.pageRange)
       : pageRange(`${title}\n${description}`);
@@ -431,7 +466,7 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
       ...base,
       title: withoutOriginalDate(title),
       kind: 'bookPages',
-      subject: pageMappedBookSubject(pageMappedBook),
+      subject,
       book: pageMappedBook,
       startPage,
       endPage,

@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
   BOOK_PAGE_MAPS,
+  bookDetailsForTopic,
   bookPageMatches,
   bookPageText,
+  bookTopics,
   canonicalPageMappedBook,
   CHINESE_TOPIC_BOOK,
   DEEP_FIFTEEN_BOOK,
@@ -24,8 +26,10 @@ test('identifies every supported book from punctuation and surrounding Calendar 
 test('looks up the requested topic and lesson, level, or round', () => {
   assert.equal(bookPageText(DEEP_FIFTEEN_BOOK, 8, 25), '先秦文學主流與發展｜燭之武退秦師（p.8–25）');
   assert.equal(bookPageText(CHINESE_TOPIC_BOOK, 2, 6), '自我覺察與生命教育｜新手級（p.2–6）');
-  assert.equal(bookPageText(ENGLISH_TOPIC_READING_BOOK, 1, 7), '科技生活｜第一回（p.1–7）');
-  assert.equal(bookPageText(ENGLISH_TOPIC_CLOZE_BOOK, 2, 4), '新新世代｜第一回（p.2–4）');
+  assert.ok(bookTopics(ENGLISH_TOPIC_READING_BOOK).includes('科技生活'));
+  assert.deepEqual(bookDetailsForTopic(ENGLISH_TOPIC_READING_BOOK, '科技生活'), ['第一回', '第二回']);
+  assert.ok(bookTopics(ENGLISH_TOPIC_CLOZE_BOOK).includes('新新世代'));
+  assert.deepEqual(bookDetailsForTopic(ENGLISH_TOPIC_CLOZE_BOOK, '新新世代'), ['第一回', '第二回', '第三回', '第四回']);
 });
 
 test('a page range crossing sections lists each affected section with its own clipped pages', () => {
@@ -72,4 +76,32 @@ test('defer keeps book, pages, and therefore the same page mapping after reload'
 
   assert.deepEqual(deferred.f, original.f);
   assert.equal(bookPageText(deferred.f.book, deferred.f.start, deferred.f.end), '先秦文學主流與發展｜燭之武退秦師（p.8–25）');
+});
+
+test('defer keeps an English Topic Collection scope without creating page fields', () => {
+  const original: StudyItem = {
+    id: 'calendar-english-topic',
+    type: 'extra',
+    done: false,
+    minutes: '',
+    required: true,
+    source: 'preset',
+    presetKey: 'cal_book_english-topic',
+    title: `英文｜${ENGLISH_TOPIC_CLOZE_BOOK}`,
+    f: {
+      title: ENGLISH_TOPIC_CLOZE_BOOK,
+      book: ENGLISH_TOPIC_CLOZE_BOOK,
+      topic: '新新世代',
+      round: '第三回',
+      calendarBookRangeLocked: true,
+    },
+  };
+  const deferred = cloneOriginalItemForMakeup(original, {
+    id: 'deferred-english-topic', presetKey: 'deferred_calendar-english-topic', originDate: '2026-09-03',
+  });
+
+  assert.deepEqual([deferred.f.book, deferred.f.topic, deferred.f.round], [ENGLISH_TOPIC_CLOZE_BOOK, '新新世代', '第三回']);
+  assert.equal(deferred.f.calendarBookRangeLocked, true);
+  assert.equal(deferred.f.start, undefined);
+  assert.equal(deferred.f.end, undefined);
 });

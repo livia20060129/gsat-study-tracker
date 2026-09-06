@@ -62,6 +62,25 @@ function listeningTest(id: string, value: number, deferredCarry = false): StudyI
   };
 }
 
+function englishTopicBook(id: string, topic: string, roundValue: string, deferredCarry = false): StudyItem {
+  return {
+    id,
+    type: 'extra',
+    done: false,
+    minutes: '',
+    required: !deferredCarry,
+    source: 'preset',
+    presetKey: id,
+    title: '英文｜主題百匯：克漏字',
+    description: deferredCarry ? '延期補做' : 'Google Calendar 當日排程',
+    deferredCarry,
+    f: {
+      title: '主題百匯：克漏字', book: '主題百匯：克漏字', topic, round: roundValue,
+      calendarBookRangeLocked: true,
+    },
+  };
+}
+
 function mathPractice(id: string, start?: number, end?: number, deferredCarry = false): StudyItem {
   return {
     id,
@@ -107,6 +126,24 @@ test('groups different 大考英聽A攻略 tests across Calendar and Tracker def
   const children = output[0].f.groupedWorkEntries as StudyItem[];
   assert.deepEqual(children.map(child => child.f.round), ['2', '4']);
   assert.deepEqual(children.map(child => child.required), [true, false]);
+});
+
+test('groups English Topic Collection rounds only within the same topic', () => {
+  const sameTopic = groupDailyWorkItems([
+    englishTopicBook('new-generation-1', '新新世代', '第一回'),
+    englishTopicBook('new-generation-2', '新新世代', '第二回', true),
+  ]);
+  assert.equal(sameTopic.length, 1);
+  assert.deepEqual(
+    (sameTopic[0].f.groupedWorkEntries as StudyItem[]).map(child => [child.f.topic, child.f.round]),
+    [['新新世代', '第一回'], ['新新世代', '第二回']],
+  );
+
+  const repeatedFirstRound = groupDailyWorkItems([
+    englishTopicBook('new-generation-first', '新新世代', '第一回'),
+    englishTopicBook('life-first', '人生哲理', '第一回', true),
+  ]);
+  assert.equal(repeatedFirstRound.length, 2, '第一回 must not merge across different topics');
 });
 
 test('keeps interrupted ranges as separate counted children in one card', () => {

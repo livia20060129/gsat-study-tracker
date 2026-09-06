@@ -41,6 +41,7 @@ function workIdentity(item: StudyItem): string {
     material: text(fields.material),
     book: text(fields.book),
     itemTitle: text(fields.title),
+    topic: text(fields.topic),
     subject: text(fields.subject),
     kind: text(fields.kind),
   });
@@ -171,7 +172,7 @@ function groupRounds(items: StudyItem[]): StudyItem[] {
     emitted.add(key);
     const byRound = new Map<string, StudyItem[]>();
     bucket.forEach(entry => {
-      const round = text(entry.f?.round);
+      const round = [text(entry.f?.topic), text(entry.f?.round)].filter(Boolean).join('｜');
       const sameRound = byRound.get(round) || [];
       sameRound.push(entry);
       byRound.set(round, sameRound);

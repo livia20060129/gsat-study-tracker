@@ -81,10 +81,10 @@ test('runtime cards keep biology and chemistry pages independent in either fetch
   }
 });
 
-test('runtime creates the correct editable card type for page-mapped Chinese and English Calendar books', () => {
+test('runtime locks Chinese pages and English topic plus round from Calendar', () => {
   const rows = [
     row('deep-fifteen', '國文｜深耕十五', '【頁碼範圍】p.8–25【識別碼】deep-01'),
-    row('english-cloze', '英文｜主題百匯 克漏字', '【頁碼範圍】p.2–4【識別碼】cloze-01'),
+    row('english-cloze', '英文｜主題百匯 克漏字｜新新世代', '【單元進度】第二回【頁碼範圍】p.2–4【識別碼】cloze-01'),
   ];
   const ctx = app(rows);
   const defs = ctx.cloudCalendarDefsForDate(date);
@@ -94,8 +94,12 @@ test('runtime creates the correct editable card type for page-mapped Chinese and
   assert.equal(chinese.type, 'chineseReading');
   assert.equal(chinese.f.kind, 'book');
   assert.deepEqual([chinese.f.start, chinese.f.end], ['8', '25']);
+  assert.equal(chinese.f.calendarBookRangeLocked, true);
   assert.equal(english.type, 'extra');
-  assert.deepEqual([english.f.start, english.f.end], ['2', '4']);
+  assert.deepEqual([english.f.topic, english.f.round], ['新新世代', '第二回']);
+  assert.equal(english.f.start, undefined);
+  assert.equal(english.f.end, undefined);
+  assert.equal(english.f.calendarBookRangeLocked, true);
   assert.equal(chinese.f.calendarEventKey, 'primary:deep-fifteen');
   assert.equal(english.f.calendarEventKey, 'primary:english-cloze');
 });
@@ -213,6 +217,7 @@ function editingApp(day: string, separated: boolean | 'biology', deferred = fals
     esc: (value: unknown) => String(value ?? ''),
     selected: (a: unknown, b: unknown) => a === b ? ' selected' : '',
     checked: (value: unknown) => value ? ' checked' : '',
+    isCalendarPageMappedBook: () => false,
     scienceMaterialOptions: () => '<option>123日的淬鍊</option>',
     calendarTopicSourceRow: () => '',
   });

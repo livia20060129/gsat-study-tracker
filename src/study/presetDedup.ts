@@ -59,11 +59,11 @@ export function presetDefinitionSemanticKey(definition: PresetDefinitionLike): s
   const fields = definition.f || {};
   const semanticFields: Record<string, unknown> = {};
   const meaningfulKeys = [
-    'title', 'round', 'unit', 'unitStart', 'unitEnd', 'start', 'end', 'subject', 'kind',
+    'title', 'book', 'topic', 'round', 'unit', 'unitStart', 'unitEnd', 'start', 'end', 'subject', 'kind',
     'calendarFixedTemplate', 'calendarOriginalTitle', 'calendarRoute', 'calendarMakeup',
     'calendarGrammarTitle', 'calendarUnitProgress', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
     'calendarFocus', 'calendarNaturalIntegration', 'calendarSourceDate',
-    'calendarGroupedWork', 'groupedWorkEntries',
+    'calendarGroupedWork', 'calendarBookRangeLocked', 'calendarScopeParseError', 'groupedWorkEntries',
   ];
   for (const key of meaningfulKeys) {
     if (fields[key] !== undefined) semanticFields[key] = fields[key];
@@ -94,6 +94,7 @@ function rangeWorkIdentity(definition: PresetDefinitionLike): string {
     material: normalizedText(fields.material),
     book: normalizedText(fields.book),
     itemTitle: normalizedText(fields.title),
+    topic: normalizedText(fields.topic),
     subject: normalizedText(fields.subject),
     kind: normalizedText(fields.kind),
     grammarTitle: normalizedText(fields.calendarGrammarTitle),
@@ -144,12 +145,14 @@ function groupedChild(definition: PresetDefinitionLike, index: number): Record<s
 
 function calendarRoundIdentity(definition: PresetDefinitionLike): string {
   const fields = definition.f || {};
-  const category = /^cal_(ace|listening_a|gujin|writing)_/.exec(definition.key)?.[1] || '';
+  const category = /^cal_(ace|book|listening_a|gujin|writing)_/.exec(definition.key)?.[1] || '';
   if (!category || !normalizedText(fields.round)) return '';
   return JSON.stringify({
     category,
     type: definition.type,
     title: normalizedText(fields.title),
+    book: normalizedText(fields.book),
+    topic: normalizedText(fields.topic),
     kind: normalizedText(fields.kind),
     route: normalizedText(fields.calendarRoute),
   });
@@ -161,6 +164,7 @@ function groupedParentTitle(definition: PresetDefinitionLike, mode: 'range' | 'r
   if (/^cal_listening_a_/.test(definition.key)) return '英文｜大考英聽A攻略';
   if (/^cal_gujin_/.test(definition.key)) return '國文｜古今悅讀一百';
   if (/^cal_writing_/.test(definition.key)) return '英文｜英文寫作測驗';
+  if (/^cal_book_/.test(definition.key)) return definition.title;
   return definition.title;
 }
 
@@ -226,7 +230,7 @@ function groupCalendarWorkDefinitions<T extends PresetDefinitionLike>(definition
       const range = numericPageRange(entry.item.f);
       const workKey = entry.mode === 'range'
         ? `${range?.start || ''}-${range?.end || ''}`
-        : normalizedText(entry.item.f?.round);
+        : `${normalizedText(entry.item.f?.topic)}｜${normalizedText(entry.item.f?.round)}`;
       const found = uniqueKeys.get(workKey);
       if (found === undefined) {
         uniqueKeys.set(workKey, unique.length);

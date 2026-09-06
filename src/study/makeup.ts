@@ -42,6 +42,7 @@ function deferredRangeIdentity(item: StudyItem): string {
     material: String(fields.material || '').trim(),
     book: String(fields.book || '').trim(),
     itemTitle: String(fields.title || '').trim(),
+    topic: String(fields.topic || '').trim(),
     subject: String(fields.subject || '').trim(),
     kind: String(fields.kind || '').trim(),
     fixedTemplate: String(fields.calendarFixedTemplate || '').trim(),
@@ -58,6 +59,8 @@ function deferredRoundIdentity(item: StudyItem): string {
       .replace(/\s*第\s*\d+\s*回.*$/, '')
       .replace(/\s*Test\s*\d+.*$/i, '')
       .trim(),
+    book: String(fields.book || '').trim(),
+    topic: String(fields.topic || '').trim(),
     kind: String(fields.kind || '').trim(),
     fixedTemplate: String(fields.calendarFixedTemplate || '').trim(),
   });
@@ -95,7 +98,7 @@ function mergeGroupedEntryProgress(templateEntries: StudyItem[], existingEntries
     merged.done = Boolean(existing.done);
     merged.minutes = existing.minutes || '';
     merged.f = { ...cloneJson(template.f || {}), ...cloneJson(existing.f || {}) };
-    for (const key of ['start', 'end', 'round', 'calendarEventId', 'calendarEventIds', 'calendarEventKey', 'calendarEventKeys', 'calendarSourceDate', 'calendarSourceDates']) {
+    for (const key of ['title', 'book', 'topic', 'start', 'end', 'round', 'calendarBookRangeLocked', 'calendarScopeParseError', 'calendarEventId', 'calendarEventIds', 'calendarEventKey', 'calendarEventKeys', 'calendarSourceDate', 'calendarSourceDates']) {
       if (template.f?.[key] !== undefined) merged.f[key] = cloneJson(template.f[key]);
     }
     restoreNaturalCalendarSchedule(merged, template);

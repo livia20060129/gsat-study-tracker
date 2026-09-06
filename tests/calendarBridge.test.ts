@@ -233,12 +233,10 @@ test('recognizes deferred Gujin and writing from standard titles and note-only s
   }
 });
 
-test('reads the four page-mapped books from Calendar titles and standardized page notes', () => {
+test('reads Chinese books by fixed pages and English topic books by fixed topic plus round', () => {
   const cases = [
     ['國文｜深耕十五', '深耕十五', '國文', 8, 25],
     ['國文｜主題百匯 閱讀寫作新進化', '主題百匯：閱讀寫作新進化', '國文', 2, 6],
-    ['英文｜主題百匯 篇章結構·閱讀測驗', '主題百匯：篇章結構·閱讀測驗', '英文', 1, 7],
-    ['英文｜主題百匯 克漏字', '主題百匯：克漏字', '英文', 2, 4],
   ] as const;
 
   for (const [title, book, subject, startPage, endPage] of cases) {
@@ -251,23 +249,40 @@ test('reads the four page-mapped books from Calendar titles and standardized pag
       assert.equal(parsed.endPage, endPage);
     }
   }
+
+  const englishCases = [
+    ['英文｜主題百匯 篇章結構·閱讀測驗｜科技生活', '【單元進度】第一回', '主題百匯：篇章結構·閱讀測驗', '科技生活', '第一回'],
+    ['英文｜主題百匯 克漏字｜新新世代', '【單元進度】第二回\n【頁碼範圍】p.99–100', '主題百匯：克漏字', '新新世代', '第二回'],
+  ] as const;
+  for (const [title, note, book, topic, round] of englishCases) {
+    const parsed = parseCalendarTask(row(title, `${note}\n【識別碼】english-book-test`, 'studyItem'));
+    assert.equal(parsed.kind, 'bookScope', title);
+    if (parsed.kind === 'bookScope') {
+      assert.equal(parsed.book, book);
+      assert.equal(parsed.subject, '英文');
+      assert.equal(parsed.topic, topic);
+      assert.deepEqual(parsed.rounds, [round]);
+      assert.equal('startPage' in parsed, false, 'English topic books must not interpret pages');
+    }
+  }
 });
 
-test('a deferred page-mapped Calendar book stays a typed book item routed to today', () => {
+test('a deferred English topic book stays typed and never falls back to page parsing', () => {
   const parsed = parseCalendarTask(row(
-    '補做｜英文｜主題百匯 克漏字',
-    '【頁碼範圍】p.5–7\n【來源日期】9/2\n【識別碼】cloze-02',
+    '補做｜英文｜主題百匯 克漏字｜新新世代',
+    '【單元進度】第三回\n【頁碼範圍】p.5–7\n【來源日期】9/2\n【識別碼】cloze-02',
     'studyItem',
   ));
 
-  assert.equal(parsed.kind, 'bookPages');
+  assert.equal(parsed.kind, 'bookScope');
   assert.equal(parsed.route, 'today');
   assert.equal(parsed.makeup, true);
   assert.equal(parsed.sourceDate, '9/2');
-  if (parsed.kind === 'bookPages') {
+  if (parsed.kind === 'bookScope') {
     assert.equal(parsed.book, '主題百匯：克漏字');
-    assert.equal(parsed.startPage, 5);
-    assert.equal(parsed.endPage, 7);
+    assert.equal(parsed.topic, '新新世代');
+    assert.deepEqual(parsed.rounds, ['第三回']);
+    assert.equal('startPage' in parsed, false);
   }
 });
 

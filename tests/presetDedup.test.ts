@@ -131,6 +131,32 @@ test('groups repeated Calendar rounds into one parent with separate children', (
   assert.deepEqual(children.map(child => child.f.round), ['1', '2']);
 });
 
+test('groups Topic Collection rounds within one topic but never across different topics', () => {
+  const topicBook = (key: string, topic: string, round: string) => ({
+    ...definition(key, '英文｜主題百匯：克漏字', {
+      title: '主題百匯：克漏字', book: '主題百匯：克漏字', topic, round,
+      calendarRoute: 'today', calendarBookRangeLocked: true, calendarEventKey: key,
+    }),
+    type: 'extra',
+  });
+  const output = dedupePresetDefinitions([
+    topicBook('cal_book_new-1', '新新世代', '第一回'),
+    topicBook('cal_book_new-2', '新新世代', '第二回'),
+    topicBook('cal_book_life-1', '人生哲理', '第一回'),
+  ]);
+
+  assert.equal(output.length, 2);
+  const newGeneration = output.find(item => item.f.topic === '新新世代');
+  const life = output.find(item => item.f.topic === '人生哲理');
+  assert.ok(newGeneration);
+  assert.deepEqual(
+    (newGeneration.f.groupedWorkEntries as Array<{ f: Record<string, unknown> }>).map(child => child.f.round),
+    ['第一回', '第二回'],
+  );
+  assert.equal(life?.f.groupedWorkEntries, undefined);
+  assert.equal(life?.f.round, '第一回');
+});
+
 test('groups 大考英聽A攻略 Calendar tests into one parent with separate Test children', () => {
   const output = dedupePresetDefinitions([
     { ...definition('cal_listening_a_2_event-1', '英文｜大考英聽A攻略 Test 2', { title: '大考英聽A攻略', round: '2', calendarRoute: 'today', calendarEventKey: 'event-1' }), type: 'extra' },
