@@ -28,11 +28,19 @@ jobs:
         with:
           node-version: 22
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.5
+
       - name: Install dependencies
         run: npm ci
 
       - name: Test
         run: npm test
+
+      - name: Check Supabase Edge Functions
+        run: npm run typecheck:edge
 
       - name: Build
         run: npm run build

@@ -21,8 +21,11 @@ interface SupabaseResult<T> {
 
 interface StudyRecordQuery extends PromiseLike<SupabaseResult<unknown>> {
   gte(column: string, value: string): StudyRecordQuery;
+  gt(column: string, value: string): StudyRecordQuery;
   eq(column: string, value: string): StudyRecordQuery;
-  order(column: string, options: { ascending: boolean }): PromiseLike<SupabaseResult<unknown>>;
+  or(filters: string): StudyRecordQuery;
+  order(column: string, options: { ascending: boolean }): StudyRecordQuery;
+  limit(count: number): StudyRecordQuery;
   maybeSingle(): PromiseLike<SupabaseResult<unknown>>;
 }
 
@@ -37,6 +40,13 @@ interface StudyRecordRow {
   revision?: number | string | null;
   updated_at?: string | null;
 }
+
+interface StudyRecordCursor {
+  studyDate: string;
+  updatedAt: string;
+}
+
+export const STUDY_RECORD_PAGE_SIZE = 500;
 
 function errorMessage(error: SupabaseErrorLike): string {
   return [error.message, error.details, error.hint, error.code].filter(Boolean).join('｜') || 'Supabase request failed.';
@@ -73,6 +83,27 @@ function rowsFrom(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function paginationCursorFromRow(value: unknown): StudyRecordCursor | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Partial<StudyRecordRow>;
+  const studyDate = String(row.study_date ?? '').trim();
+  const updatedAt = String(row.updated_at ?? '').trim();
+  if (!studyDate || !updatedAt) return null;
+  return { studyDate, updatedAt };
+}
+
+function postgrestQuoted(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function afterStudyRecordCursor(cursor: StudyRecordCursor): string {
+  const updatedAt = postgrestQuoted(cursor.updatedAt);
+  return [
+    `updated_at.gt.${updatedAt}`,
+    `and(updated_at.eq.${updatedAt},study_date.gt.${cursor.studyDate})`,
+  ].join(',');
+}
+
 /** Contains every study_records Data API/RPC detail used by the browser application. */
 export class SupabaseStudyRecordRepository implements CloudStudyRecordRepositoryPort {
   private readonly client: SupabaseStudyRecordClient;
@@ -82,13 +113,37 @@ export class SupabaseStudyRecordRepository implements CloudStudyRecordRepository
   }
 
   async loadMany(updatedSince?: string | null): Promise<CloudStudyRecordSnapshot[]> {
-    let query = this.client.from('study_records').select('study_date,payload,updated_at,revision');
-    if (updatedSince) query = query.gte('updated_at', updatedSince);
-    const result = await query.order('study_date', { ascending: true });
-    if (result.error) throw new Error(errorMessage(result.error));
-    return rowsFrom(result.data)
-      .map(studyRecordSnapshotFromRow)
-      .filter((snapshot): snapshot is CloudStudyRecordSnapshot => snapshot !== null);
+    const snapshots: CloudStudyRecordSnapshot[] = [];
+    let cursor: StudyRecordCursor | null = null;
+
+    while (true) {
+      let query = this.client.from('study_records').select('study_date,payload,updated_at,revision');
+      if (updatedSince) query = query.gte('updated_at', updatedSince);
+      if (cursor) query = query.or(afterStudyRecordCursor(cursor));
+      query = query
+        .order('updated_at', { ascending: true })
+        .order('study_date', { ascending: true })
+        .limit(STUDY_RECORD_PAGE_SIZE);
+
+      const result = await query;
+      if (result.error) throw new Error(errorMessage(result.error));
+      const page = rowsFrom(result.data);
+      snapshots.push(...page
+        .map(studyRecordSnapshotFromRow)
+        .filter((snapshot): snapshot is CloudStudyRecordSnapshot => snapshot !== null));
+
+      if (page.length < STUDY_RECORD_PAGE_SIZE) break;
+      const nextCursor = paginationCursorFromRow(page[page.length - 1]);
+      if (!nextCursor) {
+        throw new Error('雲端紀錄缺少分頁所需的 study_date 或 updated_at，已停止同步以避免漏資料。');
+      }
+      if (cursor && cursor.studyDate === nextCursor.studyDate && cursor.updatedAt === nextCursor.updatedAt) {
+        throw new Error('雲端紀錄分頁游標沒有前進，已停止同步以避免無限重試。');
+      }
+      cursor = nextCursor;
+    }
+
+    return snapshots.sort((left, right) => left.studyDate.localeCompare(right.studyDate));
   }
 
   async loadDate(date: string): Promise<CloudStudyRecordSnapshot | null> {

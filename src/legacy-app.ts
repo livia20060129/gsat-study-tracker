@@ -57,6 +57,7 @@ import {
 } from './data/bookPageMaps';
 import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository';
 import { SupabaseStudyRecordRepository } from './infrastructure/storage/supabaseStudyRecordRepository';
+import { loadAllCalendarTaskRows } from './infrastructure/storage/supabaseCalendarTaskReader';
 import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudyTaskService';
 import { createClient } from '@supabase/supabase-js';
 import { parseProgressImportText, progressImportBackupPayload, progressImportResultText } from './application/progressImport';
@@ -1059,9 +1060,8 @@ function buildCalendarRuntime(rows){
 }
 async function refreshCalendarTaskCache(){
  if(!cloudClient||!cloudUser){clearCalendarRuntime();return 0}
- var r=await cloudClient.from('calendar_tasks').select('event_key,source_event_id,calendar_id,event_date,title,description,category,event_updated_at,metadata').eq('user_id',cloudUser.id).order('event_date',{ascending:true});
- if(r.error)throw r.error;
- buildCalendarRuntime(r.data||[]);calendarCacheLoaded=true;return(r.data||[]).length;
+ var rows=await loadAllCalendarTaskRows(cloudClient,cloudUser.id);
+ buildCalendarRuntime(rows);calendarCacheLoaded=true;return rows.length;
 }
 function reconcileStoredCalendarPresets(){
  if(!calendarCacheLoaded)return 0;

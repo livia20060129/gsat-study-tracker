@@ -6,6 +6,14 @@
 
 ## v171 重點
 
+### 0. v171.0.88 Supabase 完整分頁與後端可靠性
+
+Study Records 首次全量與後續增量同步改用 `updated_at＋study_date` 的穩定游標分頁；只有全部頁面都成功後，原有流程才會更新同步 watermark。Tracker 讀取 `calendar_tasks`、Edge Function 比對已刪除 Calendar 行程，以及每小時 `sync-all` 讀取連線帳號，也都改為完整游標分頁。Calendar 寫入與刪除採分批請求，所有帳號以每批 4 個並行同步，避免資料超過 Data API 單次上限後被截斷，也降低逐帳號同步逾時的機會。
+
+第一個 migration 現在包含可在空白 Supabase 專案建立的 `study_records` table、複合唯一鍵、索引、RLS policies 與最小權限 grants；其餘 Calendar schema 由後續 migration 完整建立。六筆既有 migration 的檔名時間戳已與正式 Supabase migration history 對齊，並保留新的 forward migration，讓既有正式專案只套用本次差異即可。`upsert_study_record` 的首次寫入改用 `INSERT ... ON CONFLICT DO NOTHING`：兩台裝置同時建立同一天時，失敗的一方會收到既有的結構化版本衝突結果，不再直接得到 unique violation。
+
+兩支 Supabase Edge Function 都把 `@supabase/supabase-js` 固定為 `2.114.0`，各自附上 frozen Deno lockfile。GitHub Pages CI 新增固定 Deno `2.9.5` 的完整 Entry Point 型別檢查，因此後端無法編譯、lockfile 漂移或漏掉 entrypoint 時會阻止部署。正式更新需要依序套用最新 database migration、重新部署 `google-calendar` 與 `google-calendar-callback`，最後部署前端；不需要重新授權 Google Calendar。
+
 ### 0. v171.0.87 每小時 Google Calendar 同步
 
 補回 `.github/workflows/calendar-sync.yml`。GitHub Actions 會在每小時第 7 分鐘呼叫既有的 Supabase `google-calendar` Edge Function，執行所有已連線帳號的 Calendar 同步；網站不需要保持開啟，也可從 Actions 手動執行驗收。

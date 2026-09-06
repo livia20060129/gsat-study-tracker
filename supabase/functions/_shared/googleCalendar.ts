@@ -1,6 +1,7 @@
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.114.0';
 import { staleCalendarEventKeys } from './calendarSyncDiff.ts';
 import { readableErrorMessage } from './functionResponse.ts';
+import { chunksOf, collectStringKeysetPages } from './keysetPagination.ts';
 
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 export const CORS_HEADERS = {
@@ -368,24 +369,32 @@ export async function syncCalendarForUser(admin: SupabaseClient, userId: string)
       });
     }
 
-    if (rows.length) {
-      const { error } = await admin.from('calendar_tasks').upsert(rows, { onConflict: 'user_id,event_key' });
+    for (const chunk of chunksOf(rows)) {
+      const { error } = await admin.from('calendar_tasks').upsert(chunk, { onConflict: 'user_id,event_key' });
       if (error) throw error;
     }
 
-    const { data: existing, error: existingError } = await admin
-      .from('calendar_tasks').select('event_key')
-      .eq('user_id', userId).eq('calendar_id', calendarId)
-      .gte('event_date', timeMinDate).lte('event_date', timeMaxDate);
-    if (existingError) throw existingError;
+    const existing = await collectStringKeysetPages(
+      async (after, pageSize) => {
+        let query = admin
+          .from('calendar_tasks').select('event_key')
+          .eq('user_id', userId).eq('calendar_id', calendarId)
+          .gte('event_date', timeMinDate).lte('event_date', timeMaxDate);
+        if (after) query = query.gt('event_key', after);
+        const { data, error } = await query.order('event_key', { ascending: true }).limit(pageSize);
+        if (error) throw error;
+        return (data ?? []) as Array<{ event_key: string }>;
+      },
+      (row) => String(row.event_key ?? ''),
+    );
 
     const stale = staleCalendarEventKeys(
-      (existing ?? []).map((row) => row.event_key as string),
+      existing.map((row) => row.event_key),
       fetchedKeys,
     );
-    if (stale.length) {
+    for (const staleChunk of chunksOf(stale, 200)) {
       const { error } = await admin.from('calendar_tasks')
-        .delete().eq('user_id', userId).in('event_key', stale);
+        .delete().eq('user_id', userId).in('event_key', staleChunk);
       if (error) throw error;
     }
 

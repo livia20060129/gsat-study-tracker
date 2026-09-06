@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { LocalStudyRecordRepository } from '../src/infrastructure/storage/localStudyRecordRepository.ts';
 import {
+  STUDY_RECORD_PAGE_SIZE,
   studyRecordSnapshotFromRow,
   SupabaseStudyRecordRepository,
   type SupabaseStudyRecordClient,
@@ -59,8 +60,11 @@ test('Supabase repository hides table and RPC details from callers', async () =>
   const calls: string[] = [];
   const query = {
     gte(column: string, value: string) { calls.push(`gte:${column}:${value}`); return this; },
+    gt(column: string, value: string) { calls.push(`gt:${column}:${value}`); return this; },
     eq(column: string, value: string) { calls.push(`eq:${column}:${value}`); return this; },
-    order() { calls.push('order'); return Promise.resolve({ data: rows, error: null }); },
+    or(filters: string) { calls.push(`or:${filters}`); return this; },
+    order() { calls.push('order'); return this; },
+    limit() { calls.push('limit'); return Promise.resolve({ data: rows, error: null }); },
     maybeSingle() { calls.push('single'); return Promise.resolve({ data: rows[0], error: null }); },
   };
   const client = {
@@ -82,4 +86,84 @@ test('Supabase repository hides table and RPC details from callers', async () =>
   assert.equal(saved.revision, 3);
   assert.ok(calls.includes('from:study_records'));
   assert.ok(calls.includes('rpc:upsert_study_record:2'));
+});
+
+test('Supabase repository reads every page with an updated_at + study_date cursor', async () => {
+  const rows = Array.from({ length: STUDY_RECORD_PAGE_SIZE + 1 }, (_, index) => {
+    const studyDate = new Date(Date.UTC(2025, 0, index + 1)).toISOString().slice(0, 10);
+    return {
+      study_date: studyDate,
+      payload: { date: studyDate, items: [] },
+      revision: 1,
+      updated_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+    };
+  });
+  const pages = [rows.slice(0, STUDY_RECORD_PAGE_SIZE), rows.slice(STUDY_RECORD_PAGE_SIZE)];
+  const filters: string[] = [];
+  let requestIndex = 0;
+  const client = {
+    from() {
+      return {
+        select() {
+          const page = pages[requestIndex++] ?? [];
+          return {
+            gte() { return this; },
+            gt() { return this; },
+            eq() { return this; },
+            or(value: string) { filters.push(value); return this; },
+            order() { return this; },
+            limit() { return Promise.resolve({ data: page, error: null }); },
+            maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+          };
+        },
+      };
+    },
+    rpc() { return Promise.resolve({ data: null, error: null }); },
+  } as unknown as SupabaseStudyRecordClient;
+
+  const loaded = await new SupabaseStudyRecordRepository(client).loadMany();
+  assert.equal(loaded.length, STUDY_RECORD_PAGE_SIZE + 1);
+  assert.equal(requestIndex, 2);
+  assert.equal(filters.length, 1);
+  assert.match(filters[0], /updated_at\.gt\./);
+  assert.match(filters[0], /study_date\.gt\./);
+});
+
+test('Supabase repository rejects the whole read when a later page fails', async () => {
+  const fullPage = Array.from({ length: STUDY_RECORD_PAGE_SIZE }, (_, index) => ({
+    study_date: new Date(Date.UTC(2025, 0, index + 1)).toISOString().slice(0, 10),
+    payload: { items: [] },
+    revision: 1,
+    updated_at: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+  }));
+  let requestIndex = 0;
+  const client = {
+    from() {
+      return {
+        select() {
+          const current = requestIndex++;
+          return {
+            gte() { return this; },
+            gt() { return this; },
+            eq() { return this; },
+            or() { return this; },
+            order() { return this; },
+            limit() {
+              return Promise.resolve(current === 0
+                ? { data: fullPage, error: null }
+                : { data: null, error: { message: 'page two failed' } });
+            },
+            maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+          };
+        },
+      };
+    },
+    rpc() { return Promise.resolve({ data: null, error: null }); },
+  } as unknown as SupabaseStudyRecordClient;
+
+  await assert.rejects(
+    () => new SupabaseStudyRecordRepository(client).loadMany(),
+    /page two failed/,
+  );
+  assert.equal(requestIndex, 2);
 });

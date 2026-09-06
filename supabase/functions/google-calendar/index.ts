@@ -10,6 +10,9 @@ import {
   normalizeGoogleClientId,
   syncCalendarForUser,
 } from '../_shared/googleCalendar.ts';
+import { chunksOf, collectStringKeysetPages } from '../_shared/keysetPagination.ts';
+
+const SYNC_ALL_CONCURRENCY = 4;
 
 Deno.serve(async (req) => {
   try {
@@ -24,15 +27,26 @@ Deno.serve(async (req) => {
       const expected = Deno.env.get('CALENDAR_CRON_SECRET') ?? '';
       const provided = req.headers.get('x-cron-secret') ?? '';
       if (!expected || provided !== expected) return json({ error: 'Unauthorized cron request' }, 401);
-      const { data: connections, error } = await admin.from('google_calendar_connections').select('user_id');
-      if (error) throw error;
+      const connections = await collectStringKeysetPages(
+        async (after, pageSize) => {
+          let query = admin.from('google_calendar_connections').select('user_id');
+          if (after) query = query.gt('user_id', after);
+          const { data, error } = await query.order('user_id', { ascending: true }).limit(pageSize);
+          if (error) throw error;
+          return (data ?? []) as Array<{ user_id: string }>;
+        },
+        (connection) => String(connection.user_id ?? ''),
+      );
       const results: unknown[] = [];
-      for (const connection of connections ?? []) {
-        try {
-          results.push({ userId: connection.user_id, ...(await syncCalendarForUser(admin, connection.user_id)) });
-        } catch (error) {
-          results.push({ userId: connection.user_id, error: error instanceof Error ? error.message : String(error) });
-        }
+      for (const batch of chunksOf(connections, SYNC_ALL_CONCURRENCY)) {
+        const batchResults = await Promise.all(batch.map(async (connection) => {
+          try {
+            return { userId: connection.user_id, ...(await syncCalendarForUser(admin, connection.user_id)) };
+          } catch (error) {
+            return { userId: connection.user_id, error: error instanceof Error ? error.message : String(error) };
+          }
+        }));
+        results.push(...batchResults);
       }
       return json({ ok: true, results });
     }
