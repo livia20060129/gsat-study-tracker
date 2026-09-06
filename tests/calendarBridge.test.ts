@@ -233,6 +233,44 @@ test('recognizes deferred Gujin and writing from standard titles and note-only s
   }
 });
 
+test('reads the four page-mapped books from Calendar titles and standardized page notes', () => {
+  const cases = [
+    ['國文｜深耕十五', '深耕十五', '國文', 8, 25],
+    ['國文｜主題百匯 閱讀寫作新進化', '主題百匯：閱讀寫作新進化', '國文', 2, 6],
+    ['英文｜主題百匯 篇章結構·閱讀測驗', '主題百匯：篇章結構·閱讀測驗', '英文', 1, 7],
+    ['英文｜主題百匯 克漏字', '主題百匯：克漏字', '英文', 2, 4],
+  ] as const;
+
+  for (const [title, book, subject, startPage, endPage] of cases) {
+    const parsed = parseCalendarTask(row(title, `【頁碼範圍】p.${startPage}–${endPage}\n【識別碼】book-test`, 'studyItem'));
+    assert.equal(parsed.kind, 'bookPages', title);
+    if (parsed.kind === 'bookPages') {
+      assert.equal(parsed.book, book);
+      assert.equal(parsed.subject, subject);
+      assert.equal(parsed.startPage, startPage);
+      assert.equal(parsed.endPage, endPage);
+    }
+  }
+});
+
+test('a deferred page-mapped Calendar book stays a typed book item routed to today', () => {
+  const parsed = parseCalendarTask(row(
+    '補做｜英文｜主題百匯 克漏字',
+    '【頁碼範圍】p.5–7\n【來源日期】9/2\n【識別碼】cloze-02',
+    'studyItem',
+  ));
+
+  assert.equal(parsed.kind, 'bookPages');
+  assert.equal(parsed.route, 'today');
+  assert.equal(parsed.makeup, true);
+  assert.equal(parsed.sourceDate, '9/2');
+  if (parsed.kind === 'bookPages') {
+    assert.equal(parsed.book, '主題百匯：克漏字');
+    assert.equal(parsed.startPage, 5);
+    assert.equal(parsed.endPage, 7);
+  }
+});
+
 test('converts Calendar rich text to readable plain text', () => {
   assert.equal(
     calendarDescriptionText('<p>第一行&nbsp;&amp;內容</p><p>第二行<br>第三行</p>'),

@@ -81,6 +81,25 @@ test('runtime cards keep biology and chemistry pages independent in either fetch
   }
 });
 
+test('runtime creates the correct editable card type for page-mapped Chinese and English Calendar books', () => {
+  const rows = [
+    row('deep-fifteen', '國文｜深耕十五', '【頁碼範圍】p.8–25【識別碼】deep-01'),
+    row('english-cloze', '英文｜主題百匯 克漏字', '【頁碼範圍】p.2–4【識別碼】cloze-01'),
+  ];
+  const ctx = app(rows);
+  const defs = ctx.cloudCalendarDefsForDate(date);
+  const chinese = defs.find((definition: any) => definition.f.book === '深耕十五');
+  const english = defs.find((definition: any) => definition.f.title === '主題百匯：克漏字');
+
+  assert.equal(chinese.type, 'chineseReading');
+  assert.equal(chinese.f.kind, 'book');
+  assert.deepEqual([chinese.f.start, chinese.f.end], ['8', '25']);
+  assert.equal(english.type, 'extra');
+  assert.deepEqual([english.f.start, english.f.end], ['2', '4']);
+  assert.equal(chinese.f.calendarEventKey, 'primary:deep-fifteen');
+  assert.equal(english.f.calendarEventKey, 'primary:english-cloze');
+});
+
 test('existing wrong pages repair on reconciliation/reload without losing time or explicit completion', () => {
   const ctx = app();
   let rec = { date, items: ctx.cloudCalendarDefsForDate(date).map((def: any) => ctx.makePresetItem(def, date)) };

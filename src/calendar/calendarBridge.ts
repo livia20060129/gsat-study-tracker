@@ -1,4 +1,9 @@
 import { isListeningTestBookTitle, listeningTestNumbers } from '../data/englishBooks.ts';
+import {
+  canonicalPageMappedBook,
+  pageMappedBookSubject,
+  type PageMappedBook,
+} from '../data/bookPageMaps.ts';
 
 export interface CalendarTaskRow {
   event_key: string;
@@ -50,6 +55,13 @@ export type ParsedCalendarTask =
   | (ParsedBase & { kind: 'ace'; rounds: number[] })
   | (ParsedBase & { kind: 'listeningA'; tests: number[] })
   | (ParsedBase & { kind: 'gujin'; rounds: number[] })
+  | (ParsedBase & {
+      kind: 'bookPages';
+      subject: '國文' | '英文';
+      book: PageMappedBook;
+      startPage: number | null;
+      endPage: number | null;
+    })
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
   | (ParsedBase & { kind: 'essentialGrammar'; units: number[] })
   | (ParsedBase & { kind: 'writing'; round: number | null; focus: string })
@@ -408,6 +420,22 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
 
   if (row.category === 'gujin' || /^(?:國文\s*[｜:：]\s*)?古今悅讀一百(?:\s*[｜:：]\s*|\s+)第/.test(title)) {
     return { ...base, title: withoutOriginalDate(title), kind: 'gujin', rounds: roundsFromTitle(title) };
+  }
+
+  const pageMappedBook = canonicalPageMappedBook(`${title}\n${note.material}\n${note.book}\n${description}`);
+  if (pageMappedBook) {
+    const [startPage, endPage] = note.hasStandardFields
+      ? structuredPageRange(note.pageRange)
+      : pageRange(`${title}\n${description}`);
+    return {
+      ...base,
+      title: withoutOriginalDate(title),
+      kind: 'bookPages',
+      subject: pageMappedBookSubject(pageMappedBook),
+      book: pageMappedBook,
+      startPage,
+      endPage,
+    };
   }
 
   if (row.category === 'grammar' || /^英文文法(?:\s*[｜:：]\s*|\s+)/.test(title)) {
