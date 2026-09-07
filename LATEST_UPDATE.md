@@ -14,6 +14,13 @@
 - 關閉 release 的自動取消，避免新 commit 在 migration 或 Function 部署途中將工作強制中止。
 - Pages 權限只交給最後的 Pages job；Supabase job 不取得 service role key、Google secret、Calendar token 或 cron secret。
 
+## 首次 Actions 失敗修正
+
+- Actions #106 的 233 項測試有 1 項失敗，原因是局部覆蓋不會刪除 GitHub 上三個舊時間戳 migration。
+- 已刪除 `202608270001_v171_storage_calendar.sql`、`202608270002_google_calendar_client_id.sql`、`202608270003_fix_study_record_revision_ambiguity.sql`。
+- 三個正式時間戳版本與最新 forward migration 均保留；此清理不刪除正式資料庫資料。
+- 發布順序測試改為同時支援 LF／CRLF，避免 Windows clone 因換行格式產生假失敗。
+
 ## 第一次啟用
 
 1. GitHub Environments 建立 `supabase-production`，建議只允許 `main` 並開啟正式部署確認。
@@ -41,8 +48,8 @@
 - 233／233 項測試通過，包含 3 項新的 release workflow 回歸測試。
 - 前端 TypeScript 檢查與正式 Vite 建置通過。
 - 使用 Deno `2.9.5` 對兩支 Edge Function 的 frozen lockfile 型別檢查均通過。
-- workflow 檔已完成本機結構與順序驗證；尚未推送 GitHub，也沒有修改正式 Supabase 或 Calendar 資料。
+- 本機驗證已通過；GitHub Actions 會在本次提交重新驗證，並依序部署 Supabase 與 GitHub Pages。
 
 ## Commit 建議
 
-`ci(release): deploy Supabase before GitHub Pages`
+`fix(migrations): remove obsolete timestamp aliases`
