@@ -47,6 +47,51 @@ test('deployment CI type-checks both Supabase Edge Function entrypoints', () => 
   assert.match(packageJson.scripts?.['typecheck:edge'] ?? '', /--frozen/);
 });
 
+test('production release deploys Supabase before publishing the prepared Pages artifact', () => {
+  const workflow = readFileSync(new URL('.github/workflows/deploy.yml', projectUrl), 'utf8');
+  const migrationPreview = workflow.indexOf('supabase db push --dry-run');
+  const migrationDeploy = workflow.indexOf('run: supabase db push\n');
+  const calendarDeploy = workflow.indexOf('supabase functions deploy google-calendar --project-ref');
+  const callbackDeploy = workflow.indexOf('supabase functions deploy google-calendar-callback --project-ref');
+  const smokeTest = workflow.indexOf('Smoke-test deployed functions');
+  const pagesDeploy = workflow.indexOf('uses: actions/deploy-pages@v4');
+
+  assert.match(workflow, /pull_request:\s*[\s\S]*branches:\s*[\s\S]*- main/);
+  assert.match(workflow, /cancel-in-progress:\s*false/);
+  assert.match(workflow, /deploy_supabase:\s*[\s\S]*needs:\s*build/);
+  assert.match(workflow, /\n  deploy:\s*[\s\S]*needs:\s*deploy_supabase/);
+  assert.match(workflow, /environment:\s*[\s\S]*name:\s*supabase-production/);
+  assert.ok(migrationPreview >= 0, 'release must preview migrations');
+  assert.ok(migrationDeploy > migrationPreview, 'database deployment must follow its preview');
+  assert.ok(calendarDeploy > migrationDeploy, 'Calendar function must deploy after the database');
+  assert.ok(callbackDeploy > calendarDeploy, 'OAuth callback must deploy after the Calendar function');
+  assert.ok(smokeTest > callbackDeploy, 'live smoke checks must follow both function deployments');
+  assert.ok(pagesDeploy > smokeTest, 'Pages must deploy only after the backend smoke checks');
+});
+
+test('production release uses pinned tooling and fails safely on missing or mismatched configuration', () => {
+  const workflow = readFileSync(new URL('.github/workflows/deploy.yml', projectUrl), 'utf8');
+
+  assert.match(workflow, /SUPABASE_CLI_VERSION:\s*\d+\.\d+\.\d+/);
+  assert.doesNotMatch(workflow, /SUPABASE_CLI_VERSION:\s*latest/);
+  assert.match(workflow, /supabase\/setup-cli@[0-9a-f]{40}/);
+  assert.match(workflow, /SUPABASE_ACCESS_TOKEN:\s*\$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/);
+  assert.match(workflow, /SUPABASE_DB_PASSWORD:\s*\$\{\{ secrets\.SUPABASE_DB_PASSWORD \}\}/);
+  assert.match(workflow, /SUPABASE_PROJECT_ID does not match supabase\/config\.toml/);
+  assert.match(workflow, /supabase link --project-ref/);
+  assert.match(workflow, /supabase migration list/);
+  assert.match(workflow, /github\.event_name != 'pull_request'/);
+  assert.doesNotMatch(workflow, /SUPABASE_SERVICE_ROLE_KEY|GOOGLE_CLIENT_SECRET|CALENDAR_CRON_SECRET/);
+});
+
+test('production release smoke checks both public function entrypoints without user credentials', () => {
+  const workflow = readFileSync(new URL('.github/workflows/deploy.yml', projectUrl), 'utf8');
+
+  assert.match(workflow, /smoke_check "google-calendar"[\s\S]*405 'POST required'/);
+  assert.match(workflow, /smoke_check "google-calendar-callback"[\s\S]*400 '<!doctype html>'/);
+  assert.doesNotMatch(workflow, /Authorization: Bearer|x-cron-secret/);
+});
+
 test('Calendar backend paginates database reads and bounds sync-all concurrency', () => {
   const shared = readFileSync(new URL('supabase/functions/_shared/googleCalendar.ts', projectUrl), 'utf8');
   const entrypoint = readFileSync(new URL('supabase/functions/google-calendar/index.ts', projectUrl), 'utf8');

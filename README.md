@@ -6,6 +6,12 @@
 
 ## v171 重點
 
+### 0. v171.0.89 Supabase 與前端順序化發布
+
+GitHub Actions 現在把測試與正式發布合成同一條受控流程。Pull Request 只執行前端測試、TypeScript 檢查、兩支 Edge Function 的 frozen Deno 檢查與 Vite build；只有 `main` 分支才會依序執行「預覽 migration → 套用 database migration → 核對 migration history → 部署 `google-calendar` → 部署 `google-calendar-callback` → 線上 smoke test → 發布 GitHub Pages」。任何後端步驟失敗時，新的前端不會上線，避免前端先使用尚未部署的資料庫或 Function。
+
+Supabase CLI 固定為 `2.116.0`，setup action 也固定 commit，不使用 `latest`。正式工作使用 `supabase-production` Environment，從 GitHub Actions Secrets 讀取 `SUPABASE_ACCESS_TOKEN` 與 `SUPABASE_DB_PASSWORD`；專案 ID 以 `supabase/config.toml` 為準，若另設 `SUPABASE_PROJECT_ID` 卻不一致會立刻停止，避免部署到錯誤專案。發布中的 migration／Function deployment 不會被新 commit 中途取消，兩支公開 Function 部署後會以無登入、無資料修改的預期錯誤回應進行線上存活檢查。不需要把 service role key、Google Client Secret、Calendar token 或 cron secret 交給發布 workflow，也不需要重新授權 Google Calendar。
+
 ### 0. v171.0.88 Supabase 完整分頁與後端可靠性
 
 Study Records 首次全量與後續增量同步改用 `updated_at＋study_date` 的穩定游標分頁；只有全部頁面都成功後，原有流程才會更新同步 watermark。Tracker 讀取 `calendar_tasks`、Edge Function 比對已刪除 Calendar 行程，以及每小時 `sync-all` 讀取連線帳號，也都改為完整游標分頁。Calendar 寫入與刪除採分批請求，所有帳號以每批 4 個並行同步，避免資料超過 Data API 單次上限後被截斷，也降低逐帳號同步逾時的機會。
@@ -454,33 +460,59 @@ supabase secrets set \
 
 `GOOGLE_CLIENT_ID` 不再是 Supabase 必要 secret；Client ID 由設定完成的前端送入 auth flow，Client Secret 則只由 callback／token refresh 在伺服器端使用。
 
-## 5. Deploy Edge Functions
+## 5. 設定正式發布憑證（只需一次）
 
-```bash
-supabase functions deploy google-calendar --project-ref arxbirgujbrtzhoficdf
-supabase functions deploy google-calendar-callback --project-ref arxbirgujbrtzhoficdf
-```
+先到 GitHub Repo → **Settings → Environments** 建立 `supabase-production`，建議設定：
 
-## 6. GitHub Actions Secrets
-
-Repo → Settings → Secrets and variables → Actions → **New repository secret**，新增：
+1. Deployment branches 只允許 `main`。
+2. 若帳號方案支援，開啟 Required reviewers，讓正式資料庫變更前需要確認。
+3. 在該 Environment 的 **Environment secrets** 新增以下兩項：
 
 ```text
-Variable: VITE_GOOGLE_CLIENT_ID=<Google Web OAuth Client ID>
-Secret:   CALENDAR_CRON_SECRET=<與 Supabase secret 相同>
+SUPABASE_ACCESS_TOKEN=<Supabase 個人 Access Token>
+SUPABASE_DB_PASSWORD=<這個 Supabase 專案的 Database Password>
 ```
 
-若原本已用 Actions secret 保存 `VITE_GOOGLE_CLIENT_ID` 也可繼續使用，workflow 會以 repository variable 優先。Client ID 本身不是敏感資料，建議使用 Variable。
+`SUPABASE_ACCESS_TOKEN` 可在 [Supabase Access Tokens](https://supabase.com/dashboard/account/tokens) 建立；`SUPABASE_DB_PASSWORD` 是建立專案時設定的資料庫密碼。兩者都只能放在 GitHub Secret，不可放進 `VITE_` 變數、`.env.example`、原始碼或公開 log。若暫時無法使用 Environment secrets，也可使用同名 repository secrets，但隔離性較低。
 
-每小時同步 workflow 只使用：
+正式專案 ID 會直接讀取 `supabase/config.toml`，所以不必另外設定。若希望再加一層防呆，可在 Actions → **Variables** 新增：
 
 ```text
-CALENDAR_CRON_SECRET=<與 Supabase secret 相同>
+SUPABASE_PROJECT_ID=arxbirgujbrtzhoficdf
 ```
 
-Supabase 專案網址是公開設定，workflow 已固定指向本專案，不會把排程密鑰送往可由 repository variable 任意替換的網址；舊的 `SUPABASE_PROJECT_URL` Actions secret 不再需要。
+只要 Variable 與 `config.toml` 不一致，workflow 就會在接觸資料庫之前停止。部署 workflow 不需要 `SUPABASE_SERVICE_ROLE_KEY`、Google Client Secret、refresh/access token 或 `CALENDAR_CRON_SECRET`。
 
-完成兩端設定並推送 workflow 後，到 **Actions → Hourly Google Calendar Sync → Run workflow** 手動執行一次。顯示綠色成功後，之後會在每小時第 7 分鐘自動執行。
+## 6. 一次完成後端與前端發布
+
+`.github/workflows/deploy.yml` 現在是唯一的正式發布順序：
+
+```text
+測試／型別檢查／建置
+  → migration dry-run
+  → database migration
+  → migration history 核對
+  → google-calendar
+  → google-calendar-callback
+  → 無資料修改的線上存活檢查
+  → GitHub Pages
+```
+
+推送到 `main` 後，到 **Actions → Validate and release Tracker** 查看同一次執行即可。任何步驟失敗，後續步驟都不會執行；尤其 Supabase 尚未完成時，新的 Pages 前端不會發布。新 commit 也不會取消正在執行的 database migration。
+
+Pull Request 只會驗證，不會接觸正式 Supabase 或發布 Pages。若從 Actions 手動執行，只有選擇 `main` 分支時才會正式發布。
+
+資料庫 migration 必須保持向後相容。需要刪欄位、改欄位意義或其他破壞性變更時，請拆成兩次發布：先讓後端同時接受新舊格式，下一版才清理舊 schema。GitHub Pages、Edge Functions 與 PostgreSQL 並不是同一個可回滾交易，因此正式資料庫出錯時應以新的 forward migration 修正，不要直接重設正式資料庫。
+
+## 7. 每小時 Calendar 同步 Secret
+
+每小時同步使用另一條 `.github/workflows/calendar-sync.yml`，只需要：
+
+```text
+CALENDAR_CRON_SECRET=<與 Supabase Edge Function secret 完全相同>
+```
+
+Supabase 專案網址是公開設定，workflow 已固定指向本專案；舊的 `SUPABASE_PROJECT_URL` Actions secret 不再需要。完成兩端設定後，到 **Actions → Hourly Google Calendar Sync → Run workflow** 手動驗收一次。顯示綠色成功後，之後會在每小時第 7 分鐘自動執行。
 
 ---
 

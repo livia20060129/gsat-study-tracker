@@ -1,38 +1,48 @@
 # 最新更新
 
-版本：v171.0.87
+版本：v171.0.89
 
 ## 本次修正
 
-- 新增缺少的 `.github/workflows/calendar-sync.yml`。
-- 每小時第 7 分鐘呼叫 Supabase `google-calendar` Edge Function 的 `sync-all`，網站關閉時仍可同步。
-- 保留 `workflow_dispatch`，可在 GitHub Actions 手動執行驗收。
-- workflow 不取得 GitHub token 權限，也不使用 Supabase service role key、Google Client Secret 或 refresh token。
-- `CALENDAR_CRON_SECRET` 只從 GitHub Actions Secrets 讀取，沒有硬寫在程式碼。
-- 設定缺漏、網路／HTTP 錯誤、回應格式錯誤或任一帳號同步失敗，都會讓 Action 明確失敗。
-- 公開 log 只顯示同步總數與失敗數，不輸出使用者識別碼或完整伺服器回應。
-- 首頁說明改為只有完成 GitHub Actions 設定後才宣稱每小時同步，避免設定未完成時誤導。
+- 將 Edge Function CI 與正式部署合成一條有順序的 release workflow。
+- Pull Request 只執行 233 項測試、前端 TypeScript、兩支 Edge Function Deno 檢查與 Vite build，不會碰正式環境。
+- `main` 發布固定依序執行：migration dry-run、database migration、migration history 列表、兩支 Calendar Function、線上存活檢查、GitHub Pages。
+- Database 或任一 Function 失敗時，Pages 不會部署，避免新版前端搭配舊版後端。
+- Supabase CLI 固定為 `2.116.0`，setup action 固定在已知 commit，不使用浮動 `latest`。
+- 正式發布會先檢查 GitHub Secrets；缺少憑證時顯示可操作的錯誤並在連線資料庫前停止。
+- 專案 ID 以 `supabase/config.toml` 為準；若另設的 `SUPABASE_PROJECT_ID` 不一致，會阻止部署到錯誤專案。
+- 關閉 release 的自動取消，避免新 commit 在 migration 或 Function 部署途中將工作強制中止。
+- Pages 權限只交給最後的 Pages job；Supabase job 不取得 service role key、Google secret、Calendar token 或 cron secret。
 
-## 防止再次遺失
+## 第一次啟用
 
-- 新增 `hourlyCalendarWorkflow.test.ts`，確認 workflow 仍包含每小時排程、手動觸發、`sync-all`、secret header 與個別失敗判定。
-- 正式部署 workflow 已經會執行完整 `npm test`，因此未來若排程檔被移除或關鍵設定遭破壞，部署測試會直接失敗。
+1. GitHub Environments 建立 `supabase-production`，建議只允許 `main` 並開啟正式部署確認。
+2. 在該 Environment 的 Secrets 新增 `SUPABASE_ACCESS_TOKEN`。
+3. 在該 Environment 的 Secrets 新增 `SUPABASE_DB_PASSWORD`。
+4. `SUPABASE_PROJECT_ID` 是可選的防呆 Variable；若設定，值必須是 `arxbirgujbrtzhoficdf`。
+5. 推送到 `main`，到 **Actions → Validate and release Tracker** 查看同一次完整發布。
 
-## 套用方式
+既有 `VITE_GOOGLE_CLIENT_ID` 與每小時同步使用的 `CALENDAR_CRON_SECRET` 維持原設定。這次不需要重新連接或重新授權 Google Calendar。
 
-- 主專案已更新；`gsat-study-tracker-v171.0.87-update` 只包含本次變更檔案，不製作 ZIP。
-- 將更新資料夾內容依原路徑合併覆蓋到已套用 v171.0.86 的完整專案，再推送至 GitHub。更新資料夾不能單獨執行。
-- Supabase Database 與 Edge Function 程式碼不需重新部署，也不需重新授權 Google Calendar。
-- 目前正式 Supabase 專案尚缺 `CALENDAR_CRON_SECRET`；必須在 Supabase Edge Function Secrets 與 GitHub Actions Secrets 新增完全相同的高熵值。
-- 設定後到 **Actions → Hourly Google Calendar Sync → Run workflow** 手動驗收一次；成功後才算完成正式啟用。
+## 安全行為
+
+- workflow 先建好 Pages artifact，但一定等 Supabase 全部成功後才發布。
+- 線上 smoke test 只確認兩支 Function 的預期公開回應，不登入、不讀取使用者行程，也不修改資料。
+- 缺少 Secret、migration dry-run 失敗、正式 migration 失敗、Function 部署失敗或 smoke test 失敗，都會保留目前線上前端。
+- 破壞性 schema 變更仍必須拆成相容的兩階段 migration；正式資料庫不會自動 reset 或回滾。
+
+## 更新檔案
+
+- 主專案已更新。
+- `gsat-study-tracker-v171.0.89-ordered-release-update` 只包含本次變更檔案，不製作 ZIP，也不能單獨執行。
 
 ## 驗證
 
-- TypeScript 檢查與正式 Vite 建置通過。
-- 全部 217 項測試通過，包含本次新增的 3 項 workflow 回歸測試。
-- 已以唯讀方式確認正式 Supabase 專案目前沒有 `CALENDAR_CRON_SECRET`，所以 workflow 推上 GitHub 後仍需完成兩端 secret 設定。
-- 未修改正式 Calendar 資料，尚未把 workflow 推送到 GitHub 正式分支。
+- 233／233 項測試通過，包含 3 項新的 release workflow 回歸測試。
+- 前端 TypeScript 檢查與正式 Vite 建置通過。
+- 使用 Deno `2.9.5` 對兩支 Edge Function 的 frozen lockfile 型別檢查均通過。
+- workflow 檔已完成本機結構與順序驗證；尚未推送 GitHub，也沒有修改正式 Supabase 或 Calendar 資料。
 
 ## Commit 建議
 
-`fix(calendar): restore secure hourly sync workflow`
+`ci(release): deploy Supabase before GitHub Pages`
