@@ -6,6 +6,7 @@ import * as completion from '../src/study/completionMetrics.ts';
 import { isConfirmedDeferred } from '../src/study/deferDays.ts';
 import { renderItemDeleteFooter } from '../src/ui/itemActions.ts';
 import { propagateDailyWorkField } from '../src/study/dailyWorkGroup.ts';
+import { normalizeStudyTimerState } from '../src/study/studyTimer.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
 import {
   canonicalPageMappedBook,
@@ -176,6 +177,18 @@ test('magazine entries keep their delete index in their own footer and retain th
     assert.ok(html.indexOf(`data-mag-field="unit" data-index="${index}"`) < html.indexOf(footer));
   }
   assert.doesNotMatch(render(item({ f: { entries: [{ unit: '1' }] } })), /刪除此筆/);
+});
+
+test('the recorded minute field accepts one-decimal timer values', () => {
+  const render = runtimeFunction<(x: StudyItem, entry?: null) => string>('renderTimeControl', {
+    normalizeStudyTimerState,
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  const html = render(item({ minutes: '1.5' }), null);
+
+  assert.match(html, /step="0\.1"/);
+  assert.match(html, /inputmode="decimal"/);
+  assert.match(html, /value="1\.5"/);
 });
 
 test('Chinese page-mapped books are selected directly from 國文項目 without another book selector', () => {

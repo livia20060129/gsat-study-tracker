@@ -1,31 +1,38 @@
 # 最新更新
 
-版本：v171.0.90
+版本：v171.0.91
 
-## 本次修正
+## 本次更新
 
-- 修正今日狀態為「外出」時，已完成數學講義被排除於頁數進度之外的問題。
-- 外出仍會取消並隱藏固定排程，不改變原有外出日行為。
-- 自訂、Google Calendar、延期或合併子卡片只要實際完成，仍會依原規則去除重疊頁碼後，列入今日與本週數學頁數。
-- 未完成的數學卡片不會提前計入。
+- 計時顯示仍使用「分：秒」。
+- 按下「完成並填入」後，將經過秒數換算成分鐘並四捨五入至小數點後一位。
+- 15 秒記為 `0.3` 分、1 分 29 秒記為 `1.5` 分、1 分 33 秒記為 `1.6` 分。
+- 尚未開始計時不會寫入紀錄；已開始但極短的紀錄依正常四捨五入顯示 `0.0` 分。
+- 一般卡片、英文雜誌子項目與合併子卡片都使用相同的小數紀錄規則。
+- 計時結果仍會覆蓋舊的手動時間，並可在重新整理及本機／雲端紀錄格式中保留。
+- 今日完成時間加總會四捨五入至一位小數，避免顯示浮點尾數。
 
 ## 更新檔案
 
-- `src/study/mathProgress.ts`
-- `tests/mathProgress.test.ts`
+- `src/study/studyTimer.ts`
+- `src/legacy-app.ts`
+- `tests/studyTimer.test.ts`
+- `tests/dailyWorkGroup.test.ts`
+- `tests/studyRecordRoundTrip.test.ts`
+- `tests/legacyCardRegression.test.ts`
 - `package.json`
 - `package-lock.json`
 - `README.md`
 - `LATEST_UPDATE.md`
 
-更新資料夾：`gsat-study-tracker-v171.0.90-away-math-progress-update`
+更新資料夾：`gsat-study-tracker-v171.0.91-decimal-timer-update`
 
 ## 驗證
 
-- 234／234 項測試通過。
+- 236／236 項測試通過。
 - TypeScript 檢查通過。
 - 正式 Vite 建置通過。
 
 ## Commit 建議
 
-`fix(math-progress): count completed pages on away days`
+`feat(timer): record elapsed minutes to one decimal place`

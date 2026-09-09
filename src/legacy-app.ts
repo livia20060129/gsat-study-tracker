@@ -2074,8 +2074,8 @@ function renderTimeControl(x,entry){
  holder.timeTracking=state;
  var h='<span class="time-control"'+entryAttr+'><span class="time-mode-content">';
  if(mode==='manual'){
-  if(entry)h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-mag-field="minutes" data-index="'+ensureMagazineEntries(x).indexOf(entry)+'" value="'+esc(entry.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
-  else h+='<span class="minutes-badge"><input type="number" min="0" step="1" data-minutes value="'+esc(x.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
+  if(entry)h+='<span class="minutes-badge"><input type="number" min="0" step="0.1" inputmode="decimal" data-mag-field="minutes" data-index="'+ensureMagazineEntries(x).indexOf(entry)+'" value="'+esc(entry.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
+  else h+='<span class="minutes-badge"><input type="number" min="0" step="0.1" inputmode="decimal" data-minutes value="'+esc(x.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
  }else{
   h+='<strong class="timer-display" data-timer-display'+entryAttr+'>'+formatStudyTimer(state)+'</strong>';
   h+='<button class="secondary timer-button" type="button" data-action="timer-toggle"'+entryAttr+'>'+(state.startedAt!==null?'暫停':(state.accumulatedSeconds?'繼續':'開始'))+'</button>';
@@ -3150,7 +3150,7 @@ function updateSummary(){
  id('workloadCompletionBar').style.width=completion.workloadPercent+'%';
  id('workloadCompletionText').textContent=completion.workloadCompleted+'/'+completion.workloadTotal+' 項工作量';
  updateSettlementMetrics(data.date);
- id('doneMinutes').textContent=mins;
+ id('doneMinutes').textContent=String(Math.round((mins+Number.EPSILON)*10)/10);
  id('mathPagesTop').textContent=math.dailyNewPages;
  id('weekMathPages').textContent=math.weeklyNewPages;
  id('weekMathTarget').textContent=math.weeklyTarget;

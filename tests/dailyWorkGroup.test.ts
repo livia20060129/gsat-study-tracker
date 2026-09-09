@@ -309,11 +309,11 @@ test('a completed timer replaces older manual minutes across grouped sources', (
   sources[1].minutes = '10';
   const output = groupDailyWorkItems(sources);
 
-  replaceDailyWorkMinutes(output[0], '6');
+  replaceDailyWorkMinutes(output[0], '6.5');
 
   const stored = ungroupDailyWorkItems(output);
   assert.equal(stored.filter(item => item.minutes).length, 1);
-  assert.equal(groupDailyWorkItems(stored)[0].minutes, '6');
+  assert.equal(groupDailyWorkItems(stored)[0].minutes, '6.5');
 });
 
 test('stores an edited merged end page on the source that owns the upper boundary', () => {

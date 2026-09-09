@@ -82,3 +82,14 @@ test('timer timestamps survive a local and cloud-compatible payload round trip',
   const stored = reload({ date: '2026-09-01', items: [item] });
   assert.deepEqual(stored.items[0].f.timeTracking, item.f.timeTracking);
 });
+
+test('a one-decimal timer result survives the stored record round trip', () => {
+  const item = math('timed-finished', 206, 210);
+  item.minutes = '1.5';
+  item.f.timeTracking = { mode: 'manual', accumulatedSeconds: 90, startedAt: null };
+
+  const stored = reload({ date: '2026-09-01', items: [item] });
+
+  assert.equal(stored.items[0].minutes, '1.5');
+  assert.deepEqual(stored.items[0].f.timeTracking, item.f.timeTracking);
+});

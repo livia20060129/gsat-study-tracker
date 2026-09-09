@@ -55,16 +55,20 @@ export function formatStudyTimer(value: unknown, now = Date.now()): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-/** Existing records store whole minutes; a non-zero timed session is at least one minute. */
+function decimalTimerMinutes(seconds: number): string {
+  return (Math.round(seconds / 6) / 10).toFixed(1);
+}
+
+/** Timed sessions are stored as minutes rounded to one decimal place. */
 export function timerMinutesValue(value: unknown, now = Date.now()): string {
   const seconds = studyTimerElapsedSeconds(value, now);
-  return seconds > 0 ? String(Math.max(1, Math.round(seconds / 60))) : '';
+  return seconds > 0 ? decimalTimerMinutes(seconds) : '';
 }
 
 /**
  * Finishes an active timed session and returns to the visible manual field.
- * A session that was actually started always fills at least one minute, even
- * when it is completed before the first whole second has elapsed.
+ * A session that was actually started always writes a one-decimal minute
+ * value, even when it rounds to 0.0 minutes.
  */
 export function finishStudyTimer(
   value: unknown,
@@ -76,7 +80,7 @@ export function finishStudyTimer(
   return {
     state: { ...paused, mode: 'manual' },
     minutes: wasStarted
-      ? String(Math.max(1, Math.round(studyTimerElapsedSeconds(paused, now) / 60)))
+      ? decimalTimerMinutes(studyTimerElapsedSeconds(paused, now))
       : '',
   };
 }

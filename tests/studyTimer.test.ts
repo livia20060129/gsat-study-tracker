@@ -50,25 +50,28 @@ test('never renders 60 in the seconds position', () => {
   }
 });
 
-test('converts a completed timer to the existing whole-minute field', () => {
+test('converts a completed timer to minutes rounded to one decimal place', () => {
   assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 0, startedAt: null }), '');
-  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 15, startedAt: null }), '1');
-  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 89, startedAt: null }), '1');
-  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 90, startedAt: null }), '2');
+  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 2, startedAt: null }), '0.0');
+  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 3, startedAt: null }), '0.1');
+  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 15, startedAt: null }), '0.3');
+  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 89, startedAt: null }), '1.5');
+  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 90, startedAt: null }), '1.5');
+  assert.equal(timerMinutesValue({ mode: 'timer', accumulatedSeconds: 93, startedAt: null }), '1.6');
 });
 
 test('finish fills the manual field and makes even a very short active session visible', () => {
   const completed = finishStudyTimer({ mode: 'timer', accumulatedSeconds: 0, startedAt: 1_000 }, 1_200);
   assert.deepEqual(completed, {
     state: { mode: 'manual', accumulatedSeconds: 0, startedAt: null },
-    minutes: '1',
+    minutes: '0.0',
   });
 });
 
 test('finish rounds a longer timer and does not invent time before a session starts', () => {
   assert.deepEqual(
     finishStudyTimer({ mode: 'timer', accumulatedSeconds: 90, startedAt: null }),
-    { state: { mode: 'manual', accumulatedSeconds: 90, startedAt: null }, minutes: '2' },
+    { state: { mode: 'manual', accumulatedSeconds: 90, startedAt: null }, minutes: '1.5' },
   );
   assert.deepEqual(
     finishStudyTimer({ mode: 'timer', accumulatedSeconds: 0, startedAt: null }),
@@ -80,10 +83,10 @@ test('writes completed minutes to the current magazine entry instead of a stale 
   const staleEntry = { id: 'mag-1', minutes: '', timeTracking: { mode: 'timer' } };
   const currentEntries = JSON.parse(JSON.stringify([staleEntry]));
 
-  const currentEntry = setTimedEntryMinutes(currentEntries, staleEntry.id, '12');
+  const currentEntry = setTimedEntryMinutes(currentEntries, staleEntry.id, '12.5');
 
   assert.equal(currentEntry, currentEntries[0]);
-  assert.equal(currentEntries[0].minutes, '12');
+  assert.equal(currentEntries[0].minutes, '12.5');
   assert.equal(staleEntry.minutes, '');
 });
 
