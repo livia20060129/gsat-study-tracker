@@ -79,7 +79,7 @@ function addCompletedMathItem(out: PageSetByMaterial, item: StudyItem): void {
  */
 export function extractCompletedMathPages(record: StudyRecord | null | undefined): PageSetByMaterial {
   const out: PageSetByMaterial = new Map();
-  if (!record || !Array.isArray(record.items) || record.mood === '外出') return out;
+  if (!record || !Array.isArray(record.items)) return out;
 
   for (const item of record.items) {
     if (!item) continue;

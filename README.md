@@ -6,6 +6,10 @@
 
 ## v171 重點
 
+### 0. v171.0.90 外出日數學頁數統計
+
+修正「今日狀態」選擇「外出」後，已完成的數學講義頁數被整天排除的問題。外出仍只取消固定排程；當日實際存在且已完成的自訂、Google Calendar 或延期數學講義，會照常列入今日與本週數學頁數，未完成項目仍不計入。
+
 ### 0. v171.0.89 Supabase 與前端順序化發布
 
 GitHub Actions 現在把測試與正式發布合成同一條受控流程。Pull Request 只執行前端測試、TypeScript 檢查、兩支 Edge Function 的 frozen Deno 檢查與 Vite build；只有 `main` 分支才會依序執行「預覽 migration → 套用 database migration → 核對 migration history → 部署 `google-calendar` → 部署 `google-calendar-callback` → 線上 smoke test → 發布 GitHub Pages」。任何後端步驟失敗時，新的前端不會上線，避免前端先使用尚未部署的資料庫或 Function。
