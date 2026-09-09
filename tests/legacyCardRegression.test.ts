@@ -220,6 +220,30 @@ test('Chinese page-mapped books are selected directly from 國文項目 without 
   assert.ok(html.indexOf('data-field="start"') < html.indexOf('data-field="end"'));
 });
 
+test('manually selected 古今悅讀一百 uses equal half-width item and round fields', () => {
+  const render = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderChineseFields', {
+    isCalendarGujin: () => false,
+    isCalendarPageMappedBook: () => false,
+    canonicalPageMappedBook,
+    DEEP_FIFTEEN_BOOK,
+    CHINESE_TOPIC_BOOK,
+    selected: (left: unknown, right: unknown) => left === right ? ' selected' : '',
+    checked: (value: unknown) => value ? ' checked' : '',
+    reasonField: () => '',
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  const html = render(item({
+    type: 'chineseReading',
+    source: 'custom',
+    f: { kind: 'reading', round: '10' },
+  }), false);
+
+  assert.match(html, /class="grid-2 chinese-reading-row"/);
+  assert.match(html, /<label>國文項目<\/label><select data-chinese-kind>/);
+  assert.match(html, /<label>回數<\/label>.*data-field="round" value="10"/);
+  assert.ok(html.indexOf('data-chinese-kind') < html.indexOf('data-field="round"'));
+});
+
 test('Chinese book page mapping is split into topic and chapter half rows', () => {
   const render = runtimeFunction<(book: string, start: unknown, end: unknown) => string>('bookPageAutoField', {
     bookPageTopicText: (book: string) => book === DEEP_FIFTEEN_BOOK ? '先秦文學主流與發展' : '自我覺察與生命教育',

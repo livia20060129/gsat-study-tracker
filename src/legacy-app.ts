@@ -2512,7 +2512,7 @@ function renderChineseFields(x,reviewMode){
  if(!reviewMode)kindOptions+='<option value="writing"'+selected('writing',chineseSelection)+'>寫作</option>';
  var chineseItemField='<div class="field chinese-book-item"><label>國文項目</label><select data-chinese-kind>'+kindOptions+'</select></div>',h=chineseItemField;
  if(f.kind==='reading'){
-  h+='<div class="field compact-number" style="margin-top:10px"><label>回數</label><div class="inline"><span>第</span><input type="number" min="1" max="100" step="1" inputmode="numeric" data-field="round" value="'+esc(f.round||'')+'"><span>回</span></div></div>';
+  h='<div class="grid-2 chinese-reading-row">'+chineseItemField+'<div class="field compact-number"><label>回數</label><div class="inline"><span>第</span><input type="number" min="1" max="100" step="1" inputmode="numeric" data-field="round" value="'+esc(f.round||'')+'"><span>回</span></div></div></div>';
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
  }else if(f.kind==='book'){
   h='<div class="chinese-book-main-row">'+chineseItemField+'<div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
