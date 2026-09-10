@@ -41,9 +41,9 @@ main{max-width:1050px;margin:0 auto;padding:22px 14px 60px}h1{font-size:28px;mar
 .connection-message{margin-top:9px}.connection-note{margin-top:6px}
 .cloud-conflict-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:10px;border:1px solid #f4c7c7;border-radius:12px;background:#fff7f7;color:#9f1239;font-size:12px}
 .cloud-conflict-actions[hidden]{display:none}.cloud-conflict-actions span{flex:1 1 220px;font-weight:700}.cloud-conflict-actions button{flex:0 0 auto}
-.grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-row,.chinese-book-main-row,.chinese-book-map-row,.english-book-row,.english-book-page-row{display:grid;gap:10px}
+.grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-layout,.chinese-book-main-row,.chinese-book-map-row,.english-book-row,.english-book-page-row{display:grid;gap:10px}
 .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-4,.math-main-row,.science-main-row{grid-template-columns:repeat(4,minmax(0,1fr))}
-.field-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.chinese-writing-row{grid-template-columns:repeat(4,minmax(0,1fr))}.chinese-writing-row .cw-topic{grid-column:span 2}
+.field-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.chinese-writing-layout{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:auto auto auto}.chinese-writing-layout .cw-item{grid-column:1/span 2;grid-row:1}.chinese-writing-layout .cw-topic{grid-column:3/span 2;grid-row:1}.chinese-writing-layout .cw-score{grid-column:1;grid-row:2}.chinese-writing-layout .cw-type{grid-column:1;grid-row:3}.chinese-writing-layout .cw-improvement{grid-column:2/span 3;grid-row:2/span 2;display:flex;flex-direction:column}.chinese-writing-layout .cw-improvement textarea{flex:1;min-height:104px}
 .chinese-book-main-row{grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)}.chinese-book-map-row{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:10px}
 .english-book-row{grid-template-columns:repeat(4,minmax(0,1fr))}.english-book-row .english-book{grid-column:span 2}.english-book-page-row{grid-template-columns:2fr 1fr 1fr}
 .english-title-half{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
@@ -131,8 +131,8 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
 @media(max-width:720px){
  .item.subject-card .item.subject-card{margin-left:5px;margin-right:0}
  .app-header{align-items:flex-start;flex-direction:column;gap:10px}.header-actions{width:100%;flex-wrap:wrap}.prompt-link{flex:1 1 auto}
- .grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-row,.chinese-book-main-row,.chinese-book-map-row,.english-book-row,.english-book-page-row,.english-title-half,.english-magazine-main,.english-magazine-sub,.stats{grid-template-columns:1fr}
- .chinese-writing-row .cw-topic,.english-book-row .english-book,.english-title-half .english-book,.english-magazine-main .english-book,.english-magazine-main .english-version{grid-column:auto}
+ .grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-layout,.chinese-book-main-row,.chinese-book-map-row,.english-book-row,.english-book-page-row,.english-title-half,.english-magazine-main,.english-magazine-sub,.stats{grid-template-columns:1fr}
+ .chinese-writing-layout .cw-item,.chinese-writing-layout .cw-topic,.chinese-writing-layout .cw-score,.chinese-writing-layout .cw-type,.chinese-writing-layout .cw-improvement,.english-book-row .english-book,.english-title-half .english-book,.english-magazine-main .english-book,.english-magazine-main .english-version{grid-column:auto;grid-row:auto}
  .item-top{flex-wrap:wrap}.minutes-badge{margin-left:0}.add-grid{grid-template-columns:1fr}.grouped-work-entry>.item-top>.time-control{width:100%}
  .time-control{margin-left:0;width:100%;grid-template-columns:minmax(0,1fr) 116px}.active-timer-summary{order:1;max-width:100%}.active-timer-title{max-width:120px}
  .study-items-segments{width:min(100%,230px)}

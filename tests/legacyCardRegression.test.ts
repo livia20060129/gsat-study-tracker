@@ -18,6 +18,7 @@ import {
 } from '../src/data/bookPageMaps.ts';
 
 const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 
 // Execute the actual compatibility-runtime functions without starting auth, storage, or the app.
 function runtimeFunction<T>(name: string, dependencies: Record<string, unknown>): T {
@@ -220,7 +221,7 @@ test('Chinese page-mapped books are selected directly from 國文項目 without 
   assert.ok(html.indexOf('data-field="start"') < html.indexOf('data-field="end"'));
 });
 
-test('manually selected 古今悅讀一百 uses equal half-width item and round fields', () => {
+test('manual Chinese item fields use the requested half and quarter widths', () => {
   const render = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderChineseFields', {
     isCalendarGujin: () => false,
     isCalendarPageMappedBook: () => false,
@@ -238,10 +239,47 @@ test('manually selected 古今悅讀一百 uses equal half-width item and round 
     f: { kind: 'reading', round: '10' },
   }), false);
 
-  assert.match(html, /class="grid-2 chinese-reading-row"/);
+  assert.match(html, /class="chinese-book-main-row chinese-reading-row"/);
   assert.match(html, /<label>國文項目<\/label><select data-chinese-kind>/);
   assert.match(html, /<label>回數<\/label>.*data-field="round" value="10"/);
   assert.ok(html.indexOf('data-chinese-kind') < html.indexOf('data-field="round"'));
+  assert.match(styles, /\.chinese-book-main-row\{grid-template-columns:minmax\(0,2fr\) minmax\(0,1fr\) minmax\(0,1fr\)\}/);
+
+  const emptyHtml = render(item({
+    type: 'chineseReading',
+    source: 'custom',
+    f: { kind: '' },
+  }), false);
+  assert.match(emptyHtml, /class="chinese-book-main-row"/);
+  assert.equal((emptyHtml.match(/class="field chinese-book-item"/g) || []).length, 1);
+});
+
+test('manual Chinese writing uses the three-row half-quarter layout', () => {
+  const render = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderChineseFields', {
+    isCalendarGujin: () => false,
+    isCalendarPageMappedBook: () => false,
+    canonicalPageMappedBook,
+    DEEP_FIFTEEN_BOOK,
+    CHINESE_TOPIC_BOOK,
+    selected: (left: unknown, right: unknown) => left === right ? ' selected' : '',
+    checked: (value: unknown) => value ? ' checked' : '',
+    reasonField: () => '',
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  const html = render(item({
+    type: 'chineseReading',
+    source: 'custom',
+    f: { kind: 'writing', topic: '測試題目', score: '20', writingType: '知性題', improvement: '加強結構' },
+  }), false);
+
+  assert.match(html, /class="chinese-writing-layout"/);
+  assert.match(html, /class="cw-item">.*data-chinese-kind/);
+  assert.match(html, /class="field cw-topic">.*data-field="topic"/);
+  assert.match(html, /class="field compact-number cw-score">.*data-field="score"/);
+  assert.match(html, /class="field cw-type">.*data-field="writingType"/);
+  assert.match(html, /class="field cw-improvement">.*data-field="improvement"/);
+  assert.match(styles, /\.chinese-writing-layout \.cw-item\{grid-column:1\/span 2;grid-row:1\}/);
+  assert.match(styles, /\.chinese-writing-layout \.cw-improvement\{grid-column:2\/span 3;grid-row:2\/span 2/);
 });
 
 test('Chinese book page mapping is split into topic and chapter half rows', () => {
