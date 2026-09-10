@@ -603,6 +603,8 @@ var cloudActivationSerial=0;
 var cloudPullAllPromise=null;
 var cloudManualSyncPending=false;
 var cloudConflictDate='';
+var periodicCloudSaveBusy=false;
+var PERIODIC_CLOUD_SAVE_MS=10*60*1000;
 
 var calendarConnected=false;
 var calendarCacheLoaded=false;
@@ -3458,6 +3460,31 @@ function addEnglishReview(){
  render();
  persist(false);
 }
+function periodicCloudSave(){
+ if(periodicCloudSaveBusy||!data)return Promise.resolve(false);
+ var savingDate=data.date;
+ if(!persist(false))return Promise.resolve(false);
+ if(!cloudUser||!cloudClient||!currentStorageIsUserScoped()||cloudLoading||cloudBootstrapPending)return Promise.resolve(false);
+ var record=readStoredRecord(savingDate);
+ if(!record||record.syncConflict)return Promise.resolve(false);
+ periodicCloudSaveBusy=true;
+ if(record.localDirty)queueCloudSave(record,true);
+ return cloudSaveQueue.flush(savingDate).then(function(){
+  var saved=readStoredRecord(savingDate);
+  return !!saved&&!saved.localDirty&&!saved.syncConflict;
+ }).catch(function(){return false}).finally(function(){periodicCloudSaveBusy=false});
+}
+function switchStudyDate(nextDate){
+ var selector=id('studyDate'),currentDate=data&&data.date;
+ if(!currentDate){selector.value=nextDate;load();return true}
+ if(!nextDate||nextDate===currentDate){selector.value=currentDate;return true}
+ selector.value=currentDate;setSaveButtonState('saving');id('status').textContent='正在儲存 '+currentDate+' 的進度…';
+ if(!persist(false)){
+  id('status').textContent='無法儲存 '+currentDate+'；已取消日期切換，請先修正欄位或確認瀏覽器儲存空間。';setSaveButtonState('error');return false
+ }
+ selector.value=nextDate;load();
+ id('status').textContent='已儲存 '+currentDate+'，並切換至 '+nextDate+(cloudUser?'；雲端將在背景同步。':'。');setSaveButtonState('success');return true
+}
 function headerInput(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
 id('studyItemsViewTabs').addEventListener('click',function(e){var button=e.target.closest('[data-study-items-view]');if(!button)return;studyItemsView=button.getAttribute('data-study-items-view');updateStudyItemsView(false)});
@@ -3469,7 +3496,7 @@ id('weeklyItemList').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('change',handleWeeklyChange);
 id('englishReviewList').addEventListener('input',handleInput);id('englishReviewList').addEventListener('change',handleChange);id('englishReviewList').addEventListener('click',handleClick);
 id('itemList').addEventListener('input',handleInput);id('itemList').addEventListener('change',handleChange);id('itemList').addEventListener('click',handleClick);
-id('studyDate').addEventListener('change',function(){if(data)persist(false);load()});
+id('studyDate').addEventListener('change',function(e){switchStudyDate(e.target.value)});
 id('mood').addEventListener('change',function(){readHeader();render();persist(false)});
 ['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow','notes'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerInput)});
 id('addItemBtn').addEventListener('click',addCustom);
@@ -3523,3 +3550,4 @@ id('calendarConnectBtn').addEventListener('click',calendarConnect);
 id('calendarSyncBtn').addEventListener('click',calendarSyncNow);
 id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);
 id('studyDate').value=dateString(new Date());updateImportBackupButton();initCloud();
+setInterval(periodicCloudSave,PERIODIC_CLOUD_SAVE_MS);

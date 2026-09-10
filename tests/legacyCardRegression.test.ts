@@ -120,6 +120,83 @@ test('runtime grouped original and Calendar makeup children defer independently'
   assert.equal(metrics([parent]).workloadTotal, 0);
 });
 
+test('date switching saves the current date before loading the requested date', () => {
+  const sequence: string[] = [];
+  const nodes = {
+    studyDate: { value: '2026-09-11' },
+    status: { textContent: '' },
+  };
+  const switchDate = runtimeFunction<(nextDate: string) => boolean>('switchStudyDate', {
+    data: { date: '2026-09-10' },
+    cloudUser: { id: 'user-1' },
+    id: (name: keyof typeof nodes) => nodes[name],
+    persist: () => { sequence.push(`save:${nodes.studyDate.value}`); return true; },
+    load: () => { sequence.push(`load:${nodes.studyDate.value}`); },
+    setSaveButtonState: (state: string) => { sequence.push(`state:${state}`); },
+  });
+
+  assert.equal(switchDate('2026-09-11'), true);
+  assert.deepEqual(sequence, [
+    'state:saving',
+    'save:2026-09-10',
+    'load:2026-09-11',
+    'state:success',
+  ]);
+  assert.equal(nodes.studyDate.value, '2026-09-11');
+  assert.match(nodes.status.textContent, /已儲存 2026-09-10.*切換至 2026-09-11.*背景同步/);
+});
+
+test('date switching stays on the current date when saving fails', () => {
+  let loadCount = 0;
+  const nodes = {
+    studyDate: { value: '2026-09-11' },
+    status: { textContent: '' },
+  };
+  const states: string[] = [];
+  const switchDate = runtimeFunction<(nextDate: string) => boolean>('switchStudyDate', {
+    data: { date: '2026-09-10' },
+    cloudUser: null,
+    id: (name: keyof typeof nodes) => nodes[name],
+    persist: () => false,
+    load: () => { loadCount += 1; },
+    setSaveButtonState: (state: string) => { states.push(state); },
+  });
+
+  assert.equal(switchDate('2026-09-11'), false);
+  assert.equal(nodes.studyDate.value, '2026-09-10');
+  assert.equal(loadCount, 0);
+  assert.deepEqual(states, ['saving', 'error']);
+  assert.match(nodes.status.textContent, /已取消日期切換/);
+});
+
+test('ten-minute cloud save uploads the current record without interrupting its timer', async () => {
+  const timeTracking = { mode: 'timer', accumulatedSeconds: 42, startedAt: 1_788_000_000_000 };
+  const currentRecord = { date: '2026-09-10', localDirty: true, syncConflict: false, items: [{ f: { timeTracking } }] };
+  const calls: string[] = [];
+  const savePeriodically = runtimeFunction<() => Promise<boolean>>('periodicCloudSave', {
+    periodicCloudSaveBusy: false,
+    data: currentRecord,
+    cloudUser: { id: 'user-1' },
+    cloudClient: {},
+    cloudLoading: false,
+    cloudBootstrapPending: false,
+    currentStorageIsUserScoped: () => true,
+    persist: () => { calls.push('persist'); return true; },
+    readStoredRecord: () => currentRecord,
+    queueCloudSave: () => { calls.push('queue'); },
+    cloudSaveQueue: { flush: async (date: string) => { calls.push(`flush:${date}`); currentRecord.localDirty = false; } },
+  });
+
+  assert.equal(await savePeriodically(), true);
+  assert.deepEqual(calls, ['persist', 'queue', 'flush:2026-09-10']);
+  assert.deepEqual(timeTracking, { mode: 'timer', accumulatedSeconds: 42, startedAt: 1_788_000_000_000 });
+});
+
+test('periodic cloud save interval is exactly ten minutes', () => {
+  assert.match(runtime, /PERIODIC_CLOUD_SAVE_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/);
+  assert.match(runtime, /setInterval\(periodicCloudSave,PERIODIC_CLOUD_SAVE_MS\)/);
+});
+
 const renderingDependencies = {
   renderItemDeleteFooter,
   esc: (value: unknown) => String(value ?? ''),
