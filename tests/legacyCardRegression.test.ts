@@ -192,6 +192,25 @@ test('the recorded minute field accepts one-decimal timer values', () => {
   assert.match(html, /value="1\.5"/);
 });
 
+test('mixed writing places both quarter-width scores beside one spanning priority field', () => {
+  const render = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderItemFields', {
+    isGroupedWork: () => false,
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  const html = render(item({
+    type: 'englishMixedWriting',
+    f: { essayScore: '12', mixedScore: '8', priorityFix: '時態與轉折詞' },
+  }), false);
+
+  assert.match(html, /class="english-mixed-writing-layout"/);
+  assert.match(html, /class="field compact-number emw-essay">.*data-field="essayScore"/);
+  assert.match(html, /class="field compact-number emw-mixed">.*data-field="mixedScore"/);
+  assert.match(html, /class="field emw-priority">.*<textarea rows="5" data-field="priorityFix">時態與轉折詞<\/textarea>/);
+  assert.match(styles, /\.english-mixed-writing-layout \.emw-essay\{grid-column:1;grid-row:1\}/);
+  assert.match(styles, /\.english-mixed-writing-layout \.emw-mixed\{grid-column:1;grid-row:2\}/);
+  assert.match(styles, /\.english-mixed-writing-layout \.emw-priority\{grid-column:2\/span 3;grid-row:1\/span 2/);
+});
+
 test('Chinese page-mapped books are selected directly from 國文項目 without another book selector', () => {
   const render = runtimeFunction<(x: StudyItem, reviewMode: boolean) => string>('renderChineseFields', {
     isCalendarGujin: () => false,
