@@ -1,48 +1,48 @@
 # 最新更新
 
-版本：v171.1.1
+版本：v171.1.2
 
-## 本次新增
+## 本次修正
 
-- 英文書目新增「Azar英文文法系列（中階）」。
-- 建立照片目錄所列第 1～14 章、149 個分項的完整頁碼對照。
-- Google Calendar 可用 `GAST-AZAR-2026-XXX` 識別碼辨識本書。
-- Calendar 提供頁碼後，Tracker 會以章節建立大卡片，並把涵蓋的分項列為可分別勾選、計時及延期的子項目。
-- 例如 `p.31–39` 會顯示「第二章：過去式」，並建立 `2-1`、`2-2`、`2-3` 三個分項。
-- 相同起始頁的分項不會被合併，例如 `p.85` 仍會分開顯示 `3-9` 與 `3-10`。
-- 教材進度圖新增本書，依各分項的實際紀錄分別填色。
-- 自行新增英文項目時也可選擇本書並查看頁碼對應結果。
+- 正式顯示名稱改為「Azar英文文法（中階）」。
+- 同時相容 Calendar 既有的「Azar英文文法系列（中階）」名稱。
+- 修正未辨識名稱時退回一般 Calendar 項目、整段只顯示一列的問題。
+- Calendar 頁碼涵蓋幾個分項，Tracker 就建立幾個可獨立完成的項目，不再包在章節大卡內。
+- 每列標題統一為：`Azar英文文法（中階）｜Ch.x 章名｜分項編號＋分項名稱`。
+- `p.18–29` 會分別顯示：
+  - `Azar英文文法（中階）｜Ch.1 現在式｜1-6通常不用於進行式的動詞`
+  - `Azar英文文法（中階）｜Ch.1 現在式｜1-7現在式動詞：Yes/No問句之簡答`
+- 每列仍可分別勾選、計時、填入時間與延期。
+- 從 v171.1.1 的章節大卡升級時，會依分項編號承接已完成、時間與延期狀態。
 
 ## Calendar 備註格式
 
 ```text
-【頁碼範圍】p.31–39
+【頁碼範圍】p.18–29
 【識別碼】GAST-AZAR-2026-001
 ```
 
-Calendar 標題建議直接使用 `Azar英文文法系列（中階）`；只要識別碼符合上述格式，也能正確辨識。
+Calendar 標題建議使用 `Azar英文文法（中階）｜W1｜Ch.1 現在式`；`W1` 不會出現在 Tracker 產生的分項標題中。
 
 ## 更新檔案
 
 - `src/data/azarGrammar.ts`
-- `src/calendar/calendarBridge.ts`
 - `src/legacy-app.ts`
-- `src/study/materialProgress.ts`
-- `public/gpt.prompt.html`
 - `tests/azarGrammar.test.ts`
 - `tests/materialProgress.test.ts`
+- `public/gpt.prompt.html`
 - `package.json`
 - `package-lock.json`
 - `LATEST_UPDATE.md`
 
-更新資料夾：`gsat-study-tracker-v171.1.1-azar-grammar-update`
+更新資料夾：`gsat-study-tracker-v171.1.2-azar-section-rows-update`
 
 ## 驗證
 
-- 259／259 項測試通過。
+- 260／260 項測試通過。
 - TypeScript 檢查通過。
 - 正式 Vite 建置通過。
 
 ## Commit 建議
 
-`feat(english): add Azar grammar page mapping and section tracking`
+`fix(english): render Azar Calendar ranges as separate section rows`

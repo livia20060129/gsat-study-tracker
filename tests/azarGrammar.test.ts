@@ -69,7 +69,25 @@ test('Calendar parser gives Azar its own kind before the generic grammar parser'
   assert.deepEqual(parsed.chapters[0].sections.map(section => section.code), ['2-1', '2-2', '2-3', '2-4', '2-5']);
 });
 
-test('identifier alone still selects Azar and builds one chapter card with separate child items', () => {
+test('recognizes the deployed title without 系列 and maps p.18–29 to the two expected rows', () => {
+  const parsed = parseCalendarTask(row(
+    'Azar英文文法（中階）｜W1｜Ch.1 現在式',
+    '【頁碼範圍】p.18–29\n【識別碼】GAST-AZAR-2026-003',
+  ));
+  assert.equal(parsed.kind, 'azarGrammar');
+  if (parsed.kind !== 'azarGrammar') throw new Error('Expected Azar grammar');
+  assert.deepEqual(parsed.chapters[0].sections.map(section => section.code), ['1-6', '1-7']);
+  assert.deepEqual(
+    parsed.chapters[0].sections.map(section =>
+      `${AZAR_GRAMMAR_BOOK_TITLE}｜Ch.${section.chapter} ${section.chapterTitle}｜${section.code}${section.title}`),
+    [
+      'Azar英文文法（中階）｜Ch.1 現在式｜1-6通常不用於進行式的動詞',
+      'Azar英文文法（中階）｜Ch.1 現在式｜1-7現在式動詞：Yes/No問句之簡答',
+    ],
+  );
+});
+
+test('identifier alone still selects Azar and builds a separate Tracker row for every section', () => {
   const parsed = parseCalendarTask(row(
     '英文文法｜本日進度',
     '【頁碼範圍】31–39\n【識別碼】GAST-AZAR-2026-002',
@@ -82,7 +100,7 @@ test('identifier alone still selects Azar and builds one chapter card with separ
     AZAR_GRAMMAR_BOOK_TITLE,
     calendarParsedByDate: { '2026-09-11': [parsed] },
   });
-  for (const name of ['calendarEventToken', 'calendarIdentifierToken', 'calendarAzarSectionItem', 'presetDef', 'cloudCalendarDefsForDate']) {
+  for (const name of ['calendarEventToken', 'calendarIdentifierToken', 'calendarAzarSectionDef', 'presetDef', 'cloudCalendarDefsForDate']) {
     const start = runtime.indexOf(`function ${name}(`);
     const relativeEnd = runtime.slice(start + 1).search(/\n(?:async )?function /);
     assert.ok(start >= 0 && relativeEnd >= 0, name);
@@ -90,15 +108,14 @@ test('identifier alone still selects Azar and builds one chapter card with separ
   }
 
   const definitions = context.cloudCalendarDefsForDate('2026-09-11');
-  assert.equal(definitions.length, 1);
-  assert.equal(definitions[0].title, '第二章：過去式');
+  assert.equal(definitions.length, 3);
   assert.deepEqual(
-    definitions[0].f.groupedWorkEntries.map((entry: { f: { azarSectionCode: string; azarSectionTitle: string } }) =>
-      `${entry.f.azarSectionCode}${entry.f.azarSectionTitle}`),
+    Array.from(definitions, (definition: { title: string }) => String(definition.title)),
     [
-      '2-1過去簡單式：規則變化動詞',
-      '2-2表達過去的時間：過去簡單式、不規則變化動詞',
-      '2-3常見的不規則變化動詞：參考表',
+      'Azar英文文法（中階）｜Ch.2 過去式｜2-1過去簡單式：規則變化動詞',
+      'Azar英文文法（中階）｜Ch.2 過去式｜2-2表達過去的時間：過去簡單式、不規則變化動詞',
+      'Azar英文文法（中階）｜Ch.2 過去式｜2-3常見的不規則變化動詞：參考表',
     ],
   );
+  assert.ok(definitions.every((definition: { f: { groupedWorkEntries?: unknown } }) => !definition.f.groupedWorkEntries));
 });

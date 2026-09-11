@@ -1,4 +1,8 @@
-export const AZAR_GRAMMAR_BOOK_TITLE = 'Azar英文文法系列（中階）';
+export const AZAR_GRAMMAR_BOOK_TITLE = 'Azar英文文法（中階）';
+export const AZAR_GRAMMAR_BOOK_ALIASES = [
+  AZAR_GRAMMAR_BOOK_TITLE,
+  'Azar英文文法系列（中階）',
+] as const;
 export const AZAR_GRAMMAR_IDENTIFIER_PREFIX = 'GAST-AZAR-2026-';
 
 export interface AzarGrammarSection {
@@ -42,7 +46,7 @@ const CHAPTER_SOURCES: ChapterSource[] = [
       ['1-4', 11, '現在簡單式動詞的拼寫：字尾 -s/-es'],
       ['1-5', 14, '頻率副詞'],
       ['1-6', 18, '通常不用於進行式的動詞'],
-      ['1-7', 21, '現在式動詞：Yes/No 問句之簡答'],
+      ['1-7', 21, '現在式動詞：Yes/No問句之簡答'],
     ],
   },
   {
@@ -285,7 +289,7 @@ export const AZAR_GRAMMAR_CHAPTERS: AzarGrammarChapter[] = CHAPTER_SOURCES.map(b
 export const AZAR_GRAMMAR_SECTIONS: AzarGrammarSection[] = AZAR_GRAMMAR_CHAPTERS.flatMap(chapter => chapter.sections);
 
 export function isAzarGrammarBookTitle(value: unknown): boolean {
-  return /Azar\s*英文文法系列\s*[（(]?中階[）)]?/i.test(String(value ?? ''));
+  return /Azar\s*英文文法(?:系列)?\s*[（(]?中階[）)]?/i.test(String(value ?? ''));
 }
 
 export function isAzarGrammarIdentifier(value: unknown): boolean {
