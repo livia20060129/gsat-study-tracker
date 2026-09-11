@@ -1,33 +1,48 @@
 # 最新更新
 
-版本：v171.0.95
+版本：v171.1.1
 
-## 本次修正
+## 本次新增
 
-- 使用者切換日期時，先儲存目前日期的完整進度，再載入所選日期。
-- 儲存失敗時取消日期切換，日期選擇器恢復原日期並顯示明確提示。
-- 本機儲存成功後即可切換；登入時的雲端儲存沿用背景同步，不受網路速度影響。
-- 加入成功與失敗流程的回歸測試，避免日後再次略過儲存結果。
-- 登入期間每 10 分鐘自動保存目前日期，並立即處理待上傳的雲端資料。
-- 定期上傳不會呼叫暫停或完成計時；運行中的計時器會保持原開始時間繼續累計。
+- 英文書目新增「Azar英文文法系列（中階）」。
+- 建立照片目錄所列第 1～14 章、149 個分項的完整頁碼對照。
+- Google Calendar 可用 `GAST-AZAR-2026-XXX` 識別碼辨識本書。
+- Calendar 提供頁碼後，Tracker 會以章節建立大卡片，並把涵蓋的分項列為可分別勾選、計時及延期的子項目。
+- 例如 `p.31–39` 會顯示「第二章：過去式」，並建立 `2-1`、`2-2`、`2-3` 三個分項。
+- 相同起始頁的分項不會被合併，例如 `p.85` 仍會分開顯示 `3-9` 與 `3-10`。
+- 教材進度圖新增本書，依各分項的實際紀錄分別填色。
+- 自行新增英文項目時也可選擇本書並查看頁碼對應結果。
+
+## Calendar 備註格式
+
+```text
+【頁碼範圍】p.31–39
+【識別碼】GAST-AZAR-2026-001
+```
+
+Calendar 標題建議直接使用 `Azar英文文法系列（中階）`；只要識別碼符合上述格式，也能正確辨識。
 
 ## 更新檔案
 
+- `src/data/azarGrammar.ts`
+- `src/calendar/calendarBridge.ts`
 - `src/legacy-app.ts`
-- `tests/legacyCardRegression.test.ts`
+- `src/study/materialProgress.ts`
+- `public/gpt.prompt.html`
+- `tests/azarGrammar.test.ts`
+- `tests/materialProgress.test.ts`
 - `package.json`
 - `package-lock.json`
-- `README.md`
 - `LATEST_UPDATE.md`
 
-更新資料夾：`gsat-study-tracker-v171.0.95-save-before-date-switch-update`
+更新資料夾：`gsat-study-tracker-v171.1.1-azar-grammar-update`
 
 ## 驗證
 
-- 243／243 項測試通過。
+- 259／259 項測試通過。
 - TypeScript 檢查通過。
 - 正式 Vite 建置通過。
 
 ## Commit 建議
 
-`feat(sync): save before date switch and upload every ten minutes`
+`feat(english): add Azar grammar page mapping and section tracking`

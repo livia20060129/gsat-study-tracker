@@ -1,5 +1,12 @@
 import { isListeningTestBookTitle, listeningTestNumbers } from '../data/englishBooks.ts';
 import {
+  AZAR_GRAMMAR_BOOK_TITLE,
+  azarGrammarChaptersForPages,
+  isAzarGrammarBookTitle,
+  isAzarGrammarIdentifier,
+  type AzarGrammarChapter,
+} from '../data/azarGrammar.ts';
+import {
   bookDetailsForTopic,
   bookTopics,
   canonicalPageMappedBook,
@@ -72,6 +79,13 @@ export type ParsedCalendarTask =
       book: PageMappedBook;
       topic: string;
       rounds: string[];
+    })
+  | (ParsedBase & {
+      kind: 'azarGrammar';
+      book: typeof AZAR_GRAMMAR_BOOK_TITLE;
+      startPage: number | null;
+      endPage: number | null;
+      chapters: AzarGrammarChapter[];
     })
   | (ParsedBase & { kind: 'grammar'; startPage: number | null; endPage: number | null; focus: string })
   | (ParsedBase & { kind: 'essentialGrammar'; units: number[] })
@@ -463,6 +477,22 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
 
   if (row.category === 'gujin' || /^(?:國文\s*[｜:：]\s*)?古今悅讀一百(?:\s*[｜:：]\s*|\s+)第/.test(title)) {
     return { ...base, title: withoutOriginalDate(title), kind: 'gujin', rounds: roundsFromTitle(title) };
+  }
+
+  const azarSource = `${title}\n${note.material}\n${note.book}`;
+  if (isAzarGrammarBookTitle(azarSource) || isAzarGrammarIdentifier(note.identifier)) {
+    const [startPage, endPage] = note.hasStandardFields
+      ? structuredPageRange(note.pageRange)
+      : pageRange(`${title}\n${description}`);
+    return {
+      ...base,
+      title: withoutOriginalDate(title),
+      kind: 'azarGrammar',
+      book: AZAR_GRAMMAR_BOOK_TITLE,
+      startPage,
+      endPage,
+      chapters: azarGrammarChaptersForPages(startPage, endPage),
+    };
   }
 
   const pageMappedBook = calendarPageMappedBook(`${title}\n${note.material}\n${note.book}\n${description}`);
