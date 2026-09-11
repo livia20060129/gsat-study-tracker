@@ -13,7 +13,7 @@
     <header class="progress-page-header">
       <div>
         <h1>教材進度圖</h1>
-        <p>依 Tracker 已儲存的學習紀錄，查看各教材已寫過的範圍。</p>
+        <p>依 Tracker 已儲存的學習紀錄，按實際完成比例查看各教材進度。</p>
       </div>
       <a class="back-link" href="./index.html">回到 Tracker</a>
     </header>
@@ -37,13 +37,13 @@
         </div>
 
         <div class="progress-legend" aria-label="圖例">
-          <span><i class="legend-recorded" aria-hidden="true"></i>已有紀錄</span>
-          <span><i class="legend-empty" aria-hidden="true"></i>尚無紀錄</span>
+          <span><i class="legend-recorded" aria-hidden="true"></i>已完成比例</span>
+          <span><i class="legend-empty" aria-hidden="true"></i>尚未完成</span>
           <strong id="subjectSummary"></strong>
         </div>
 
         <div id="materialProgressList" class="material-progress-list" role="tabpanel"></div>
-        <p class="progress-note">勾選完成、填入時間，或勾選「進度／批改／訂正／再複習」後，對應範圍才會視為已有紀錄。滑鼠移到色塊上可查看單元。</p>
+        <p class="progress-note">勾選完成、填入時間，或勾選「進度／批改／訂正／再複習」後，才會計入教材進度。頁碼型教材依實際已完成頁數填色；回次、Unit 與分項則依已完成項目填色。滑鼠移到色塊上可查看完成百分比。</p>
         <p id="progressError" class="progress-error" role="alert" hidden></p>
       </div>
     </section>

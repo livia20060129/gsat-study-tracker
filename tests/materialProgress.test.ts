@@ -45,6 +45,25 @@ test('reads a recorded math range from a grouped child without filling untouched
   assert.ok(math);
   assert.equal(math.recorded, 1);
   assert.match(math.segments.find(segment => segment.recorded)?.label ?? '', /多項式及其運算/);
+  assert.equal(math.segments.find(segment => segment.recorded)?.completionPercent, 71);
+});
+
+test('fills a page-based segment only by its actual covered percentage and deduplicates overlap', () => {
+  const first = item({
+    id: 'biology-first', type: 'scienceReview', done: true,
+    f: { subject: '生物', material: '123日的淬鍊', start: '16', end: '18' },
+  });
+  const overlapping = item({
+    id: 'biology-overlap', type: 'scienceReview', done: true,
+    f: { subject: '生物', material: '123日的淬鍊', start: '18', end: '20' },
+  });
+  const biology = materialProgressRows([record([first, overlapping])])
+    .find(row => row.id === 'natural:生物:123日的淬鍊');
+  assert.ok(biology);
+  const chapter = biology.segments[0];
+  assert.equal(chapter.recorded, true);
+  assert.equal(chapter.completionPercent, 9);
+  assert.equal(biology.completionPercent, 3);
 });
 
 test('does not let a grouped parent fill the interrupted range between its source children', () => {

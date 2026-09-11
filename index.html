@@ -91,7 +91,9 @@
      <button type="button" role="tab" aria-selected="false" aria-controls="metricMathTodayPanel" data-overview-metric="mathToday" tabindex="-1">今日數學頁數</button>
      <button type="button" role="tab" aria-selected="false" aria-controls="metricMathWeekPanel" data-overview-metric="mathWeek" tabindex="-1">本週數學頁數</button>
     </div>
-    <div class="metric-panel" id="metricMinutesPanel" role="tabpanel" data-metric-panel="minutes"><strong><span id="doneMinutes">0</span> 分</strong></div>
+    <div class="metric-panel metric-minutes-panel" id="metricMinutesPanel" role="tabpanel" data-metric-panel="minutes">
+     <div class="subject-time-donut" id="subjectTimeDonut" aria-live="polite"><div class="subject-time-chart is-empty"><div class="subject-time-center"><strong><span id="doneMinutes" data-subject-time-value>0</span></strong><span data-subject-time-caption>分鐘</span></div></div><div class="subject-time-empty">完成項目並填入時間後，這裡會顯示各科時間佔比。</div></div>
+    </div>
     <div class="metric-panel" id="metricMathTodayPanel" role="tabpanel" data-metric-panel="mathToday" hidden><strong><span id="mathPagesTop">0</span> 頁</strong></div>
     <div class="metric-panel" id="metricMathWeekPanel" role="tabpanel" data-metric-panel="mathWeek" hidden><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span></div></div>
    </div>

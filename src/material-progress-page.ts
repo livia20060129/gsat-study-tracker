@@ -40,7 +40,7 @@ function renderRow(row: MaterialProgressRow): HTMLElement {
   const title = document.createElement('h3');
   title.textContent = row.title;
   const count = document.createElement('strong');
-  count.textContent = `${row.recorded}／${row.total} ${row.unitLabel}`;
+  count.textContent = `完成 ${row.completionPercent}%｜${row.recorded}／${row.total} ${row.unitLabel}已有紀錄`;
   header.append(title, count);
 
   const scroll = document.createElement('div');
@@ -49,14 +49,16 @@ function renderRow(row: MaterialProgressRow): HTMLElement {
   bar.className = 'material-bar';
   bar.style.setProperty('--segment-count', String(row.total));
   bar.setAttribute('role', 'img');
-  bar.setAttribute('aria-label', `${row.title}：${row.recorded}／${row.total} ${row.unitLabel}已有紀錄`);
+  bar.setAttribute('aria-label', `${row.title}：完成 ${row.completionPercent}%，${row.recorded}／${row.total} ${row.unitLabel}已有紀錄`);
 
   row.segments.forEach((segment, index) => {
     const block = document.createElement('span');
     block.className = `material-segment ${segment.recorded ? `is-recorded tone-${segment.tone}` : 'is-empty'}`;
-    block.title = `${segment.label}：${segment.recorded ? '已有紀錄' : '尚無紀錄'}`;
+    block.title = `${segment.label}：完成 ${segment.completionPercent}%`;
     block.setAttribute('aria-hidden', 'true');
     block.style.setProperty('--segment-number', String(index + 1));
+    block.style.setProperty('--segment-progress', `${segment.completionPercent}%`);
+    block.style.setProperty('--segment-weight', String(segment.completionWeight));
     bar.append(block);
   });
 
@@ -76,9 +78,19 @@ function render(): void {
   });
 
   const subjectRows = rows.filter(row => row.subject === activeSubject);
-  const recorded = subjectRows.reduce((sum, row) => sum + row.recorded, 0);
-  const total = subjectRows.reduce((sum, row) => sum + row.total, 0);
-  element<HTMLElement>('subjectSummary').textContent = `${SUBJECT_LABELS[activeSubject]}合計 ${recorded}／${total} 項`;
+  const completedWeight = subjectRows.reduce(
+    (sum, row) => sum + row.segments.reduce(
+      (rowSum, segment) => rowSum + segment.completionWeight * segment.completionPercent / 100,
+      0,
+    ),
+    0,
+  );
+  const totalWeight = subjectRows.reduce(
+    (sum, row) => sum + row.segments.reduce((rowSum, segment) => rowSum + segment.completionWeight, 0),
+    0,
+  );
+  const completionPercent = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
+  element<HTMLElement>('subjectSummary').textContent = `${SUBJECT_LABELS[activeSubject]}合計完成 ${completionPercent}%`;
 
   const list = element<HTMLDivElement>('materialProgressList');
   list.replaceChildren(...subjectRows.map(renderRow));

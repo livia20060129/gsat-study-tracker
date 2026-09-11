@@ -11,7 +11,7 @@
  */
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
-import { decideRevisionSync, sameStudyContent } from './storage/recordSync';
+import { decideRevisionSync, mergeStudyRecordsForUpload, sameStudyContent } from './storage/recordSync';
 import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate } from './calendar/calendarBridge';
@@ -25,7 +25,8 @@ import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDe
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
-import { groupStudyItemsBySubject, studyItemSubjectClass } from './study/subjectOrder';
+import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } from './study/subjectOrder';
+import { SUBJECT_TIME_SHORT_LABELS, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer } from './study/studyTimer';
@@ -600,10 +601,9 @@ var cloudLoading=false;
 var cloudBootstrapPending=false;
 var cloudSaveQueue=new LatestTaskQueue(450,async function(date,record){
  await withCloudDateLock(date,async function(){
-  // localStorage is shared by tabs. Read it after obtaining the lock so a
-  // waiting tab does not upload an enqueue-time snapshot with an old revision.
-  var latest=readStoredRecord(date)||record;
-  if(latest.syncConflict)return false;
+  // localStorage is shared by tabs. Merge the enqueue-time copy with the copy
+  // written by another tab so neither tab's recorded items can disappear.
+  var latest=mergeStudyRecordsForUpload(record,readStoredRecord(date));
   return cloudSaveRecord(latest);
  });
 });
@@ -718,14 +718,20 @@ function updateCurrentRecordSyncMeta(date,serverRec){
 }
 async function cloudSaveRecord(rec,forcedBaseRevision){
  if(!cloudRecordRepository||!cloudUser||!rec||!currentStorageIsUserScoped())return false;
- if(rec.syncConflict&&forcedBaseRevision===undefined){
-  cloudSetMessage(rec.date+' 有同步衝突；自動上傳已停止，避免覆蓋其他裝置資料。',false);
-  return false;
- }
  try{
-  var snapshot=cloneRecord(rec);
-  var baseRevision=forcedBaseRevision===undefined?Number(snapshot.serverRevision||0):Number(forcedBaseRevision||0);
-  var result=await cloudRecordRepository.save(snapshot,baseRevision);
+  var snapshot=null,result=null;
+  for(var attempt=0;attempt<2;attempt++){
+   var stored=readStoredRecord(rec.date),pending=mergeStudyRecordsForUpload(rec,stored);
+   var cloudSnapshot=await cloudRecordRepository.loadDate(rec.date),cloudRecord=cloudSnapshot?cloudSnapshot.record:null;
+   snapshot=mergeStudyRecordsForUpload(pending,cloudRecord);
+   var baseRevision=cloudSnapshot?Number(cloudSnapshot.revision||0):0;
+   snapshot.serverRevision=baseRevision;snapshot.serverUpdatedAt=cloudSnapshot?cloudSnapshot.updatedAt:'';
+   snapshot.localDirty=true;snapshot.syncConflict=false;
+   writeStoredRecord(snapshot);
+   result=await cloudRecordRepository.save(snapshot,baseRevision);
+   if(result.applied)break;
+  }
+  if(!snapshot||!result)throw new Error('雲端儲存流程未完成。');
   var current=readStoredRecord(snapshot.date)||snapshot;
   if(!result.applied){
    current.syncConflict=true;
@@ -746,6 +752,7 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
   if(current&&!sameStudyContent(current,snapshot)){
    // User edited again while the earlier save request was in flight. Preserve
    // the newer local content, advance its base revision, then queue one more save.
+   current=mergeStudyRecordsForUpload(current,saved);
    current.serverRevision=saved.serverRevision;
    current.serverUpdatedAt=saved.serverUpdatedAt;
    current.localDirty=true;
@@ -760,7 +767,7 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
    updateCurrentRecordSyncMeta(saved.date,saved);
   }
   if(cloudConflictDate===saved.date)updateCloudConflictUI('');
-  cloudSetMessage('已同步 '+snapshot.date+' 到雲端（revision '+saved.serverRevision+'）。',true);
+  cloudSetMessage('已交叉比對並同步 '+snapshot.date+' 到雲端（revision '+saved.serverRevision+'）。',true);
   return true;
  }catch(e){
   cloudSetMessage('雲端同步失敗：'+(e&&e.message?e.message:String(e)),false);return false
@@ -882,10 +889,9 @@ async function cloudForceLocalRecord(rec){
  await cloudSaveQueue.flush(rec.date);
  return withCloudDateLock(rec.date,async function(){
   var latest=readStoredRecord(rec.date)||rec;
-  var base=await cloudRecordRepository.loadRevision(rec.date);
-  latest.serverRevision=base;latest.localDirty=true;latest.syncConflict=false;
+  latest.localDirty=true;latest.syncConflict=false;
   writeStoredRecord(latest);
-  return cloudSaveRecord(latest,base);
+  return cloudSaveRecord(latest);
  });
 }
 async function cloudMergeLocalMissing(){
@@ -3189,30 +3195,68 @@ function updateSettlementMetrics(date){
  comparison.hidden=false;
 }
 
+function renderSubjectTimeDonut(summary){
+ var chart=id('subjectTimeDonut');
+ if(!chart)return;
+ var center='<div class="subject-time-center"><strong><span id="doneMinutes" data-subject-time-value>'+summary.totalMinutes+'</span></strong><span data-subject-time-caption>分鐘</span></div>';
+ if(!summary.slices.length){
+  chart.innerHTML='<div class="subject-time-chart is-empty" role="img" aria-label="今日完成時間 0 分鐘">'+center+'</div><div class="subject-time-empty">完成項目並填入時間後，這裡會顯示各科時間佔比。</div>';
+  return;
+ }
+ var aria=summary.slices.map(function(slice){return slice.subject+' '+slice.minutes+' 分鐘，占 '+slice.percent+'%'}).join('；');
+ var circumference=2*Math.PI*56,arcs=subjectTimeDonutSlices(summary),circles='',labels='';
+ arcs.forEach(function(slice,index){
+  var dashLength=Math.max(0,Math.min(circumference,slice.dashLength)),fontSize=(slice.endPercent-slice.startPercent)<6?10.5:13;
+  circles+='<circle class="subject-time-slice" data-subject-time-index="'+index+'" cx="80" cy="80" r="56" fill="none" stroke="'+slice.color+'" stroke-width="30" stroke-dasharray="'+dashLength+' '+Math.max(0,circumference-dashLength)+'" stroke-dashoffset="'+slice.dashOffset+'" transform="rotate(-90 80 80)" tabindex="0" role="button" aria-label="'+esc(slice.subject)+' '+slice.minutes+' 分鐘，占 '+slice.percent+'%"></circle>';
+  labels+='<text class="subject-time-ring-label" x="'+slice.labelX+'" y="'+slice.labelY+'" font-size="'+fontSize+'">'+SUBJECT_TIME_SHORT_LABELS[slice.subject]+'</text>';
+ });
+ var svg='<svg class="subject-time-ring" viewBox="0 0 160 160"><circle class="subject-time-track" cx="80" cy="80" r="56" fill="none" stroke-width="30"></circle>'+circles+labels+'</svg>';
+ chart.innerHTML='<div class="subject-time-chart" role="group" aria-label="今日各科完成時間佔比：'+esc(aria)+'">'+svg+center+'</div>';
+ var value=chart.querySelector('[data-subject-time-value]'),caption=chart.querySelector('[data-subject-time-caption]'),nodes=Array.from(chart.querySelectorAll('[data-subject-time-index]'));
+ function showSubject(index){
+  var slice=summary.slices[index];if(!slice)return;
+  value.textContent=slice.percent+'%';caption.textContent=slice.subject+'｜'+slice.minutes+' 分';
+  nodes.forEach(function(node,nodeIndex){node.classList.toggle('is-active',nodeIndex===index);node.classList.toggle('is-muted',nodeIndex!==index)});
+ }
+ function showTotal(){value.textContent=summary.totalMinutes;caption.textContent='分鐘';nodes.forEach(function(node){node.classList.remove('is-active','is-muted')})}
+ function showPinnedOrTotal(){var pinned=Number(chart.dataset.pinnedSubject);if(Number.isInteger(pinned)&&pinned>=0)showSubject(pinned);else showTotal()}
+ nodes.forEach(function(node,index){
+  node.addEventListener('mouseenter',function(){showSubject(index)});
+  node.addEventListener('mouseleave',showPinnedOrTotal);
+  node.addEventListener('focus',function(){showSubject(index)});
+  node.addEventListener('blur',showPinnedOrTotal);
+  node.addEventListener('click',function(event){event.stopPropagation();var same=chart.dataset.pinnedSubject===String(index);if(same)delete chart.dataset.pinnedSubject;else chart.dataset.pinnedSubject=String(index);showPinnedOrTotal()});
+  node.addEventListener('keydown',function(event){if(event.key==='Enter'||event.key===' '){event.preventDefault();node.click()}});
+ });
+ chart.addEventListener('click',function(){delete chart.dataset.pinnedSubject;showTotal()});
+}
+
 function updateSummary(){
  mathProgressIndex.upsert(data);
- var mins=0,active=visibleItems(data);
+ var subjectMinuteEntries=[],active=visibleItems(data);
+ function addSubjectMinutes(item,value){var minutes=Number(value||0);if(Number.isFinite(minutes)&&minutes>0)subjectMinuteEntries.push({subject:studyItemSubject(item),minutes:minutes})}
  active.forEach(function(x){
    if(isGroupedWork(x)){
     var grouped=groupedWorkEntries(x);x.done=grouped.length>0&&grouped.every(function(child){return !!child.done});
-    if(x.done)mins+=Number(x.minutes||0);
+    if(x.done)addSubjectMinutes(x,x.minutes);
     return;
    }
   if(isInteractiveDaily(x)){
    var ia=ensureInteractiveEntries(x);
    x.done=ia.length>0&&ia.every(function(c){return !!c.done});
-   ia.forEach(function(c){if(c.done)mins+=Number(c.minutes||0)});
+   ia.forEach(function(c){if(c.done)addSubjectMinutes(c,c.minutes)});
    return;
   }
   if(isCalendarNaturalIntegration(x)){
    var ci=ensureCalendarNaturalIntegrationEntries(x,data.date);
    x.done=ci.length>0&&ci.every(function(c){return !!c.done});
-   if(x.done)mins+=Number(x.minutes||0);
+   if(x.done)addSubjectMinutes(x,x.minutes);
    return;
   }
-  if(x.done){if(isFixedMagazine(x))mins+=fixedMagazineMinutes(x);else if(!isEnglishReview(x)&&!isSaturdayMakeup(x))mins+=Number(x.minutes||0)}
-  if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){if(m.done)mins+=Number(m.minutes||0)});
+  if(x.done){if(isFixedMagazine(x))addSubjectMinutes(x,fixedMagazineMinutes(x));else if(!isEnglishReview(x)&&!isSaturdayMakeup(x))addSubjectMinutes(x,x.minutes)}
+  if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){if(m.done)addSubjectMinutes(m,m.minutes)});
  });
+ var subjectTime=summarizeSubjectTime(subjectMinuteEntries);
  var completion=summarizeCompletionUnits(completionUnitsForRecord(data,data.date)),pct=completion.itemPercent;
  var math=calculateMathProgress(mathProgressIndex.view(),data.date,calendarWeekMathTarget(data.date));
  id('completionPercent').textContent=pct+'%';
@@ -3223,7 +3267,7 @@ function updateSummary(){
   id('workloadCompletionText').textContent=completion.workloadCompleted+'/'+completion.workloadTotal+' 項工作量';
   updateSettlementMetrics(data.date);
   renderCompletionTrend(data.date);updateCompletionView(false);
- id('doneMinutes').textContent=String(Math.round((mins+Number.EPSILON)*10)/10);
+ renderSubjectTimeDonut(subjectTime);
  id('mathPagesTop').textContent=math.dailyNewPages;
  id('weekMathPages').textContent=math.weeklyNewPages;
  id('weekMathTarget').textContent=math.weeklyTarget;

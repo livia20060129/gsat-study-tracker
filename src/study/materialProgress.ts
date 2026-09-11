@@ -26,6 +26,10 @@ export interface MaterialProgressSegment {
   key: string;
   label: string;
   recorded: boolean;
+  /** 0-100, based on the actual covered pages (or exact unit completion). */
+  completionPercent: number;
+  /** Page count for page-based materials; one for rounds, units and exact sections. */
+  completionWeight: number;
   tone: 'deep' | 'light';
 }
 
@@ -36,7 +40,13 @@ export interface MaterialProgressRow {
   unitLabel: string;
   recorded: number;
   total: number;
+  completionPercent: number;
   segments: MaterialProgressSegment[];
+}
+
+interface MaterialCoverage {
+  ranges: Array<[number, number]>;
+  exactKeys: Set<string>;
 }
 
 interface SegmentDefinition {
@@ -292,7 +302,15 @@ function normalizeNaturalMaterial(value: unknown): string {
   return text;
 }
 
-function markRange(recorded: Map<string, Set<string>>, definitionId: string, startValue: unknown, endValue: unknown): void {
+function coverageFor(recorded: Map<string, MaterialCoverage>, definitionId: string): MaterialCoverage {
+  const existing = recorded.get(definitionId);
+  if (existing) return existing;
+  const created: MaterialCoverage = { ranges: [], exactKeys: new Set<string>() };
+  recorded.set(definitionId, created);
+  return created;
+}
+
+function markRange(recorded: Map<string, MaterialCoverage>, definitionId: string, startValue: unknown, endValue: unknown): void {
   const definition = definitionById.get(definitionId);
   const start = integer(startValue);
   const endCandidate = integer(endValue);
@@ -300,44 +318,37 @@ function markRange(recorded: Map<string, Set<string>>, definitionId: string, sta
   const end = endCandidate ?? start;
   const low = Math.min(start, end);
   const high = Math.max(start, end);
-  const target = recorded.get(definitionId) ?? new Set<string>();
-  definition.segments.forEach(segment => {
-    if (high >= segment.start && low <= segment.end) target.add(segment.key);
-  });
-  recorded.set(definitionId, target);
+  coverageFor(recorded, definitionId).ranges.push([low, high]);
 }
 
-function markBookSelection(recorded: Map<string, Set<string>>, book: PageMappedBook, fields: LooseRecord): void {
+function markBookSelection(recorded: Map<string, MaterialCoverage>, book: PageMappedBook, fields: LooseRecord): void {
   const definitionId = `book:${book}`;
   const definition = definitionById.get(definitionId);
   if (!definition) return;
   const topic = String(fields.topic ?? '').trim();
   const detail = String(fields.round ?? fields.detail ?? '').trim();
   if (topic && detail) {
-    const target = recorded.get(definitionId) ?? new Set<string>();
+    const target = coverageFor(recorded, definitionId).exactKeys;
     definition.segments.forEach(segment => {
       if (segment.topic === topic && segment.detail === detail) target.add(segment.key);
     });
-    recorded.set(definitionId, target);
     return;
   }
   markRange(recorded, definitionId, fields.start, fields.end);
 }
 
-function markLinear(recorded: Map<string, Set<string>>, definitionId: string, start: unknown, end?: unknown): void {
+function markLinear(recorded: Map<string, MaterialCoverage>, definitionId: string, start: unknown, end?: unknown): void {
   markRange(recorded, definitionId, start, end ?? start);
 }
 
-function markExact(recorded: Map<string, Set<string>>, definitionId: string, keyValue: unknown): void {
+function markExact(recorded: Map<string, MaterialCoverage>, definitionId: string, keyValue: unknown): void {
   const definition = definitionById.get(definitionId);
   const key = String(keyValue ?? '').trim();
   if (!definition || !key || !definition.segments.some(segment => segment.key === key)) return;
-  const target = recorded.get(definitionId) ?? new Set<string>();
-  target.add(key);
-  recorded.set(definitionId, target);
+  coverageFor(recorded, definitionId).exactKeys.add(key);
 }
 
-function markStudyItem(recorded: Map<string, Set<string>>, item: StudyItem): void {
+function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem): void {
   const fields = objectValue(item.f);
   const delegatesRangeToChildren = ['groupedWorkEntries', 'dailyWorkSourceItems']
     .some(key => Array.isArray(fields[key]) && (fields[key] as unknown[]).length > 0);
@@ -391,7 +402,7 @@ function markStudyItem(recorded: Map<string, Set<string>>, item: StudyItem): voi
   });
 }
 
-function visitStudyItem(recorded: Map<string, Set<string>>, item: StudyItem, visited: WeakSet<object>): void {
+function visitStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem, visited: WeakSet<object>): void {
   if (!item || typeof item !== 'object' || visited.has(item)) return;
   visited.add(item);
   markStudyItem(recorded, item);
@@ -405,18 +416,64 @@ function visitStudyItem(recorded: Map<string, Set<string>>, item: StudyItem, vis
   });
 }
 
+function coveredLength(ranges: readonly [number, number][], start: number, end: number): number {
+  const intersections = ranges
+    .map(([low, high]) => [Math.max(start, low), Math.min(end, high)] as [number, number])
+    .filter(([low, high]) => low <= high)
+    .sort((left, right) => left[0] - right[0]);
+  if (intersections.length === 0) return 0;
+
+  let total = 0;
+  let [currentStart, currentEnd] = intersections[0];
+  for (const [low, high] of intersections.slice(1)) {
+    if (low <= currentEnd + 1) {
+      currentEnd = Math.max(currentEnd, high);
+      continue;
+    }
+    total += currentEnd - currentStart + 1;
+    currentStart = low;
+    currentEnd = high;
+  }
+  return total + currentEnd - currentStart + 1;
+}
+
+function segmentCompletionPercent(segment: SegmentDefinition, coverage: MaterialCoverage): number {
+  if (coverage.exactKeys.has(segment.key)) return 100;
+  const touched = coverage.ranges.some(([low, high]) => high >= segment.start && low <= segment.end);
+  if (!touched) return 0;
+  // A legacy open-ended map has no reliable final page, so it remains an exact recorded unit.
+  if (segment.end === Number.MAX_SAFE_INTEGER) return 100;
+  const total = segment.end - segment.start + 1;
+  return Math.min(100, Math.round((coveredLength(coverage.ranges, segment.start, segment.end) / total) * 100));
+}
+
 export function materialProgressRows(records: readonly StudyRecord[]): MaterialProgressRow[] {
-  const recorded = new Map<string, Set<string>>();
+  const recorded = new Map<string, MaterialCoverage>();
   const visited = new WeakSet<object>();
   records.forEach(record => (record.items ?? []).forEach(item => visitStudyItem(recorded, item, visited)));
   return MATERIAL_DEFINITIONS.map(definition => {
-    const found = recorded.get(definition.id) ?? new Set<string>();
-    const segments = definition.segments.map((segment, index) => ({
-      key: segment.key,
-      label: segment.label,
-      recorded: found.has(segment.key),
-      tone: index % 2 === 0 ? 'deep' as const : 'light' as const,
-    }));
+    const found = recorded.get(definition.id) ?? { ranges: [], exactKeys: new Set<string>() };
+    const segments = definition.segments.map((segment, index) => {
+      const completionPercent = segmentCompletionPercent(segment, found);
+      const completionWeight = segment.end === Number.MAX_SAFE_INTEGER
+        ? 1
+        : Math.max(1, segment.end - segment.start + 1);
+      return {
+        key: segment.key,
+        label: segment.label,
+        completionPercent,
+        completionWeight,
+        recorded: completionPercent > 0,
+        tone: index % 2 === 0 ? 'deep' as const : 'light' as const,
+      };
+    });
+    const totalWeight = segments.reduce((sum, segment) => sum + segment.completionWeight, 0);
+    const completionPercent = totalWeight > 0
+      ? Math.round(segments.reduce(
+        (sum, segment) => sum + segment.completionPercent * segment.completionWeight,
+        0,
+      ) / totalWeight)
+      : 0;
     return {
       id: definition.id,
       subject: definition.subject,
@@ -424,6 +481,7 @@ export function materialProgressRows(records: readonly StudyRecord[]): MaterialP
       unitLabel: definition.unitLabel,
       recorded: segments.filter(segment => segment.recorded).length,
       total: segments.length,
+      completionPercent,
       segments,
     };
   });
