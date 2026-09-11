@@ -35,7 +35,9 @@ Calendar 標題建議使用 `Azar英文文法（中階）｜W1｜Ch.1 現在式`
 - `package-lock.json`
 - `LATEST_UPDATE.md`
 
-更新資料夾：`gsat-study-tracker-v171.1.2-azar-section-rows-update`
+完整覆蓋資料夾：`gsat-study-tracker-v171.1.2-complete`
+
+此資料夾包含完整專案原始碼、GitHub Actions、Supabase Functions、資料庫 migrations 與測試；不是只含本次異動檔案的增量包。`src/ui/completionTrend.ts` 已包含在內，可修正 GitHub Actions 的缺檔建置錯誤。
 
 ## 驗證
 
