@@ -1,610 +1,437 @@
-# GSAT Study Tracker v171
+# GSAT Study Tracker v171.1.0
 
-個人版 Study Tracker。v171 把 v170 的資料安全重構與 Google Calendar 真同步合併成同一版。
+個人版學測讀書進度 Tracker。此版本整合每日紀錄、Google Calendar 唯讀同步、Supabase 雲端備份、延期與合併項目、計時、完成率，以及教材進度視覺化。
 
-> Google OAuth Client ID 由 Vite 的 `VITE_GOOGLE_CLIENT_ID` 在建置時注入；它是公開的應用程式識別碼，不是秘密。Google Client Secret、refresh token 與 access token 永遠只留在 Supabase server side。若任一端設定不完整，Calendar 區塊會顯示可採取行動的設定訊息，Tracker 其他功能與內建排程 fallback 仍可使用。
+> Google OAuth Client ID 由 Vite 的 `VITE_GOOGLE_CLIENT_ID` 在建置時注入。Client ID 是公開的應用程式識別碼；Google Client Secret、refresh token、access token 與排程密碼必須只留在 Supabase 或 GitHub Secrets，不可寫入原始碼。
 
-## v171 重點
+## I. 使用方式
 
-### 0. v171.0.95 切換日期前先儲存
+### 1. 第一次使用
 
-切換日期時會先把目前日期的完整進度寫入本機，確認成功後才載入新日期；若欄位驗證失敗或瀏覽器儲存空間無法寫入，系統會取消切換、恢復原日期並顯示原因，避免尚未保存的進度被跳過。登入狀態下，頁面每 10 分鐘也會儲存目前日期並立即刷新雲端佇列；正在運行的計時器只保存原本的開始時間與累計秒數，不會被暫停、歸零或結束。雲端仍使用安全的背景同步，因此離線或網路緩慢不會阻止已完成本機儲存的日期切換。
+1. 開啟 Tracker，先選擇日期與今日狀態。
+2. 未登入時，紀錄保存在目前瀏覽器的訪客空間。
+3. 需要跨裝置保存時，登入 Supabase 帳號。
+4. 若瀏覽器內有舊版資料，登入後按「補上本機舊資料」再明確匯入；系統不會自動把無法判斷擁有者的舊資料放進帳號。
+5. 需要 Calendar 排程時，展開「連線設定」，按「連接 Google Calendar」完成授權。
 
-### 0. v171.0.94 英文混合題與作文欄位配置
+### 2. 每日紀錄
 
-「英文：混合題與作文練習」改為兩列四等分配置：左側第一列是作文分數範圍 1/4、第二列是混合題分數 1/4；右側「優先修改錯誤」占 3/4 並跨兩列，也由單行輸入改為較大的文字區。原有分數範圍、自動顯示作文上限、驗證與資料欄位名稱均不變；手機版會自動改成單欄排列。
+- 在「今日項目／本週項目」滑塊切換清單。
+- 勾選完成，並依模板填寫進度、批改、訂正、錯因、頁碼、回次、單元或分數。
+- 完成時間可手動輸入，也可切換為計時模式。
+- 「儲存紀錄」會先保存目前日期到本機；登入後再安全地排入雲端同步。
+- 切換日期前會先保存目前日期。登入時，每 10 分鐘也會保存並刷新雲端佇列，運行中的計時不會因此中斷。
 
-### 0. v171.0.93 自訂國文欄位比例
+### 3. Google Calendar
 
-所有自行新增的國文卡片都將「國文項目」選單固定為半列寬。尚未選擇項目時仍保留右半空間；選擇「古今悅讀一百」後使用「項目 1/2＋回次 1/4」並保留最後 1/4。國文寫作改為三列：第一列是「項目 1/2＋題目 1/2」，第二、三列左側依序為「分數 1/4、題型 1/4」，右側「改進方向」占 3/4 並跨兩列。手機版仍會自動改成單欄排列。
+- 未加前綴的行程加入「今日項目」。
+- `本週項目｜名稱` 加入「本週項目」。
+- Calendar 補做或來源日期不是當日的項目，仍保留來源資訊與原本模板。
+- 按「立即同步」可手動更新；設定完整時，GitHub Actions 也會每小時同步一次。
+- Google Calendar 中刪除的行程會在下次同步時從 Tracker 的 Calendar 來源資料移除；使用者已填的其他本機紀錄不會任意被刪除。
 
-### 0. v171.0.92 古今悅讀一百自選欄位
+### 4. 延期
 
-手動新增國文項目並選擇「古今悅讀一百」時，「國文項目」與「回數」改為同一列左右各半。Calendar 鎖定卡片、進度／批改／訂正與既有資料格式均不變；手機窄螢幕仍會自動改成上下排列，避免輸入欄過窄。
+1. 在可延期的主卡或子卡勾選延期。
+2. 選擇同一週內、原日期之後的目標日。
+3. 按「確認延期」後才真正建立目標日項目並改變完成率。
+4. 每個目標日以 3 項為一般上限；超過時會顯示確認提示，舊延期不會被自動移除。
 
-### 0. v171.0.91 計時結果保留一位小數
+確認延期後，原日期的完成率分母會移除該項，例如 `2/5` 變成 `2/4`，不會把延期誤算成完成。目標日收到的補做項目則列入該日的「今日總項目完成率」。
 
-計時畫面維持「分：秒」，按下「完成並填入」後才將秒數換算成分鐘，依四捨五入固定保存到小數點後一位，例如 15 秒記為 `0.3` 分、1 分 29 秒記為 `1.5` 分、1 分 33 秒記為 `1.6` 分。一般卡片、英文雜誌子項目與合併子卡片都使用相同規則；新的小數值可覆蓋舊手填時間並通過本機／雲端紀錄格式，今日完成時間加總也會避免浮點尾數。
+### 5. 手動時間與計時
 
-### 0. v171.0.90 外出日數學頁數統計
+- 按「手動／計時」滑塊切換，不會改變卡片寬度。
+- 計時顯示為「分:秒」；秒數合法範圍是 `00～59`，`00:60` 無效。
+- 同一時間只允許一個項目計時。
+- 按「完成並填入」後，結果換算為分鐘並四捨五入到小數點後一位，可覆蓋原先手填時間。
+- 合併卡中的子卡也能分別計時或填入時間。
 
-修正「今日狀態」選擇「外出」後，已完成的數學講義頁數被整天排除的問題。外出仍只取消固定排程；當日實際存在且已完成的自訂、Google Calendar 或延期數學講義，會照常列入今日與本週數學頁數，未完成項目仍不計入。
+### 6. 完成率與統計
 
-### 0. v171.0.89 Supabase 與前端順序化發布
+- **原訂今日項目完成率**：完成數 ÷ 尚未確認延期的原訂今日項目數。
+- **今日總項目完成率**：完成數 ÷ 今日實際需要處理的原訂、補做與新增項目數；已確認延期者從原日期移除。
+- 今日完成時間、今日完成數學頁數與本週完成數學頁數會依已完成紀錄計算。
+- 星期五顯示週一至週五結算；星期日顯示全週結算與相較週五的百分點差異。
+- 星期五、星期日可在完成率卡內切換「完成率／本週趨勢」。
 
-GitHub Actions 現在把測試與正式發布合成同一條受控流程。Pull Request 只執行前端測試、TypeScript 檢查、兩支 Edge Function 的 frozen Deno 檢查與 Vite build；只有 `main` 分支才會依序執行「預覽 migration → 套用 database migration → 核對 migration history → 部署 `google-calendar` → 部署 `google-calendar-callback` → 線上 smoke test → 發布 GitHub Pages」。任何後端步驟失敗時，新的前端不會上線，避免前端先使用尚未部署的資料庫或 Function。
+### 7. 教材進度與排程 Prompt
 
-Supabase CLI 固定為 `2.116.0`，setup action 也固定 commit，不使用 `latest`。正式工作使用 `supabase-production` Environment，從 GitHub Actions Secrets 讀取 `SUPABASE_ACCESS_TOKEN` 與 `SUPABASE_DB_PASSWORD`；專案 ID 以 `supabase/config.toml` 為準，若另設 `SUPABASE_PROJECT_ID` 卻不一致會立刻停止，避免部署到錯誤專案。發布中的 migration／Function deployment 不會被新 commit 中途取消，兩支公開 Function 部署後會以無登入、無資料修改的預期錯誤回應進行線上存活檢查。不需要把 service role key、Google Client Secret、Calendar token 或 cron secret 交給發布 workflow，也不需要重新授權 Google Calendar。
+- 頂部「教材進度圖」會開啟獨立頁面，可依國文、英文、數學、自然切換教材進度。
+- 有完成、填寫時間或留下進度紀錄的教材單元會填色；未留下紀錄者保持空白。
+- 頂部「排程建議prompt」會開啟 `gpt.prompt.html`，可把目前排程命名與 Calendar 備註規則帶到新的 AI 對話。
 
-### 0. v171.0.88 Supabase 完整分頁與後端可靠性
+### 8. 匯出與匯入
 
-Study Records 首次全量與後續增量同步改用 `updated_at＋study_date` 的穩定游標分頁；只有全部頁面都成功後，原有流程才會更新同步 watermark。Tracker 讀取 `calendar_tasks`、Edge Function 比對已刪除 Calendar 行程，以及每小時 `sync-all` 讀取連線帳號，也都改為完整游標分頁。Calendar 寫入與刪除採分批請求，所有帳號以每批 4 個並行同步，避免資料超過 Data API 單次上限後被截斷，也降低逐帳號同步逾時的機會。
+- 匯出資料可作備份，也可供 AI 分析本週概況。
+- 匯入採「解析 → 預覽 → 全部驗證 → 確認匯入」，離開輸入欄不會直接改動紀錄。
+- 確認匯入前會建立可復原備份；多日同步會分別回報成功、衝突、失敗與尚未同步。
 
-第一個 migration 現在包含可在空白 Supabase 專案建立的 `study_records` table、複合唯一鍵、索引、RLS policies 與最小權限 grants；其餘 Calendar schema 由後續 migration 完整建立。六筆既有 migration 的檔名時間戳已與正式 Supabase migration history 對齊，並保留新的 forward migration，讓既有正式專案只套用本次差異即可。`upsert_study_record` 的首次寫入改用 `INSERT ... ON CONFLICT DO NOTHING`：兩台裝置同時建立同一天時，失敗的一方會收到既有的結構化版本衝突結果，不再直接得到 unique violation。
+## II. 目前版本的重要功能及解說
 
-兩支 Supabase Edge Function 都把 `@supabase/supabase-js` 固定為 `2.114.0`，各自附上 frozen Deno lockfile。GitHub Pages CI 新增固定 Deno `2.9.5` 的完整 Entry Point 型別檢查，因此後端無法編譯、lockfile 漂移或漏掉 entrypoint 時會阻止部署。正式更新需要依序套用最新 database migration、重新部署 `google-calendar` 與 `google-calendar-callback`，最後部署前端；不需要重新授權 Google Calendar。
+### 1. 帳號隔離的本機資料
 
-### 0. v171.0.87 每小時 Google Calendar 同步
-
-補回 `.github/workflows/calendar-sync.yml`。GitHub Actions 會在每小時第 7 分鐘呼叫既有的 Supabase `google-calendar` Edge Function，執行所有已連線帳號的 Calendar 同步；網站不需要保持開啟，也可從 Actions 手動執行驗收。
-
-排程只讀取 GitHub Actions 的 `CALENDAR_CRON_SECRET`，不保存 Client Secret、refresh token、service role key 或其他 Google 憑證。工作流程不取得 GitHub repository token 權限，且不會把同步結果中的使用者識別碼輸出到公開 log；設定缺漏、HTTP 失敗、回應格式錯誤或任一帳號同步失敗時，該次 Action 都會明確標記失敗。新增回歸測試，避免 workflow 日後再次遺失或失去排程／驗證設定。
-
-### 0. v171.0.86 國文教材兩列式頁碼對照
-
-《深耕十五》與《主題百匯：閱讀寫作新進化》改用相同的兩列式卡片：第一列依 `1/2＋1/4＋1/4` 顯示「國文項目、起始頁、結束頁」，第二列依 `1/2＋1/2` 分開顯示「對應主題、對應章節」。《深耕十五》的對應章節為課文名稱，國文《主題百匯》的對應章節為級別；跨範圍會列出所有涵蓋內容。Calendar 匯入的書名與起訖頁維持固定不可修改，延期與重新載入不改變原有頁碼對照。
-
-同版一併修正英文《主題百匯》回次：手動新增時可先選回次再選主題；Calendar 可從「英文｜主題百匯」縮寫標題搭配唯一主題辨識正確教材，並支援中文數字、半形／全形阿拉伯數字及單獨數字的回次格式。英文兩本教材仍完全不使用頁碼判讀。
-
-### 0. v171.0.85 國文項目與英文主題／回次模板
-
-《深耕十五》與國文《主題百匯：閱讀寫作新進化》直接列入「國文項目」，不再顯示第二個書名選單；手動項目仍可輸入頁碼並查看主題／課文或級別對照。兩本英文《主題百匯》改為仿 ACE Reading 的模板，只使用書名、主題、回次、進度、批改、訂正與錯因，不顯示或保存頁碼輸入。
-
-英文 Calendar 行程從標題讀取主題、從 `【單元進度】`讀取回次，不進行頁碼判讀。四本教材的 Calendar 範圍皆鎖定：國文鎖定頁碼，英文鎖定主題與回次；缺少可辨識英文範圍時會保留卡片並顯示明確錯誤。同主題不同回次可成為分別完成、計時與延期的子項目；不同主題即使回次同名也不會誤合併。只需部署前端並按一次 Calendar「立即同步」，不需更新 Supabase Edge Functions、資料庫或重新授權。
-
-### 0. v171.0.84 國文／英文書籍頁碼對照
-
-新增四本教材的完整頁碼對照：國文《深耕十五》顯示「主題＋課文」、《主題百匯：閱讀寫作新進化》顯示「主題＋級別」；英文《主題百匯：篇章結構·閱讀測驗》與《主題百匯：克漏字》顯示「主題＋回次」。頁碼跨越兩個單元時會依序列出各段實際涵蓋頁碼，不會只顯示起始頁所在單元。
-
-四本書已加入手動新增選單；輸入起訖頁後即時顯示對照。Google Calendar 可從書名與標準備註的 `【頁碼範圍】` 建立相同卡片；Calendar 重排、Tracker 延期、重複延期、重新載入及匯出摘要均保留書名、頁碼與對照結果。只需部署前端，不需更新 Supabase Edge Functions 或資料庫。
-
-### 0. v171.0.83 章節更新與訂正欄位
-
-修正統計刷新時重新整理正在編輯的卡片，造成頁碼章節停在舊值、後續勾選訂正失效的問題。本週清單與週五／週日結算改用當日紀錄的深層副本，不再重建目前畫面的卡片；其他日期仍依原規則載入並整理排程。Calendar 同步、延期與重新載入時的正式合併規則不變。
-
-化學「123日的淬鍊」p.109–114 對應 `Chapter 3 物質間的反應（p.109–114）`；沒有更改教材章節對照表。單張卡、Calendar 合併及延期子卡均納入回歸測試，訂正的錯因欄可正常展開、編輯並在重新載入後保留。只需部署前端，不需重新部署後端或清除紀錄。
-
-### 0. v171.0.82 同日自然科行程頁碼隔離
-
-修正 9/2「生物｜光合作用」指定 p.16–18，卻被同日補做的化學 p.45–62 覆蓋的問題。原本自然科建議以日期為唯一索引，後讀到的行程會覆蓋當日其他自然科；現在每張卡依自己的 Calendar 行程識別取頁碼、教材與建議範圍，不共用當天最後一筆資料。明確頁碼優先，只有相同科目與教材的單元範圍可作 fallback。
-
-所有自然科卡片／子卡各自更新頁數與歷史完成覆蓋判斷，不再只處理第一張卡。重新同步會修正既有自動帶入的錯誤頁碼；按日期順序更新來源與延期卡，保留時間、筆記、手動完成選擇與明確頁碼修改。只需部署前端，再至「連線設定」中的 Google Calendar 按「立即同步」；不需刪除紀錄或重新授權。
-
-### 0. v171.0.81 延期完成率與刪除按鈕位置
-
-「原訂今日項目完成率」與「今日總項目完成率」都只計入實際完成且尚未延期的項目。確認延期後，該項從原日期的分母移除，不增加完成數：例如 `2/5` 變為 `2/4`，不是 `3/5`。補做在目標日納入今日總項目分母，再次延期則從該日移除；取消延期後恢復計入。未確認的延期選擇不影響計算，改選目標日不會重複扣除。週五／本週結算沿用修正後的兩項統計，平均公式不變；全部項目排除時顯示 `0/0`、`0%`。
-
-自行新增主卡、互動題、雜誌、回補及整理子卡的「刪除此筆」統一移到各卡片最下方靠左；保留原有的刪除權限、計時停止及儲存行為，系統鎖定項目與最後一筆雜誌仍依原規則限制刪除。
-
-### 0. v171.0.80 新增「大考英聽A攻略」
-
-英文書籍新增「大考英聽A攻略」，沿用 ACE Reading 的進度、批改、訂正與錯因模板，範圍改為 `Test 1～10`。Google Calendar 可從標題或標準備註中的 `Test N`／`Test N-M` 建立對應卡片；不同 Test 會收在同一張主卡的獨立子項目中。Calendar 重排、Tracker 延期與重複延期後仍會保留書名、Test、完成狀態、時間與完整模板。匯出摘要也會使用 `Test N`，不會誤寫成「第 N 回」。
-
-### 0. v171.0.79 安全匯入與 Supabase 前端打包
-
-JSON 匯入改為先完整驗證與預覽，使用者按下「確認匯入」後才會修改資料；離開欄位與 `Ctrl+Enter` 都不再直接匯入。確認前會保存可復原備份，本機多日寫入失敗會回復本次變更，雲端則逐日回報成功、衝突、失敗與未同步。既有同步衝突不會被匯入流程清除。Supabase JS 改為固定版本 npm dependency，由 Vite 隨前端打包，不再使用浮動 CDN script。
-
-### 0. v171.0.65 手動時間與項目計時
-
-原有的完成時間可在「手動」與「計時」兩種方式間切換。計時採時間戳記保存，重新整理或切換日期後仍可正確續計；同一時間只允許一個項目計時，開始另一項前會先提示暫停目前項目。顯示固定使用「分:秒」，秒數只會是 `00～59`，例如 `00:59` 的下一秒為 `01:00`，超過一小時則顯示為 `65:20`。按下「完成並填入」後，結果會換算回原有的整數分鐘欄位，不會自動勾選完成。計時中的項目也會顯示在頂部常駐狀態列。
-
-### 0. v171.0.64 Prompt 公開路徑修正
-
-Tracker 頂部的「排程建議prompt」改為直接指向同次部署內的 `gpt.prompt.html`，不再寫死舊的 GitHub Pages 網址。本機預覽、正式建置與 GitHub Pages 會使用同一份最新版 Prompt，避免開啟不同位置的舊檔案。
-
-### 0. v171.0.63 排程建議 Prompt 更新
-
-公開的 `gpt.prompt.html` 已更新為 2026-09-01 最新版：在主標題後加入延續排程規則的使用說明；「英文單字／片語互動題」改為驗收本日不熟悉內容；移除版本提示與列印／另存 PDF 功能，並降低頁面配色飽和度。公開網址維持不變。
-
-### 0. v171.0.62 Calendar 講義版本欄位
-
-Google Calendar 統一備註新增 `【講義版本】`：數學與自然會直接套用 Calendar 指定的教材版本；`【冊別】`仍只有數學使用。`【頁碼範圍】`與`【單元進度】`維持二選一，來源日期、選填重點及識別碼的解析方式不變。舊版未提供講義版本的行程仍維持原有 fallback。
-
-### 0. v171.0.61 合併項目完整儲存修正
-
-合併卡片及其中子項目的所有可編輯欄位，現在都會同步回實際保存的來源紀錄，而不只限於完成狀態、時間、頁碼與延期。錯因、訂正／批改、講義與單元、分數、單字及雜誌清單等內容，在切換日期、重新載入或 Calendar 重新整理後仍會保留；陣列型資料會以獨立副本保存，避免多個項目互相覆蓋。
-
-### 0. v171.0.60 多項目儲存修正
-
-同一天的雲端儲存改為依序執行，前一筆寫入完成後才送出下一筆，並在等待期間只保留最新的完整紀錄。這可避免快速修改或儲存多個項目時，多個請求共用舊 revision 而互相衝突，導致較晚修改的項目沒有同步到雲端。本機紀錄仍會即時保存，不需等待網路。手動按「儲存紀錄」時會重試尚未同步的內容，並在最新完整紀錄真正寫入雲端後才顯示成功。
-
-### 1. localStorage 依帳號隔離
-
-正式資料改用：
+正式帳號與訪客使用不同的 localStorage namespace：
 
 ```text
 study-v11:user:<supabase-user-id>:<YYYY-MM-DD>
-```
-
-未登入資料使用：
-
-```text
 study-v11:guest:<YYYY-MM-DD>
 ```
 
-v170 以前的：
+舊版 `study-v10.4:<YYYY-MM-DD>` 只視為無帳號歸屬的 legacy data。登入只切換到該使用者的資料空間，不會自動匯入舊資料。
 
-```text
-study-v10.4:<YYYY-MM-DD>
-```
+### 2. 伺服器 revision 與衝突保護
 
-只視為 legacy unscoped data。登入時不會自動匯入；只有按「補上本機舊資料」才會明確匯入目前帳號。
+`study_records` 使用伺服器產生的 `revision`，所有更新透過具基準版本的 `upsert_study_record()` 完成。手機與電腦不再用各自的裝置時間判斷哪份資料較新；基準版本不符時會保留兩端內容並顯示衝突。
 
-### 2. 登入不再自動解決 legacy conflict
-
-登入只會切換到該 user 的本機 namespace、讀取雲端與 Calendar。`cloudMergeLocalMissing()` 只綁在「補上本機舊資料」按鈕，不存在登入自動呼叫路徑。
-
-### 3. 啟動順序改為 Auth → Storage → UI → Background Sync
-
-啟動先取得 Supabase session，再決定 `study-v11:user:<uid>:` 或 guest namespace。登入後會立即顯示該帳號隔離的本機快取，不再等待整批雲端歷史與 Calendar 都讀完才出現畫面。
-
-Study Records 與 Calendar 會在背景平行讀取。Study Records 第一次仍會做完整 revision 比對；成功後保存每個帳號獨立的 server watermark，之後只增量讀取最近異動，並保留 2 分鐘重疊區間避免同步競爭造成缺口。待上傳資料改為背景佇列，MathProgressIndex 只在切換帳號時重建一次。
-
-背景同步完成後，如果使用者正在輸入，Tracker 不會強制重繪打斷游標；切換日期時會自然套用最新資料。
-
-`171.0.3` 另修正 `upsert_study_record` 的 `column reference "revision" is ambiguous`：資料表欄位一律以 relation alias 明確限定，RPC 改用 RLS 保護的 `security invoker`，並移除 anon／public 執行權限。
-
-### 4. Study Record 不再依賴裝置時間判斷版本
-
-`public.study_records` 新增 `revision bigint`。所有寫入透過：
-
-```sql
-public.upsert_study_record(study_date, payload, base_revision)
-```
-
-伺服器只有在 `base_revision` 與目前 revision 相同時才接受更新；成功後 revision + 1。手機／電腦時鐘不再決定誰比較新。
-
-本機只保存：
+本機同步狀態主要保存：
 
 - `serverRevision`
-- `serverUpdatedAt`（僅顯示／診斷）
+- `serverUpdatedAt`（顯示與診斷用）
 - `localDirty`
 - `syncConflict`
 
-### 5. 每日期獨立 cloud debounce
+### 3. Auth → Storage → UI → Background Sync
 
-不再只有一個全站 timer。每個日期各有自己的 debounce timer，所以修改 8/26 不會取消 8/25 尚未送出的同步。
+啟動時先取得 Supabase session，再選擇帳號或訪客資料空間，接著立即顯示本機快取。Study Records 與 Calendar 在背景讀取，不必等全部雲端歷史載完才看到畫面。
 
-### 6. 移除 production seed 個人歷史資料
+Study Records 使用 `updated_at + study_date` 的穩定游標分頁。第一次完成全量比對後保存帳號專屬 watermark，後續只讀取增量資料並保留重疊區間，降低雲端讀取時間與漏資料風險。
 
-v170 內建的 `importedWeekData`／`importedV123ProgressData` 與自動灌入流程已從 production bundle 移除。舊瀏覽器已存在的 `study-v10.4:` 仍可由手動 migration 匯入。
+### 4. 每日期獨立儲存與最新紀錄佇列
 
-### 7. Google Calendar API 真同步
+每個日期有自己的 debounce 與寫入佇列。前一筆雲端寫入完成後才送下一筆，等待期間只保留最新完整紀錄，避免快速修改多個項目時共用舊 revision。即使網路緩慢，本機仍會先保存；手動儲存會重試未同步內容。
 
-新增 Supabase Edge Functions：
+### 5. 不內建個人歷史資料
 
-```text
-supabase/functions/google-calendar
-supabase/functions/google-calendar-callback
-```
+Production bundle 不再自動灌入個人歷史 seed。舊瀏覽器已存在的資料只能由使用者明確匯入，避免新帳號誤收到不屬於自己的紀錄。
 
-流程：
+### 6. Google Calendar 唯讀真同步
+
+同步流程如下：
 
 ```text
 Tracker
-  → Google OAuth
+  → Google OAuth（calendar.readonly）
   → refresh token 僅存 Supabase server-side table
-  → Edge Function 呼叫 Google Calendar API events.list
+  → Edge Function 呼叫 Google Calendar API
   → calendar_tasks
-  → Tracker 讀 calendar_tasks
+  → Tracker 讀取並轉換為 StudyTask
 ```
 
-使用 read-only scope：
+使用的權限範圍只有：
 
 ```text
 https://www.googleapis.com/auth/calendar.readonly
 ```
 
-Google client secret／refresh token 不會出現在 GitHub Pages JavaScript。
+Tracker 不會寫入、修改或刪除 Google Calendar 原始行程。Calendar 解析與 Tracker 核心項目之間已有 application service 邊界，Google Event 不會直接成為永久 UI 合併卡。
 
-Google OAuth Client ID 不寫死在原始碼，改從：
+### 7. 每小時 Calendar 同步
 
-```text
-VITE_GOOGLE_CLIENT_ID
-```
+`.github/workflows/calendar-sync.yml` 在每小時第 7 分鐘呼叫 `google-calendar` Edge Function，同步所有已連線帳號；網站不需要保持開啟。設定缺漏、HTTP 失敗、回應格式錯誤或任一帳號同步失敗時，該次 Action 會標記失敗。
 
-讀取。前端會先檢查缺漏、範例值與格式；設定有效後才啟用「連接 Google Calendar」。OAuth state 會簽章保存此次連線使用的 Client ID，callback 完成後再將公開 Client ID 與連線一同存到 server-side table，供後續 refresh token 更新 access token。
+公開 repository 若長時間沒有活動，GitHub 可能暫停排程 workflow；可到 Actions 頁面重新啟用。請勿同時建立另一個相同頻率的排程，以免重複同步。
 
-目前 Calendar parser 已支援個人行事曆中的主要格式：
+### 8. Calendar 標準備註、模板與刪除同步
 
-- `1｜多項式函數` 等數學排程
-- `物理｜...`／`化學｜...`／`生物｜...`／`地科｜...`
-- `自然整合｜...`
-- `ACE Reading｜第 N 回＋訂正`
-- `古今悅讀一百｜第 N 回＋訂正`／`第 N–M 回＋訂正`
-- `英文文法｜...`
-- `英文寫作測驗｜第 N 回：...`
-
-數學事件若 description 沒寫頁碼，會依事件中的 `單元進度：x/y` 對應既有教材分段，不再以事件原本日期當作頁碼來源；因此 Calendar 搬日期仍能保留該段正確頁碼。
-
-Calendar API 尚未成功連線或 `calendar_tasks` 尚無資料時，現有 hardcoded Calendar plan 暫時保留作 fallback，避免排程整批消失。
-
-### 8. 每小時 Calendar 同步
-
-`.github/workflows/calendar-sync.yml` 會在每小時第 7 分鐘觸發一次 server-side Calendar sync。網站不需要保持開啟；GitHub Actions 偶爾可能因平台負載延後數分鐘執行。
-
-workflow 只需要一個 GitHub Actions secret：`CALENDAR_CRON_SECRET`。它必須與 Supabase Edge Function 中的同名 secret 完全相同，不可寫入 workflow、README、`.env` 或任何會 commit 的檔案。若 secret 缺少、HTTP 呼叫失敗，或任何已連線帳號同步失敗，Action 會直接標記失敗，而不是留下看似成功的綠色紀錄。
-
-GitHub 的公開 repository 若連續 60 天沒有任何活動，排程 workflow 可能被平台自動停用；屆時到 Actions 頁面重新啟用即可。不要同時再建立另一個每小時 Supabase Cron，避免同一時間重複同步。
-
-### 9. 數學進度仍維持單一實作
-
-只有：
-
-```text
-src/study/mathProgress.ts
-```
-
-負責 completed-page extraction、MathProgressIndex 與 UI pure calculation。v171 ZIP 不含 `mathProgressHistory.ts`／`weeklyMath.ts`。
-
-### 10. UI
-
-「其他補充」預設放大到約 6 行，並可垂直拖曳調整。
-
-`171.0.5` 將 Cloud 與 Google Calendar 狀態合併成頁面頂部常駐的小型狀態列；登入、登出、讀取雲端、匯入舊資料、Calendar 同步與解除連線等設定操作，統一收進展開區域。收合時顯示「連線設定▼」，展開後顯示「連線設定＝」。錯誤、同步中、已連線與設定未完成會以不同顏色的狀態點呈現。
-
-`171.0.6` 將每日完成度改為雙指標：
-
-以下為 v171.0.6 的歷史規則；延期處理已由 v171.0.81 改成兩個指標皆排除確認延期項目的分母，不再視為完成。
-
-- **原訂今日項目完成率**：維持既有規則，完成或已延期的原訂今日項目都算已處理。
-- **今日總項目完成率**：依今日原定項目與補做項目的項目數計算；只有實際完成才計入，延期不算完成。
-
-週五另顯示週一至週五的「週五結算完成率」；週日顯示週一至週日的「本週結算完成率」，並標示相較週五結算的正負百分點。結算完成率是該期間「項目完成率」與「工作量完成率」的平均。
-
-`171.0.7` 修正週五仍顯示「相較週五結算」的樣式問題：週五只顯示週五結算，週日才顯示比較。
-
-`171.0.8` 將今日時間與數學統計排在上列，完成率雙指標移至下列，並移除多餘的「完成率雙指標」標題。
-
-`171.0.9` 將原定工作量的分母定義為每日必做加上當日自行追加／補做項目；補做只影響工作量指標，不改變原定項目指標。每日必做勾選延期後，可指定加入同一週後續的星期二至星期日，既有未指定日期的延期仍以週日處理。
-
-`171.0.10` 將「每日必做」改名為「今日項目」，新增可按日期查看的「本週項目」總覽，並在英文書目加入全書 115 Unit 的 `Essential Grammar in Use`。
-
-`171.0.11` 將 `Essential Grammar in Use` 改為獨立的 Unit 欄位，不再使用頁碼欄位。Google Calendar 標題或說明中的 `Unit 12`、`Unit 12–14`、`Unit 12、14` 會拆成獨立項目，每個 Unit 可分別完成。
-
-`171.0.12` 將今日總項目完成率改為項目數比例，不再依分鐘或頁數加權。分母是今日項目加上今日補做項目；分子只計實際勾選完成，延期不算完成工作量。`Essential Grammar in Use` 每個 Calendar Unit 各算一項。
-
-`171.0.13` 將 Google Calendar 項目分流到「今日項目」與「本週項目」，且本週項目可直接勾選完成，不會重複出現在今日項目。
-
-`171.0.14` 統一路由規則：未加特別前綴的 Google Calendar 行程一律進入「今日項目」；只有 `本週項目｜項目名稱` 進入「本週項目」。介面用字也已統一為「本週項目」。
-
-`171.0.15` 修正延期後的補做項目：完整複製原項目的類型、內容、欄位與專用模板識別，Calendar、互動題、固定英文與其他特殊項目不再退化為一般填空卡；既有補做進度會保留，缺少的模板欄位會由原項目補回。
-
-`171.0.16` 新增 Google Calendar 補做分流：`補做｜項目名稱` 或 `補做項目｜項目名稱` 固定加入「今日項目」，即使外層誤加 `本週項目｜` 也以補做規則優先。可辨識的數學、英文、自然等項目沿用完整模板；補做只加入工作量完成率，不增加原定項目分母。
-
-`171.0.17` 全面固定延期模板身份：每個原定項目都保存自己的模板識別，延期副本完整保留原類型、標題、內容與所有欄位。另讓 Calendar 直接辨識「英文訂正與搭配詞整理」、「互動題」及「學測英文訓練：英文雜誌」，因此這三類延期或 Calendar 補做都會呈現原本的完整模板，而非一般填充格。
-
-`171.0.18` 修正 Calendar 固定項目的模板與重複問題：辨識標題時允許日期、範圍與「補做」附註，像「學測英文訓練：英文雜誌｜8/28＋補做8/26」會直接使用完整英文雜誌模板；`英文歷屆／模考｜限時作答` 與內建的「英文歷屆／模考：限時作答」會合併為同一張卡片。舊版已保存的一般填充卡片也會在載入時升級回原模板，並遷移完成狀態、時間與已填內容；合併的補做仍會額外列入工作量分母。
-
-`171.0.19` 將第二個完成率指標更名為「今日總項目完成率」，計算方式維持不變。
-
-`171.0.20` 將第一個完成率指標更名為「原訂今日項目完成率」，計算方式維持不變。
-
-`171.0.21` 修正延期補做的週結算：補做日即使已有相同的數學講義題目模板，也會保留延期副本；延期副本會納入今日總項目完成率及週五／本週結算的工作量，但不會重複增加原訂今日項目分母。
-
-`171.0.22` 修正 Google Calendar 重複與刪除同步：同一天、同內容與同範圍的重複 Calendar 行程只建立一個統計項目，並在合併舊重複卡片時保留已完成狀態；每次重新讀取都會同步 Google 的刪除結果、清除所有本機日期中已不存在的 Calendar 卡片，狀態訊息會顯示移除筆數。
-
-`171.0.23` 修正 Google OAuth callback：Supabase／Google 的物件錯誤會顯示可讀訊息，不再出現 `[object Object]`；callback HTML 使用 ASCII 字元實體與 UTF-8 標頭，避免中文錯誤頁亂碼。Calendar 連線需要套用 `google_calendar_client_id` migration 後再部署 callback Function。
-
-`171.0.24` 修正延期 Calendar 項目的模板辨識：接受空白分隔、前置冊別、`p.起–迄`、`（原日期）` 與 `【延期來源】`，讓數學、古今悅讀、英文寫作等項目回到完整原始模板；延期數學另建補做卡片，不再覆蓋當日原訂數學進度。Google Calendar HTML 描述會先轉為純文字，不再顯示 `<p>` 標籤。
-
-`171.0.25` 將延期目標選單改為只顯示原日期之後、且仍在同一週內的星期；例如星期五只顯示星期六與星期日，較早的星期不再以停用選項出現。
-
-`171.0.26` 將延期限制由「整週最多 6 項」改為「每個目標日最多 3 項」。不同日期分別計數，例如星期一至星期四的項目最多可選 3 項延期到星期五；星期五額滿後仍可改選星期六或星期日。
-
-`171.0.27` 將延期改為選擇目標星期後再按「確定延期至星期 X」；確定前只保留在畫面上，不儲存、不建立補做項目，也不影響今日與每週完成率。目標日顯示「星期 X（目前項數／3）」；既有資料若超過 3 項仍完整保留，超額數字以紅色提示。選擇已滿或超額日期時會顯示確認欄與「是／否」按鈕，只有選擇「是」才允許超額新增。
-
-`171.0.28` 在頁面最上方標題列新增「排程建議 GPT Prompt」連結，並加入可由 GitHub Pages 直接開啟的 `gpt.prompt.html`；手機版會自動換行為整列按鈕。
-
-`171.0.29` 將起床時間的分鐘限制修正為 00～59；在標題列最右側新增與原按鈕共用儲存功能的「儲存紀錄」；延期操作區精簡為目標星期、容量與「確認延期」，移除重複星期及上限說明文字，仍只有確認後才影響完成率。
-
-`171.0.30` 修正已確認延期後改選目標日未重新判讀容量的問題。改選日期現在會先顯示新目標日既有延期數量，並要求再次按下「確認延期」；確認前保留原目標日與完成率狀態，額滿或超額時仍會顯示額外確認提示。
-
-`171.0.31` 修正同一 Calendar 項目連續延期後因標題分隔符、簡稱或多個補做日期而退回通用模板的問題。現在可辨識「數學講義題目｜理解檢查＋錯題標記＋訂正」及「英文混合題與作文｜補8/26＋8/29」等變體，並還原原始完整模板；連續複製時也持續保留最初模板識別碼與欄位。
-
-`171.0.32` 統一 Google Calendar 重排與 Tracker 延期的重複項目處理。同項目的重疊或連續頁碼會直接合併，例如 `p.1–5` 、`p.6–10`、`p.11–15` 合併為 `p.1–15`；有中斷的範圍或以回次計算的項目，則參考自然混合的呈現方式，收在同一張主卡片下成為可各自勾選的子項目。每個子項目仍獨立計入完成率，並在 Calendar 刪除或重排後保留仍存在項目的完成狀態。
-
-`171.0.33` 修正連續頁碼跨越系統自動對應的單元或章節時無法合併的問題。合併身分現在只使用真正的教材與項目欄位，不再使用由頁碼反查產生的單元、章節或 Calendar 計畫名稱。因此數學講義 `p.149–165` 與 `p.166–173` 即使跨章，仍會正確合併為 `p.149–173`。
-
-`171.0.34` 修正同一回次型項目因一筆為 Calendar 當日排程、另一筆為 Calendar 補做而無法合併的問題。`ACE Reading`、`古今悅讀一百`與`英文寫作測驗`的不同回次現在會收入同一張主卡，每個回次仍可獨立勾選。子項目各自保留原訂或補做身分，因此原訂今日項目與今日總項目完成率仍依原有規則計算。
-
-`171.0.35` 將合併時點改為「每日清單完全建立後」，不再只在 Calendar 或延期各自的內部處理。因此 Calendar 當日排程、Calendar 補做與 Tracker 延期項目會先全部進入同一份當日清單，再統一進行合併。實際線上案例的數學講義 `p.158–165`、延期 `p.149–165` 與延期 `p.166–173` 會成為單一張 `p.149–173` 卡片；不連續範圍與不同回次則收在一張主卡內的獨立子項目。合併卡仍保留底層原始項目，勾選後會回寫各原始紀錄，以便下次 Calendar 刪除、重排或延期重建時正確還原。
-
-`171.0.36` 移除標題列與頁面底部重複的儲存操作，只保留一個「儲存紀錄」。按鈕移入 Cloud／Calendar 的頂部常駐連線列，捲動頁面時仍可直接儲存；儲存成功、失敗與匯入匯出提示也會保留在同一常駐區域。原本底部區塊調整為純粹的「匯出與匯入」。
-
-`171.0.37` 移除星期日固定排程「本週完成度與錯題整理」；舊紀錄中的系統預設卡片會在載入該日期時一併清除。匯出區附註改為「匯出可供 AI 分析本週概況」。點擊常駐的「儲存紀錄」後，按鈕會依序顯示「儲存中…」及「已儲存 ✓」或「儲存失敗」，並以顏色提供清楚反饋。
-
-`171.0.38` 修正星期日空白的原訂「數學講義題目：理解檢查＋錯題標記＋訂正」無法與 Calendar／延期頁碼項目合併的問題。同名項目現在只顯示一張主卡，空白原訂項目與具體頁碼範圍以可分別勾選的子項目保留；相鄰範圍仍先合併，完成率則維持每個子項目各自計算。子項目的完成狀態會同步回底層來源，重新載入後不會消失。
-
-`171.0.39` 將同科目卡片集中相鄰顯示，同一科目內仍保留原本順序。修正合併後「數學講義：進度」分鐘數寫入錯誤來源、重新載入後消失的問題。合併卡片的每個原訂子項目現在可獨立選擇日期並確認延期；容量以子項目逐筆計算，額滿提示、完成率、目標日補做建立與重新載入皆沿用獨立狀態，其他子項目不會一起延期。
-
-`171.0.40` 修正合併後「數學講義：進度」的起始頁／結束頁只更新顯示卡、重新載入後被原始資料覆蓋的問題。修改範圍邊界時，現在會回寫真正擁有該邊界的來源項目，Calendar 再同步也會保留使用者明確修改的頁碼。另修正 Calendar 群組子卡來源判斷不符，導致無法各自延期的問題；一般子卡、Calendar 補做子卡及已延期後再次延期的子卡，現在都能獨立選擇日期、確認延期並正確計入目標日容量。
-
-`171.0.41` 移除群組子卡片中重複的項目標題；數學延期／補做子卡的第二行改為左側 3/4 保留「對應單元／章節」，右側 1/4 顯示該子卡所有實際來源日期，一般子卡仍維持原本整行配置。今日與本週數學頁數改為展開群組內已完成的固定排程、Calendar 與延期子項目計算；未完成子項目不提前計入，重疊頁碼以相同教材／冊別去重，因此合併到大卡片後不再漏算或重複計算。
-
-`171.0.42` 將延期／補做子卡的連續來源日期壓縮為起訖區間，例如 `8/26、8/27、8/28、8/29` 顯示為 `8/26-8/29`；日期中斷時則分段顯示，例如 `8/26、8/28-8/29`，避免來源日期欄位過長。
-
-`171.0.43` 修正「數學講義題目：理解檢查＋錯題標記＋訂正」未合併：固定排程、Google Calendar 與延期項目現在以穩定模板代號辨識，不再因 `：`／`｜` 或 `＋`／`+` 等歷史標題差異被拆成多張卡片；連續頁碼仍合併為同一個可計數子項。
-
-`171.0.44` 補上星期日的實際資料情境：固定卡已先套入當日 Calendar 頁碼時，即使延期卡的冊數／教材欄位不同，仍會歸入同一張「數學講義題目」大卡，並保留各自的頁碼範圍與完成狀態為不同子項。
-
-`171.0.45` 將「數學講義題目：理解檢查＋錯題標記＋訂正」改為單層大卡：固定排程、Calendar 與延期範圍直接合併成一組欄位與一個完成勾選，不再顯示子卡片；隱藏來源仍同步保存，完成、延期及頁碼邊界修改會回寫所有對應來源。
-
-`171.0.46` 統一 Google Calendar 頁碼優先規則：數學、物理、化學、生物、地科及英文文法若在 Calendar 標題／說明中提供明確頁碼，Tracker 直接採用該範圍；僅在沒有合法頁碼時，才依單元名稱、進度序號或既有對照表推算。既有的使用者手動頁碼修改仍保留，不會被同步覆蓋。
-
-`171.0.47` 統一 Google Calendar 備註格式。只要行程使用下列標籤，Tracker 只讀取對應欄位，不再從其他自由文字猜測冊別、頁碼、進度、重點、來源日期或識別碼。單元名稱保留在 Calendar 標題內；`【頁碼範圍】` 與 `【單元進度】` 必須二選一，頁碼存在時一律優先並忽略單元進度。`【識別碼】` 作為跨重排的穩定項目識別，Google 原始 event key 仍保留供刪除同步使用。
+新版行程建議使用逐欄標籤：
 
 ```text
 【講義版本】教學講義
 【冊別】1
 【頁碼範圍】p.174–181
-【單元進度】／
 【重點】多項式函數與運算
 【來源日期】8/31
 【識別碼】math-polynomial-01
 ```
 
-`【冊別】` 只用於數學，其他科目直接省略整行。`【重點】` 是選填欄位，沒有重點時也直接省略整行。
+規則：
 
-若改用單元進度，請將頁碼範圍填為 `／`，例如：
+- `【冊別】` 只有數學使用。
+- `【重點】` 可省略；Essential Grammar 不需要重點。
+- `【頁碼範圍】` 與 `【單元進度】` 二選一；有效頁碼存在時優先。
+- `【識別碼】` 用於跨日期重排的穩定識別；Google event key 仍用於刪除同步。
+- 延期、Calendar 補做、合併與重新載入都必須保留原項目的專用模板。
+- 同內容、同範圍的重複 Calendar 行程只建立一個統計項目；不同範圍依連續性合併或成為可獨立完成的子項目。
 
-```text
-【講義版本】教學講義
-【冊別】1
-【頁碼範圍】／
-【單元進度】3/11
-【重點】多項式函數與運算
-【來源日期】8/31
-【識別碼】math-polynomial-03
-```
+目前已支援數學、國文、英文、物理、化學、生物、地科、自然整合，以及 ACE Reading、Essential Grammar、大考英聽 A 攻略與主題百匯等專用教材格式。
 
-`171.0.48` 修正非數學科目的標準備註：不再要求或顯示 `【冊別】`，`【重點】` 也改為可完全省略。英文文法的 Google Calendar 排程資訊框會依序顯示「單元名稱（單元進度）」、「重點」（僅在有填寫時）與「建議頁碼」（固定顯示）；沒有重點時不再顯示 `重點：—`。
+### 9. 數學與教材進度
 
-`171.0.49` 精簡英文文法的 Google Calendar 排程資訊框：單元名稱與 `(n/總數)` 僅供系統選取正確建議頁碼，不再於框內重複顯示。有重點時只顯示「重點」與「建議頁碼」；沒有重點時只顯示「建議頁碼」。
+數學完成頁數依真正保存的來源項目計算，合併卡、Calendar 卡、延期卡及子卡都會展開計算；相同教材、冊別的重疊頁碼會去重。今日狀態為「外出」時，只取消固定排程，當日實際完成的自訂、Calendar 或延期數學頁數仍會計入。
 
-`171.0.50` 統一來源日期顯示條件：當日原訂 Calendar 項目隱藏「來源日期」，只有來源日與目前卡片日期不同，或項目屬於 Tracker 延期／Calendar 補做時才顯示；延期合併卡仍保留完整的日期區間。
+目前 runtime 的數學完成頁面抽取、索引與計算來源是 `src/study/mathProgress.ts`。`mathProgressHistory.ts` 與 `weeklyMath.ts` 是尚未被 runtime 引用的歷史檔案，不應作為新功能的資料來源。
 
-`171.0.51` 修正 Google Calendar 實際行程備註可能自動換行的問題：`【識別碼】`會移除空白與換行後再作為穩定識別，避免同一項目因排版變動產生重複卡片；「自然整合」也會直接讀取新版 `【頁碼範圍】`與`【重點】`，並持續相容舊版 `【講義／頁碼】`、`【複習】`及`【複習規則】`。
+### 10. 合併卡、子卡與延期
 
-`171.0.52` 將網站頂部連結文字精簡為「排程建議prompt」，並把連結所開啟的內容更新為精簡版 GSAT 排程與 Google Calendar 同步 Prompt；公開網址維持 `gpt.prompt.html`，既有連結不需更改。
+- 連續頁碼可合併成一段，例如 `p.1–5`、`p.6–10` 形成 `p.1–10`。
+- 中間有中斷或以回次、Test、Unit 計算時，使用同一主卡下的獨立子項目。
+- 子項目可分別完成、計時、填時間與延期，並各自計入完成率。
+- UI 合併卡由來源資料推導，不直接當成唯一的永久儲存單位；編輯會回寫 stable source item。
 
-`171.0.53` 新增低飽和科目色彩辨識：數學使用霧藍、國文使用淡紅棕、英文使用淡紫、自然與自然整合共用鼠尾草綠，其他項目使用中性灰。顏色套用於一般卡片、Calendar／延期合併卡、子卡片及本週項目列，並保留原有完成與延期狀態提示。
+### 11. 完成率、週結算與慶祝回饋
 
-`171.0.54` 將低飽和科目色延伸到整張卡片與子卡片內層，不再只有標題列著色。使用者勾選完成並使「今日總項目完成率」首次超過 50% 時，顯示小型淡色紙花與「你已經完成一半了，繼續努力！」；首次達到 100% 時顯示加強版慶祝與「今日事今日畢！」。每個門檻每日只顯示一次，延期、Calendar 同步、分母變動及取消勾選不會誤觸發，並支援系統的減少動態效果設定。
+兩個完成率都以項目數計算，不依分鐘加權。確認延期後從原日期分母移除，補做於目標日加入總項目分母。星期五與星期日顯示期間結算及趨勢。
 
-`171.0.55` 修正科目色與慶祝回饋未實際呈現的問題。所有巢狀子卡片與內層區塊現在會強制沿用該子項目的科目色；數學由接近原介面底色的霧藍改為淡米黃色。慶祝紀錄升級為新版狀態，避免前一版未顯示的紀錄阻止動畫；若完成率已超過 50% 但尚未成功慶祝，下一次勾選完成時會補顯示一次。
+「今日總項目完成率」首次達到 50% 時顯示小慶祝與「你已經完成一半了，繼續努力！」；首次達到 100% 時顯示「今日事今日畢！」。每個門檻每日只顯示一次，並尊重系統減少動態效果設定。
 
-`171.0.56` 將一半完成的觸發條件由「超過 50%」修正為「達到 50%（含）」，因此完成率剛好由低於一半升至 50% 時會立即播放小慶祝。同步升級每日慶祝狀態，避免前一版測試紀錄阻止修正版第一次播放。
+### 12. 計時與小數分鐘
 
-`171.0.57` 調整科目卡片的視覺層級：外層大卡保留原本的淡科目色，巢狀子卡片與其標題列改用同科目但更接近白色的次級淡色，讓合併項目的父子關係更容易辨識。
+計時以時間戳保存，重新整理或切換日期後可續計。按「完成並填入」時才換算為分鐘並保留一位小數；例如 15 秒為 `0.3` 分、1 分 29 秒為 `1.5` 分。計時不會自動勾選完成。
 
-`171.0.58` 再降低所有科目色的飽和度，子卡片改為近白色同系表面；同時加入向右內縮、較小圓角、較細左側色線與輕微陰影，以結構差異強化父卡／子卡層級，而不依賴鮮豔色差。
+### 13. 安全匯入與固定前端依賴
 
-`171.0.59` 將主卡片的科目背景、邊框與標題色恢復為 `171.0.57` 的辨識強度；子卡片則保留 `171.0.58` 的近白低飽和配色、內縮、較小圓角與陰影。父卡與子卡使用獨立色彩變數，避免子卡再次繼承較深的主卡色。
+JSON 匯入先預覽與完整驗證，使用者確認後才修改資料，並提供備份與逐日同步結果。`@supabase/supabase-js` 固定為 npm dependency `2.114.0` 並由 Vite 打包，不使用浮動 CDN 版本。
 
-Calendar 自然項目的資訊列採 3:1 配置：左側「Google Calendar 當日主題」佔 3/4，右側「來源日期」佔 1/4；延期項目顯示原日期，一般項目顯示 Calendar 排定日期。
+### 14. 視覺化與低飽和科目色
 
----
+數學、國文、英文、自然與其他項目使用不同的低飽和色系；子卡使用更接近白色的同系表面與縮排，保留父子層級。完成率趨勢與教材進度圖都在既有版面或獨立頁面呈現，不把主畫面塞滿。
 
-# Supabase／Google 一次設定（重建環境或尚未設定 secrets 時）
+### 15. Supabase／Google 一次設定
 
-## 1. 套用 migration
+以下設定只需在重建環境、第一次部署或 secrets 遺失時執行。
 
-先登入 Supabase CLI，於 repo root 執行：
+#### 15.1 Google Cloud Console
 
-```bash
-supabase link --project-ref arxbirgujbrtzhoficdf
-supabase db push
-```
-
-migration 位於：
-
-```text
-supabase/migrations/202608270001_v171_storage_calendar.sql
-supabase/migrations/202608270002_google_calendar_client_id.sql
-```
-
-它會：
-
-- 替 `study_records` 加入 `revision`
-- 建立 `upsert_study_record()`
-- 建立 `google_calendar_connections`
-- 替既有 Calendar connection 增加公開的 `client_id`
-- 補強 `calendar_tasks`
-
-## 2. Google Cloud Console
-
-建立／選擇 Google Cloud project：
-
-1. Enable **Google Calendar API**
-2. 設定 OAuth consent screen
-3. 建立 **OAuth 2.0 Client ID → Web application**
-4. Authorized redirect URI 填：
+1. 建立或選擇 Google Cloud project。
+2. 啟用 **Google Calendar API**。
+3. 完成 OAuth 品牌、目標對象與資料存取設定。
+4. 權限只加入 `calendar.readonly`。
+5. 建立 **OAuth 2.0 Client ID → Web application**。
+6. Authorized redirect URI 填入：
 
 ```text
 https://arxbirgujbrtzhoficdf.supabase.co/functions/v1/google-calendar-callback
 ```
 
-Google OAuth 若仍在 Testing 模式，記得把實際 Google 帳號加入 Test users。
+若 OAuth 仍在 Testing 模式，將實際使用的 Google 帳號加入 Test users。
 
-## 3. 設定 Vite 的公開 Client ID
+#### 15.2 Vite 公開 Client ID
 
-OAuth Client ID 是公開識別碼，可安全出現在瀏覽器；OAuth Client Secret 才是必須保密的憑證。
-
-本機開發先複製：
-
-```bash
-cp .env.example .env.local
-```
-
-Windows PowerShell 可使用：
+本機複製環境範例：
 
 ```powershell
 Copy-Item .env.example .env.local
 ```
 
-再把 `.env.local` 改成：
+在 `.env.local` 設定：
 
 ```dotenv
 VITE_GOOGLE_CLIENT_ID=你的-web-client-id.apps.googleusercontent.com
 ```
 
-`.env.local` 已由 `.gitignore` 排除。不要建立 `VITE_GOOGLE_CLIENT_SECRET`；所有 `VITE_` 值都會公開進 browser bundle。
+GitHub Pages 部署則到 Repo → Settings → Secrets and variables → Actions → **Variables** 新增同名 `VITE_GOOGLE_CLIENT_ID`。修改後必須重新執行部署，因為 Vite env 是建置時注入。
 
-GitHub Pages 正式部署時，到 Repo → Settings → Secrets and variables → Actions → **Variables** 新增：
+不要建立 `VITE_GOOGLE_CLIENT_SECRET`；所有 `VITE_` 變數都會公開在瀏覽器 bundle。
 
-```text
-VITE_GOOGLE_CLIENT_ID=<同一個 Web OAuth Client ID>
-```
+#### 15.3 Supabase Edge Function secrets
 
-`deploy.yml` 會把這個 repository variable 提供給 Vite build。修改 variable 後必須重新執行 workflow，因為 Vite env 是建置時設定。
-
-## 4. 設定 Edge Function secrets
-
-建立自己的高熵字串作為 `GOOGLE_STATE_SECRET` 與 `CALENDAR_CRON_SECRET`，不要 commit 到 repo。
-
-```bash
-supabase secrets set \
-  GOOGLE_CLIENT_SECRET='你的 Google OAuth client secret' \
-  GOOGLE_REDIRECT_URI='https://arxbirgujbrtzhoficdf.supabase.co/functions/v1/google-calendar-callback' \
-  APP_RETURN_URL='https://livia20060129.github.io/gsat-study-tracker/' \
-  GOOGLE_STATE_SECRET='隨機長字串' \
-  CALENDAR_CRON_SECRET='另一組隨機長字串'
-```
-
-`GOOGLE_CLIENT_ID` 不再是 Supabase 必要 secret；Client ID 由設定完成的前端送入 auth flow，Client Secret 則只由 callback／token refresh 在伺服器端使用。
-
-## 5. 設定正式發布憑證（只需一次）
-
-先到 GitHub Repo → **Settings → Environments** 建立 `supabase-production`，建議設定：
-
-1. Deployment branches 只允許 `main`。
-2. 若帳號方案支援，開啟 Required reviewers，讓正式資料庫變更前需要確認。
-3. 在該 Environment 的 **Environment secrets** 新增以下兩項：
+到 Supabase Dashboard → Edge Functions → Secrets，新增：
 
 ```text
-SUPABASE_ACCESS_TOKEN=<Supabase 個人 Access Token>
-SUPABASE_DB_PASSWORD=<這個 Supabase 專案的 Database Password>
+GOOGLE_CLIENT_SECRET=<Google OAuth Client Secret>
+GOOGLE_REDIRECT_URI=https://arxbirgujbrtzhoficdf.supabase.co/functions/v1/google-calendar-callback
+APP_RETURN_URL=https://livia20060129.github.io/gsat-study-tracker/
+GOOGLE_STATE_SECRET=<高熵隨機字串>
+CALENDAR_CRON_SECRET=<另一組高熵隨機字串>
 ```
 
-`SUPABASE_ACCESS_TOKEN` 可在 [Supabase Access Tokens](https://supabase.com/dashboard/account/tokens) 建立；`SUPABASE_DB_PASSWORD` 是建立專案時設定的資料庫密碼。兩者都只能放在 GitHub Secret，不可放進 `VITE_` 變數、`.env.example`、原始碼或公開 log。若暫時無法使用 Environment secrets，也可使用同名 repository secrets，但隔離性較低。
+也可使用 Supabase CLI 的 `supabase secrets set NAME=value`。`.env` 與 secret 不可 commit；Supabase 設定完成後 secrets 會直接提供給 Edge Functions，不需要為了只改 secret 重新部署 Function。
 
-正式專案 ID 會直接讀取 `supabase/config.toml`，所以不必另外設定。若希望再加一層防呆，可在 Actions → **Variables** 新增：
+#### 15.4 Database migrations
+
+正式發布優先交給 GitHub Actions。手動處理時，於 repository root 依序執行：
+
+```powershell
+npx supabase@2.116.0 login
+npx supabase@2.116.0 link --project-ref arxbirgujbrtzhoficdf
+npx supabase@2.116.0 db push --dry-run
+npx supabase@2.116.0 db push
+npx supabase@2.116.0 migration list
+```
+
+所有 migration 都位於 `supabase/migrations/`，必須依歷史順序套用，不要只挑 README 中某一個檔案。Production 不可使用 `db reset --linked` 或 `--include-seed`。
+
+#### 15.5 GitHub 正式發布憑證
+
+到 Repo → Settings → Environments 建立 `supabase-production`，並新增 Environment secrets：
+
+```text
+SUPABASE_ACCESS_TOKEN=<Supabase Personal Access Token>
+SUPABASE_DB_PASSWORD=<此專案的 Database Password>
+```
+
+建議只允許 `main` 部署。可另外在 Actions → Variables 設定：
 
 ```text
 SUPABASE_PROJECT_ID=arxbirgujbrtzhoficdf
 ```
 
-只要 Variable 與 `config.toml` 不一致，workflow 就會在接觸資料庫之前停止。部署 workflow 不需要 `SUPABASE_SERVICE_ROLE_KEY`、Google Client Secret、refresh/access token 或 `CALENDAR_CRON_SECRET`。
+若 Variable 與 `supabase/config.toml` 不一致，發布會在碰觸資料庫前停止。
 
-## 6. 一次完成後端與前端發布
+#### 15.6 每小時同步 Secret
 
-`.github/workflows/deploy.yml` 現在是唯一的正式發布順序：
+在 GitHub Actions secrets 新增：
+
+```text
+CALENDAR_CRON_SECRET=<與 Supabase Edge Function 完全相同的值>
+```
+
+完成兩端設定後，到 Actions → **Hourly Google Calendar Sync** → Run workflow 手動驗收一次。
+
+#### 15.7 正式發布順序
+
+`.github/workflows/deploy.yml` 的順序是：
 
 ```text
 測試／型別檢查／建置
   → migration dry-run
   → database migration
   → migration history 核對
-  → google-calendar
-  → google-calendar-callback
-  → 無資料修改的線上存活檢查
+  → 部署兩支 Calendar Edge Functions
+  → 線上 smoke test
   → GitHub Pages
 ```
 
-推送到 `main` 後，到 **Actions → Validate and release Tracker** 查看同一次執行即可。任何步驟失敗，後續步驟都不會執行；尤其 Supabase 尚未完成時，新的 Pages 前端不會發布。新 commit 也不會取消正在執行的 database migration。
+Pull Request 只驗證，不接觸正式 Supabase。只有 `main` 分支能執行正式發布；任何後端步驟失敗時，新的 Pages 前端不會先上線。
 
-Pull Request 只會驗證，不會接觸正式 Supabase 或發布 Pages。若從 Actions 手動執行，只有選擇 `main` 分支時才會正式發布。
+## III. 重大更新版本
 
-資料庫 migration 必須保持向後相容。需要刪欄位、改欄位意義或其他破壞性變更時，請拆成兩次發布：先讓後端同時接受新舊格式，下一版才清理舊 schema。GitHub Pages、Edge Functions 與 PostgreSQL 並不是同一個可回滾交易，因此正式資料庫出錯時應以新的 forward migration 修正，不要直接重設正式資料庫。
+這裡只列影響使用方式或整體架構的重大版本，不逐一羅列 v1～v171 的所有中間版。以下四個版本由實際開發紀錄確認，作為目前可靠的重大版本依據。
 
-## 7. 每小時 Calendar 同步 Secret
+### v124｜Google Calendar 排程整合
 
-每小時同步使用另一條 `.github/workflows/calendar-sync.yml`，只需要：
+原先即使已經安排好讀書進度，每天仍需重新輸入紀錄卡。為減少重複整理，開始將 Google Calendar 的排程資料整合進系統。
 
-```text
-CALENDAR_CRON_SECRET=<與 Supabase Edge Function secret 完全相同>
-```
+### v133｜Supabase 雲端同步
 
-Supabase 專案網址是公開設定，workflow 已固定指向本專案；舊的 `SUPABASE_PROJECT_URL` Actions secret 不再需要。完成兩端設定後，到 **Actions → Hourly Google Calendar Sync → Run workflow** 手動驗收一次。顯示綠色成功後，之後會在每小時第 7 分鐘自動執行。
+原先資料保存在單一裝置，換設備後便無法延續使用，因此加入 Supabase 雲端同步，使紀錄可以跨裝置保存與讀取。
 
----
+### v169｜Google Calendar 每小時同步
 
-# 使用方式
+原先修改 Google Calendar 排程後，紀錄卡內容不會同步更新，因此串聯 Google Calendar API，使用每小時同步機制，讓排程變動後不必再手動修改紀錄卡。
 
-第一次部署 v171 後：
+### v171｜將 Google OAuth 設定完善
 
-1. 登入 Study Tracker
-2. 舊版 localStorage 不會自動灌入目前帳號
-3. 若需要舊本機資料，明確按「補上本機舊資料」
-4. 在 Google Calendar 區塊按「連接 Google Calendar」
-5. 完成 Google OAuth
-6. callback 會立即同步一次 Calendar
-7. 回 Tracker 後可按「立即同步」測試
-8. 之後每小時自動同步
+測試時發現 Google Calendar 同步僅限自己的帳號使用。排查後確認原因是 Google OAuth 專案仍處於測試階段；完成隱私權政策、服務條款等設定並正式發布後，其他帳號也能正常連接與同步。
 
-如果 `VITE_GOOGLE_CLIENT_ID` 未設定或仍是 `.env.example` 的範例值，「連接 Google Calendar」會停用並直接說明要補的設定，不會再送出必然失敗的 OAuth request。已連線帳號仍可載入 `calendar_tasks`；舊連線若尚未保存 `client_id`，請在套用新 migration／部署 Functions 後解除連線並重新連接一次。
+## IV. 此版本大更新（v171.x）
 
----
+### v171.0｜Calendar、同步與資料可靠性
 
-# 開發
+- Google Calendar 改為 OAuth 唯讀真同步，token 只存 server side。
+- 建立 Calendar → StudyTask application service、Local／Supabase Repository 與部分 discriminated union。
+- 加入穩定 revision、分頁同步、每日期寫入佇列、衝突保護與安全匯入。
+- Calendar 重排、刪除、合併、延期與來源模板使用同一套穩定識別規則。
+- CI/CD 依序驗證、套 migration、部署 Edge Functions，再發布 GitHub Pages。
+- 新增計時、完成率雙指標、週結算、趨勢圖、教材模板與低飽和科目色。
 
-```bash
-npm install
+### v171.1｜教材進度視覺化
+
+- 新增獨立「教材進度圖」頁面。
+- 依科目切換教材，以已保存的實際紀錄填色。
+- 延期、Calendar 合併卡與子卡片會遞迴納入，不建立另一套進度資料。
+
+## V. 此版本重要更新（v171.x.xx）
+
+只收錄符合至少一項條件的更新：改變核心操作、資料計算、雲端／Calendar 可靠性、資料安全或正式部署。純文字、微小排版與單一樣式修正不列入。
+
+| 版本 | 重要更新 |
+| --- | --- |
+| v171.1.0 | 新增獨立教材進度圖，依國文／英文／數學／自然與真實紀錄顯示完成狀態。 |
+| v171.0.96 | 星期五／星期日新增本週完成率趨勢，與完成率共用欄位切換。 |
+| v171.0.95 | 切換日期前先保存；登入後每 10 分鐘刷新雲端佇列且不中斷計時。 |
+| v171.0.89 | 建立 Supabase database、Edge Functions 與 GitHub Pages 的順序化正式發布。 |
+| v171.0.88 | Study Records、Calendar tasks 與每小時同步加入穩定游標分頁及後端可靠性保護。 |
+| v171.0.87 | 補回每小時 Google Calendar 同步 workflow 與失敗驗證。 |
+| v171.0.85 | 國文教材與英文主題／回次模板正式納入手動、Calendar、延期與重新載入流程。 |
+| v171.0.82 | 自然科改為依各自 Calendar 行程判讀頁碼，避免同日不同科目互相覆蓋。 |
+| v171.0.81 | 修正延期完成率：確認延期後從原日期分母移除，不再誤算成完成。 |
+| v171.0.79 | JSON 匯入改為預覽、驗證、確認與備份；Supabase JS 改為固定 npm dependency。 |
+| v171.0.65 | 新增可續計的手動／計時模式，並支援合併卡與子卡。 |
+| v171.0.61 | 合併卡的所有可編輯欄位回寫實際來源紀錄，避免重新載入後消失。 |
+| v171.0.60 | 同日期雲端寫入序列化，只保留等待中的最新完整紀錄。 |
+| v171.0.47 | 建立 Calendar 標準備註欄位與穩定識別碼，頁碼優先於單元推算。 |
+| v171.0.32 | 統一 Calendar 重排與 Tracker 延期的連續範圍合併及子項目規則。 |
+| v171.0.27 | 延期改為選定日期後再確認，加入目標日容量與超額確認。 |
+| v171.0.22 | Calendar 同內容去重並同步 Google 行程刪除結果。 |
+| v171.0.3 | 修正 study record revision 欄位歧義，強化 RPC 與 RLS 權限。 |
+
+## VI. 開發
+
+建議使用 Node.js 22。安裝與驗證：
+
+```powershell
+npm ci
 npm run typecheck
+npm test
+npm run typecheck:edge
 npm run build
 npm run dev
 ```
 
-## 專案結構
+常用指令：
+
+| 指令 | 用途 |
+| --- | --- |
+| `npm run dev` | 啟動 Vite 開發環境。 |
+| `npm run typecheck` | 檢查前端 TypeScript。 |
+| `npm test` | 執行 domain、storage、Calendar、UI 與 workflow 回歸測試。 |
+| `npm run typecheck:edge` | 以 frozen lockfile 檢查兩支 Supabase Edge Functions。 |
+| `npm run build` | 執行型別檢查並產生 production build。 |
+| `npm run preview` | 預覽 production build。 |
+
+開發原則：
+
+- 新規則優先放在 typed module，不再擴大 `legacy-app.ts`。
+- 永久資料、UI 合併 View Model 與外部 Calendar DTO 必須分開。
+- 資料存取透過 Repository；domain 不直接依賴 DOM、Supabase 或 Google API。
+- Calendar、延期、手動新增與重新載入必須共用同一套模板和 stable ID 規則。
+- 新增或修正功能時，至少補對應 unit/regression test；涉及完整操作流程時再補 E2E。
+- 依賴套件固定完整版本並提交 lockfile。
+
+## VII. 專案結構
 
 ```text
-src/
-├─ main.ts
-├─ legacy-app.ts
-├─ types.ts
-├─ config/
-│  └─ googleCalendar.ts
-├─ calendar/
-│  └─ calendarBridge.ts
-├─ data/
-│  ├─ mathCalendar.ts
-│  └─ naturalCalendar.ts
-├─ storage/
-│  ├─ local.ts
-│  ├─ recordSync.ts
-│  └─ syncWatermark.ts
-├─ study/
-│  ├─ completionMetrics.ts
-│  ├─ defer.ts
-│  └─ mathProgress.ts
-├─ items/
-│  └─ naturalIntegration.ts
-└─ ui/
-   └─ dom.ts
-
-supabase/
-├─ config.toml
-├─ migrations/
-│  ├─ 202608270001_v171_storage_calendar.sql
-│  ├─ 202608270002_google_calendar_client_id.sql
-│  └─ 202608270003_fix_study_record_revision_ambiguity.sql
-└─ functions/
-   ├─ _shared/googleCalendar.ts
-   ├─ google-calendar/index.ts
-   └─ google-calendar-callback/index.ts
+.
+├─ index.html                     # 每日 Tracker 主頁
+├─ material.progress.html         # 獨立教材進度圖
+├─ public/                        # Prompt、隱私權、條款與支援頁
+├─ src/
+│  ├─ main.ts                     # 前端入口
+│  ├─ legacy-app.ts               # 尚待逐步抽離的 compatibility runtime
+│  ├─ application/                # Calendar use case 與 Repository ports
+│  ├─ domain/study/               # 漸進式 StudyItem 型別
+│  ├─ infrastructure/storage/     # Local／Supabase Repository 與 Calendar reader
+│  ├─ calendar/                   # Calendar 解析、頁碼優先與排程摘要
+│  ├─ data/                       # 教材、書籍、頁碼及 fallback 排程資料
+│  ├─ storage/                    # codec、同步、watermark、lock 與 queue
+│  ├─ study/                      # 完成率、延期、合併、計時與進度規則
+│  ├─ ui/                         # 已抽出的 UI view／action
+│  ├─ material-progress-page.ts   # 教材進度頁 controller
+│  ├─ material-progress.css       # 教材進度頁樣式
+│  └─ styles.css                  # Tracker 主樣式
+├─ supabase/
+│  ├─ config.toml
+│  ├─ migrations/                 # 可重建 schema 的順序化 migration
+│  └─ functions/
+│     ├─ _shared/                 # Google Calendar、分頁、diff 與回應工具
+│     ├─ google-calendar/         # 連線、讀取、同步與解除連線
+│     └─ google-calendar-callback/# OAuth callback
+├─ tests/                         # 主要回歸與純邏輯測試
+└─ .github/workflows/
+   ├─ deploy.yml                  # 驗證、Supabase 與 Pages 順序化發布
+   └─ calendar-sync.yml           # 每小時 Calendar 同步
 ```
 
-## 注意
+## VIII. 注意事項
 
-`legacy-app.ts` 仍是舊 UI／業務邏輯 compatibility runtime，因此尚保留 `@ts-nocheck`。v171 已把版本判定、storage namespace、數學進度與 Calendar parser／server integration 放到 typed module 或 server function；後續版本再逐區拆除剩餘 legacy UI code。
+1. `VITE_GOOGLE_CLIENT_ID` 可以公開，但 Client Secret、token、database password、Supabase access token 與 `CALENDAR_CRON_SECRET` 絕不可 commit。
+2. 所有公開資料表必須同時檢查 Data API 權限與 RLS；`authenticated` 角色本身不等於資料所有權，policy 必須限制 `auth.uid()`。
+3. 正式 database migration 只能向前修正。不要對 production 執行 `db reset --linked`，也不要用 seed 覆蓋正式資料。
+4. GitHub Pages、Supabase Database 與 Edge Functions 不是同一個可回滾交易；正式發布必須維持 workflow 的既定順序。
+5. 若 localStorage 不可永久保存，頁面關閉後資料可能消失；應依畫面警告處理，登入雲端也不能取代當下本機寫入是否成功的檢查。
+6. Google Calendar 使用唯讀權限；Tracker 的「解除連線／刪除同步資料」不會刪除 Google Calendar 原始行程。
+7. Calendar 行程盡量使用標準欄位和穩定 `【識別碼】`。修改日期可保留同一項目身分；改掉識別碼可能被視為刪除舊項目並新增新項目。
+8. `legacy-app.ts` 仍保留 `@ts-nocheck`。新功能應持續抽到 application、domain、infrastructure、study 或 ui 模組，不應一次重寫整個應用。
+9. README 後續固定使用本文件的八個章節；「III. 重大更新版本」只列架構里程碑，「V. 此版本重要更新」只列核心功能、資料、安全、同步或部署的重要變動。
