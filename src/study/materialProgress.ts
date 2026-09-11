@@ -9,11 +9,6 @@ import {
   type PageMappedBook,
 } from '../data/bookPageMaps.ts';
 import { LISTENING_TEST_BOOK_TITLE, isListeningTestBookTitle } from '../data/englishBooks.ts';
-import {
-  AZAR_GRAMMAR_BOOK_TITLE,
-  AZAR_GRAMMAR_SECTIONS,
-  isAzarGrammarBookTitle,
-} from '../data/azarGrammar.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
 
@@ -220,18 +215,6 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
   { id: 'english:essential', subject: 'english', title: '英文｜Essential Grammar in Use', unitLabel: 'Unit', segments: numberedSegments(115, 'Unit') },
   { id: 'english:writing', subject: 'english', title: '英文｜英文寫作測驗', unitLabel: '回', segments: numberedSegments(40, '第') },
   { id: 'english:grammar', subject: 'english', title: '英文｜英文文法總複習講義', unitLabel: '章節', segments: mappedSegments(GRAMMAR_REVIEW_PAGE_MAP) },
-  {
-    id: 'english:azar-intermediate',
-    subject: 'english',
-    title: `英文｜${AZAR_GRAMMAR_BOOK_TITLE}`,
-    unitLabel: '分項',
-    segments: AZAR_GRAMMAR_SECTIONS.map(section => ({
-      key: section.code,
-      label: `${section.code}${section.title}（p.${section.start}${section.start === section.end ? '' : `–${section.end}`}）`,
-      start: section.start,
-      end: section.end,
-    })),
-  },
   bookDefinition(ENGLISH_TOPIC_READING_BOOK),
   bookDefinition(ENGLISH_TOPIC_CLOZE_BOOK),
   ...Object.entries(TEACHING_MATH_PAGE_MAP).map(([book, rows]) => mathDefinition('教學講義', book, rows)),
@@ -328,15 +311,6 @@ function markLinear(recorded: Map<string, Set<string>>, definitionId: string, st
   markRange(recorded, definitionId, start, end ?? start);
 }
 
-function markExact(recorded: Map<string, Set<string>>, definitionId: string, keyValue: unknown): void {
-  const definition = definitionById.get(definitionId);
-  const key = String(keyValue ?? '').trim();
-  if (!definition || !key || !definition.segments.some(segment => segment.key === key)) return;
-  const target = recorded.get(definitionId) ?? new Set<string>();
-  target.add(key);
-  recorded.set(definitionId, target);
-}
-
 function markStudyItem(recorded: Map<string, Set<string>>, item: StudyItem): void {
   const fields = objectValue(item.f);
   const delegatesRangeToChildren = ['groupedWorkEntries', 'dailyWorkSourceItems']
@@ -359,10 +333,6 @@ function markStudyItem(recorded: Map<string, Set<string>>, item: StudyItem): voi
       else if (isListeningTestBookTitle(title)) markLinear(recorded, 'english:listening', fields.round);
       else if (/Essential\s+Grammar\s+in\s+Use/i.test(title)) markLinear(recorded, 'english:essential', fields.unitStart ?? fields.unit, fields.unitEnd ?? fields.unitStart ?? fields.unit);
       else if (/英文寫作測驗/.test(title)) markLinear(recorded, 'english:writing', fields.round);
-      else if (isAzarGrammarBookTitle(title)) {
-        if (fields.azarSectionCode) markExact(recorded, 'english:azar-intermediate', fields.azarSectionCode);
-        else markRange(recorded, 'english:azar-intermediate', fields.start, fields.end);
-      }
       else if (/英文文法總複習講義/.test(title)) markRange(recorded, 'english:grammar', fields.start, fields.end);
       else if (mappedBook && pageMappedBookSubject(mappedBook) === '英文') markBookSelection(recorded, mappedBook, fields);
     }

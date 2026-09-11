@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f5f8fc" />
+  <link rel="icon" type="image/png" href="./book.png" />
+  <link rel="apple-touch-icon" href="./book.png" />
+  <title>教材進度圖｜GSAT Study Tracker</title>
+</head>
+<body>
+  <main class="progress-page">
+    <header class="progress-page-header">
+      <div>
+        <h1>教材進度圖</h1>
+        <p>依 Tracker 已儲存的學習紀錄，查看各教材已寫過的範圍。</p>
+      </div>
+      <a class="back-link" href="./index.html">回到 Tracker</a>
+    </header>
+
+    <section class="progress-panel" aria-labelledby="progressTitle">
+      <div class="progress-panel-head">
+        <div>
+          <h2 id="progressTitle">教材紀錄</h2>
+          <p id="recordSource">正在讀取本機紀錄…</p>
+        </div>
+        <button id="refreshProgress" type="button">重新讀取</button>
+      </div>
+
+      <div class="progress-panel-body">
+        <div class="subject-switch" id="subjectSwitch" role="tablist" aria-label="切換教材科目" data-active="2">
+          <span class="subject-switch-indicator" aria-hidden="true"></span>
+          <button type="button" role="tab" data-subject="chinese" aria-selected="false" tabindex="-1">國文</button>
+          <button type="button" role="tab" data-subject="english" aria-selected="false" tabindex="-1">英文</button>
+          <button type="button" role="tab" data-subject="math" aria-selected="true">數學</button>
+          <button type="button" role="tab" data-subject="natural" aria-selected="false" tabindex="-1">自然</button>
+        </div>
+
+        <div class="progress-legend" aria-label="圖例">
+          <span><i class="legend-recorded" aria-hidden="true"></i>已有紀錄</span>
+          <span><i class="legend-empty" aria-hidden="true"></i>尚無紀錄</span>
+          <strong id="subjectSummary"></strong>
+        </div>
+
+        <div id="materialProgressList" class="material-progress-list" role="tabpanel"></div>
+        <p class="progress-note">勾選完成、填入時間，或勾選「進度／批改／訂正／再複習」後，對應範圍才會視為已有紀錄。滑鼠移到色塊上可查看單元。</p>
+        <p id="progressError" class="progress-error" role="alert" hidden></p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/src/material-progress-page.ts"></script>
+</body>
+</html>

@@ -100,24 +100,6 @@ test('includes completed Calendar natural integration child ranges', () => {
   assert.match(biology.segments.find(segment => segment.recorded)?.label ?? '', /Chapter 2 遺傳/);
 });
 
-test('records Azar Calendar child sections independently instead of filling the whole page range', () => {
-  const first = item({
-    id: 'azar-2-1', type: 'extra', done: true,
-    f: { title: 'Azar英文文法系列（中階）', azarSectionCode: '2-1', start: '31', end: '31' },
-  });
-  const second = item({
-    id: 'azar-2-2', type: 'extra', done: false,
-    f: { title: 'Azar英文文法系列（中階）', azarSectionCode: '2-2', start: '32', end: '32' },
-  });
-  const parent = item({ id: 'azar-chapter', f: { groupedWorkEntries: [first, second] } });
-  const azar = materialProgressRows([record([parent])]).find(row => row.id === 'english:azar-intermediate');
-  assert.ok(azar);
-  assert.equal(azar.total, 149);
-  assert.equal(azar.recorded, 1);
-  assert.equal(azar.segments.find(segment => segment.key === '2-1')?.recorded, true);
-  assert.equal(azar.segments.find(segment => segment.key === '2-2')?.recorded, false);
-});
-
 test('uses the Tracker active account prefix and ignores other account records', () => {
   const values = new Map<string, string>([
     [ACTIVE_RECORD_PREFIX_KEY, 'study-v11:user:user-a:'],

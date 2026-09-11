@@ -95,19 +95,30 @@
     <div class="metric-panel" id="metricMathWeekPanel" role="tabpanel" data-metric-panel="mathWeek" hidden><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span></div></div>
    </div>
    <div class="stat completion-stat">
-    <div class="completion-metric">
-     <div class="completion-metric-head"><span>原訂今日項目完成率</span><strong id="completionPercent">0%</strong></div>
-     <div class="progress"><div id="completionBar" style="width:0"></div></div>
-     <div class="small" id="completionText">0/0 項</div>
+    <div class="completion-view-segments" id="completionViewTabs" role="tablist" aria-label="完成率顯示方式" data-active="0" hidden>
+     <span class="completion-view-segment-indicator" aria-hidden="true"></span>
+     <button type="button" role="tab" aria-selected="true" aria-controls="completionRatePanel" data-completion-view="rates">完成率</button>
+     <button type="button" role="tab" aria-selected="false" aria-controls="completionTrendPanel" data-completion-view="trend" tabindex="-1">本週趨勢</button>
     </div>
-    <div class="completion-metric">
-     <div class="completion-metric-head"><span>今日總項目完成率</span><strong id="workloadCompletionPercent">0%</strong></div>
-     <div class="progress workload-progress"><div id="workloadCompletionBar" style="width:0"></div></div>
-     <div class="small" id="workloadCompletionText">0/0 項工作量</div>
+    <div id="completionRatePanel" role="tabpanel" data-completion-panel="rates">
+     <div class="completion-metric">
+      <div class="completion-metric-head"><span>原訂今日項目完成率</span><strong id="completionPercent">0%</strong></div>
+      <div class="progress"><div id="completionBar" style="width:0"></div></div>
+      <div class="small" id="completionText">0/0 項</div>
+     </div>
+     <div class="completion-metric">
+      <div class="completion-metric-head"><span>今日總項目完成率</span><strong id="workloadCompletionPercent">0%</strong></div>
+      <div class="progress workload-progress"><div id="workloadCompletionBar" style="width:0"></div></div>
+      <div class="small" id="workloadCompletionText">0/0 項工作量</div>
+     </div>
+     <div class="settlement-metrics" id="settlementMetrics" hidden>
+      <div class="settlement-row"><span id="settlementLabel">週五結算完成率</span><strong id="settlementPercent">0%</strong></div>
+      <div class="settlement-comparison" id="settlementComparison" hidden>相較週五結算 <strong id="settlementDelta">±0%</strong></div>
+     </div>
     </div>
-    <div class="settlement-metrics" id="settlementMetrics" hidden>
-     <div class="settlement-row"><span id="settlementLabel">週五結算完成率</span><strong id="settlementPercent">0%</strong></div>
-     <div class="settlement-comparison" id="settlementComparison" hidden>相較週五結算 <strong id="settlementDelta">±0%</strong></div>
+    <div class="completion-trend-panel" id="completionTrendPanel" role="tabpanel" data-completion-panel="trend" hidden>
+     <div class="completion-trend-head"><span>每日結算完成率</span><span class="small" id="completionTrendRange"></span></div>
+     <div class="completion-trend-chart" id="completionTrendChart"></div>
     </div>
    </div>
   </div>

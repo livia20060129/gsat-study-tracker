@@ -2,4 +2,12 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   base: './',
+  build: {
+    rollupOptions: {
+      input: {
+        tracker: './index.html',
+        materialProgress: './material.progress.html',
+      },
+    },
+  },
 });
