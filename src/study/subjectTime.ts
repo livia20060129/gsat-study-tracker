@@ -44,6 +44,29 @@ export interface SubjectTimeDonutSlice extends SubjectTimeSlice {
   labelY: number;
 }
 
+function pointOnCircle(percent: number, radius: number, center: number): [number, number] {
+  const angle = (percent / 100) * Math.PI * 2 - Math.PI / 2;
+  return [
+    center + Math.cos(angle) * radius,
+    center + Math.sin(angle) * radius,
+  ];
+}
+
+/** Draws the exact same arc used to calculate the label midpoint. */
+export function subjectTimeArcPath(
+  slice: Pick<SubjectTimeDonutSlice, 'startPercent' | 'endPercent'>,
+  radius = 56,
+  center = 80,
+): string {
+  const span = Math.max(0, Math.min(100, slice.endPercent - slice.startPercent));
+  if (span >= 99.999) {
+    return `M ${center} ${center - radius} A ${radius} ${radius} 0 1 1 ${center} ${center + radius} A ${radius} ${radius} 0 1 1 ${center} ${center - radius}`;
+  }
+  const [startX, startY] = pointOnCircle(slice.startPercent, radius, center);
+  const [endX, endY] = pointOnCircle(slice.endPercent, radius, center);
+  return `M ${startX} ${startY} A ${radius} ${radius} 0 ${span > 50 ? 1 : 0} 1 ${endX} ${endY}`;
+}
+
 function roundOne(value: number): number {
   return Math.round((value + Number.EPSILON) * 10) / 10;
 }

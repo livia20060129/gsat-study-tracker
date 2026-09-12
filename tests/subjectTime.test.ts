@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   SUBJECT_TIME_SHORT_LABELS,
+  subjectTimeArcPath,
   subjectTimeConicGradient,
   subjectTimeDonutSlices,
   summarizeSubjectTime,
@@ -70,6 +71,25 @@ test('positions each subject label in the middle of its donut color arc', () => 
   assert.ok(Math.abs(slices.reduce((sum, slice) => sum + slice.dashLength, 0) - 2 * Math.PI * 56) < 0.001);
 });
 
+test('draws each color as an explicit clockwise SVG arc matching its label geometry', () => {
+  const slices = subjectTimeDonutSlices(summarizeSubjectTime([
+    { subject: '數學', minutes: 30 },
+    { subject: '國文', minutes: 10 },
+    { subject: '英文', minutes: 60 },
+  ]));
+
+  assert.match(subjectTimeArcPath(slices[0]), /^M 80 24 A 56 56 0 0 1 /);
+  assert.match(subjectTimeArcPath(slices[2]), /A 56 56 0 1 1 /);
+  assert.doesNotMatch(subjectTimeArcPath(slices[0]), /dashoffset|rotate/);
+});
+
+test('a single subject uses a complete two-part circle path', () => {
+  const [slice] = subjectTimeDonutSlices(summarizeSubjectTime([
+    { subject: '自然', minutes: 45 },
+  ]));
+  assert.equal((subjectTimeArcPath(slice).match(/ A /g) || []).length, 2);
+});
+
 test('uses one clear character for every subject label on the ring', () => {
   assert.deepEqual(SUBJECT_TIME_SHORT_LABELS, {
     數學: '數', 國文: '國', 英文: '英', 自然: '自', 其他: '社',
@@ -86,10 +106,16 @@ test('wires the donut into the today-minutes panel and renders minutes in its ce
   assert.match(runtime, /renderSubjectTimeDonut\(subjectTime\)/);
   assert.match(runtime, /class="subject-time-center".*id="doneMinutes"/);
   assert.match(runtime, /class="subject-time-ring-label"/);
+  assert.match(runtime, /subjectTimeArcPath\(slice\)/);
+  assert.match(runtime, /data-subject-time-tooltip/);
+  assert.doesNotMatch(runtime, /value\.textContent=slice\.percent/);
   assert.match(runtime, /node\.addEventListener\('mouseenter'/);
   assert.match(runtime, /node\.addEventListener\('click'/);
+  assert.match(runtime, /classList\.toggle\('is-muted',nodeIndex!==index\)/);
+  assert.match(runtime, /classList\.remove\('is-active','is-muted'\)/);
   assert.match(styles, /subject-time-chart\{[^}]*width:min\(240px,calc\(100% - 24px\)\)/);
   assert.match(styles, /metric-minutes-panel\{[^}]*justify-content:center;[^}]*padding:8px 5px/);
   assert.match(styles, /subject-time-slice\{[^}]*stroke-width:34px;vector-effect:non-scaling-stroke/);
+  assert.match(styles, /subject-time-slice\.is-muted\{opacity:\.28\}/);
   assert.match(styles, /subject-time-track\{[^}]*stroke-width:34px;vector-effect:non-scaling-stroke/);
 });

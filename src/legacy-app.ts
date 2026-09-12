@@ -26,7 +26,7 @@ import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCa
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
 import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } from './study/subjectOrder';
-import { SUBJECT_TIME_SHORT_LABELS, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
+import { SUBJECT_TIME_SHORT_LABELS, subjectTimeArcPath, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer } from './study/studyTimer';
@@ -3198,27 +3198,27 @@ function updateSettlementMetrics(date){
 function renderSubjectTimeDonut(summary){
  var chart=id('subjectTimeDonut');
  if(!chart)return;
- var center='<div class="subject-time-center"><strong><span id="doneMinutes" data-subject-time-value>'+summary.totalMinutes+'</span></strong><span data-subject-time-caption>分鐘</span></div>';
+ var center='<div class="subject-time-center"><strong><span id="doneMinutes" data-subject-time-value>'+summary.totalMinutes+'</span></strong><span data-subject-time-caption>分鐘</span><span class="subject-time-tooltip" data-subject-time-tooltip hidden></span></div>';
  if(!summary.slices.length){
   chart.innerHTML='<div class="subject-time-chart is-empty" role="img" aria-label="今日完成時間 0 分鐘">'+center+'</div><div class="subject-time-empty">完成項目並填入時間後，這裡會顯示各科時間佔比。</div>';
   return;
  }
  var aria=summary.slices.map(function(slice){return slice.subject+' '+slice.minutes+' 分鐘，占 '+slice.percent+'%'}).join('；');
- var circumference=2*Math.PI*56,arcs=subjectTimeDonutSlices(summary),circles='',labels='';
+ var arcs=subjectTimeDonutSlices(summary),circles='',labels='';
  arcs.forEach(function(slice,index){
-  var dashLength=Math.max(0,Math.min(circumference,slice.dashLength)),fontSize=(slice.endPercent-slice.startPercent)<6?10.5:13;
-  circles+='<circle class="subject-time-slice" data-subject-time-index="'+index+'" cx="80" cy="80" r="56" fill="none" stroke="'+slice.color+'" stroke-width="30" stroke-dasharray="'+dashLength+' '+Math.max(0,circumference-dashLength)+'" stroke-dashoffset="'+slice.dashOffset+'" transform="rotate(-90 80 80)" tabindex="0" role="button" aria-label="'+esc(slice.subject)+' '+slice.minutes+' 分鐘，占 '+slice.percent+'%"></circle>';
+  var fontSize=(slice.endPercent-slice.startPercent)<6?10.5:13;
+  circles+='<path class="subject-time-slice" data-subject-time-index="'+index+'" d="'+subjectTimeArcPath(slice)+'" fill="none" stroke="'+slice.color+'" stroke-width="30" tabindex="0" role="button" aria-label="'+esc(slice.subject)+' '+slice.minutes+' 分鐘，占 '+slice.percent+'%"></path>';
   labels+='<text class="subject-time-ring-label" x="'+slice.labelX+'" y="'+slice.labelY+'" font-size="'+fontSize+'">'+SUBJECT_TIME_SHORT_LABELS[slice.subject]+'</text>';
  });
  var svg='<svg class="subject-time-ring" viewBox="0 0 160 160"><circle class="subject-time-track" cx="80" cy="80" r="56" fill="none" stroke-width="30"></circle>'+circles+labels+'</svg>';
  chart.innerHTML='<div class="subject-time-chart" role="group" aria-label="今日各科完成時間佔比：'+esc(aria)+'">'+svg+center+'</div>';
- var value=chart.querySelector('[data-subject-time-value]'),caption=chart.querySelector('[data-subject-time-caption]'),nodes=Array.from(chart.querySelectorAll('[data-subject-time-index]'));
+ var tooltip=chart.querySelector('[data-subject-time-tooltip]'),nodes=Array.from(chart.querySelectorAll('[data-subject-time-index]'));
  function showSubject(index){
   var slice=summary.slices[index];if(!slice)return;
-  value.textContent=slice.percent+'%';caption.textContent=slice.subject+'｜'+slice.minutes+' 分';
+  tooltip.textContent=SUBJECT_TIME_SHORT_LABELS[slice.subject]+' '+slice.percent+'%';tooltip.hidden=false;
   nodes.forEach(function(node,nodeIndex){node.classList.toggle('is-active',nodeIndex===index);node.classList.toggle('is-muted',nodeIndex!==index)});
  }
- function showTotal(){value.textContent=summary.totalMinutes;caption.textContent='分鐘';nodes.forEach(function(node){node.classList.remove('is-active','is-muted')})}
+ function showTotal(){tooltip.hidden=true;tooltip.textContent='';nodes.forEach(function(node){node.classList.remove('is-active','is-muted')})}
  function showPinnedOrTotal(){var pinned=Number(chart.dataset.pinnedSubject);if(Number.isInteger(pinned)&&pinned>=0)showSubject(pinned);else showTotal()}
  nodes.forEach(function(node,index){
   node.addEventListener('mouseenter',function(){showSubject(index)});
