@@ -3216,7 +3216,7 @@ function renderSubjectTimeDonut(summary){
  var tooltip=chart.querySelector('[data-subject-time-tooltip]'),nodes=Array.from(chart.querySelectorAll('[data-subject-time-index]'));
  function showSubject(index){
   var slice=summary.slices[index];if(!slice)return;
-  tooltip.textContent=SUBJECT_TIME_SHORT_LABELS[slice.subject]+' '+slice.minutes+' 分鐘';tooltip.hidden=false;
+  tooltip.textContent=SUBJECT_TIME_SHORT_LABELS[slice.subject]+' '+slice.minutes+' 分鐘｜'+slice.percent+'%';tooltip.hidden=false;
   nodes.forEach(function(node,nodeIndex){node.classList.toggle('is-active',nodeIndex===index);node.classList.toggle('is-muted',nodeIndex!==index)});
  }
  function showTotal(){tooltip.hidden=true;tooltip.textContent='';nodes.forEach(function(node){node.classList.remove('is-active','is-muted')})}

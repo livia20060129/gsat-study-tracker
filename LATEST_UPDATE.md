@@ -1,13 +1,13 @@
 # 最新更新
 
-版本：v171.1.17
+版本：v171.1.18
 
 ## 本次修正
 
-- 滑鼠指向、鍵盤聚焦或手機點擊圓環科目時，中央下方改為顯示該科目的實際分鐘數。
+- 滑鼠指向、鍵盤聚焦或手機點擊圓環科目時，中央下方同時顯示該科目的實際分鐘數與占比。
 - 保留選取科目時淡化其他科目的互動。
 - 尚未填入任何時間時改用獨立 SVG 軌道，不再以整塊圓形背景模擬圓環。
-- 空白狀態軌道寬度縮小為 20px，已填入時間的彩色圓環維持原本粗細。
+- 空白狀態與已填入時間的圓環共用相同軌道粗細。
 
 ## 更新檔案
 
@@ -18,7 +18,7 @@
 - `package-lock.json`
 - `LATEST_UPDATE.md`
 
-更新資料夾：`gsat-study-tracker-v171.1.17-subject-minutes-empty-ring-update`
+更新資料夾：`gsat-study-tracker-v171.1.18-subject-minutes-percent-ring-update`
 
 ## 驗證
 
@@ -29,4 +29,4 @@
 
 ## Commit 建議
 
-`fix(analytics): show subject minutes and slim empty ring`
+`fix(analytics): show subject minutes and percentage`

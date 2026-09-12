@@ -108,7 +108,7 @@ test('wires the donut into the today-minutes panel and renders minutes in its ce
   assert.match(runtime, /class="subject-time-ring-label"/);
   assert.match(runtime, /subjectTimeArcPath\(slice\)/);
   assert.match(runtime, /data-subject-time-tooltip/);
-  assert.match(runtime, /SUBJECT_TIME_SHORT_LABELS\[slice\.subject\]\+' '\+slice\.minutes\+' 分鐘'/);
+  assert.match(runtime, /SUBJECT_TIME_SHORT_LABELS\[slice\.subject\]\+' '\+slice\.minutes\+' 分鐘｜'\+slice\.percent\+'%'/);
   assert.match(runtime, /var emptyRing='<svg class="subject-time-ring"/);
   assert.doesNotMatch(runtime, /value\.textContent=slice\.percent/);
   assert.match(runtime, /node\.addEventListener\('mouseenter'/);
@@ -120,6 +120,6 @@ test('wires the donut into the today-minutes panel and renders minutes in its ce
   assert.match(styles, /subject-time-slice\{[^}]*stroke-width:34px;vector-effect:non-scaling-stroke/);
   assert.match(styles, /subject-time-slice\.is-muted\{opacity:\.28\}/);
   assert.match(styles, /subject-time-chart\.is-empty\{background:transparent;box-shadow:none\}/);
-  assert.match(styles, /subject-time-chart\.is-empty \.subject-time-track\{stroke-width:20px\}/);
+  assert.doesNotMatch(styles, /subject-time-chart\.is-empty \.subject-time-track\{stroke-width:/);
   assert.match(styles, /subject-time-track\{[^}]*stroke-width:34px;vector-effect:non-scaling-stroke/);
 });
