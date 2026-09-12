@@ -3200,7 +3200,8 @@ function renderSubjectTimeDonut(summary){
  if(!chart)return;
  var center='<div class="subject-time-center"><strong><span id="doneMinutes" data-subject-time-value>'+summary.totalMinutes+'</span></strong><span data-subject-time-caption>分鐘</span><span class="subject-time-tooltip" data-subject-time-tooltip hidden></span></div>';
  if(!summary.slices.length){
-  chart.innerHTML='<div class="subject-time-chart is-empty" role="img" aria-label="今日完成時間 0 分鐘">'+center+'</div><div class="subject-time-empty">完成項目並填入時間後，這裡會顯示各科時間佔比。</div>';
+  var emptyRing='<svg class="subject-time-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="subject-time-track" cx="80" cy="80" r="56" fill="none"></circle></svg>';
+  chart.innerHTML='<div class="subject-time-chart is-empty" role="img" aria-label="今日完成時間 0 分鐘">'+emptyRing+center+'</div><div class="subject-time-empty">完成項目並填入時間後，這裡會顯示各科時間佔比。</div>';
   return;
  }
  var aria=summary.slices.map(function(slice){return slice.subject+' '+slice.minutes+' 分鐘，占 '+slice.percent+'%'}).join('；');
@@ -3215,7 +3216,7 @@ function renderSubjectTimeDonut(summary){
  var tooltip=chart.querySelector('[data-subject-time-tooltip]'),nodes=Array.from(chart.querySelectorAll('[data-subject-time-index]'));
  function showSubject(index){
   var slice=summary.slices[index];if(!slice)return;
-  tooltip.textContent=SUBJECT_TIME_SHORT_LABELS[slice.subject]+' '+slice.percent+'%';tooltip.hidden=false;
+  tooltip.textContent=SUBJECT_TIME_SHORT_LABELS[slice.subject]+' '+slice.minutes+' 分鐘';tooltip.hidden=false;
   nodes.forEach(function(node,nodeIndex){node.classList.toggle('is-active',nodeIndex===index);node.classList.toggle('is-muted',nodeIndex!==index)});
  }
  function showTotal(){tooltip.hidden=true;tooltip.textContent='';nodes.forEach(function(node){node.classList.remove('is-active','is-muted')})}

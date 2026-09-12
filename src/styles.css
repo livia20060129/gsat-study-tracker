@@ -165,3 +165,5 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
 /* Keep the selected subject prominent while preserving every slice. */
 .subject-time-slice{transition:filter .16s ease,opacity .16s ease}
 .subject-time-slice.is-muted{opacity:.28}
+.subject-time-chart.is-empty{background:transparent;box-shadow:none}
+.subject-time-chart.is-empty .subject-time-track{stroke-width:20px}
