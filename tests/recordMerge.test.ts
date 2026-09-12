@@ -72,6 +72,43 @@ test('nested grouped child records are merged independently by id', () => {
   assert.deepEqual(children.map((entry) => entry.minutes), ['15', '25']);
 });
 
+test('an in-progress English review word replaces its older typed snapshot', () => {
+  const pending = item('english-review', '', {
+    words: [{ text: 'apple', noun: true }],
+  });
+  const existing = item('english-review', '', {
+    words: [{ text: 'app', noun: true }],
+  });
+
+  const merged = mergeStudyRecordsForUpload(
+    { date: '2026-09-13', items: [pending] },
+    { date: '2026-09-13', items: [existing] },
+  );
+  const words = merged.items[0].f.words as Array<Record<string, unknown>>;
+
+  assert.equal(words.length, 1);
+  assert.equal(words[0].text, 'apple');
+  assert.equal(words[0].id, 'word:english-review:0');
+});
+
+test('separate English review rows remain separate while each row is updated', () => {
+  const pending = item('english-review', '', {
+    words: [{ text: 'apple' }, { text: 'take part in' }],
+  });
+  const existing = item('english-review', '', {
+    words: [{ text: 'app' }, { text: 'take part' }],
+  });
+
+  const merged = mergeStudyRecordsForUpload(
+    { date: '2026-09-13', items: [pending] },
+    { date: '2026-09-13', items: [existing] },
+  );
+  const words = merged.items[0].f.words as Array<Record<string, unknown>>;
+
+  assert.deepEqual(words.map((word) => word.text), ['apple', 'take part in']);
+  assert.equal(new Set(words.map((word) => word.id)).size, 2);
+});
+
 test('meaningful false, zero, and null values remain explicit local edits', () => {
   const pending = item('timer', '0', {
     corrected: false,
@@ -109,8 +146,11 @@ test('the save queue merges tab snapshots and reloads cloud inside the date lock
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
 
   assert.match(runtime, /withCloudDateLock\(date,async function\(\)\{/);
-  assert.match(runtime, /mergeStudyRecordsForUpload\(record,readStoredRecord\(date\)\)/);
+  assert.match(runtime, /mergeStudyRecordsForUpload\(readStoredRecord\(date\)\|\|record,record\)/);
+  assert.match(runtime, /mergeStudyRecordsForUpload\(stored\|\|rec,rec\)/);
   assert.match(runtime, /cloudRecordRepository\.loadDate\(rec\.date\)/);
   assert.match(runtime, /cloudRecordRepository\.save\(snapshot,baseRevision\)/);
   assert.match(runtime, /for\(var attempt=0;attempt<2;attempt\+\+\)/);
+  assert.match(runtime, /words\.push\(\{id:uid\('word'\),text:''/);
+  assert.match(runtime, /ensureEnglishReviewWordEntryIds\(data\)/);
 });

@@ -1,4 +1,5 @@
 import type { StudyRecord } from '../types';
+import { ensureEnglishReviewWordEntryIds } from '../study/englishReview.ts';
 
 export interface CloudStudyRecordRow {
   study_date: string;
@@ -124,12 +125,16 @@ export function mergeStudyRecordsForUpload(
   pending: StudyRecord,
   existing: StudyRecord | null | undefined,
 ): StudyRecord {
-  if (!existing) return cloneValue(pending);
+  const normalizedPending = cloneValue(pending);
+  ensureEnglishReviewWordEntryIds(normalizedPending);
+  if (!existing) return normalizedPending;
   if (pending.date !== existing.date) {
     throw new Error('Cannot merge study records from different dates.');
   }
 
-  const merged = mergeRecordedValue(pending, existing) as StudyRecord;
+  const normalizedExisting = cloneValue(existing);
+  ensureEnglishReviewWordEntryIds(normalizedExisting);
+  const merged = mergeRecordedValue(normalizedPending, normalizedExisting) as StudyRecord;
   merged.date = pending.date;
   merged.schemaVersion = Math.max(Number(pending.schemaVersion || 0), Number(existing.schemaVersion || 0));
   merged.items = Array.isArray(merged.items) ? merged.items : [];

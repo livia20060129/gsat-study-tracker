@@ -26,7 +26,8 @@ export interface PageRange {
 
 export interface StudyItemFields {
   [key: string]: unknown;
-  words?: Array<string | Record<string, unknown>>;
+  /** Legacy strings are migrated to entries with a stable ID before saving. */
+  words?: Array<string | EnglishReviewWordEntry>;
   interactiveEntries?: StudyItem[];
   makeupEntries?: StudyItem[];
   reviewEntries?: StudyItem[];
@@ -37,6 +38,11 @@ export interface StudyItemFields {
   dailyWorkSourceItems?: StudyItem[];
   /** Manual/timer mode and resumable elapsed-time state for this item. */
   timeTracking?: StudyTimerState;
+}
+
+export interface EnglishReviewWordEntry extends Record<string, unknown> {
+  id?: string;
+  text?: string;
 }
 
 export type StudyTimeMode = 'manual' | 'timer';

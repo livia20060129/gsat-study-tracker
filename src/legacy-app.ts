@@ -31,6 +31,7 @@ import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } f
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
+import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
 import { adjacentStudyItemsView, normalizeStudyItemsView, studyItemsViewIndex } from './ui/studyItemsView';
@@ -603,7 +604,7 @@ var cloudSaveQueue=new LatestTaskQueue(450,async function(date,record){
  await withCloudDateLock(date,async function(){
   // localStorage is shared by tabs. Merge the enqueue-time copy with the copy
   // written by another tab so neither tab's recorded items can disappear.
-  var latest=mergeStudyRecordsForUpload(record,readStoredRecord(date));
+  var latest=mergeStudyRecordsForUpload(readStoredRecord(date)||record,record);
   return cloudSaveRecord(latest);
  });
 });
@@ -721,7 +722,7 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
  try{
   var snapshot=null,result=null;
   for(var attempt=0;attempt<2;attempt++){
-   var stored=readStoredRecord(rec.date),pending=mergeStudyRecordsForUpload(rec,stored);
+   var stored=readStoredRecord(rec.date),pending=mergeStudyRecordsForUpload(stored||rec,rec);
    var cloudSnapshot=await cloudRecordRepository.loadDate(rec.date),cloudRecord=cloudSnapshot?cloudSnapshot.record:null;
    snapshot=mergeStudyRecordsForUpload(pending,cloudRecord);
    var baseRevision=cloudSnapshot?Number(cloudSnapshot.revision||0):0;
@@ -3073,7 +3074,7 @@ function handleClick(e){
  else if(action==='delete-item'&&x){var deletingPointer=readTimerPointer();if(deletingPointer&&deletingPointer.itemId===x.id)pauseActiveTimer();clearPendingDeferred(x);clearDeferredLimitPrompt(x);data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
  else if(action==='mag-add'&&x){var entries=ensureMagazineEntries(x);entries.push({id:uid('mag'),name:'',month:magazineMonthForDate(data.date),magazineMonthInitialized:true,unit:'',minutes:''});propagateDailyWorkField(x,'entries',entries);render();persist(false)}
  else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x),removed=a[Number(b.getAttribute('data-index'))],pointer=readTimerPointer();if(removed&&pointer&&pointer.entryId===removed.id&&pointer.itemId===x.id)pauseActiveTimer();if(a.length>1)a.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'entries',a);render();persist(false)}
- else if(action==='word-add'&&x){var words=x.f.words||(x.f.words=[]);words.push({text:'',noun:false,verb:false,adjective:false,adverb:false,preposition:false,conjunction:false,fixedCombination:false,beautifulSentences:false});propagateDailyWorkField(x,'words',words);render();persist(false)}
+ else if(action==='word-add'&&x){var words=x.f.words||(x.f.words=[]);words.push({id:uid('word'),text:'',noun:false,verb:false,adjective:false,adverb:false,preposition:false,conjunction:false,fixedCombination:false,beautifulSentences:false});propagateDailyWorkField(x,'words',words);render();persist(false)}
  else if(action==='word-delete'&&x){x.f.words.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'words',x.f.words);render();persist(false)}
  else if(action==='makeup-add'&&x){ensureEntryArray(x,'makeupEntries').push(newItem('','makeup'));render();persist(false)}
  else if(action==='review-add'&&x){ensureEntryArray(x,'reviewEntries').push(newItem('','review'));render();persist(false)}
@@ -3296,7 +3297,7 @@ function validate(){
  return{ok:ok,msg:msg};
 }
 function persist(show){
- if(!data)return false;readHeader();var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
+ if(!data)return false;ensureEnglishReviewWordEntryIds(data);readHeader();var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
  var previous=readStoredRecord(data.date),changed=!sameStudyContent(previous,data);
  if(changed){
   data.localDirty=true;data.syncConflict=false;
@@ -3311,7 +3312,7 @@ function persist(show){
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
 function load(options){
- var opts=options||{},d=id('studyDate').value;pendingDeferredTargets={};deferredLimitPrompt=null;data=loadData(d);updateCloudConflictUI(data.syncConflict?d:'');var changed=ensureDailyPresets(data,d);id('weekdayText').textContent=weekdays[parseDate(d).getDay()];writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
+ var opts=options||{},d=id('studyDate').value;pendingDeferredTargets={};deferredLimitPrompt=null;data=loadData(d);updateCloudConflictUI(data.syncConflict?d:'');var changed=ensureDailyPresets(data,d);if(ensureEnglishReviewWordEntryIds(data))changed=true;id('weekdayText').textContent=weekdays[parseDate(d).getDay()];writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
  if(cloudUser&&!cloudBootstrapPending&&!opts.skipCloudRead)cloudPullDate(d,false);
 }
 
