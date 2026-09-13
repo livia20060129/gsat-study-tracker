@@ -1,0 +1,49 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+const workflow = readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
+
+test('destructive whole-card and Calendar disconnect actions require confirmation', () => {
+  assert.match(runtime, /action==='delete-item'.*window\.confirm/);
+  assert.match(runtime, /async function calendarDisconnect\(\)\{\s*if\(!window\.confirm/);
+});
+
+test('small rows use an eight-second targeted undo instead of restoring a whole record', () => {
+  assert.match(runtime, /DELETE_UNDO_MS=8000/);
+  assert.match(runtime, /removeSmallEntryWithUndo/);
+  assert.match(html, /id="deleteUndoToast"/);
+  assert.doesNotMatch(runtime, /deleteUndoState=cloneRecord\(data\)/);
+});
+
+test('Supabase account recovery includes reset, resend and password update', () => {
+  assert.match(runtime, /resetPasswordForEmail\(email,\{redirectTo:cloudAuthReturnUrl\(\)\}\)/);
+  assert.match(runtime, /auth\.resend\(\{type:'signup'/);
+  assert.match(runtime, /event==='PASSWORD_RECOVERY'/);
+  assert.match(runtime, /auth\.updateUser\(\{password:password\}\)/);
+  assert.match(html, /id="passwordRecoveryDialog"/);
+});
+
+test('typing is debounced while discrete changes and page exit remain durable', () => {
+  assert.match(runtime, /LOCAL_INPUT_SAVE_MS=200/);
+  assert.match(runtime, /function scheduleInputPersist\(\)/);
+  assert.match(runtime, /window\.addEventListener\('pagehide'.*persist\(false\)/);
+  assert.match(runtime, /visibilityState==='hidden'.*persist\(false\)/);
+});
+
+test('cloud status distinguishes local, pending, synced and failed states', () => {
+  assert.match(runtime, /'已存本機 ✓'/);
+  assert.match(runtime, /'Cloud 已同步 ✓'/);
+  assert.match(runtime, /'待同步 '\+pending\+' 天'/);
+  assert.match(runtime, /retryDirtyCloudRecordsOnReconnect/);
+  assert.match(html, /id="cloudRefreshNotice"/);
+});
+
+test('mobile settings use a bottom sheet and CI runs real browser tests', () => {
+  assert.match(styles, /\.connection-dock\[open\]\{position:fixed/);
+  assert.match(workflow, /npx playwright install --with-deps chromium/);
+  assert.match(workflow, /npm run test:e2e/);
+});
