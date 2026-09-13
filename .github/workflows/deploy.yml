@@ -51,6 +51,12 @@ jobs:
       - name: Check Supabase Edge Functions
         run: npm run typecheck:edge
 
+      - name: Install browser for end-to-end tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser end-to-end tests
+        run: npm run test:e2e
+
       - name: Build
         run: npm run build
         env:

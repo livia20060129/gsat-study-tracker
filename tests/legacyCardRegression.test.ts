@@ -142,10 +142,10 @@ test('date switching saves the current date before loading the requested date', 
     'state:saving',
     'save:2026-09-10',
     'load:2026-09-11',
-    'state:success',
+    'state:local',
   ]);
   assert.equal(nodes.studyDate.value, '2026-09-11');
-  assert.match(nodes.status.textContent, /已儲存 2026-09-10.*切換至 2026-09-11.*背景同步/);
+  assert.match(nodes.status.textContent, /已存本機 2026-09-10.*切換至 2026-09-11.*背景同步/);
 });
 
 test('date switching stays on the current date when saving fails', () => {

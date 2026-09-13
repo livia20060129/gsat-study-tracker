@@ -237,6 +237,7 @@ function editingApp(day: string, separated: boolean | 'biology', deferred = fals
   }
   ctx.updateSummary = () => ctx.completionMetricsForWeek(day, 6);
   ctx.persist = () => { ctx.saved = clone(ctx.data); };
+  ctx.scheduleInputPersist = () => ctx.persist();
   ctx.render = () => {
     ctx.html = ctx.renderScienceFields(ctx.findItem(ctx.targetId), false);
     ctx.updateSummary();

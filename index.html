@@ -43,7 +43,7 @@
     <div class="connection-login-grid">
      <div class="field"><label for="cloudEmail">Email</label><input id="cloudEmail" type="email" autocomplete="email" placeholder="你的 Email"></div>
      <div class="field"><label for="cloudPassword">密碼</label><input id="cloudPassword" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 碼"></div>
-     <div class="connection-actions"><button id="cloudSignInBtn" class="primary" type="button">登入</button><button id="cloudSignUpBtn" type="button">建立帳號</button></div>
+     <div class="connection-actions"><button id="cloudSignInBtn" class="primary" type="button">登入</button><button id="cloudSignUpBtn" type="button">建立帳號</button><button id="cloudForgotPasswordBtn" class="text-action" type="button">忘記密碼</button><button id="cloudResendVerificationBtn" class="text-action" type="button">重寄驗證信</button></div>
     </div>
    </div>
    <div id="cloudLoggedIn" hidden>
@@ -56,6 +56,10 @@
     </div>
    </div>
    <div class="small connection-message" id="cloudMessage" aria-live="polite">未登入時仍可使用，本機資料會照常保留。</div>
+   <div class="cloud-refresh-notice" id="cloudRefreshNotice" hidden aria-live="polite">
+    <span>雲端有較新的資料；輸入完成後會安全合併並更新畫面。</span>
+    <button id="cloudApplyRefreshBtn" class="secondary" type="button">立即套用</button>
+   </div>
    <div class="cloud-conflict-actions" id="cloudConflictActions" hidden>
    <span id="cloudConflictText"></span>
     <div class="cloud-conflict-details" id="cloudConflictDetails"></div>
@@ -69,13 +73,26 @@
    <div class="connection-actions">
     <button id="calendarConnectBtn" class="secondary" type="button">連接 Google Calendar</button>
     <button id="calendarSyncBtn" type="button">立即同步</button>
-    <button id="calendarDisconnectBtn" type="button">解除連線</button>
    </div>
    <div class="small connection-message" id="calendarMessage" aria-live="polite">先登入 Study Tracker 帳號，再連接 Google Calendar。</div>
    <div class="small connection-note">連接後由 Google Calendar API 讀取排程；完成 GitHub Actions 排程設定後，每小時會由伺服器同步，網站不必保持開啟。</div>
+   <div class="connection-danger-zone">
+    <button id="calendarDisconnectBtn" class="danger" type="button">解除 Google Calendar 連線</button>
+   </div>
   </section>
  </div>
 </details>
+
+<dialog class="account-recovery-dialog" id="passwordRecoveryDialog" aria-labelledby="passwordRecoveryTitle">
+ <form method="dialog" id="passwordRecoveryForm">
+  <h2 id="passwordRecoveryTitle">設定新密碼</h2>
+  <p class="small">請輸入至少 6 碼的新密碼。完成後即可用新密碼登入。</p>
+  <div class="field"><label for="cloudNewPassword">新密碼</label><input id="cloudNewPassword" type="password" autocomplete="new-password" minlength="6" required></div>
+  <div class="field"><label for="cloudNewPasswordConfirm">再次輸入新密碼</label><input id="cloudNewPasswordConfirm" type="password" autocomplete="new-password" minlength="6" required></div>
+  <div class="dialog-message small" id="passwordRecoveryMessage" aria-live="polite"></div>
+  <div class="connection-actions dialog-actions"><button id="cloudUpdatePasswordBtn" class="primary" type="submit">更新密碼</button><button id="cloudCancelPasswordBtn" type="button">取消</button></div>
+ </form>
+</dialog>
 
 <section class="storage-recovery" id="storageRecoveryPanel" hidden aria-live="assertive">
  <div>
@@ -214,6 +231,10 @@
  </div>
 </section>
 </main>
+<div class="undo-toast" id="deleteUndoToast" role="status" aria-live="polite" hidden>
+ <span id="deleteUndoMessage">已刪除小項目。</span>
+ <button id="deleteUndoBtn" type="button">復原</button>
+</div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

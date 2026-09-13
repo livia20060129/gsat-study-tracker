@@ -614,6 +614,13 @@ var cloudManualSyncPending=false;
 var cloudConflictDate='';
 var periodicCloudSaveBusy=false;
 var PERIODIC_CLOUD_SAVE_MS=10*60*1000;
+var cloudHasError=false;
+var cloudVisibleRefreshPending=false;
+var localInputSaveTimer=null;
+var LOCAL_INPUT_SAVE_MS=200;
+var deleteUndoState=null;
+var deleteUndoTimer=null;
+var DELETE_UNDO_MS=8000;
 
 var calendarConnected=false;
 var calendarCacheLoaded=false;
@@ -644,19 +651,29 @@ function setConnectionBadge(elementId,text,state){
  var badge=id(elementId);if(!badge)return;
  badge.textContent=text;badge.setAttribute('data-state',state||'offline');
 }
+function dirtyCloudDates(){
+ if(!cloudUser||!currentStorageIsUserScoped())return[];
+ return localStudyDates().filter(function(date){var rec=readStoredRecord(date);return !!rec&&!!rec.localDirty&&!rec.syncConflict});
+}
+function updateCloudStatusBadge(){
+ if(!cloudUser){setConnectionBadge('cloudStatusBadge','本機模式','offline');return}
+ if(cloudLoading||cloudBootstrapPending||cloudManualSyncPending){setConnectionBadge('cloudStatusBadge','同步中','busy');return}
+ var pending=dirtyCloudDates().length;
+ if(cloudHasError){setConnectionBadge('cloudStatusBadge',pending?'同步失敗・待 '+pending+' 天':'同步異常','error');return}
+ if(pending){setConnectionBadge('cloudStatusBadge','待同步 '+pending+' 天','warning');return}
+ setConnectionBadge('cloudStatusBadge','已同步','ok');
+}
 function cloudSetMessage(msg,ok){
  var el=id('cloudMessage');if(el)el.textContent=msg||'';
- if(!cloudUser)setConnectionBadge('cloudStatusBadge','本機模式','offline');
- else if(ok===false)setConnectionBadge('cloudStatusBadge','同步異常','error');
- else if(cloudLoading||cloudBootstrapPending)setConnectionBadge('cloudStatusBadge','同步中','busy');
- else setConnectionBadge('cloudStatusBadge','已連線','ok');
+ if(ok===false)cloudHasError=true;else if(ok===true)cloudHasError=false;
+ updateCloudStatusBadge();
 }
 function cloudUpdateUI(){
  var out=id('cloudLoggedOut'),inn=id('cloudLoggedIn');
  if(!out||!inn)return;
  out.hidden=!!cloudUser;inn.hidden=!cloudUser;
  id('cloudUserEmail').textContent=cloudUser?(cloudUser.email||'已登入'):'';
- setConnectionBadge('cloudStatusBadge',cloudUser?'同步中':'本機模式',cloudUser?'busy':'offline');
+ updateCloudStatusBadge();
  updateCloudActionButtons();
  updateStorageRecoveryUI();
  calendarUpdateUI();
@@ -851,6 +868,7 @@ function queueCloudSave(rec,allowDuringBootstrap){
  if(!cloudClient||!cloudUser||!rec||cloudLoading||(!allowDuringBootstrap&&cloudBootstrapPending)||rec.syncConflict||!currentStorageIsUserScoped())return;
  var snap=cloneRecord(rec),date=String(rec.date||'');if(!date)return;
  cloudSaveQueue.enqueue(date,snap);
+ updateCloudStatusBadge();
 }
 function queueDirtyCloudRecords(){
  if(!cloudClient||!cloudUser||!currentStorageIsUserScoped())return 0;
@@ -941,8 +959,8 @@ async function cloudPullDateLocked(date,force){
  finally{cloudLoading=false}
  if(localToPush)await cloudSaveRecord(localToPush);
  if(force||id('studyDate').value===date){
-  data=loadData(date);var changed=ensureDailyPresets(data,date);writeHeader();render();
-  if(changed)persist(false);
+  if(isEditingRecordControl())setCloudVisibleRefreshPending(true);
+  else{setCloudVisibleRefreshPending(false);data=loadData(date);var changed=ensureDailyPresets(data,date);writeHeader();render();if(changed)persist(false)}
  }
  if(conflict){updateCloudConflictUI(date);cloudSetMessage(date+' 與雲端版本衝突；兩端內容都保留，未自動覆蓋。',false);return false}
  if(cloudConflictDate===date)updateCloudConflictUI('');
@@ -1106,6 +1124,49 @@ async function cloudSignUp(){
   else cloudSetMessage('帳號已建立；若專案要求 Email 驗證，請先完成驗證後再登入。',true);
  }catch(e){cloudSetMessage('建立帳號失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
+function cloudAuthReturnUrl(){
+ var url=new URL(window.location.href);url.search='';url.hash='';return url.toString();
+}
+async function cloudRequestPasswordReset(){
+ var email=id('cloudEmail').value.trim();
+ if(!email){cloudSetMessage('請先輸入要重設密碼的 Email。',false);return}
+ try{
+  var r=await cloudClient.auth.resetPasswordForEmail(email,{redirectTo:cloudAuthReturnUrl()});
+  if(r.error)throw r.error;
+  cloudSetMessage('若此 Email 已建立帳號，密碼重設信已寄出；請從信中的連結回到 Tracker。',true);
+ }catch(e){cloudSetMessage('無法寄出密碼重設信：'+(e&&e.message?e.message:String(e)),false)}
+}
+async function cloudResendVerification(){
+ var email=id('cloudEmail').value.trim();
+ if(!email){cloudSetMessage('請先輸入要驗證的 Email。',false);return}
+ try{
+  var r=await cloudClient.auth.resend({type:'signup',email:email,options:{emailRedirectTo:cloudAuthReturnUrl()}});
+  if(r.error)throw r.error;
+  cloudSetMessage('驗證信已重新寄出；請檢查收件匣與垃圾郵件。',true);
+ }catch(e){cloudSetMessage('無法重寄驗證信：'+(e&&e.message?e.message:String(e)),false)}
+}
+function openPasswordRecoveryDialog(){
+ var dialog=id('passwordRecoveryDialog');if(!dialog)return;
+ id('cloudNewPassword').value='';id('cloudNewPasswordConfirm').value='';id('passwordRecoveryMessage').textContent='';
+ if(typeof dialog.showModal==='function'){if(!dialog.open)dialog.showModal()}else dialog.setAttribute('open','');
+ setTimeout(function(){id('cloudNewPassword').focus()},0);
+}
+function closePasswordRecoveryDialog(){
+ var dialog=id('passwordRecoveryDialog');if(!dialog)return;
+ if(typeof dialog.close==='function'&&dialog.open)dialog.close();else dialog.removeAttribute('open');
+}
+async function cloudUpdateRecoveredPassword(event){
+ if(event)event.preventDefault();
+ var password=id('cloudNewPassword').value,confirmation=id('cloudNewPasswordConfirm').value,message=id('passwordRecoveryMessage');
+ if(password.length<6){message.textContent='新密碼至少需要 6 碼。';return}
+ if(password!==confirmation){message.textContent='兩次輸入的密碼不同。';return}
+ var button=id('cloudUpdatePasswordBtn');button.disabled=true;message.textContent='正在更新密碼…';
+ try{
+  var r=await cloudClient.auth.updateUser({password:password});if(r.error)throw r.error;
+  closePasswordRecoveryDialog();cloudSetMessage('密碼已更新，可以繼續使用目前登入的帳號。',true);
+ }catch(e){message.textContent='更新密碼失敗：'+(e&&e.message?e.message:String(e))}
+ finally{button.disabled=false}
+}
 async function cloudSignOut(){
  if(!cloudClient)return;await cloudClient.auth.signOut();
 }
@@ -1262,14 +1323,38 @@ async function calendarSyncNow(){
  }catch(e){calendarSetMessage('Calendar 同步失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 async function calendarDisconnect(){
+ if(!window.confirm('確定要解除 Google Calendar 連線嗎？解除後會停止同步，之後需重新授權才能連接。'))return false;
  try{await calendarInvoke('disconnect');clearCalendarRuntime();calendarSetMessage('已解除 Google Calendar 連線；Tracker 回到內建排程 fallback。',true);load({skipCloudRead:true})}catch(e){calendarSetMessage('解除連線失敗：'+(e&&e.message?e.message:String(e)),false)}
 }
 
-function refreshVisibleDataAfterBackgroundSync(){
+function isEditingRecordControl(){
  var active=document.activeElement,tag=active&&active.tagName?String(active.tagName).toUpperCase():'';
- var editing=(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')&&active!==id('studyDate');
- if(editing)return false;
+ return (tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')&&active!==id('studyDate');
+}
+function setCloudVisibleRefreshPending(pending){
+ cloudVisibleRefreshPending=!!pending;
+ var notice=id('cloudRefreshNotice');if(notice)notice.hidden=!cloudVisibleRefreshPending;
+}
+function refreshVisibleDataAfterBackgroundSync(){
+ if(isEditingRecordControl()){setCloudVisibleRefreshPending(true);return false}
+ setCloudVisibleRefreshPending(false);
  load({skipCloudRead:true});return true;
+}
+function applyPendingVisibleCloudRefresh(){
+ if(!cloudVisibleRefreshPending||isEditingRecordControl())return false;
+ if(!persist(false))return false;
+ setCloudVisibleRefreshPending(false);load({skipCloudRead:true});return true;
+}
+async function retryDirtyCloudRecordsOnReconnect(){
+ if(!cloudClient||!cloudUser||!currentStorageIsUserScoped())return false;
+ var dates=dirtyCloudDates();
+ if(!dates.length){cloudSetMessage('網路已恢復；目前沒有待同步紀錄。',true);return true}
+ cloudSetMessage('網路已恢復；正在重試 '+dates.length+' 天待同步紀錄。',true);
+ dates.forEach(function(date){var rec=readStoredRecord(date);if(rec)queueCloudSave(rec,true)});
+ await Promise.all(dates.map(function(date){return cloudSaveQueue.flush(date)}));
+ var remaining=dirtyCloudDates().length;
+ if(remaining){cloudSetMessage('網路已恢復，但仍有 '+remaining+' 天尚未同步；可按「儲存紀錄」立即重試。',false);return false}
+ cloudSetMessage('網路已恢復；待同步紀錄已全部上傳。',true);return true;
 }
 async function activateCloudUser(user){
  var serial=++cloudActivationSerial;cloudUser=user||null;setStorageScope(cloudUser?cloudUser.id:null);cloudBootstrapPending=!!cloudUser;cloudUpdateUI();clearCalendarRuntime();
@@ -1299,7 +1384,7 @@ async function activateCloudUser(user){
   var msg='登入完成；本機快取已立即顯示，'+recordStats.message;
   if(calendarCleaned)msg+=' Calendar 已更新 '+calendarCleaned+' 天本機項目。';
   if(queued)msg+=' 另有 '+queued+' 天已排入背景上傳。';
-  if(!refreshed)msg+=' 目前正在輸入，畫面未強制重繪；切換日期時會套用最新資料。';
+  if(!refreshed)msg+=' 目前正在輸入；完成輸入後會安全合併並更新畫面，也可按「立即套用」。';
   cloudSetMessage(msg,recordStats.conflicts?false:true);
  }else{
   cloudSetMessage('已登入並使用本機快取；背景讀取雲端失敗：'+((recordStats&&recordStats.error)||'未知錯誤')+'。',false);
@@ -1308,12 +1393,15 @@ async function activateCloudUser(user){
 async function initCloud(){
  cloudClient=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
  cloudRecordRepository=new SupabaseStudyRecordRepository(cloudClient);
- var s=await cloudClient.auth.getSession();await activateCloudUser(s.data&&s.data.session?s.data.session.user:null);
  cloudClient.auth.onAuthStateChange(function(event,session){
   var next=session?session.user:null;
+  if(event==='PASSWORD_RECOVERY')setTimeout(openPasswordRecoveryDialog,0);
   if((cloudUser&&next&&cloudUser.id===next.id)||(!cloudUser&&!next))return;
   setTimeout(function(){activateCloudUser(next)},0);
  });
+ var s=await cloudClient.auth.getSession(),initialUser=s.data&&s.data.session?s.data.session.user:null;
+ if(!data||!((cloudUser&&initialUser&&cloudUser.id===initialUser.id)||(!cloudUser&&!initialUser)))await activateCloudUser(initialUser);
+ else cloudUpdateUI();
  var params=new URLSearchParams(window.location.search);if(params.get('calendar')==='connected'){
   params.delete('calendar');var qs=params.toString(),nextUrl=window.location.pathname+(qs?'?'+qs:'')+window.location.hash;window.history.replaceState({},'',nextUrl);
   if(cloudUser)setTimeout(function(){calendarRefreshStatus(true).then(function(){load({skipCloudRead:true})})},0);
@@ -3074,12 +3162,19 @@ function runTimerAction(item,control,action){
  persistTimerTarget(target);render();
 }
 
+function cancelScheduledInputPersist(){
+ if(localInputSaveTimer){clearTimeout(localInputSaveTimer);localInputSaveTimer=null}
+}
+function scheduleInputPersist(){
+ cancelScheduledInputPersist();
+ localInputSaveTimer=setTimeout(function(){localInputSaveTimer=null;persist(false)},LOCAL_INPUT_SAVE_MS);
+}
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
- if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
- if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}persist(false);updateSummary();return}
- if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;propagateDailyWorkField(x,'entries',a);updateSummary();persist(false);return}
- if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;propagateDailyWorkField(x,'words',w);persist(false);return}
+ if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();scheduleInputPersist();return}
+ if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}scheduleInputPersist();updateSummary();return}
+ if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;propagateDailyWorkField(x,'entries',a);updateSummary();scheduleInputPersist();return}
+ if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;propagateDailyWorkField(x,'words',w);scheduleInputPersist();return}
 }
 var completionCelebrationTimer=null;
 function currentWorkloadCompletionPercent(){
@@ -3207,6 +3302,36 @@ function handleChange(e){
  if(t.matches('[data-nested-type]')&&x){var nestedPointer=readTimerPointer();if(nestedPointer&&nestedPointer.itemId===x.id)pauseActiveTimer();x.type=t.value;x.done=false;x.minutes='';x.f={};x.source=t.getAttribute('data-nested-type');render();persist(false);return}
  if(t.matches('[data-word-pos]')&&x){var a=x.f.words||(x.f.words=[]),i=Number(t.getAttribute('data-index'));if(!a[i]||typeof a[i]!=='object')a[i]={};a[i][t.getAttribute('data-word-pos')]=t.checked;propagateDailyWorkField(x,'words',a);persist(false);return}
 }
+function hideDeleteUndo(){
+ if(deleteUndoTimer){clearTimeout(deleteUndoTimer);deleteUndoTimer=null}
+ deleteUndoState=null;var toast=id('deleteUndoToast');if(toast)toast.hidden=true;
+}
+function showDeleteUndo(message,restore){
+ if(deleteUndoTimer)clearTimeout(deleteUndoTimer);
+ deleteUndoState={restore:restore};
+ var toast=id('deleteUndoToast'),copy=id('deleteUndoMessage');if(copy)copy.textContent=message||'已刪除小項目。';if(toast)toast.hidden=false;
+ deleteUndoTimer=setTimeout(hideDeleteUndo,DELETE_UNDO_MS);
+}
+function removeSmallEntryWithUndo(parent,arrayName,index,label){
+ if(!parent||!parent.f||!Array.isArray(parent.f[arrayName])||index<0||index>=parent.f[arrayName].length)return false;
+ var removed=cloneRecord(parent.f[arrayName][index]),parentId=parent.id;
+ parent.f[arrayName].splice(index,1);
+ if(arrayName==='entries'||arrayName==='words')propagateDailyWorkField(parent,arrayName,parent.f[arrayName]);
+ showDeleteUndo('已刪除'+label+'；8 秒內可復原。',function(){
+  var currentParent=findItem(parentId);if(!currentParent)return false;
+  if(!currentParent.f)currentParent.f={};if(!Array.isArray(currentParent.f[arrayName]))currentParent.f[arrayName]=[];
+  var current=currentParent.f[arrayName],removedId=removed&&removed.id;
+  if(removedId&&current.some(function(entry){return entry&&entry.id===removedId}))return false;
+  current.splice(Math.min(index,current.length),0,removed);
+  if(arrayName==='entries'||arrayName==='words')propagateDailyWorkField(currentParent,arrayName,current);
+  render();persist(false);return true;
+ });
+ return true;
+}
+function undoLastSmallDelete(){
+ var state=deleteUndoState;if(!state)return;
+ hideDeleteUndo();state.restore();
+}
 function handleClick(e){
  var b=e.target.closest('[data-action]');if(!b)return;var card=b.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null,action=b.getAttribute('data-action');
  if(action==='timer-pause-active'){
@@ -3234,17 +3359,17 @@ function handleClick(e){
   propagateDailyWorkDeferred(x,true,targetDay);clearPendingDeferred(x);
   persist(false);rebuildDeferredForWeek(data.date);render();
  }
- else if(action==='delete-item'&&x){var deletingPointer=readTimerPointer();if(deletingPointer&&deletingPointer.itemId===x.id)pauseActiveTimer();clearPendingDeferred(x);clearDeferredLimitPrompt(x);data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
+ else if(action==='delete-item'&&x){if(!window.confirm('確定要刪除「'+itemTitle(x)+'」嗎？刪除後會同步到雲端。'))return;var deletingPointer=readTimerPointer();if(deletingPointer&&deletingPointer.itemId===x.id)pauseActiveTimer();clearPendingDeferred(x);clearDeferredLimitPrompt(x);data.items=data.items.filter(function(i){return i.id!==x.id});render();persist(false)}
  else if(action==='mag-add'&&x){var entries=ensureMagazineEntries(x);entries.push({id:uid('mag'),name:'',month:magazineMonthForDate(data.date),magazineMonthInitialized:true,unit:'',minutes:''});propagateDailyWorkField(x,'entries',entries);render();persist(false)}
- else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x),removed=a[Number(b.getAttribute('data-index'))],pointer=readTimerPointer();if(removed&&pointer&&pointer.entryId===removed.id&&pointer.itemId===x.id)pauseActiveTimer();if(a.length>1)a.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'entries',a);render();persist(false)}
+ else if(action==='mag-delete'&&x){var a=ensureMagazineEntries(x),magIndex=Number(b.getAttribute('data-index')),removed=a[magIndex],pointer=readTimerPointer();if(removed&&pointer&&pointer.entryId===removed.id&&pointer.itemId===x.id)pauseActiveTimer();if(a.length>1&&removeSmallEntryWithUndo(x,'entries',magIndex,'雜誌列')){render();persist(false)}}
  else if(action==='word-add'&&x){var words=x.f.words||(x.f.words=[]);words.push({id:uid('word'),text:'',noun:false,verb:false,adjective:false,adverb:false,preposition:false,conjunction:false,fixedCombination:false,beautifulSentences:false});propagateDailyWorkField(x,'words',words);render();persist(false)}
- else if(action==='word-delete'&&x){x.f.words.splice(Number(b.getAttribute('data-index')),1);propagateDailyWorkField(x,'words',x.f.words);render();persist(false)}
+ else if(action==='word-delete'&&x){if(removeSmallEntryWithUndo(x,'words',Number(b.getAttribute('data-index')),'單字列')){render();persist(false)}}
  else if(action==='makeup-add'&&x){ensureEntryArray(x,'makeupEntries').push(newItem('','makeup'));render();persist(false)}
  else if(action==='review-add'&&x){ensureEntryArray(x,'reviewEntries').push(newItem('','review'));render();persist(false)}
- else if(action==='makeup-delete'&&x){var makeupPointer=readTimerPointer();if(makeupPointer&&makeupPointer.itemId===x.id)pauseActiveTimer();removeNested(x.id,'makeupEntries');render();persist(false)}
- else if(action==='review-delete'&&x){var reviewPointer=readTimerPointer();if(reviewPointer&&reviewPointer.itemId===x.id)pauseActiveTimer();removeNested(x.id,'reviewEntries');render();persist(false)}
+ else if(action==='makeup-delete'&&x){var makeupPointer=readTimerPointer(),makeupParent=parentSpecial(x.id,'makeupEntries');if(makeupPointer&&makeupPointer.itemId===x.id)pauseActiveTimer();if(makeupParent&&removeSmallEntryWithUndo(makeupParent,'makeupEntries',makeupParent.f.makeupEntries.indexOf(x),'補做子項目')){render();persist(false)}}
+ else if(action==='review-delete'&&x){var reviewPointer=readTimerPointer(),reviewParent=parentSpecial(x.id,'reviewEntries');if(reviewPointer&&reviewPointer.itemId===x.id)pauseActiveTimer();if(reviewParent&&removeSmallEntryWithUndo(reviewParent,'reviewEntries',reviewParent.f.reviewEntries.indexOf(x),'訂正子項目')){render();persist(false)}}
  else if(action==='interactive-add'&&x&&isInteractiveDaily(x)){ensureInteractiveEntries(x).push(interactiveDailyChild(''));render();persist(false)}
- else if(action==='interactive-delete'&&x){if(x.locked){render();return}var deletingInteractivePointer=readTimerPointer();if(deletingInteractivePointer&&deletingInteractivePointer.itemId===x.id)pauseActiveTimer();removeNested(x.id,'interactiveEntries');render();persist(false)}
+ else if(action==='interactive-delete'&&x){if(x.locked){render();return}var deletingInteractivePointer=readTimerPointer(),interactiveParent=parentSpecial(x.id,'interactiveEntries');if(deletingInteractivePointer&&deletingInteractivePointer.itemId===x.id)pauseActiveTimer();if(interactiveParent&&removeSmallEntryWithUndo(interactiveParent,'interactiveEntries',interactiveParent.f.interactiveEntries.indexOf(x),'互動題子項目')){render();persist(false)}}
 }
 function handleWeeklyChange(e){
  var t=e.target;if(!t.matches('[data-week-done]'))return;
@@ -3466,8 +3591,18 @@ function validate(){
 }
 function persist(show){
  if(!data)return false;
+ cancelScheduledInputPersist();
  if(data.storageIssue){updateStorageRecoveryUI();if(show)id('status').textContent=data.date+' 的原始紀錄無法讀取；為避免覆蓋，修復前不會儲存。';return false}
- ensureEnglishReviewWordEntryIds(data);readHeader();var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
+ ensureEnglishReviewWordEntryIds(data);readHeader();
+ if(cloudVisibleRefreshPending){
+  var newerStored=readStoredRecord(data.date);
+  if(newerStored&&!sameStudyContent(data,newerStored)){
+   var mergedDraft=mergeStudyRecordsForUpload(data,newerStored),draftConflicts=recordSyncConflicts(mergedDraft);
+   if(draftConflicts.length)setCloudConflictRecord(mergedDraft.syncConflictLocal||data,newerStored,draftConflicts);
+   else data=mergedDraft;
+  }
+ }
+ var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
  var previous=readStoredRecord(data.date),changed=!sameStudyContent(previous,data);
  if(changed){
   data.localDirty=true;data.syncConflict=false;
@@ -3479,6 +3614,7 @@ function persist(show){
  var ok=false;
  try{ok=writeStoredRecord(data)&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
  if(ok&&(changed||data.localDirty))queueCloudSave(data);
+ if(ok)updateCloudStatusBadge();
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
 function load(options){
@@ -3774,9 +3910,10 @@ function switchStudyDate(nextDate){
   id('status').textContent='無法儲存 '+currentDate+'；已取消日期切換，請先修正欄位或確認瀏覽器儲存空間。';setSaveButtonState('error');return false
  }
  selector.value=nextDate;load();
- id('status').textContent='已儲存 '+currentDate+'，並切換至 '+nextDate+(cloudUser?'；雲端將在背景同步。':'。');setSaveButtonState('success');return true
+ id('status').textContent='已存本機 '+currentDate+'，並切換至 '+nextDate+(cloudUser?'；雲端將在背景同步。':'。');setSaveButtonState('local');return true
 }
-function headerInput(){readHeader();persist(false)}
+function headerInput(){readHeader();scheduleInputPersist()}
+function headerChange(){readHeader();persist(false)}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
 id('studyItemsViewTabs').addEventListener('click',function(e){var button=e.target.closest('[data-study-items-view]');if(!button)return;studyItemsView=button.getAttribute('data-study-items-view');updateStudyItemsView(false)});
 id('studyItemsViewTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')studyItemsView='today';else if(e.key==='End')studyItemsView='week';else studyItemsView=adjacentStudyItemsView(studyItemsView,e.key==='ArrowRight'?1:-1);updateStudyItemsView(true)});
@@ -3791,7 +3928,7 @@ id('englishReviewList').addEventListener('input',handleInput);id('englishReviewL
 id('itemList').addEventListener('input',handleInput);id('itemList').addEventListener('change',handleChange);id('itemList').addEventListener('click',handleClick);
 id('studyDate').addEventListener('change',function(e){switchStudyDate(e.target.value)});
 id('mood').addEventListener('change',function(){readHeader();render();persist(false)});
-['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow','notes'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerInput)});
+['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow','notes'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerChange)});
 id('addItemBtn').addEventListener('click',addCustom);
 id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);
 var saveFeedbackTimer=null;
@@ -3801,8 +3938,8 @@ function setSaveButtonState(state){
  button.dataset.state=state||'idle';
  button.disabled=state==='saving';
  button.setAttribute('aria-busy',state==='saving'?'true':'false');
- button.textContent=state==='saving'?'儲存中…':state==='success'?'已儲存 ✓':state==='error'?'儲存失敗':'儲存紀錄';
- if(state==='success'||state==='error')saveFeedbackTimer=setTimeout(function(){setSaveButtonState('idle')},state==='success'?2400:4000);
+ button.textContent=state==='saving'?'儲存中…':state==='local'?'已存本機 ✓':state==='success'?'Cloud 已同步 ✓':state==='error'?'同步失敗':'儲存紀錄';
+ if(state==='local'||state==='success'||state==='error')saveFeedbackTimer=setTimeout(function(){setSaveButtonState('idle')},state==='error'?4000:3000);
 }
 function saveCurrentRecord(){
  var button=id('saveBtn');if(button&&button.dataset.state==='saving')return;
@@ -3818,8 +3955,9 @@ function saveCurrentRecord(){
    else{if(saved&&saved.syncConflict)id('status').textContent='已儲存本機，但此日期有同步衝突；請重新讀取後確認。';else id('status').textContent='已儲存本機，但雲端同步尚未完成；請確認連線後再按一次儲存。';setSaveButtonState('error')}
    return
   }
-  if(cloudUser&&(cloudLoading||cloudBootstrapPending))id('status').textContent='已儲存本機；雲端資料載入完成後會自動同步。';
-  setSaveButtonState('success');
+  if(cloudUser&&(cloudLoading||cloudBootstrapPending))id('status').textContent='已存本機；雲端資料載入完成後會自動同步。';
+  else if(!cloudUser)id('status').textContent=storagePersistent?'已存本機 '+savingDate+'；目前未登入 Cloud。':'已暫存；目前環境可能無法永久保存。';
+  setSaveButtonState('local');
  },60);
 }
 id('saveBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();saveCurrentRecord()});
@@ -3836,14 +3974,26 @@ id('repairStorageFromCloudBtn').addEventListener('click',repairStorageIssueFromC
 
 id('cloudSignInBtn').addEventListener('click',cloudSignIn);
 id('cloudSignUpBtn').addEventListener('click',cloudSignUp);
+id('cloudForgotPasswordBtn').addEventListener('click',cloudRequestPasswordReset);
+id('cloudResendVerificationBtn').addEventListener('click',cloudResendVerification);
 id('cloudSignOutBtn').addEventListener('click',cloudSignOut);
 id('cloudSyncLocalBtn').addEventListener('click',cloudMergeLocalMissing);
 id('cloudRefreshBtn').addEventListener('click',cloudRefreshAllRecords);
 id('cloudKeepLocalBtn').addEventListener('click',cloudKeepLocalConflict);
 id('cloudUseCloudBtn').addEventListener('click',cloudUseCloudConflict);
 id('cloudUndoConflictBtn').addEventListener('click',cloudUndoConflictResolution);
+id('cloudApplyRefreshBtn').addEventListener('click',function(){setTimeout(applyPendingVisibleCloudRefresh,0)});
+id('passwordRecoveryForm').addEventListener('submit',cloudUpdateRecoveredPassword);
+id('cloudCancelPasswordBtn').addEventListener('click',closePasswordRecoveryDialog);
+id('deleteUndoBtn').addEventListener('click',undoLastSmallDelete);
 id('calendarConnectBtn').addEventListener('click',calendarConnect);
 id('calendarSyncBtn').addEventListener('click',calendarSyncNow);
 id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);
+id('connectionSettings').addEventListener('toggle',function(e){document.body.classList.toggle('connection-sheet-open',!!e.currentTarget.open)});
+document.addEventListener('focusout',function(){setTimeout(applyPendingVisibleCloudRefresh,0)});
+window.addEventListener('online',function(){retryDirtyCloudRecordsOnReconnect().catch(function(e){cloudSetMessage('網路恢復後重試失敗：'+(e&&e.message?e.message:String(e)),false)})});
+window.addEventListener('offline',function(){cloudSetMessage('目前離線；新紀錄已保存在本機，恢復連線後會立即重試。',false)});
+window.addEventListener('pagehide',function(){if(data)persist(false)});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&data)persist(false)});
 id('studyDate').value=dateString(new Date());updateImportBackupButton();initCloud();
 setInterval(periodicCloudSave,PERIODIC_CLOUD_SAVE_MS);
