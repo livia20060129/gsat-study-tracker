@@ -95,7 +95,7 @@ test('an in-progress English review word replaces its older typed snapshot', () 
 
   assert.equal(words.length, 1);
   assert.equal(words[0].text, 'apple');
-  assert.equal(words[0].id, 'word:english-review:0');
+  assert.match(String(words[0].id), /^word:v2:/);
 });
 
 test('separate English review rows remain separate while each row is updated', () => {
@@ -114,6 +114,32 @@ test('separate English review rows remain separate while each row is updated', (
 
   assert.deepEqual(words.map((word) => word.text), ['apple', 'take part in']);
   assert.equal(new Set(words.map((word) => word.id)).size, 2);
+});
+
+test('legacy index IDs migrate by row content so reordering does not cross-wire words', () => {
+  const pending = item('english-review', '', {
+    words: [
+      { id: 'word:english-review:0', text: 'banana', noun: true },
+      { id: 'word:english-review:1', text: 'apple', noun: true },
+    ],
+  });
+  const existing = item('english-review', '', {
+    words: [
+      { id: 'word:english-review:0', text: 'apple', noun: true },
+      { id: 'word:english-review:1', text: 'banana', noun: true },
+    ],
+  });
+
+  const merged = mergeStudyRecordsForUpload(
+    { date: '2026-09-13', items: [pending] },
+    { date: '2026-09-13', items: [existing] },
+  );
+  const words = merged.items[0].f.words as Array<Record<string, unknown>>;
+
+  assert.deepEqual(words.map((word) => word.text), ['banana', 'apple']);
+  assert.equal(words.length, 2);
+  assert.equal(new Set(words.map((word) => word.id)).size, 2);
+  assert.ok(words.every((word) => String(word.id).startsWith('word:v2:')));
 });
 
 test('meaningful false, zero, and null values remain explicit local edits', () => {

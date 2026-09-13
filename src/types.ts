@@ -89,6 +89,14 @@ export interface StudyRecordSyncConflict {
   cloud?: unknown;
 }
 
+export interface StudyRecordStorageIssue {
+  source: 'local';
+  date: string;
+  error: string;
+  backupKey: string;
+  capturedAt: string;
+}
+
 export interface StudyRecord {
   /** Explicit JSON payload schema; absent records are decoded as legacy schema 0. */
   schemaVersion?: number;
@@ -105,6 +113,8 @@ export interface StudyRecord {
   syncConflictDetails?: StudyRecordSyncConflict[];
   syncConflictLocal?: StudyRecord;
   syncConflictCloud?: StudyRecord;
+  /** A local payload failed decoding. Saving and cloud sync stay blocked until recovery. */
+  storageIssue?: StudyRecordStorageIssue;
   mood?: string;
   wakeTime?: string;
   biggestBlock?: string;

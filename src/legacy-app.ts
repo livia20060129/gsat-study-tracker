@@ -658,6 +658,7 @@ function cloudUpdateUI(){
  id('cloudUserEmail').textContent=cloudUser?(cloudUser.email||'已登入'):'';
  setConnectionBadge('cloudStatusBadge',cloudUser?'同步中':'本機模式',cloudUser?'busy':'offline');
  updateCloudActionButtons();
+ updateStorageRecoveryUI();
  calendarUpdateUI();
 }
 function cloneRecord(rec){
@@ -675,6 +676,16 @@ function updateCloudActionButtons(){
  if(keep)keep.disabled=disabled;
  if(useCloud)useCloud.disabled=disabled;
  if(undo){undo.disabled=disabled;undo.hidden=!readCloudConflictBackup()}
+ var repair=id('repairStorageFromCloudBtn');if(repair)repair.disabled=!cloudUser||disabled||!(data&&data.storageIssue);
+}
+function storageDecodeErrorText(error){
+ return{ 'invalid-json':'內容不是有效的 JSON','invalid-record':'紀錄結構不完整','invalid-schema-version':'資料版本格式錯誤','unsupported-schema-version':'資料來自較新的版本，目前無法安全讀取'}[error]||String(error||'未知格式錯誤');
+}
+function updateStorageRecoveryUI(){
+ var panel=id('storageRecoveryPanel'),message=id('storageRecoveryMessage'),issue=data&&data.storageIssue;if(!panel||!message)return;
+ panel.hidden=!issue;
+ message.textContent=issue?issue.date+'：'+storageDecodeErrorText(issue.error)+'。原始內容已另外保留；修復前不會儲存或同步這一天。':'';
+ var repair=id('repairStorageFromCloudBtn');if(repair)repair.disabled=!issue||!cloudUser||cloudBootstrapPending||cloudManualSyncPending;
 }
 function updateCloudConflictUI(date){
  cloudConflictDate=String(date||'');
@@ -734,6 +745,10 @@ async function runCloudManualSync(label,task){
 function readStoredRecord(date){
  return localRecordRepository.load(date);
 }
+function readStoredRecordResult(date){return localRecordRepository.loadResult(date)}
+function localStorageDecodeIssue(date){
+ var result=readStoredRecordResult(date);return result.status==='invalid'?result.issue:null;
+}
 function readRecordFromPrefix(prefix,date){
  return localRecordRepository.loadFromPrefix(prefix,date);
 }
@@ -742,6 +757,7 @@ function recordDatesForPrefix(prefix){
 }
 function writeStoredRecord(rec){
  if(!rec||!rec.date)return false;
+ if(rec.storageIssue)return false;
  try{
   rec.schemaVersion=CURRENT_STUDY_RECORD_SCHEMA_VERSION;
   if(!localRecordRepository.save(rec))return false;
@@ -761,6 +777,9 @@ function updateCurrentRecordSyncMeta(date,serverRec){
 }
 async function cloudSaveRecord(rec,forcedBaseRevision){
  if(!cloudRecordRepository||!cloudUser||!rec||!currentStorageIsUserScoped())return false;
+ if(rec.storageIssue||localStorageDecodeIssue(rec.date)){
+  cloudSetMessage(rec.date+' 的本機資料無法解碼；已停止上傳，請先下載備份並使用雲端版本修復。',false);return false;
+ }
  try{
   var snapshot=null,result=null;
   for(var attempt=0;attempt<2;attempt++){
@@ -847,7 +866,7 @@ async function cloudPullAllRecordsOnce(options){
  var opts=options||{};
  var empty={ok:false,mode:'none',total:0,accepted:0,queued:0,conflicts:0};
  if(!cloudRecordRepository||!cloudUser||!currentStorageIsUserScoped())return empty;
- var pendingByDate={},cloudDates={},conflicts=0,accepted=0,total=0,errorMessage='';
+ var pendingByDate={},cloudDates={},conflicts=0,storageIssues=0,accepted=0,total=0,errorMessage='';
  var watermark=recordSyncWatermark(),since=incrementalSyncStart(watermark),mode=since?'incremental':'full';
  try{
   cloudLoading=true;
@@ -856,6 +875,9 @@ async function cloudPullAllRecordsOnce(options){
   snapshots.forEach(function(snapshot){
    var cloud=snapshot.record,date=snapshot.studyDate;
    cloudDates[date]=true;
+   if(localStorageDecodeIssue(date)){
+    conflicts++;storageIssues++;if(data&&data.date===date)updateStorageRecoveryUI();return;
+   }
    var local=readStoredRecord(date);
    var decision=decideRevisionSync(local,cloud);
     if(decision==='use-cloud'||decision==='equal'){
@@ -883,8 +905,9 @@ async function cloudPullAllRecordsOnce(options){
  var msg=(mode==='incremental'?'增量讀取 ':'首次比較 ')+total+' 天雲端紀錄；採用／確認 '+accepted+' 天';
  if(pending.length)msg+='，本機背景待同步 '+pending.length+' 天';
  if(conflicts)msg+='，'+conflicts+' 天有版本衝突且未自動覆蓋';
+ if(storageIssues)msg+='（其中 '+storageIssues+' 天本機資料無法解碼，需先修復）';
  if(!opts.silent)cloudSetMessage(msg+'。',conflicts?false:true);
- return{ok:true,mode:mode,total:total,accepted:accepted,queued:pending.length,conflicts:conflicts,message:msg+'。'};
+ return{ok:true,mode:mode,total:total,accepted:accepted,queued:pending.length,conflicts:conflicts,storageIssues:storageIssues,message:msg+'。'};
 }
 async function cloudPullAllRecords(options){
  if(cloudPullAllPromise)return cloudPullAllPromise;
@@ -904,6 +927,9 @@ async function cloudPullDateLocked(date,force){
  var localToPush=null,cloud=null,conflict=false;
  try{
   cloudLoading=true;
+  if(localStorageDecodeIssue(date)){
+   cloudSetMessage(date+' 的本機紀錄無法解碼；未使用雲端資料覆蓋，請先從警告區選擇修復。',false);return false;
+  }
   var local=readStoredRecord(date);
   var snapshot=await cloudRecordRepository.loadDate(date);cloud=snapshot?snapshot.record:null;
   var decision=decideRevisionSync(local,cloud);
@@ -1036,6 +1062,30 @@ async function cloudUndoConflictResolution(){
   else if(restored.changed)cloudSetMessage('雲端在衝突處理後又有新修改，為避免覆蓋，已停止復原。',false);
   else cloudSetMessage('備份缺少原雲端版本，無法自動復原。',false);
   return restored.ok;
+ });
+}
+function downloadStorageRecovery(){
+ var issue=data&&data.storageIssue?localStorageDecodeIssue(data.storageIssue.date):null;
+ if(!issue){id('status').textContent='目前沒有可下載的損壞紀錄備份。';return}
+ try{
+  var blob=new Blob([issue.raw],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='gsat-study-record-'+issue.date+'-original-backup.txt';document.body.appendChild(link);link.click();link.remove();
+  setTimeout(function(){URL.revokeObjectURL(url)},1000);id('status').textContent='已下載 '+issue.date+' 的原始本機資料備份。';
+ }catch(e){id('status').textContent='無法下載原始備份：'+(e&&e.message?e.message:String(e))}
+}
+async function repairStorageIssueFromCloud(){
+ var issue=data&&data.storageIssue,selectedDate=issue&&issue.date;
+ if(!selectedDate)return;
+ if(!cloudUser||!cloudRecordRepository){cloudSetMessage('請先登入 Cloud 帳號，再使用雲端版本修復。',false);return}
+ return runCloudManualSync('修復本機紀錄',async function(){
+  try{
+   cloudSetMessage('正在讀取 '+selectedDate+' 的雲端版本…',true);
+   var snapshot=await cloudRecordRepository.loadDate(selectedDate);
+   if(!snapshot||!snapshot.record){cloudSetMessage('雲端沒有 '+selectedDate+' 的紀錄；原始本機備份仍完整保留。',false);return false}
+   if(!writeStoredRecord(snapshot.record)){cloudSetMessage('無法寫入修復後的本機紀錄；原始備份未變更。',false);return false}
+   data=loadData(selectedDate);updateStorageRecoveryUI();writeHeader();render();
+   cloudSetMessage('已用雲端版本修復 '+selectedDate+'；原始損壞內容仍保留在復原備份中。',true);return true;
+  }catch(e){cloudSetMessage('修復失敗：'+(e&&e.message?e.message:String(e)),false);return false}
  });
 }
 async function cloudSignIn(){
@@ -1319,10 +1369,18 @@ function normalizeItem(it,date){
  return it;
 }
 function loadData(date){
- var b=blank(date),o=readStoredRecord(date);
- if(!o)return b;
+ var b=blank(date),result=readStoredRecordResult(date);
+ if(result.status==='missing')return b;
+ if(result.status==='invalid'){
+  b.storageIssue={source:'local',date:date,error:result.issue.error,backupKey:result.issue.backupKey,capturedAt:result.issue.capturedAt};return b;
+ }
+ var o=result.record;
  try{
   b.serverRevision=Number(o.serverRevision||0);b.serverUpdatedAt=o.serverUpdatedAt||'';b.localDirty=!!o.localDirty;b.syncConflict=!!o.syncConflict;
+  if(o.syncBase)b.syncBase=cloneObj(o.syncBase);
+  if(Array.isArray(o.syncConflictDetails))b.syncConflictDetails=cloneObj(o.syncConflictDetails);
+  if(o.syncConflictLocal)b.syncConflictLocal=cloneObj(o.syncConflictLocal);
+  if(o.syncConflictCloud)b.syncConflictCloud=cloneObj(o.syncConflictCloud);
   b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
   var storedCelebrations=o.completionCelebrations&&o.completionCelebrations.version===3?o.completionCelebrations:null;
   b.completionCelebrations={version:3,half:!!(storedCelebrations&&storedCelebrations.half),complete:!!(storedCelebrations&&storedCelebrations.complete)};
@@ -2875,7 +2933,7 @@ function studyRecordForOverview(date){
  // In particular, a partially typed range can temporarily overlap another task,
  // replacing its ID and leaving later input/change events with no matching item.
  if(data&&data.date===date)return cloneValue(data);
- var rec=loadData(date);ensureDailyPresets(rec,date);return rec;
+ var rec=loadData(date);if(!rec.storageIssue)ensureDailyPresets(rec,date);return rec;
 }
 function renderWeeklyItems(){
  var mon=mondayOf(parseDate(data.date)),html='',total=0;
@@ -3390,7 +3448,9 @@ function validate(){
  return{ok:ok,msg:msg};
 }
 function persist(show){
- if(!data)return false;ensureEnglishReviewWordEntryIds(data);readHeader();var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
+ if(!data)return false;
+ if(data.storageIssue){updateStorageRecoveryUI();if(show)id('status').textContent=data.date+' 的原始紀錄無法讀取；為避免覆蓋，修復前不會儲存。';return false}
+ ensureEnglishReviewWordEntryIds(data);readHeader();var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
  var previous=readStoredRecord(data.date),changed=!sameStudyContent(previous,data);
  if(changed){
   data.localDirty=true;data.syncConflict=false;
@@ -3405,7 +3465,9 @@ function persist(show){
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
 function load(options){
- var opts=options||{},d=id('studyDate').value;pendingDeferredTargets={};deferredLimitPrompt=null;data=loadData(d);updateCloudConflictUI(data.syncConflict?d:'');var changed=ensureDailyPresets(data,d);if(ensureEnglishReviewWordEntryIds(data))changed=true;id('weekdayText').textContent=weekdays[parseDate(d).getDay()];writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
+ var opts=options||{},d=id('studyDate').value;pendingDeferredTargets={};deferredLimitPrompt=null;data=loadData(d);updateCloudConflictUI(data.syncConflict?d:'');updateStorageRecoveryUI();id('weekdayText').textContent=weekdays[parseDate(d).getDay()];
+ if(data.storageIssue){writeHeader();render();id('status').textContent=d+' 的本機紀錄無法讀取；原始內容已保留，修復前不會覆蓋。';return}
+ var changed=ensureDailyPresets(data,d);if(ensureEnglishReviewWordEntryIds(data))changed=true;writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
  if(cloudUser&&!cloudBootstrapPending&&!opts.skipCloudRead)cloudPullDate(d,false);
 }
 
@@ -3443,7 +3505,7 @@ function itemSummary(x){
  return s;
 }
 function daySummary(date){
- var rec=loadData(date);ensureDailyPresets(rec,date);var a=['【'+date+' '+weekdays[parseDate(date).getDay()]+'】','狀態：'+line(rec.mood),'起床時間：'+line(rec.wakeTime)];if(isAway(rec))a.push('固定排程：因外出取消');visibleItems(rec).forEach(function(x){a.push(itemSummary(x))});a.push('最大卡點：'+line(rec.biggestBlock));a.push('明天第一件事：'+line(rec.firstThingTomorrow));a.push('補充：'+line(rec.notes));return a.join('\n');
+ var rec=loadData(date);if(rec.storageIssue)return'【'+date+' '+weekdays[parseDate(date).getDay()]+'】\n本機紀錄無法讀取，原始資料已保留等待修復。';ensureDailyPresets(rec,date);var a=['【'+date+' '+weekdays[parseDate(date).getDay()]+'】','狀態：'+line(rec.mood),'起床時間：'+line(rec.wakeTime)];if(isAway(rec))a.push('固定排程：因外出取消');visibleItems(rec).forEach(function(x){a.push(itemSummary(x))});a.push('最大卡點：'+line(rec.biggestBlock));a.push('明天第一件事：'+line(rec.firstThingTomorrow));a.push('補充：'+line(rec.notes));return a.join('\n');
 }
 function buildWeekSummary(){persist(false);var mon=mondayOf(parseDate(data.date)),a=['本週讀書紀錄｜'+dateString(mon)+'～'+dateString(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,12))];for(var i=0;i<7;i++){var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12);a.push('\n'+daySummary(dateString(d)))}return a.join('\n')}
 function importProgressItemKey(x){
@@ -3689,6 +3751,7 @@ function switchStudyDate(nextDate){
  var selector=id('studyDate'),currentDate=data&&data.date;
  if(!currentDate){selector.value=nextDate;load();return true}
  if(!nextDate||nextDate===currentDate){selector.value=currentDate;return true}
+ if(data.storageIssue){selector.value=nextDate;load();id('status').textContent='已保留 '+currentDate+' 的損壞原始資料，並切換至 '+nextDate+'。';return true}
  selector.value=currentDate;setSaveButtonState('saving');id('status').textContent='正在儲存 '+currentDate+' 的進度…';
  if(!persist(false)){
   id('status').textContent='無法儲存 '+currentDate+'；已取消日期切換，請先修正欄位或確認瀏覽器儲存空間。';setSaveButtonState('error');return false
@@ -3751,6 +3814,8 @@ id('previewImportBtn').addEventListener('click',previewProgressImport);
 id('confirmImportBtn').addEventListener('click',confirmProgressImport);
 id('cancelImportBtn').addEventListener('click',function(){hideImportPreview(true);id('status').textContent='已取消匯入，紀錄沒有變更。'});
 id('undoImportBtn').addEventListener('click',undoLastProgressImport);
+id('downloadStorageRecoveryBtn').addEventListener('click',downloadStorageRecovery);
+id('repairStorageFromCloudBtn').addEventListener('click',repairStorageIssueFromCloud);
 
 id('cloudSignInBtn').addEventListener('click',cloudSignIn);
 id('cloudSignUpBtn').addEventListener('click',cloudSignUp);

@@ -77,6 +77,17 @@
  </div>
 </details>
 
+<section class="storage-recovery" id="storageRecoveryPanel" hidden aria-live="assertive">
+ <div>
+  <strong>偵測到無法讀取的本機紀錄</strong>
+  <div class="small" id="storageRecoveryMessage"></div>
+ </div>
+ <div class="btns">
+  <button id="downloadStorageRecoveryBtn" class="secondary" type="button">下載原始備份</button>
+  <button id="repairStorageFromCloudBtn" class="primary" type="button">使用雲端版本修復</button>
+ </div>
+</section>
+
 <section class="panel">
  <div class="panel-head"><h2>今日資訊</h2><span class="badge" id="weekdayText"></span></div>
  <div class="content">

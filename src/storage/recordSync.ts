@@ -19,6 +19,7 @@ export interface StudyRecordMergeResult {
 const SYNC_META_KEYS = new Set([
   'updatedAt', 'serverRevision', 'serverUpdatedAt', 'localDirty', 'syncConflict',
   'syncBase', 'syncConflictDetails', 'syncConflictLocal', 'syncConflictCloud',
+  'storageIssue',
 ]);
 
 const ABSENT = Symbol('absent');
@@ -70,8 +71,35 @@ function stableValueKey(value: unknown): string {
   return JSON.stringify(canonicalize(value)) ?? String(value);
 }
 
+function migratedWordId(value: unknown): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const id = String((value as Record<string, unknown>).id ?? '');
+  return id.startsWith('word:v2:') ? id : '';
+}
+
+function alignEditedLegacyWords(primary: unknown[], secondary: unknown[]): unknown[] {
+  const adjusted = secondary.map(cloneValue);
+  if (primary.length !== adjusted.length) return adjusted;
+  const primaryIds = new Set(primary.map(migratedWordId).filter(Boolean));
+  const secondaryIds = new Set(adjusted.map(migratedWordId).filter(Boolean));
+  if (primaryIds.size !== primary.length || secondaryIds.size !== adjusted.length) return adjusted;
+  for (let index = 0; index < adjusted.length; index += 1) {
+    const primaryId = migratedWordId(primary[index]);
+    const secondaryId = migratedWordId(adjusted[index]);
+    if (!primaryId || !secondaryId || primaryId === secondaryId) continue;
+    // IDs based on unchanged content already match even after reordering. If
+    // neither ID exists on the other side, this is the same legacy row being
+    // edited in two queued snapshots; retain the newer primary row identity.
+    if (!secondaryIds.has(primaryId) && !primaryIds.has(secondaryId)) {
+      (adjusted[index] as Record<string, unknown>).id = primaryId;
+    }
+  }
+  return adjusted;
+}
+
 function mergeArraysLegacy(primary: unknown[], secondary: unknown[]): unknown[] {
   const merged = primary.map(cloneValue);
+  const alignedSecondary = alignEditedLegacyWords(primary, secondary);
   const keyedIndexes = new Map<string, number>();
   const valueIndexes = new Map<string, number>();
   merged.forEach((entry, index) => {
@@ -79,7 +107,7 @@ function mergeArraysLegacy(primary: unknown[], secondary: unknown[]): unknown[] 
     if (key) keyedIndexes.set(key, index);
     else valueIndexes.set(stableValueKey(entry), index);
   });
-  for (const entry of secondary) {
+  for (const entry of alignedSecondary) {
     const key = arrayEntryKey(entry);
     const existingIndex = key ? keyedIndexes.get(key) : valueIndexes.get(stableValueKey(entry));
     if (existingIndex !== undefined) {

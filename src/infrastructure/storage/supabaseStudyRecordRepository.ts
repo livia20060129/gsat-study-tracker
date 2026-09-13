@@ -64,7 +64,9 @@ export function studyRecordSnapshotFromRow(value: unknown): CloudStudyRecordSnap
   if (!row) return null;
   const studyDate = String(row.study_date);
   const decoded = decodeStudyRecord(row.payload, studyDate);
-  if (!decoded.ok) return null;
+  if (!decoded.ok) {
+    throw new Error(`雲端紀錄 ${studyDate} 無法解碼（${decoded.error}）；已停止同步，沒有把它當成空白資料。`);
+  }
   let record = decoded.record;
   delete record.updatedAt;
   const revision = Number(row.revision || 0);
@@ -129,9 +131,12 @@ export class SupabaseStudyRecordRepository implements CloudStudyRecordRepository
       const result = await query;
       if (result.error) throw new Error(errorMessage(result.error));
       const page = rowsFrom(result.data);
-      snapshots.push(...page
-        .map(studyRecordSnapshotFromRow)
-        .filter((snapshot): snapshot is CloudStudyRecordSnapshot => snapshot !== null));
+      const decodedPage = page.map((row, index) => {
+        const snapshot = studyRecordSnapshotFromRow(row);
+        if (!snapshot) throw new Error(`雲端第 ${snapshots.length + index + 1} 筆紀錄格式不完整；已停止同步以避免漏資料。`);
+        return snapshot;
+      });
+      snapshots.push(...decodedPage);
 
       if (page.length < STUDY_RECORD_PAGE_SIZE) break;
       const nextCursor = paginationCursorFromRow(page[page.length - 1]);
@@ -154,7 +159,11 @@ export class SupabaseStudyRecordRepository implements CloudStudyRecordRepository
       .eq('study_date', date)
       .maybeSingle();
     if (result.error) throw new Error(errorMessage(result.error));
-    return studyRecordSnapshotFromRow(result.data);
+    const snapshot = studyRecordSnapshotFromRow(result.data);
+    if (result.data !== null && result.data !== undefined && !snapshot) {
+      throw new Error(`雲端紀錄 ${date} 格式不完整；已停止同步以避免將它誤判為不存在。`);
+    }
+    return snapshot;
   }
 
   async loadRevision(date: string): Promise<number> {
@@ -164,7 +173,11 @@ export class SupabaseStudyRecordRepository implements CloudStudyRecordRepository
       .eq('study_date', date)
       .maybeSingle();
     if (result.error) throw new Error(errorMessage(result.error));
-    return studyRecordSnapshotFromRow(result.data)?.revision ?? 0;
+    const snapshot = studyRecordSnapshotFromRow(result.data);
+    if (result.data !== null && result.data !== undefined && !snapshot) {
+      throw new Error(`雲端紀錄 ${date} 格式不完整；無法安全讀取 revision。`);
+    }
+    return snapshot?.revision ?? 0;
   }
 
   async save(record: StudyRecord, baseRevision: number): Promise<CloudStudyRecordSaveResult> {

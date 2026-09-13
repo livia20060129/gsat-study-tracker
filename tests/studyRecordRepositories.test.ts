@@ -37,6 +37,24 @@ test('local repository owns scoped keys and upgrades legacy records', () => {
   assert.deepEqual(repository.listDates('user-a:'), ['2026-09-02']);
 });
 
+test('local repository preserves an undecodable payload and creates a recovery backup', () => {
+  const storage = new MemoryStorage();
+  const raw = '{broken json';
+  storage.setItem('user-a:2026-09-05', raw);
+  const repository = new LocalStudyRecordRepository(storage, 'user-a:');
+
+  const result = repository.loadResult('2026-09-05');
+  assert.equal(result.status, 'invalid');
+  if (result.status !== 'invalid') return;
+  assert.equal(result.issue.error, 'invalid-json');
+  assert.equal(result.issue.raw, raw);
+  assert.equal(storage.getItem('user-a:2026-09-05'), raw);
+  const backup = JSON.parse(storage.getItem(result.issue.backupKey) ?? '{}');
+  assert.equal(backup.raw, raw);
+  assert.equal(backup.date, '2026-09-05');
+  assert.deepEqual(repository.listDates(), ['2026-09-05']);
+});
+
 test('Supabase row conversion applies authoritative revision metadata', () => {
   const snapshot = studyRecordSnapshotFromRow({
     study_date: '2026-09-03',
@@ -166,4 +184,26 @@ test('Supabase repository rejects the whole read when a later page fails', async
     /page two failed/,
   );
   assert.equal(requestIndex, 2);
+});
+
+test('Supabase repository fails closed when a cloud payload cannot be decoded', async () => {
+  const client = {
+    from() {
+      return {
+        select() {
+          return {
+            gte() { return this; }, gt() { return this; }, eq() { return this; }, or() { return this; }, order() { return this; },
+            limit() { return Promise.resolve({ data: [{ study_date: '2026-09-06', payload: { schemaVersion: 999, items: [] }, revision: 1, updated_at: '2026-09-06T00:00:00Z' }], error: null }); },
+            maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+          };
+        },
+      };
+    },
+    rpc() { return Promise.resolve({ data: null, error: null }); },
+  } as unknown as SupabaseStudyRecordClient;
+
+  await assert.rejects(
+    () => new SupabaseStudyRecordRepository(client).loadMany(),
+    /2026-09-06.*unsupported-schema-version.*沒有把它當成空白資料/,
+  );
 });
