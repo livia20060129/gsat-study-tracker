@@ -14,6 +14,7 @@ import {
   AZAR_GRAMMAR_SECTIONS,
   isAzarGrammarBookTitle,
 } from '../data/azarGrammar.ts';
+import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from '../data/mathMaterialPageMaps.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
 
@@ -89,17 +90,6 @@ const SMART_34_PAGE_MAP: PageMapRow[] = [
   [5, 36, '三角函數'], [37, 65, '指數與對數函數'], [66, 95, '平面向量'],
   [96, 122, '空間向量'], [123, 145, '空間中的平面與直線'], [146, 166, '條件機率與貝氏定理'],
   [167, 198, '矩陣'], [199, 213, 'B版補充教材'], [214, 217, '115學測試題數學A'],
-];
-
-const NEWKEY_12_PAGE_MAP: PageMapRow[] = [
-  [2, 28, '實數與指對數'], [29, 59, '多項式函數'], [60, 84, '直線與圓'],
-  [85, 106, '數列與級數'], [107, 137, '排列組合與機率'], [138, 166, '數據分析'], [167, 191, '三角比'],
-];
-
-const NEWKEY_34_PAGE_MAP: PageMapRow[] = [
-  [2, 30, '三角函數'], [31, 57, '指數與對數函數'], [58, 90, '平面向量'],
-  [91, 115, '空間向量'], [116, 140, '空間中的平面與直線'],
-  [141, 153, '條件機率與貝氏定理'], [154, 187, '矩陣'],
 ];
 
 const TEACHING_MATH_PAGE_MAP: Record<string, PageMapRow[]> = {

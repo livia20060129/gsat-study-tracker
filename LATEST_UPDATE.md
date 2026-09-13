@@ -1,32 +1,24 @@
 # 最新更新
 
-版本：v171.2.0
+版本：v171.2.2
 
 ## 本次一次完成
 
-1. 整張卡片刪除前確認；小項目刪除提供 8 秒復原。
-2. 加入忘記密碼、重寄驗證信與回站設定新密碼。
-3. 儲存按鈕明確區分「已存本機」與「Cloud 已同步」。
-4. Cloud badge 顯示同步中、待同步天數、已同步或失敗。
-5. 斷線恢復後立即重試待同步紀錄。
-6. 正在輸入時不強制刷新；失焦後安全合併雲端資料，也可立即套用。
-7. 連續輸入採 200 ms debounce；勾選、延期、刪除與離頁仍立即保存。
-8. 手機展開連線設定後改為可關閉的 bottom sheet，不再佔住整頁捲動。
-9. Google Calendar 解除連線移至危險區並加入確認。
-10. 加入 Playwright 真實瀏覽器 E2E，部署前自動驗證主要操作。
-11. README 依指定八大章節重整並更新至 v171.2.0。
+1. 依紙本目錄更新「數學｜新關鍵｜3A～4A」頁碼對照。
+2. 七個單元依序為：三角函數 p.2–30、指數與對數函數 p.31–57、平面向量 p.58–90、空間向量 p.91–115、空間中的平面與直線 p.116–140、條件機率與貝氏定理 p.141–153、矩陣 p.154–187。
+3. 紀錄卡與教材進度圖共用同一份 3A～4A 對照資料，避免兩處結果不同。
+4. 新增單元交界與末頁 p.187 的回歸測試。
 
-更新資料夾：`gsat-study-tracker-v171.2.0-safety-ux-e2e-update`
+更新資料夾：`gsat-study-tracker-v171.2.2-new-key-3A-4A-page-map-update`
 
 ## 驗證
 
 - TypeScript 檢查通過。
-- 299 項單元／回歸測試全部通過。
-- 3 項 Chromium E2E 全部通過。
+- 304 項單元／回歸測試全部通過。
 - 正式 Vite 建置通過。
 
-本次不需要新增 Supabase migration，也不需要重新部署既有 Calendar Functions。若要啟用忘記密碼，請確認 Supabase Auth Redirect URLs 已包含正式 Tracker 網址。
+本次不需要新增 Supabase migration，也不需要重新部署既有 Calendar Functions；重新部署 GitHub Pages 前端即可套用。
 
 ## Commit 建議
 
-`feat(safety): add recovery sync status undo and browser e2e`
+`fix(math): align New Key books 3A-4A pages with printed index`

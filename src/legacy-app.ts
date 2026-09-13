@@ -41,6 +41,7 @@ import { LatestTaskQueue } from './storage/latestTaskQueue';
 import { withCrossTabLock } from './storage/crossTabLock';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
+import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from './data/mathMaterialPageMaps';
 import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEMS, CALENDAR_NATURAL_PLAN } from './data/naturalCalendar';
 import { isListeningTestBookTitle, LISTENING_TEST_BOOK_TITLE, LISTENING_TEST_MAX } from './data/englishBooks';
 import {
@@ -513,24 +514,6 @@ var GOODPOINT_CHEMISTRY_PAGE_MAP=[
  [135,146,'氧化還原反應'],
  [147,162,'生物、有機化學'],
  [163,184,'永續化學']
-];
-var NEWKEY_12_PAGE_MAP=[
- [2,28,'實數與指對數'],
- [29,59,'多項式函數'],
- [60,84,'直線與圓'],
- [85,106,'數列與級數'],
- [107,137,'排列組合與機率'],
- [138,166,'數據分析'],
- [167,191,'三角比']
-];
-var NEWKEY_34_PAGE_MAP=[
- [2,30,'三角函數'],
- [31,57,'指數與對數函數'],
- [58,90,'平面向量'],
- [91,115,'空間向量'],
- [116,140,'空間中的平面與直線'],
- [141,153,'條件機率與貝氏定理'],
- [154,187,'矩陣']
 ];
 var TEACHING_MATH_PAGE_MAP={
  '1':[

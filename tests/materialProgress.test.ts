@@ -48,6 +48,89 @@ test('reads a recorded math range from a grouped child without filling untouched
   assert.equal(math.segments.find(segment => segment.recorded)?.completionPercent, 71);
 });
 
+test('uses the printed New Key books 1-2 page boundaries through the final p.191', () => {
+  const math = materialProgressRows([]).find(row => row.id === 'math:新關鍵:1~2');
+  assert.ok(math);
+  assert.deepEqual(
+    math.segments.map(segment => segment.label),
+    [
+      '實數與指對數（p.2–28）',
+      '多項式函數（p.29–59）',
+      '直線與圓（p.60–84）',
+      '數列與級數（p.85–106）',
+      '排列組合與機率（p.107–137）',
+      '數據分析（p.138–166）',
+      '三角比（p.167–191）',
+    ],
+  );
+});
+
+test('records New Key books 1-2 pages against the correct unit boundary', () => {
+  const mathItem = item({
+    id: 'new-key-boundary',
+    type: 'mathLecture',
+    done: true,
+    f: { material: '新關鍵', book: '1～2冊', start: '28', end: '29' },
+  });
+  const math = materialProgressRows([record([mathItem])]).find(row => row.id === 'math:新關鍵:1~2');
+  assert.ok(math);
+  assert.deepEqual(math.segments.map(segment => segment.recorded), [true, true, false, false, false, false, false]);
+  assert.equal(math.segments[0].completionPercent, 4);
+  assert.equal(math.segments[1].completionPercent, 3);
+});
+
+test('accepts p.191 as New Key books 1-2 and rejects pages after the printed ending', () => {
+  const finalPage = item({
+    id: 'new-key-final-page',
+    type: 'mathLecture',
+    done: true,
+    f: { material: '新關鍵', book: '1~2', start: '191', end: '192' },
+  });
+  const math = materialProgressRows([record([finalPage])]).find(row => row.id === 'math:新關鍵:1~2');
+  assert.ok(math);
+  assert.equal(math.segments.filter(segment => segment.recorded).length, 1);
+  assert.equal(math.segments[6].recorded, true);
+  assert.equal(math.segments[6].completionPercent, 4);
+});
+
+test('uses the printed New Key books 3A-4A page boundaries through the final p.187', () => {
+  const math = materialProgressRows([]).find(row => row.id === 'math:新關鍵:3A~4A');
+  assert.ok(math);
+  assert.deepEqual(
+    math.segments.map(segment => segment.label),
+    [
+      '三角函數（p.2–30）',
+      '指數與對數函數（p.31–57）',
+      '平面向量（p.58–90）',
+      '空間向量（p.91–115）',
+      '空間中的平面與直線（p.116–140）',
+      '條件機率與貝氏定理（p.141–153）',
+      '矩陣（p.154–187）',
+    ],
+  );
+});
+
+test('records New Key books 3A-4A boundaries and stops at p.187', () => {
+  const mathItem = item({
+    id: 'new-key-34-boundaries',
+    type: 'mathLecture',
+    done: true,
+    f: { material: '新關鍵', book: '3A～4A冊', start: '30', end: '31' },
+  });
+  const finalPage = item({
+    id: 'new-key-34-final-page',
+    type: 'mathLecture',
+    done: true,
+    f: { material: '新關鍵', book: '3A~4A', start: '187', end: '188' },
+  });
+  const math = materialProgressRows([record([mathItem, finalPage])]).find(row => row.id === 'math:新關鍵:3A~4A');
+  assert.ok(math);
+  assert.deepEqual(math.segments.map(segment => segment.recorded), [true, true, false, false, false, false, true]);
+  assert.equal(math.segments[0].completionPercent, 3);
+  assert.equal(math.segments[1].completionPercent, 4);
+  assert.equal(math.segments[6].completionPercent, 3);
+});
+
 test('fills a page-based segment only by its actual covered percentage and deduplicates overlap', () => {
   const first = item({
     id: 'biology-first', type: 'scienceReview', done: true,
