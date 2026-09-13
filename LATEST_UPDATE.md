@@ -1,36 +1,38 @@
 # 最新更新
 
-版本：v171.1.19
+版本：v171.1.20
 
 ## 本次修正
 
-- 修正「英文訂正與搭配詞整理」在輸入期間同步時，將同一列的半成品文字重複保存成多筆的問題。
-- 每個新單字／搭配詞列建立永久識別碼；舊紀錄會依項目與列序取得一致的相容識別碼。
-- 本機、待上傳與雲端紀錄交叉比對時，改以識別碼更新同一列，不再以會變動的文字內容辨認列。
-- 同步期間優先採用目前本機最新內容，避免較早排入佇列的輸入片段短暫覆蓋新文字。
-- 不自動刪除既有重複列，避免誤刪使用者原本確實分開記錄的單字。
+- 同步改為以「上次成功同步版本／本機目前版本／雲端目前版本」三方比對，不再把有內容的舊值一律合併回來。
+- 使用者刪除項目、子項目或單字列後，只要另一端未修改該資料，刪除結果會正確同步，不會再被雲端復活。
+- 使用者把時間、文字或備註清空後，空白會視為有效修改，不會被舊值補回。
+- 兩端修改不同欄位時會自動合併；兩端同時修改同一欄位，或一端刪除、另一端修改時，會停止上傳並列出衝突位置。
+- 「完整保留本機版本」會精確使用本機資料覆蓋，不再把雲端舊項目混回來；「完整採用雲端版本」也會精確替換本機資料。
+- 每次人工處理衝突前都會建立可復原備份；若雲端在處理後沒有再被修改，可按「復原上次衝突處理」回到處理前狀態。
+- 同步共同版本只保存在瀏覽器本機，不會寫入 Supabase 的紀錄內容。
 
 ## 更新檔案
 
-- `src/legacy-app.ts`
-- `src/study/englishReview.ts`
 - `src/storage/recordSync.ts`
+- `src/infrastructure/storage/supabaseStudyRecordRepository.ts`
+- `src/legacy-app.ts`
 - `src/types.ts`
+- `src/styles.css`
+- `index.html`
 - `tests/recordMerge.test.ts`
 - `package.json`
 - `package-lock.json`
 - `LATEST_UPDATE.md`
 
-更新資料夾：`gsat-study-tracker-v171.1.19-english-review-stable-save-update`
+更新資料夾：`gsat-study-tracker-v171.1.20-three-way-sync-conflict-update`
 
 ## 驗證
 
-- 已重現並驗證 `app → apple` 的輸入過程只會留下 `apple`。
-- 已驗證多個不同單字列仍會分別保留。
 - TypeScript 檢查通過。
-- 全部自動測試通過。
+- 283 項自動測試全部通過。
 - 正式 Vite 建置通過。
 
 ## Commit 建議
 
-`fix(sync): prevent duplicate English review drafts`
+`fix(sync): preserve deletions and add three-way conflict resolution`

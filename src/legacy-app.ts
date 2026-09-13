@@ -11,7 +11,7 @@
  */
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
-import { decideRevisionSync, mergeStudyRecordsForUpload, sameStudyContent } from './storage/recordSync';
+import { decideRevisionSync, mergeStudyRecordsForUpload, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate } from './calendar/calendarBridge';
@@ -669,18 +669,58 @@ function cloudDateLockName(date){
 function withCloudDateLock(date,task){return withCrossTabLock(cloudDateLockName(date),task)}
 function updateCloudActionButtons(){
  var disabled=!cloudUser||cloudBootstrapPending||cloudManualSyncPending;
- var refresh=id('cloudRefreshBtn'),merge=id('cloudSyncLocalBtn'),keep=id('cloudKeepLocalBtn'),useCloud=id('cloudUseCloudBtn');
+ var refresh=id('cloudRefreshBtn'),merge=id('cloudSyncLocalBtn'),keep=id('cloudKeepLocalBtn'),useCloud=id('cloudUseCloudBtn'),undo=id('cloudUndoConflictBtn');
  if(refresh){refresh.disabled=disabled;refresh.setAttribute('aria-busy',cloudManualSyncPending?'true':'false')}
  if(merge){merge.disabled=disabled;merge.setAttribute('aria-busy',cloudManualSyncPending?'true':'false')}
  if(keep)keep.disabled=disabled;
  if(useCloud)useCloud.disabled=disabled;
+ if(undo){undo.disabled=disabled;undo.hidden=!readCloudConflictBackup()}
 }
 function updateCloudConflictUI(date){
  cloudConflictDate=String(date||'');
- var box=id('cloudConflictActions'),text=id('cloudConflictText');if(!box||!text)return;
+ var box=id('cloudConflictActions'),text=id('cloudConflictText'),details=id('cloudConflictDetails');if(!box||!text)return;
  box.hidden=!cloudConflictDate;
- text.textContent=cloudConflictDate?cloudConflictDate+' 有兩份不同紀錄，請選擇要保留的版本。':'';
+ var rec=cloudConflictDate?readStoredRecord(cloudConflictDate):null,conflicts=recordSyncConflicts(rec);
+ text.textContent=cloudConflictDate?cloudConflictDate+' 有 '+(conflicts.length||1)+' 處不同，請選擇要完整保留的版本。':'';
+ if(details){
+  details.textContent=cloudConflictDate?(conflicts.length?conflicts.slice(0,8).map(conflictDetailText).join('\n'):'缺少共同版本，無法安全判斷各欄位差異。'):'';
+ }
  updateCloudActionButtons();
+}
+function conflictValueText(detail,key){
+ if(!detail||!detail[key+'Exists'])return'已刪除';
+ var value=detail[key];
+ if(value==='')return'已清空';
+ if(value===null)return'空值';
+ if(typeof value==='object')return Array.isArray(value)?value.length+' 項':'已修改內容';
+ var text=String(value);return text.length>28?text.slice(0,28)+'…':text;
+}
+function conflictDetailText(detail){
+ var label=detail.kind==='delete-vs-edit'?'刪除與修改衝突':detail.kind==='unkeyed-array'?'清單同時變更':'同一欄位同時修改';
+ return (detail.path||'整份紀錄')+'｜'+label+'｜本機：'+conflictValueText(detail,'local')+'｜雲端：'+conflictValueText(detail,'cloud');
+}
+function cloudConflictBackupKey(){return STORE_PREFIX+'__cloud-conflict-backup__'}
+function readCloudConflictBackup(){
+ try{var raw=store.getItem(cloudConflictBackupKey()),value=raw?JSON.parse(raw):null;return value&&value.version===1&&value.date?value:null}catch(e){return null}
+}
+function writeCloudConflictBackup(value){
+ try{store.setItem(cloudConflictBackupKey(),JSON.stringify(value));updateCloudActionButtons();return true}catch(e){return false}
+}
+function saveCloudConflictBackup(date,local,cloud){
+ return writeCloudConflictBackup({version:1,date:date,createdAt:new Date().toISOString(),local:local?cloneRecord(local):null,cloud:cloud?cloneRecord(cloud):null,resolvedRevision:null});
+}
+function finishCloudConflictBackup(revision){
+ var backup=readCloudConflictBackup();if(!backup)return;backup.resolvedRevision=Number(revision||0);writeCloudConflictBackup(backup);
+}
+function setCloudConflictRecord(local,cloud,details){
+ var next=cloneRecord(local);if(!next)return null;
+ next.localDirty=true;next.syncConflict=true;
+ next.syncConflictDetails=details&&details.length?cloneRecord(details):[{path:'$',kind:'unknown-base',baseExists:false,localExists:true,cloudExists:!!cloud,local:stripRecordSyncMeta(local),cloud:cloud?stripRecordSyncMeta(cloud):undefined}];
+ next.syncConflictLocal=stripRecordSyncMeta(local);
+ next.syncConflictCloud=cloud?stripRecordSyncMeta(cloud):undefined;
+ writeStoredRecord(next);
+ if(data&&data.date===next.date){data=cloneRecord(next)}
+ updateCloudConflictUI(next.date);return next;
 }
 async function runCloudManualSync(label,task){
  if(cloudManualSyncPending){cloudSetMessage(label+'正在進行，請稍候。',true);return null}
@@ -714,8 +754,10 @@ function updateCurrentRecordSyncMeta(date,serverRec){
  if(!sameStudyContent(data,serverRec))return;
  data.serverRevision=serverRec.serverRevision||0;
  data.serverUpdatedAt=serverRec.serverUpdatedAt||'';
+ data.syncBase=cloneRecord(serverRec.syncBase||stripRecordSyncMeta(serverRec));
  data.localDirty=false;
  data.syncConflict=false;
+ delete data.syncConflictDetails;delete data.syncConflictLocal;delete data.syncConflictCloud;
 }
 async function cloudSaveRecord(rec,forcedBaseRevision){
  if(!cloudRecordRepository||!cloudUser||!rec||!currentStorageIsUserScoped())return false;
@@ -724,7 +766,17 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
   for(var attempt=0;attempt<2;attempt++){
    var stored=readStoredRecord(rec.date),pending=mergeStudyRecordsForUpload(stored||rec,rec);
    var cloudSnapshot=await cloudRecordRepository.loadDate(rec.date),cloudRecord=cloudSnapshot?cloudSnapshot.record:null;
+   var pendingConflicts=recordSyncConflicts(pending);
+   if(pendingConflicts.length){
+    setCloudConflictRecord(pending.syncConflictLocal||pending,cloudRecord,pendingConflicts);
+    cloudSetMessage(rec.date+' 在不同分頁修改了相同欄位；未自動覆蓋，請查看差異後選擇版本。',false);return false;
+   }
    snapshot=mergeStudyRecordsForUpload(pending,cloudRecord);
+   var mergeConflicts=recordSyncConflicts(snapshot);
+   if(mergeConflicts.length){
+    setCloudConflictRecord(snapshot.syncConflictLocal||pending,cloudRecord,mergeConflicts);
+    cloudSetMessage(rec.date+' 的本機與雲端修改了相同欄位；未自動覆蓋，請查看差異後選擇版本。',false);return false;
+   }
    var baseRevision=cloudSnapshot?Number(cloudSnapshot.revision||0):0;
    snapshot.serverRevision=baseRevision;snapshot.serverUpdatedAt=cloudSnapshot?cloudSnapshot.updatedAt:'';
    snapshot.localDirty=true;snapshot.syncConflict=false;
@@ -735,15 +787,10 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
   if(!snapshot||!result)throw new Error('雲端儲存流程未完成。');
   var current=readStoredRecord(snapshot.date)||snapshot;
   if(!result.applied){
-   current.syncConflict=true;
-   current.localDirty=true;
-   if(result.updatedAt)current.serverUpdatedAt=String(result.updatedAt);
-   writeStoredRecord(current);
-   if(data&&data.date===snapshot.date&&sameStudyContent(data,current)){
-    data.syncConflict=true;data.localDirty=true;data.serverUpdatedAt=current.serverUpdatedAt||'';
-   }
+   var newestCloud=result.record||null,failedMerge=newestCloud?mergeStudyRecordsForUpload(current,newestCloud):current;
+   current=setCloudConflictRecord(failedMerge.syncConflictLocal||current,newestCloud,recordSyncConflicts(failedMerge));
+   if(current&&result.updatedAt){current.serverUpdatedAt=String(result.updatedAt);writeStoredRecord(current)}
    cloudSetMessage(snapshot.date+' 已在其他裝置更新；本機版本未覆蓋雲端，請重新讀取後人工確認。',false);
-   if(!data||data.date===snapshot.date)updateCloudConflictUI(snapshot.date);
    return false;
   }
 
@@ -754,13 +801,20 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
    // User edited again while the earlier save request was in flight. Preserve
    // the newer local content, advance its base revision, then queue one more save.
    current=mergeStudyRecordsForUpload(current,saved);
+   var inFlightConflicts=recordSyncConflicts(current);
+   if(inFlightConflicts.length){
+    setCloudConflictRecord(current.syncConflictLocal||current,saved,inFlightConflicts);
+    cloudSetMessage(snapshot.date+' 儲存期間又修改了相同欄位；已停止後續上傳並保留兩邊版本。',false);return false;
+   }
    current.serverRevision=saved.serverRevision;
    current.serverUpdatedAt=saved.serverUpdatedAt;
+   current.syncBase=cloneRecord(saved.syncBase||stripRecordSyncMeta(saved));
    current.localDirty=true;
    current.syncConflict=false;
    writeStoredRecord(current);
    if(data&&data.date===current.date&&sameStudyContent(data,current)){
     data.serverRevision=current.serverRevision;data.serverUpdatedAt=current.serverUpdatedAt;data.localDirty=true;data.syncConflict=false;
+    data.syncBase=cloneRecord(current.syncBase);
    }
    queueCloudSave(current);
   }else{
@@ -809,7 +863,8 @@ async function cloudPullAllRecordsOnce(options){
     }else if(decision==='push-local'){
     if(local)pendingByDate[local.date]=local;
     }else if(local){
-     local.syncConflict=true;writeStoredRecord(local);conflicts++;
+     var compared=cloud?mergeStudyRecordsForUpload(local,cloud):local;
+     setCloudConflictRecord(compared.syncConflictLocal||local,cloud,recordSyncConflicts(compared));conflicts++;
     }
    });
   if(mode==='full')localStudyDates().forEach(function(date){
@@ -855,7 +910,7 @@ async function cloudPullDateLocked(date,force){
   if(decision==='use-cloud'||decision==='equal'){
    if(cloud)writeStoredRecord(cloud);
   }else if(decision==='push-local')localToPush=local;
-  else if(local){local.syncConflict=true;writeStoredRecord(local);conflict=true}
+  else if(local){var compared=cloud?mergeStudyRecordsForUpload(local,cloud):local;setCloudConflictRecord(compared.syncConflictLocal||local,cloud,recordSyncConflicts(compared));conflict=true}
  }catch(e){cloudSetMessage('讀取雲端失敗：'+(e&&e.message?e.message:String(e)),false);return false}
  finally{cloudLoading=false}
  if(localToPush)await cloudSaveRecord(localToPush);
@@ -895,6 +950,19 @@ async function cloudForceLocalRecord(rec){
   return cloudSaveRecord(latest);
  });
 }
+async function cloudReplaceRecord(rec,withBackup){
+ if(!cloudRecordRepository||!rec)return null;
+ await cloudSaveQueue.flush(rec.date);
+ return withCloudDateLock(rec.date,async function(){
+  var before=await cloudRecordRepository.loadDate(rec.date),cloud=before?before.record:null;
+  if(withBackup&&!saveCloudConflictBackup(rec.date,readStoredRecord(rec.date)||rec,cloud))throw new Error('無法建立衝突處理備份。');
+  var exact=stripRecordSyncMeta(rec),baseRevision=before?Number(before.revision||0):0;
+  exact.serverRevision=baseRevision;exact.serverUpdatedAt=before?before.updatedAt:'';exact.localDirty=true;exact.syncConflict=false;
+  var result=await cloudRecordRepository.save(exact,baseRevision);
+  if(!result.applied||!result.record){setCloudConflictRecord(rec,result.record||cloud,[]);return null}
+  writeStoredRecord(result.record);updateCurrentRecordSyncMeta(result.record.date,result.record);finishCloudConflictBackup(result.record.serverRevision);return result.record;
+ });
+}
 async function cloudMergeLocalMissing(){
  if(!cloudClient||!cloudUser||!currentStorageIsUserScoped())return;
  return runCloudManualSync('補上本機資料',async function(){try{
@@ -926,8 +994,9 @@ async function cloudKeepLocalConflict(){
  return runCloudManualSync('衝突處理',async function(){
   var rec=readStoredRecord(date);
   if(!rec){cloudSetMessage('找不到 '+date+' 的本機紀錄。',false);return false}
-  var ok=await cloudForceLocalRecord(rec);
-  if(ok){updateCloudConflictUI('');cloudSetMessage('已保留 '+date+' 的本機版本並同步至雲端。',true);if(data&&data.date===date)load({skipCloudRead:true})}
+  var exact=rec.syncConflictLocal||rec,saved=await cloudReplaceRecord(exact,true),ok=!!saved;
+  if(ok){updateCloudConflictUI('');cloudSetMessage('已完整保留 '+date+' 的本機版本；雲端舊項目不會混回來。',true);if(data&&data.date===date)load({skipCloudRead:true})}
+  else cloudSetMessage('保留本機版本失敗；兩邊資料仍保留，沒有覆蓋雲端。',false);
   return ok;
  });
 }
@@ -938,11 +1007,35 @@ async function cloudUseCloudConflict(){
   var ok=await withCloudDateLock(date,async function(){
    var snapshot=await cloudRecordRepository.loadDate(date);
    if(!snapshot||!snapshot.record)return false;
-   writeStoredRecord(snapshot.record);return true;
+   var local=readStoredRecord(date);if(!saveCloudConflictBackup(date,local,snapshot.record))return false;
+   writeStoredRecord(snapshot.record);finishCloudConflictBackup(snapshot.revision);return true;
   });
-  if(ok){updateCloudConflictUI('');cloudSetMessage('已改用 '+date+' 的雲端版本。',true);if(data&&data.date===date)load({skipCloudRead:true})}
+  if(ok){updateCloudConflictUI('');cloudSetMessage('已完整採用 '+date+' 的雲端版本；本機舊項目不會混回來。',true);if(data&&data.date===date)load({skipCloudRead:true})}
   else cloudSetMessage('無法讀取 '+date+' 的雲端版本，兩端內容仍保持不變。',false);
   return ok;
+ });
+}
+async function cloudUndoConflictResolution(){
+ var backup=readCloudConflictBackup();if(!backup||!cloudRecordRepository)return;
+ if(!window.confirm('要復原 '+backup.date+' 上一次衝突處理嗎？系統會先確認雲端沒有更新，再恢復處理前的兩份版本。'))return;
+ return runCloudManualSync('復原衝突處理',async function(){
+  var restored=await withCloudDateLock(backup.date,async function(){
+   var current=await cloudRecordRepository.loadDate(backup.date);
+   if(!current||Number(current.revision||0)!==Number(backup.resolvedRevision||0))return{ok:false,changed:true};
+   if(!backup.cloud)return{ok:false,missing:true};
+   var originalCloud=stripRecordSyncMeta(backup.cloud);originalCloud.serverRevision=current.revision;originalCloud.localDirty=true;originalCloud.syncConflict=false;
+   var result=await cloudRecordRepository.save(originalCloud,current.revision);
+   if(!result.applied||!result.record)return{ok:false,changed:true};
+   var local=cloneRecord(backup.local||result.record),details=recordSyncConflicts(local);
+   local.serverRevision=result.record.serverRevision;local.serverUpdatedAt=result.record.serverUpdatedAt;local.syncBase=result.record.syncBase;
+   setCloudConflictRecord(local,result.record,details);
+   try{store.removeItem(cloudConflictBackupKey())}catch(e){}
+   updateCloudActionButtons();return{ok:true};
+  });
+  if(restored.ok){cloudSetMessage('已復原 '+backup.date+' 衝突處理前的兩份版本，請重新選擇。',true);if(data&&data.date===backup.date)load({skipCloudRead:true})}
+  else if(restored.changed)cloudSetMessage('雲端在衝突處理後又有新修改，為避免覆蓋，已停止復原。',false);
+  else cloudSetMessage('備份缺少原雲端版本，無法自動復原。',false);
+  return restored.ok;
  });
 }
 async function cloudSignIn(){
@@ -3666,6 +3759,7 @@ id('cloudSyncLocalBtn').addEventListener('click',cloudMergeLocalMissing);
 id('cloudRefreshBtn').addEventListener('click',cloudRefreshAllRecords);
 id('cloudKeepLocalBtn').addEventListener('click',cloudKeepLocalConflict);
 id('cloudUseCloudBtn').addEventListener('click',cloudUseCloudConflict);
+id('cloudUndoConflictBtn').addEventListener('click',cloudUndoConflictResolution);
 id('calendarConnectBtn').addEventListener('click',calendarConnect);
 id('calendarSyncBtn').addEventListener('click',calendarSyncNow);
 id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);

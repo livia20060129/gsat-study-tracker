@@ -78,6 +78,17 @@ export interface StudyItem {
   f: StudyItemFields;
 }
 
+export interface StudyRecordSyncConflict {
+  path: string;
+  kind: 'same-field' | 'delete-vs-edit' | 'unkeyed-array' | 'unknown-base';
+  baseExists: boolean;
+  localExists: boolean;
+  cloudExists: boolean;
+  base?: unknown;
+  local?: unknown;
+  cloud?: unknown;
+}
+
 export interface StudyRecord {
   /** Explicit JSON payload schema; absent records are decoded as legacy schema 0. */
   schemaVersion?: number;
@@ -88,6 +99,12 @@ export interface StudyRecord {
   serverUpdatedAt?: string;
   localDirty?: boolean;
   syncConflict?: boolean;
+  /** Last payload confirmed by both this browser and Supabase. Local-only. */
+  syncBase?: StudyRecord;
+  /** Field-level conflicts and both recoverable choices. Local-only. */
+  syncConflictDetails?: StudyRecordSyncConflict[];
+  syncConflictLocal?: StudyRecord;
+  syncConflictCloud?: StudyRecord;
   mood?: string;
   wakeTime?: string;
   biggestBlock?: string;

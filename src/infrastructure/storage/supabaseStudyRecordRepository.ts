@@ -3,7 +3,7 @@ import type {
   CloudStudyRecordSaveResult,
   CloudStudyRecordSnapshot,
 } from '../../application/ports/studyRecordRepository.ts';
-import { stripRecordSyncMeta } from '../../storage/recordSync.ts';
+import { markRecordSynced, stripRecordSyncMeta } from '../../storage/recordSync.ts';
 import { decodeStudyRecord } from '../../storage/studyRecordCodec.ts';
 import type { StudyRecord } from '../../types.ts';
 
@@ -65,17 +65,18 @@ export function studyRecordSnapshotFromRow(value: unknown): CloudStudyRecordSnap
   const studyDate = String(row.study_date);
   const decoded = decodeStudyRecord(row.payload, studyDate);
   if (!decoded.ok) return null;
-  const record = decoded.record;
+  let record = decoded.record;
   delete record.updatedAt;
-  record.serverRevision = Number(row.revision || 0);
-  record.serverUpdatedAt = String(row.updated_at || '');
-  record.localDirty = false;
-  record.syncConflict = false;
+  const revision = Number(row.revision || 0);
+  const updatedAt = String(row.updated_at || '');
+  record.serverRevision = revision;
+  record.serverUpdatedAt = updatedAt;
+  record = markRecordSynced(record);
   return {
     record,
     studyDate,
-    revision: record.serverRevision,
-    updatedAt: record.serverUpdatedAt,
+    revision,
+    updatedAt,
   };
 }
 
