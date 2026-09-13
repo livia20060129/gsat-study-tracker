@@ -128,6 +128,13 @@ function validateCalendarIntegrationEntries(value: unknown, label: string, error
     }
     if (entry.subject !== undefined && typeof entry.subject !== 'string') errors.push(`${entryLabel}的 subject 必須是文字。`);
     validateOptionalBoolean(entry.done, `${entryLabel}的 done`, errors);
+    if (entry.minutes !== undefined) {
+      const validMinutes = typeof entry.minutes === 'string'
+        || (typeof entry.minutes === 'number' && Number.isFinite(entry.minutes) && entry.minutes >= 0);
+      if (!validMinutes) errors.push(`${entryLabel}的 minutes 必須是文字或非負數字。`);
+    }
+    if (entry.f !== undefined && !isObject(entry.f)) errors.push(`${entryLabel}的 f 必須是物件。`);
+    else if (isObject(entry.f)) validateTimeTracking(entry.f.timeTracking, `${entryLabel}.f.timeTracking`, errors);
     if (entry.ranges !== undefined) {
       if (!Array.isArray(entry.ranges)) errors.push(`${entryLabel}的 ranges 必須是陣列。`);
       else entry.ranges.forEach((range, rangeIndex) => {

@@ -7,6 +7,8 @@ import { isConfirmedDeferred } from '../src/study/deferDays.ts';
 import { renderItemDeleteFooter } from '../src/ui/itemActions.ts';
 import { propagateDailyWorkField } from '../src/study/dailyWorkGroup.ts';
 import { normalizeStudyTimerState } from '../src/study/studyTimer.ts';
+import { studyItemSubject } from '../src/study/subjectOrder.ts';
+import { summarizeSubjectTime } from '../src/study/subjectTime.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
 import {
   canonicalPageMappedBook,
@@ -267,6 +269,83 @@ test('the recorded minute field accepts one-decimal timer values', () => {
   assert.match(html, /step="0\.1"/);
   assert.match(html, /inputmode="decimal"/);
   assert.match(html, /value="1\.5"/);
+});
+
+test('natural integration children expose their own manual and timer control', () => {
+  const render = runtimeFunction<(entry: Record<string, unknown>) => string>('renderCalendarNaturalIntegrationEntry', {
+    esc: (value: unknown) => String(value ?? ''),
+    checked: (value: unknown) => value ? ' checked' : '',
+    renderTimeControl: (entry: Record<string, unknown>) => `<span data-child-time="${entry.id}"></span>`,
+  });
+  const html = render({
+    id: 'natural-integration-2026-09-13-生物',
+    subject: '生物',
+    done: true,
+    minutes: '18',
+    ranges: [[16, 18]],
+    pageText: 'p.16–18',
+    chapterText: '細胞呼吸',
+  });
+
+  assert.match(html, /data-child-time="natural-integration-2026-09-13-生物"/);
+  assert.match(html, /data-item="natural-integration-2026-09-13-生物"/);
+});
+
+test('every completed time-capable child counts without waiting for its parent card', () => {
+  const completed = (id: string, subject: string, minutes: string) => item({
+    id, type: subject === '英文' ? 'extra' : 'scienceReview', done: true, minutes, f: { subject },
+  });
+  const pending = (id: string, subject: string, minutes: string) => item({
+    id, type: 'scienceReview', done: false, minutes, f: { subject },
+  });
+  const items = [
+    item({ id: 'group', f: { groupedWorkEntries: [completed('group-done', '生物', '12'), pending('group-pending', '化學', '90')] } }),
+    item({ id: 'interactive', type: 'interactiveDaily', f: { interactiveEntries: [completed('interactive-done', '英文', '7'), pending('interactive-pending', '英文', '80')] } }),
+    item({ id: 'natural', type: 'scienceReview', minutes: '99', f: {
+      calendarNaturalIntegration: true,
+      calendarIntegrationEntries: [
+        { id: 'natural-done', subject: '化學', done: true, minutes: '8', f: { subject: '化學' } },
+        { id: 'natural-pending', subject: '物理', done: false, minutes: '70', f: { subject: '物理' } },
+      ],
+    } }),
+    item({ id: 'makeup', type: 'general', presetKey: 'sat_makeup', f: { makeupEntries: [completed('makeup-done', '國文', '5')] } }),
+  ];
+  const nodes = new Proxy<Record<string, { textContent: string; style: { width?: string } }>>({}, {
+    get(target, key: string) {
+      return target[key] ||= { textContent: '', style: {} };
+    },
+  });
+  let renderedTotal = -1;
+  const update = runtimeFunction<() => void>('updateSummary', {
+    data: { date: '2026-09-13', items },
+    mathProgressIndex: { upsert() {}, view: () => [] },
+    visibleItems: (record: { items: StudyItem[] }) => record.items,
+    isGroupedWork: (x: StudyItem) => Boolean(x.f.groupedWorkEntries?.length),
+    groupedWorkEntries: (x: StudyItem) => x.f.groupedWorkEntries || [],
+    isInteractiveDaily: (x: StudyItem) => x.type === 'interactiveDaily',
+    ensureInteractiveEntries: (x: StudyItem) => x.f.interactiveEntries || [],
+    isCalendarNaturalIntegration: (x: StudyItem) => x.f.calendarNaturalIntegration === true,
+    ensureCalendarNaturalIntegrationEntries: (x: StudyItem) => x.f.calendarIntegrationEntries || [],
+    isSaturdayMakeup: (x: StudyItem) => x.presetKey === 'sat_makeup',
+    ensureEntryArray: (x: StudyItem) => x.f.makeupEntries || [],
+    isFixedMagazine: () => false,
+    fixedMagazineMinutes: () => 0,
+    isEnglishReview: () => false,
+    studyItemSubject,
+    summarizeSubjectTime,
+    completionUnitsForRecord: () => [],
+    summarizeCompletionUnits: () => ({ itemPercent: 0, itemCompleted: 0, itemTotal: 0, workloadPercent: 0, workloadCompleted: 0, workloadTotal: 0 }),
+    calculateMathProgress: () => ({ dailyNewPages: 0, weeklyNewPages: 0, weeklyTarget: 0, weeklyPercent: 0 }),
+    calendarWeekMathTarget: () => 0,
+    id: (name: string) => nodes[name],
+    updateSettlementMetrics() {},
+    renderCompletionTrend() {},
+    updateCompletionView() {},
+    renderSubjectTimeDonut: (summary: { totalMinutes: number }) => { renderedTotal = summary.totalMinutes; },
+  });
+
+  update();
+  assert.equal(renderedTotal, 32);
 });
 
 test('mixed writing places both quarter-width scores beside one spanning priority field', () => {

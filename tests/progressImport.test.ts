@@ -79,6 +79,28 @@ test('progress import rejects unsupported schemas and unsafe object keys', () =>
   if (!unsafe.ok) assert.match(unsafe.errors.join(' '), /不允許的欄位 __proto__/);
 });
 
+test('progress import validates timer data inside natural integration children', () => {
+  const parsed = parseProgressImportText(JSON.stringify({
+    date: '2026-09-13',
+    items: [{
+      id: 'natural', type: 'scienceReview', done: false, required: true, minutes: '',
+      f: {
+        calendarIntegrationEntries: [{
+          id: 'natural-child', subject: '生物', done: true, minutes: -5,
+          f: { timeTracking: { mode: 'clock', accumulatedSeconds: -1, startedAt: 'now' } },
+        }],
+      },
+    }],
+  }));
+
+  assert.equal(parsed.ok, false);
+  if (!parsed.ok) {
+    const message = parsed.errors.join(' ');
+    assert.match(message, /minutes 必須是文字或非負數字/);
+    assert.match(message, /timeTracking\.mode/);
+  }
+});
+
 test('progress import result reports every local and cloud outcome', () => {
   assert.equal(progressImportResultText({
     localSucceeded: 4,

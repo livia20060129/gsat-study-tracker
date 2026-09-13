@@ -125,6 +125,12 @@ export interface StudyRecord {
 
 export interface CalendarNaturalIntegrationEntry {
   id?: string;
+  /** Timer-ready StudyItem-compatible fields used by the integration child card. */
+  type?: 'scienceReview';
+  title?: string;
+  minutes?: string;
+  required?: boolean;
+  f?: StudyItemFields;
   subject: '生物' | '化學' | '物理' | '地科';
   material?: '123日的淬鍊';
   ranges?: Array<[number, number]>;

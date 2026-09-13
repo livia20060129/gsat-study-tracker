@@ -2081,18 +2081,30 @@ function ensureCalendarNaturalIntegrationEntries(x,date){
  var old=x.f.calendarIntegrationEntries,by={},out=[];
  for(var i=0;i<old.length;i++)if(old[i]&&old[i].subject)by[old[i].subject]=old[i];
  for(var j=0;j<defs.length;j++){
-  var d=defs[j],c=by[d.subject]||{};
+ var d=defs[j],c=by[d.subject]||{};
   c.id='natural-integration-'+date+'-'+d.subject;
+  c.type='scienceReview';
+  c.title=d.subject;
+  c.required=true;
   c.source='calendarNaturalIntegration';
   c.calendarIntegrationChild=true;
   c.subject=d.subject;
   c.material='123日的淬鍊';
+  if(c.minutes===undefined)c.minutes='';
+  if(!c.f||typeof c.f!=='object')c.f={};
+  c.f.subject=d.subject;
+  c.f.material='123日的淬鍊';
   c.ranges=cloneObj(d.ranges||[]);
   c.pageText=d.pageText||calendarIntegrationRangeText(c.ranges);
   c.chapterText=d.chapterText||calendarIntegrationChapterText(c.subject,c.ranges);
   c.dynamic=!!d.dynamic;
   if(typeof c.done!=='boolean')c.done=!!x.done;
   out.push(c);
+ }
+ var legacyMinutes=String(x.minutes||'').trim(),hasChildMinutes=out.some(function(c){return String(c.minutes||'').trim()!==''});
+ if(legacyMinutes&&!hasChildMinutes){
+  var completedChild=out.find(function(c){return !!c.done});
+  if(completedChild){completedChild.minutes=legacyMinutes;x.minutes=''}
  }
  x.f.calendarIntegrationEntries=out;
  x.done=out.length>0&&out.every(function(c){return !!c.done});
@@ -2103,7 +2115,7 @@ function renderCalendarNaturalIntegrationEntry(c){
  var single=ranges.length===1&&!c.dynamic&&!c.pageText.match(/ 或 /);
  var h='<div class="item subject-card subject-natural'+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
- h+='<div class="item-title">'+esc(c.subject)+'</div></div>';
+ h+='<div class="item-title">'+esc(c.subject)+'</div>'+renderTimeControl(c)+'</div>';
  h+='<div class="inner"><div class="science-main-row">';
  h+='<div class="field"><label>科目</label><div class="fixed-book-value">'+esc(c.subject)+'</div></div>';
  h+='<div class="field"><label>講義版本</label><div class="fixed-book-value">123日的淬鍊</div></div>';
@@ -2198,7 +2210,7 @@ function ensureMagazineEntries(x){
  return x.f.entries;
 }
 function fixedMagazineMinutes(x){return ensureMagazineEntries(x).reduce(function(s,r){return s+Number(r.minutes||0)},0)}
-function hidesTopMinutes(x){return isEnglishReview(x)||isFixedMagazine(x)||isSaturdayMakeup(x)||isInteractiveDaily(x)}
+function hidesTopMinutes(x){return isEnglishReview(x)||isFixedMagazine(x)||isSaturdayMakeup(x)||isInteractiveDaily(x)||isCalendarNaturalIntegration(x)}
 
 var studyTimerTicker=null;
 function timerPointerKey(){return STORE_PREFIX+'active-timer'}
@@ -3388,27 +3400,32 @@ function updateSummary(){
  mathProgressIndex.upsert(data);
  var subjectMinuteEntries=[],active=visibleItems(data);
  function addSubjectMinutes(item,value){var minutes=Number(value||0);if(Number.isFinite(minutes)&&minutes>0)subjectMinuteEntries.push({subject:studyItemSubject(item),minutes:minutes})}
- active.forEach(function(x){
-   if(isGroupedWork(x)){
-    var grouped=groupedWorkEntries(x);x.done=grouped.length>0&&grouped.every(function(child){return !!child.done});
-    if(x.done)addSubjectMinutes(x,x.minutes);
-    return;
-   }
+ function collectCompletedMinutes(x){
+  if(!x)return;
+  if(isGroupedWork(x)){
+   var grouped=groupedWorkEntries(x);x.done=grouped.length>0&&grouped.every(function(child){return !!child.done});
+   grouped.forEach(collectCompletedMinutes);
+   return;
+  }
   if(isInteractiveDaily(x)){
-   var ia=ensureInteractiveEntries(x);
-   x.done=ia.length>0&&ia.every(function(c){return !!c.done});
-   ia.forEach(function(c){if(c.done)addSubjectMinutes(c,c.minutes)});
+   var interactive=ensureInteractiveEntries(x);x.done=interactive.length>0&&interactive.every(function(child){return !!child.done});
+   interactive.forEach(collectCompletedMinutes);
    return;
   }
   if(isCalendarNaturalIntegration(x)){
-   var ci=ensureCalendarNaturalIntegrationEntries(x,data.date);
-   x.done=ci.length>0&&ci.every(function(c){return !!c.done});
-   if(x.done)addSubjectMinutes(x,x.minutes);
+   var integration=ensureCalendarNaturalIntegrationEntries(x,data.date);x.done=integration.length>0&&integration.every(function(child){return !!child.done});
+   integration.forEach(collectCompletedMinutes);
    return;
   }
-  if(x.done){if(isFixedMagazine(x))addSubjectMinutes(x,fixedMagazineMinutes(x));else if(!isEnglishReview(x)&&!isSaturdayMakeup(x))addSubjectMinutes(x,x.minutes)}
-  if(isSaturdayMakeup(x))ensureEntryArray(x,'makeupEntries').forEach(function(m){if(m.done)addSubjectMinutes(m,m.minutes)});
- });
+  if(isSaturdayMakeup(x)){
+   ensureEntryArray(x,'makeupEntries').forEach(collectCompletedMinutes);
+   return;
+  }
+  if(!x.done)return;
+  if(isFixedMagazine(x))addSubjectMinutes(x,fixedMagazineMinutes(x));
+  else if(!isEnglishReview(x))addSubjectMinutes(x,x.minutes);
+ }
+ active.forEach(collectCompletedMinutes);
  var subjectTime=summarizeSubjectTime(subjectMinuteEntries);
  var completion=summarizeCompletionUnits(completionUnitsForRecord(data,data.date)),pct=completion.itemPercent;
  var math=calculateMathProgress(mathProgressIndex.view(),data.date,calendarWeekMathTarget(data.date));
