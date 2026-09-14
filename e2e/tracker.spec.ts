@@ -47,3 +47,33 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
   await expect(page.locator('body')).toHaveClass(/connection-sheet-open/);
   await context.close();
 });
+
+test('typed record fields write to storage only after leaving the field', async ({ page }) => {
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    (window as any).__trackerStorageWrites = 0;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      (window as any).__trackerStorageWrites += 1;
+      return original.call(this, key, value);
+    };
+  });
+
+  const notes = page.locator('#notes');
+  await notes.fill('離開欄位後才儲存');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => (window as any).__trackerStorageWrites)).toBe(0);
+
+  await notes.blur();
+  await expect.poll(() => page.evaluate(() => (window as any).__trackerStorageWrites)).toBeGreaterThan(0);
+
+  await page.click('#addEnglishReviewBtn');
+  await page.click('[data-action="word-add"]');
+  await page.evaluate(() => { (window as any).__trackerStorageWrites = 0; });
+  const wordInput = page.locator('[data-word-text]').last();
+  await wordInput.fill('save on blur');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => (window as any).__trackerStorageWrites)).toBe(0);
+
+  await wordInput.blur();
+  await expect.poll(() => page.evaluate(() => (window as any).__trackerStorageWrites)).toBeGreaterThan(0);
+});

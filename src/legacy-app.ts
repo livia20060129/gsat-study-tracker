@@ -599,8 +599,6 @@ var periodicCloudSaveBusy=false;
 var PERIODIC_CLOUD_SAVE_MS=10*60*1000;
 var cloudHasError=false;
 var cloudVisibleRefreshPending=false;
-var localInputSaveTimer=null;
-var LOCAL_INPUT_SAVE_MS=200;
 var deleteUndoState=null;
 var deleteUndoTimer=null;
 var DELETE_UNDO_MS=8000;
@@ -3168,24 +3166,24 @@ function runTimerAction(item,control,action){
  persistTimerTarget(target);render();
 }
 
-function cancelScheduledInputPersist(){
- if(localInputSaveTimer){clearTimeout(localInputSaveTimer);localInputSaveTimer=null}
-}
-function scheduleInputPersist(){
- cancelScheduledInputPersist();
- localInputSaveTimer=setTimeout(function(){localInputSaveTimer=null;persist(false)},LOCAL_INPUT_SAVE_MS);
-}
 function updateEnglishReviewWordText(target,item){
  var words=item.f.words||(item.f.words=[]),index=Number(target.getAttribute('data-index'));
  if(!words[index]||typeof words[index]!=='object')words[index]={};
  words[index].text=target.value;
  propagateDailyWorkField(item,'words',words);
 }
+function updateMagazineField(target,item){
+ var entries=ensureMagazineEntries(item),index=Number(target.getAttribute('data-index'));
+ if(!entries[index])entries[index]={};
+ entries[index][target.getAttribute('data-mag-field')]=target.value;
+ propagateDailyWorkField(item,'entries',entries);
+ updateSummary();
+}
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
- if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();scheduleInputPersist();return}
- if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}scheduleInputPersist();updateSummary();return}
- if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;propagateDailyWorkField(x,'entries',a);updateSummary();scheduleInputPersist();return}
+ if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();return}
+ if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}updateSummary();return}
+ if(t.matches('[data-mag-field]')&&x){updateMagazineField(t,x);return}
  if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x);return}
 }
 var completionCelebrationTimer=null;
@@ -3236,6 +3234,8 @@ function maybeCelebrateCompletion(previousPercent,completedByUser){
 }
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
+ if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
+ if(t.matches('[data-mag-field]')&&x){updateMagazineField(t,x);persist(false);return}
  if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x);persist(false);return}
  if(t.matches('[data-deferred]')&&x){
   var isDeferred=confirmedDeferred(x);
@@ -3604,7 +3604,6 @@ function validate(){
 }
 function persist(show){
  if(!data)return false;
- cancelScheduledInputPersist();
  if(data.storageIssue){updateStorageRecoveryUI();if(show)id('status').textContent=data.date+' 的原始紀錄無法讀取；為避免覆蓋，修復前不會儲存。';return false}
  ensureEnglishReviewWordEntryIds(data);readHeader();
  if(cloudVisibleRefreshPending){
@@ -3925,8 +3924,9 @@ function switchStudyDate(nextDate){
  selector.value=nextDate;load();
  id('status').textContent='已存本機 '+currentDate+'，並切換至 '+nextDate+(cloudUser?'；雲端將在背景同步。':'。');setSaveButtonState('local');return true
 }
-function headerInput(){readHeader();scheduleInputPersist()}
+function headerInput(){readHeader()}
 function headerChange(){readHeader();persist(false)}
+function notesInput(){data.notes=id('notes').value}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
 id('studyItemsViewTabs').addEventListener('click',function(e){var button=e.target.closest('[data-study-items-view]');if(!button)return;studyItemsView=button.getAttribute('data-study-items-view');updateStudyItemsView(false)});
 id('studyItemsViewTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')studyItemsView='today';else if(e.key==='End')studyItemsView='week';else studyItemsView=adjacentStudyItemsView(studyItemsView,e.key==='ArrowRight'?1:-1);updateStudyItemsView(true)});
@@ -3941,7 +3941,8 @@ id('englishReviewList').addEventListener('input',handleInput);id('englishReviewL
 id('itemList').addEventListener('input',handleInput);id('itemList').addEventListener('change',handleChange);id('itemList').addEventListener('click',handleClick);
 id('studyDate').addEventListener('change',function(e){switchStudyDate(e.target.value)});
 id('mood').addEventListener('change',function(){readHeader();render();persist(false)});
-['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow','notes'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerChange)});
+['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerChange)});
+id('notes').addEventListener('input',notesInput);id('notes').addEventListener('change',headerChange);
 id('addItemBtn').addEventListener('click',addCustom);
 id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);
 var saveFeedbackTimer=null;

@@ -27,9 +27,12 @@ test('Supabase account recovery includes reset, resend and password update', () 
   assert.match(html, /id="passwordRecoveryDialog"/);
 });
 
-test('typing is debounced while discrete changes and page exit remain durable', () => {
-  assert.match(runtime, /LOCAL_INPUT_SAVE_MS=200/);
-  assert.match(runtime, /function scheduleInputPersist\(\)/);
+test('all typed fields save after leaving the field while page exit remains durable', () => {
+  assert.doesNotMatch(runtime, /LOCAL_INPUT_SAVE_MS|scheduleInputPersist|localInputSaveTimer/);
+  assert.match(runtime, /function headerInput\(\)\{readHeader\(\)\}/);
+  assert.match(runtime, /if\(t\.matches\('\[data-minutes\]'\)&&x\)\{propagateDailyWorkMinutes\(x,t\.value\);updateSummary\(\);return\}/);
+  assert.match(runtime, /function handleChange\(e\)\{[\s\S]*?if\(t\.matches\('\[data-minutes\]'\)&&x\)[\s\S]*?persist\(false\);return/);
+  assert.match(runtime, /function handleChange\(e\)\{[\s\S]*?if\(t\.matches\('\[data-mag-field\]'\)&&x\)[\s\S]*?persist\(false\);return/);
   assert.match(runtime, /window\.addEventListener\('pagehide'.*persist\(false\)/);
   assert.match(runtime, /visibilityState==='hidden'.*persist\(false\)/);
 });
@@ -38,7 +41,12 @@ test('English review text stays in memory while typing and saves after leaving t
   assert.match(runtime, /function updateEnglishReviewWordText\(target,item\)/);
   assert.match(runtime, /if\(t\.matches\('\[data-word-text\]'\)&&x\)\{updateEnglishReviewWordText\(t,x\);return\}/);
   assert.match(runtime, /function handleChange\(e\)\{[\s\S]*?if\(t\.matches\('\[data-word-text\]'\)&&x\)\{updateEnglishReviewWordText\(t,x\);persist\(false\);return\}/);
-  assert.doesNotMatch(runtime, /updateEnglishReviewWordText\(t,x\);scheduleInputPersist\(\)/);
+});
+
+test('other notes save only after leaving the field', () => {
+  assert.match(runtime, /function notesInput\(\)\{data\.notes=id\('notes'\)\.value\}/);
+  assert.match(runtime, /id\('notes'\)\.addEventListener\('input',notesInput\);id\('notes'\)\.addEventListener\('change',headerChange\)/);
+  assert.doesNotMatch(runtime, /\[[^\]]*'notes'[^\]]*\]\.forEach\(function\(k\)\{id\(k\)\.addEventListener\('input',headerInput\)/);
 });
 
 test('cloud status distinguishes local, pending, synced and failed states', () => {
