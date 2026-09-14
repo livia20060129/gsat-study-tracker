@@ -1664,7 +1664,7 @@ function calendarIdentifierToken(value){
 function calendarFixedTemplateDef(p,token){
  var s=calendarFixedTemplateSpec(p.template);if(!s)return null;
  var f=cloneObj(s[3]);f.calendarFixedTemplate=p.template;f.calendarOriginalTitle=p.title;f.calendarEventId=p.sourceEventId;f.calendarEventKey=p.eventKey;
- if((p.template==='mathStudy'||p.template==='mathPractice')&&p.startPage){f.start=String(p.startPage);f.end=String(p.endPage||p.startPage);f.material='教學講義'}
+ if((p.template==='mathStudy'||p.template==='mathPractice')&&p.startPage){f.start=String(p.startPage);f.end=String(p.endPage||p.startPage);f.material='教學講義';f.calendarMathMaterialLocked=true}
  return presetDef('cal_fixed_'+p.template+'_'+token,s[0],s[1],s[2]+'｜Google Calendar API：'+p.title,true,f);
 }
 function calendarAzarSectionDef(p,token,chapter,section){
@@ -1673,7 +1673,7 @@ function calendarAzarSectionDef(p,token,chapter,section){
  return presetDef(key,'extra',title,'Google Calendar API：'+p.title+'｜'+(section.start===section.end?'p.'+section.start:'p.'+section.start+'–'+section.end),true,{title:AZAR_GRAMMAR_BOOK_TITLE,azarChapterNumber:chapter.number,azarChapterTitle:chapter.title,azarChapterLabel:chapter.label,azarSectionCode:section.code,azarSectionTitle:section.title,start:String(section.start),end:String(section.end),round:String(section.code),calendarBookRangeLocked:true,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey});
 }
 function calendarMathStudyDef(p,token,preserveSeparate){
- var mp=resolveCloudMathPlan(p)||null,ms=Number(p.startPage||(mp&&mp.start)||0),me=Number(p.endPage||(mp&&mp.end)||ms||0),mm=String(p.material||(mp&&mp.material)||'教學講義'),mb=String(p.book||(mp&&mp.book)||''),fields={material:mm,book:mb,start:ms?String(ms):'',end:me?String(me):'',calendarPlanTitle:p.title,calendarDailyPages:ms&&me?me-ms+1:0,calendarSuggestedStart:ms||'',calendarSuggestedEnd:me||'',calendarSuggestedMaterial:mm,calendarSuggestedBook:mb,calendarRangeSource:mp&&mp.calendarRangeSource||'',calendarMaterialSource:mp&&mp.calendarMaterialSource||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
+ var mp=resolveCloudMathPlan(p)||null,ms=Number(p.startPage||(mp&&mp.start)||0),me=Number(p.endPage||(mp&&mp.end)||ms||0),mm=String(p.material||(mp&&mp.material)||'教學講義'),mb=String(p.book||(mp&&mp.book)||''),fields={material:mm,book:mb,start:ms?String(ms):'',end:me?String(me):'',calendarPlanTitle:p.title,calendarDailyPages:ms&&me?me-ms+1:0,calendarSuggestedStart:ms||'',calendarSuggestedEnd:me||'',calendarSuggestedMaterial:mm,calendarSuggestedBook:mb,calendarRangeSource:mp&&mp.calendarRangeSource||'',calendarMaterialSource:mp&&mp.calendarMaterialSource||'',calendarMathMaterialLocked:true,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
  if(preserveSeparate)fields.calendarPreserveSeparate=true;
  return presetDef('cal_math_'+token,'mathStudy','數學講義：進度','Google Calendar API：'+p.title+(p.description?'｜'+p.description:''),true,fields);
 }
@@ -1768,7 +1768,7 @@ function applyCalendarMathPlan(rec,date){
   if(p.material&&!Object.prototype.hasOwnProperty.call(userFields,'material')&&x.f.material!==p.material){x.f.material=p.material;changed=true}
   if(p.book&&!Object.prototype.hasOwnProperty.call(userFields,'book')&&x.f.book!==p.book){x.f.book=p.book;changed=true}
  }
- var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedMaterial:p.material||'教學講義',calendarSuggestedBook:p.book,calendarRangeSource:p.calendarRangeSource||'unit',calendarMaterialSource:p.calendarMaterialSource||''};
+ var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedMaterial:p.material||'教學講義',calendarSuggestedBook:p.book,calendarRangeSource:p.calendarRangeSource||'unit',calendarMaterialSource:p.calendarMaterialSource||'',calendarMathMaterialLocked:true};
  for(var k in meta)if(Object.prototype.hasOwnProperty.call(meta,k)&&x.f[k]!==meta[k]){x.f[k]=meta[k];changed=true}
  applyMathAuto(x.f);
  return changed;
@@ -1923,7 +1923,7 @@ function mergeGroupedEntry(template,existing){
  next.deferred=!!old.deferred;
  if(old.deferredTargetDay!==undefined)next.deferredTargetDay=old.deferredTargetDay;else delete next.deferredTargetDay;
  next.f=Object.assign({},cloneValue(template.f||{}),cloneValue(old.f||{}));
- ['title','book','topic','start','end','round','azarChapterNumber','azarChapterTitle','azarChapterLabel','azarSectionCode','azarSectionTitle','calendarBookRangeLocked','calendarScopeParseError','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarSourceDate','calendarSourceDates'].forEach(function(k){if(template.f&&template.f[k]!==undefined)next.f[k]=cloneValue(template.f[k])});
+ ['title','book','topic','start','end','round','azarChapterNumber','azarChapterTitle','azarChapterLabel','azarSectionCode','azarSectionTitle','calendarBookRangeLocked','calendarMathMaterialLocked','calendarScopeParseError','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarSourceDate','calendarSourceDates'].forEach(function(k){if(template.f&&template.f[k]!==undefined)next.f[k]=cloneValue(template.f[k])});
  return next;
 }
 function reconcileGroupedWorkEntries(templateEntries,existingEntries,legacyParent){
@@ -2404,6 +2404,9 @@ function ranges(map,start,end){
 function rangeText(a,getName){if(!a.length)return'尚無對應資料';return a.map(function(z){var p=z.start===z.end?'p.'+z.start:'p.'+z.start+'–'+z.end;return getName(z.row)+'（'+p+'）'}).join('、')}
 function unique(a){return a.filter(function(v,i){return v&&a.indexOf(v)===i})}
 function mathMaterialOptions(v){return'<option value="">請選擇</option>'+['教學講義','智慧型','新關鍵','複習週記'].map(function(x){return'<option'+selected(x,v)+'>'+x+'</option>'}).join('')}
+function isCalendarMathMaterialLocked(x){
+ return !!(x&&x.f&&x.f.material&&x.f.calendarMathMaterialLocked===true&&(x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice'));
+}
 function mathBookOptions(material,v){
  var a=material==='教學講義'?['1','2','3A','4A']:((material==='智慧型'||material==='新關鍵')?['1~2','3A~4A']:[]);
  return'<option value="">請選擇</option>'+a.map(function(x){return'<option value="'+x+'"'+selected(x,v)+'>'+(x==='1~2'?'1～2':x==='3A~4A'?'3A～4A':x)+'</option>'}).join('');
@@ -2428,7 +2431,7 @@ function mathAutoText(f){
  return rangeText(a,function(r){return r[2]});
 }
 function renderMathFields(x,reviewMode){
- var f=x.f,h='<div class="math-main-row"><div class="field"><label>講義版本</label><select data-field="material">'+mathMaterialOptions(f.material)+'</select></div>';
+ var f=x.f,materialField=isCalendarMathMaterialLocked(x)?'<div class="fixed-book-value">'+esc(f.material)+'</div>':'<select data-field="material">'+mathMaterialOptions(f.material)+'</select>',h='<div class="math-main-row"><div class="field"><label>講義版本</label>'+materialField+'</div>';
  if(!f.material)return h+'</div>';
  if(f.material!=='複習週記')h+='<div class="field"><label>冊數</label><select data-field="book">'+mathBookOptions(f.material,f.book)+'</select></div>';
  h+='<div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
@@ -3287,7 +3290,7 @@ function handleChange(e){
   applyEnglishPageBookSelection(x,t.matches('[data-book-topic]')?'topic':'round',t.value);render();persist(false);return
  }
  if(t.matches('[data-field]')&&x){
-  var f=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(f==='start'||f==='end'||f==='topic'||f==='round'||f==='title')){render();return}var changedFields=[f];if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else propagateDailyWorkField(x,f,t.value);
+  var f=t.getAttribute('data-field');if(f==='material'&&isCalendarMathMaterialLocked(x)){render();return}if(isCalendarPageMappedBook(x)&&(f==='start'||f==='end'||f==='topic'||f==='round'||f==='title')){render();return}var changedFields=[f];if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else propagateDailyWorkField(x,f,t.value);
  if((x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice')&&(f==='material'||f==='book')){if(f==='material'){x.f.book='';changedFields.push('book')}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter')}
   if(x.type==='scienceReview'&&(f==='subject'||f==='material')){if(f==='subject'&&isCalendarNatural(x)){x.f.subject=calendarNaturalSubject(x.f.calendarTopic||x.description);propagateDailyWorkField(x,'subject',x.f.subject);render();persist(false);return}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter');normalizeScience(x.f);changedFields.push('material','subject')}
   if(x.type==='extra'&&f==='title'){x.f.level='';x.f.start='';x.f.end='';x.f.unitStart='';x.f.unitEnd='';x.f.unit='';x.f.round='';x.f.topic='';x.f.book='';x.f.warriorsBook='';x.f.chapter='';x.f.progress=false;x.f.graded=false;x.f.corrected=false;x.f.reason='';var selectedEnglishTopicBook=canonicalPageMappedBook(x.f.title);if(selectedEnglishTopicBook&&pageMappedBookSubject(selectedEnglishTopicBook)==='英文')x.f.book=selectedEnglishTopicBook;changedFields.push('level','start','end','unitStart','unitEnd','unit','round','topic','book','warriorsBook','chapter','progress','graded','corrected','reason');x.required=customCountsOriginal(x)}

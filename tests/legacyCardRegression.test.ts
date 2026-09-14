@@ -124,7 +124,7 @@ test('runtime grouped original and Calendar makeup children defer independently'
   assert.equal(metrics([parent]).workloadTotal, 0);
 });
 
-test('grouped child cards omit the repeated title but keep controls and fields', () => {
+test('grouped child cards omit title and page-range heading but keep controls and fields', () => {
   const render = runtimeFunction<(entry: StudyItem, index: number) => string>('renderGroupedWorkEntry', {
     studyItemSubjectClass: () => 'subject-math',
     confirmedDeferred: () => false,
@@ -134,12 +134,33 @@ test('grouped child cards omit the repeated title but keep controls and fields',
     renderItemFields: () => '<div class="field">fields</div>',
     renderDeferredControls: () => '<div class="defer-controls">defer</div>',
   });
-  const html = render(item({ id: 'math-child', type: 'mathStudy', title: '數學講義：進度' }), 0);
-  assert.doesNotMatch(html, /item-title|數學講義：進度/);
+  const html = render(item({ id: 'math-child', type: 'mathStudy', title: 'p.149–165', f: { start: '149', end: '165' } }), 0);
+  assert.doesNotMatch(html, /item-title|p\.149[–-]165/);
   assert.match(html, /data-done/);
   assert.match(html, /time-control/);
   assert.match(html, /class="inner"/);
   assert.match(html, /defer-controls/);
+});
+
+test('Calendar math cards lock the supplied lecture version while manual cards keep the selector', () => {
+  const dependencies = {
+    isCalendarMathMaterialLocked: (x: StudyItem) => x.f.calendarMathMaterialLocked === true,
+    mathMaterialOptions: () => '<option>新關鍵</option>',
+    mathBookOptions: () => '<option>1～2</option>',
+    esc: (value: unknown) => String(value ?? ''),
+    applyMathAuto: () => undefined,
+    mathAutoText: () => '單元 1：實數與指對數',
+    hasDeferredStudySource: () => false,
+    checked: () => '',
+    reasonField: () => '',
+  };
+  const render = runtimeFunction<(entry: StudyItem, reviewMode: boolean) => string>('renderMathFields', dependencies);
+  const locked = render(item({ type: 'mathLecture', f: { material: '新關鍵', book: '1~2', start: '2', end: '5', calendarMathMaterialLocked: true } }), false);
+  assert.match(locked, /<label>講義版本<\/label><div class="fixed-book-value">新關鍵<\/div>/);
+  assert.doesNotMatch(locked, /data-field="material"/);
+
+  const manual = render(item({ type: 'mathLecture', f: { material: '新關鍵', book: '1~2', start: '2', end: '5' } }), false);
+  assert.match(manual, /<select data-field="material">/);
 });
 
 test('date switching saves the current date before loading the requested date', () => {

@@ -1,20 +1,19 @@
 # 最新更新
 
-版本：v171.2.5
+版本：v171.2.6
 
 ## 本次一次完成
 
-1. 同一天兩筆以上數學 Calendar 行程不再互相覆蓋；原排程與「新關鍵」等額外教材／範圍都會保留。
-2. 星期日沒有內建數學進度卡時，Calendar 數學行程會自行建立卡片。
-3. 合併大卡中的子卡片不再重複顯示標題，畫面直接從教材、冊別、頁碼與單元欄位開始。
-4. 子卡片的完成勾選、時間、延期及其他輸入功能皆維持不變。
+1. 合併大卡中的子卡片不再顯示 `p.x–y` 頁碼標題，直接呈現可操作欄位。
+2. 子卡片的完成勾選、時間、頁碼輸入、延期及其他欄位皆維持不變。
+3. Google Calendar 指定的數學講義版本改為固定顯示，不能在 Tracker 內誤改。
+4. 手動新增的數學卡片仍保留講義版本選單。
 
-更新資料夾：`gsat-study-tracker-v171.2.5-calendar-math-child-layout`
+更新資料夾：`gsat-study-tracker-v171.2.6-child-page-title-math-version-lock`
 
 ## 驗證
 
-- Supabase 實際資料確認 9/14～9/20 的「新關鍵」事件已同步並分類為 `math`。
-- 311 項單元／回歸測試全部通過。
+- 312 項單元／回歸測試全部通過。
 - 正式 TypeScript／Vite 建置通過。
 - 3 項 Chromium 瀏覽器 E2E 全部通過。
 
@@ -22,4 +21,4 @@
 
 ## Commit 建議
 
-`fix(calendar): keep multiple math items without repeated child titles`
+`fix(math): hide child page headings and lock calendar material`

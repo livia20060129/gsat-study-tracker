@@ -98,7 +98,7 @@ function mergeGroupedEntryProgress(templateEntries: StudyItem[], existingEntries
     merged.done = Boolean(existing.done);
     merged.minutes = existing.minutes || '';
     merged.f = { ...cloneJson(template.f || {}), ...cloneJson(existing.f || {}) };
-    for (const key of ['title', 'book', 'topic', 'start', 'end', 'round', 'calendarBookRangeLocked', 'calendarScopeParseError', 'calendarEventId', 'calendarEventIds', 'calendarEventKey', 'calendarEventKeys', 'calendarSourceDate', 'calendarSourceDates']) {
+    for (const key of ['title', 'book', 'topic', 'start', 'end', 'round', 'calendarBookRangeLocked', 'calendarMathMaterialLocked', 'calendarScopeParseError', 'calendarEventId', 'calendarEventIds', 'calendarEventKey', 'calendarEventKeys', 'calendarSourceDate', 'calendarSourceDates']) {
       if (template.f?.[key] !== undefined) merged.f[key] = cloneJson(template.f[key]);
     }
     restoreNaturalCalendarSchedule(merged, template);

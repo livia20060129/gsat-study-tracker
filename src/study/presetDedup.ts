@@ -63,7 +63,7 @@ export function presetDefinitionSemanticKey(definition: PresetDefinitionLike): s
     'calendarFixedTemplate', 'calendarOriginalTitle', 'calendarRoute', 'calendarMakeup',
     'calendarGrammarTitle', 'calendarUnitProgress', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
     'calendarFocus', 'calendarNaturalIntegration', 'calendarSourceDate',
-    'calendarGroupedWork', 'calendarBookRangeLocked', 'calendarScopeParseError',
+    'calendarGroupedWork', 'calendarBookRangeLocked', 'calendarMathMaterialLocked', 'calendarScopeParseError',
     'calendarPreserveSeparate', 'groupedWorkEntries',
   ];
   for (const key of meaningfulKeys) {
