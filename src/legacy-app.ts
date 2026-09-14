@@ -2904,9 +2904,9 @@ function renderDeferredControls(x){
 function renderGroupedWorkEntry(entry,index){
  entry.calendarGroupedChild=true;
  var h='<div class="item grouped-work-entry '+studyItemSubjectClass(entry)+(entry.done?' done':'')+(confirmedDeferred(entry)?' deferred':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
- h+='<input type="checkbox" data-done'+checked(entry.done)+'><div><div class="item-title">'+esc(groupedWorkLabel(entry,index))+'</div>';
+ h+='<input type="checkbox" data-done'+checked(entry.done)+'>';
  if(entry.f&&entry.f.calendarMakeup===true)h+='<div class="small">今日補做｜Google Calendar</div>';
- h+='</div>'+renderTimeControl(entry)+'</div>';
+ h+=renderTimeControl(entry)+'</div>';
  var fields=renderItemFields(entry,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
  h+=renderDeferredControls(entry);

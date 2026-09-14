@@ -124,6 +124,24 @@ test('runtime grouped original and Calendar makeup children defer independently'
   assert.equal(metrics([parent]).workloadTotal, 0);
 });
 
+test('grouped child cards omit the repeated title but keep controls and fields', () => {
+  const render = runtimeFunction<(entry: StudyItem, index: number) => string>('renderGroupedWorkEntry', {
+    studyItemSubjectClass: () => 'subject-math',
+    confirmedDeferred: () => false,
+    esc: (value: unknown) => String(value ?? ''),
+    checked: (value: unknown) => value ? ' checked' : '',
+    renderTimeControl: () => '<div class="time-control">time</div>',
+    renderItemFields: () => '<div class="field">fields</div>',
+    renderDeferredControls: () => '<div class="defer-controls">defer</div>',
+  });
+  const html = render(item({ id: 'math-child', type: 'mathStudy', title: '數學講義：進度' }), 0);
+  assert.doesNotMatch(html, /item-title|數學講義：進度/);
+  assert.match(html, /data-done/);
+  assert.match(html, /time-control/);
+  assert.match(html, /class="inner"/);
+  assert.match(html, /defer-controls/);
+});
+
 test('date switching saves the current date before loading the requested date', () => {
   const sequence: string[] = [];
   const nodes = {
