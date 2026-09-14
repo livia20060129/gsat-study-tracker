@@ -610,6 +610,7 @@ var calendarCacheLoaded=false;
 var calendarHasError=false;
 var calendarParsedByDate={};
 var cloudMathPlanByDate={};
+var cloudMathPlansByDate={};
 var cloudNaturalIntegrationItemsByDate={};
 var cloudNaturalIntegrationDetailsByDate={};
 
@@ -1215,7 +1216,7 @@ async function calendarInvoke(action,payload){
  return r.data||{};
 }
 function clearCalendarRuntime(){
- calendarConnected=false;calendarCacheLoaded=false;calendarHasError=false;calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
+ calendarConnected=false;calendarCacheLoaded=false;calendarHasError=false;calendarParsedByDate={};cloudMathPlanByDate={};cloudMathPlansByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
  calendarUpdateUI();
 }
 function naturalRecommendationByTopic(topic){
@@ -1242,6 +1243,15 @@ function resolveCloudMathPlan(parsed){
  if(range){out.start=range[0];out.end=range[1];out.pages=range[1]-range[0]+1}
  out.calendarRangeSource=selected.source;out.calendarEventKey=parsed.eventKey;out.calendarSourceEventId=parsed.sourceEventId;return out;
 }
+function selectPrimaryCloudMathPlan(date,plans){
+ var list=Array.isArray(plans)?plans.filter(Boolean):[];
+ if(!list.length)return null;
+ var fallback=CALENDAR_MATH_PLAN&&CALENDAR_MATH_PLAN[date]?CALENDAR_MATH_PLAN[date]:null;
+ if(fallback&&fallback.title){
+  for(var i=0;i<list.length;i++)if(String(list[i].title||'')===String(fallback.title))return list[i];
+ }
+ return list[0];
+}
 function resolveCloudGrammarPlan(parsed){
  var title=String(parsed.title||'').replace(/^英文文法\s*[｜:：]\s*/,''),plans=Object.keys(CALENDAR_GRAMMAR_PLAN||{}).sort().map(function(date){return CALENDAR_GRAMMAR_PLAN[date]}).filter(Boolean);
  var base=selectGrammarPlan(title,parsed.unitProgress,parsed.startPage,parsed.endPage,plans);
@@ -1252,17 +1262,18 @@ function resolveCloudGrammarPlan(parsed){
  out.displayTitle=normalizedGrammarUnitTitle(title)||title;out.focus=parsed.standardNote?(parsed.focus||''):(parsed.focus||out.focus||'');out.calendarRangeSource=selected.source;return out;
 }
 function buildCalendarRuntime(rows){
- calendarParsedByDate={};cloudMathPlanByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
+ calendarParsedByDate={};cloudMathPlanByDate={};cloudMathPlansByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
  var plan=buildCalendarStudyTaskPlan(rows||[]);calendarParsedByDate=plan.byDate;
  plan.tasks.forEach(function(parsed){
   var d=parsed.date;
   if(parsed.kind==='math'&&!parsed.makeup){
-   var mp=resolveCloudMathPlan(parsed);if(mp)cloudMathPlanByDate[d]=mp;
+   var mp=resolveCloudMathPlan(parsed);if(mp){if(!cloudMathPlansByDate[d])cloudMathPlansByDate[d]=[];cloudMathPlansByDate[d].push(mp)}
   }else if(parsed.kind==='naturalIntegration'){
    cloudNaturalIntegrationDetailsByDate[d]={review:parsed.review,pages:parsed.pages,output:parsed.output,minimum:parsed.minimum,time:parsed.time};
    if(parsed.pageItems&&parsed.pageItems.length)cloudNaturalIntegrationItemsByDate[d]=parsed.pageItems.map(function(z){return{subject:z.subject,ranges:[[z.start,z.end]]}});
   }
  });
+ Object.keys(cloudMathPlansByDate).forEach(function(date){cloudMathPlanByDate[date]=selectPrimaryCloudMathPlan(date,cloudMathPlansByDate[date])});
 }
 async function refreshCalendarTaskCache(){
  if(!cloudClient||!cloudUser){clearCalendarRuntime();return 0}
@@ -1661,6 +1672,12 @@ function calendarAzarSectionDef(p,token,chapter,section){
  var title=AZAR_GRAMMAR_BOOK_TITLE+'｜Ch.'+chapter.number+' '+chapter.title+'｜'+section.code+section.title;
  return presetDef(key,'extra',title,'Google Calendar API：'+p.title+'｜'+(section.start===section.end?'p.'+section.start:'p.'+section.start+'–'+section.end),true,{title:AZAR_GRAMMAR_BOOK_TITLE,azarChapterNumber:chapter.number,azarChapterTitle:chapter.title,azarChapterLabel:chapter.label,azarSectionCode:section.code,azarSectionTitle:section.title,start:String(section.start),end:String(section.end),round:String(section.code),calendarBookRangeLocked:true,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey});
 }
+function calendarMathStudyDef(p,token,preserveSeparate){
+ var mp=resolveCloudMathPlan(p)||null,ms=Number(p.startPage||(mp&&mp.start)||0),me=Number(p.endPage||(mp&&mp.end)||ms||0),mm=String(p.material||(mp&&mp.material)||'教學講義'),mb=String(p.book||(mp&&mp.book)||''),fields={material:mm,book:mb,start:ms?String(ms):'',end:me?String(me):'',calendarPlanTitle:p.title,calendarDailyPages:ms&&me?me-ms+1:0,calendarSuggestedStart:ms||'',calendarSuggestedEnd:me||'',calendarSuggestedMaterial:mm,calendarSuggestedBook:mb,calendarRangeSource:mp&&mp.calendarRangeSource||'',calendarMaterialSource:mp&&mp.calendarMaterialSource||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
+ if(preserveSeparate)fields.calendarPreserveSeparate=true;
+ return presetDef('cal_math_'+token,'mathStudy','數學講義：進度','Google Calendar API：'+p.title+(p.description?'｜'+p.description:''),true,fields);
+}
+function calendarDateHasBuiltInMathStudy(date){var day=parseDate(date).getDay();return day>=1&&day<=6}
 function cloudCalendarDefsForDate(date){
  var parsed=calendarParsedByDate[date]||[],out=[];
  parsed.forEach(function(p){
@@ -1699,9 +1716,9 @@ function cloudCalendarDefsForDate(date){
    out.push(presetDef('cal_grammar_'+token,'extra','英文｜英文文法總複習｜'+gt,'Google Calendar API：'+p.title+'｜'+rt+((p.focus||(gp&&gp.focus))?'｜'+(p.focus||(gp&&gp.focus)):''),true,{title:'英文文法總複習講義',start:gs==null?'':String(gs),end:ge==null?'':String(ge),calendarGrammarTitle:gt,calendarUnitProgress:p.unitProgress||'',calendarRangeText:rt,calendarRangeType:gp&&gp.rangeType?gp.rangeType:(gs?'pages':'calendar'),calendarRangeSource:gp&&gp.calendarRangeSource||null,calendarFocus:p.focus||(gp&&gp.focus)||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='essentialGrammar'){
    (p.units||[]).forEach(function(unit){out.push(presetDef('cal_essential_grammar_'+unit+'_'+token,'extra','英文｜Essential Grammar in Use｜Unit '+unit,'Google Calendar API：'+p.title+'｜Unit '+unit,true,{title:'Essential Grammar in Use',unit:String(unit),unitStart:String(unit),unitEnd:String(unit),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
-  }else if(p.kind==='math'&&p.makeup){
-   var mp=resolveCloudMathPlan(p)||null,ms=Number(p.startPage||(mp&&mp.start)||0),me=Number(p.endPage||(mp&&mp.end)||ms||0),mm=String(p.material||(mp&&mp.material)||'教學講義'),mb=String(p.book||(mp&&mp.book)||'');
-   out.push(presetDef('cal_math_'+token,'mathStudy','數學講義：進度','Google Calendar API：'+p.title+(p.description?'｜'+p.description:''),true,{material:mm,book:mb,start:ms?String(ms):'',end:me?String(me):'',calendarPlanTitle:p.title,calendarDailyPages:ms&&me?me-ms+1:0,calendarSuggestedStart:ms||'',calendarSuggestedEnd:me||'',calendarSuggestedMaterial:mm,calendarSuggestedBook:mb,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+  }else if(p.kind==='math'){
+   var primaryMath=cloudMathPlanByDate[date]||null,isPrimaryMath=!!primaryMath&&String(primaryMath.calendarEventKey||'')===String(p.eventKey||''),usesBuiltIn=!p.makeup&&calendarDateHasBuiltInMathStudy(date)&&isPrimaryMath;
+   if(!usesBuiltIn)out.push(calendarMathStudyDef(p,token,!p.makeup));
   }else if(p.kind==='fixedTemplate'){
    var fixedDef=calendarFixedTemplateDef(p,token);if(fixedDef)out.push(fixedDef);
   }else if(p.kind==='calendarItem'){
@@ -1737,7 +1754,7 @@ function calendarWeekMathTarget(date){
 function applyCalendarMathPlan(rec,date){
  var p=activeCalendarMathPlan(date);if(!p||!rec||!Array.isArray(rec.items))return false;
  var x=null;
- for(var i=0;i<rec.items.length;i++)if(rec.items[i]&&rec.items[i].type==='mathStudy'&&rec.items[i].source==='preset'){x=rec.items[i];break}
+ for(var i=0;i<rec.items.length;i++)if(rec.items[i]&&rec.items[i].type==='mathStudy'&&rec.items[i].source==='preset'&&!/^cal_math_/.test(String(rec.items[i].presetKey||''))){x=rec.items[i];break}
  if(!x)return false;
  if(!x.f)x.f={};
  var changed=false,blank=!x.f.material&&!x.f.book&&!x.f.start&&!x.f.end;

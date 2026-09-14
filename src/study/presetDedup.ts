@@ -63,7 +63,8 @@ export function presetDefinitionSemanticKey(definition: PresetDefinitionLike): s
     'calendarFixedTemplate', 'calendarOriginalTitle', 'calendarRoute', 'calendarMakeup',
     'calendarGrammarTitle', 'calendarUnitProgress', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
     'calendarFocus', 'calendarNaturalIntegration', 'calendarSourceDate',
-    'calendarGroupedWork', 'calendarBookRangeLocked', 'calendarScopeParseError', 'groupedWorkEntries',
+    'calendarGroupedWork', 'calendarBookRangeLocked', 'calendarScopeParseError',
+    'calendarPreserveSeparate', 'groupedWorkEntries',
   ];
   for (const key of meaningfulKeys) {
     if (fields[key] !== undefined) semanticFields[key] = fields[key];
@@ -307,7 +308,8 @@ export function dedupePresetDefinitions<T extends PresetDefinitionLike>(definiti
     seenCalendarWork.add(semanticKey);
 
     const route = definition.f?.calendarRoute;
-    const index = template && route !== 'week' ? builtInIndex.get(template) : undefined;
+    const preserveSeparate = definition.f?.calendarPreserveSeparate === true;
+    const index = template && route !== 'week' && !preserveSeparate ? builtInIndex.get(template) : undefined;
     if (!template || index === undefined || consumedBuiltIn.has(template)) {
       output.push(definition);
       continue;
