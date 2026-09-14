@@ -1,17 +1,19 @@
 # 最新更新
 
-版本：v171.2.7
+版本：v171.2.8
 
 ## 本次一次完成
 
-1. 點擊標題列的「教材進度圖」後，改為在目前分頁直接前往教材進度頁。
-2. 不再另外開啟新分頁；「排程建議prompt」仍維持原本的新分頁開啟方式。
+1. 今日／本週數學頁數只依實際填入並保存的頁碼統計。
+2. 單純勾選 Google Calendar 的建議頁數項目，不會把整段建議範圍算成已完成頁數。
+3. 即使尚未勾選完成，只要已實際填入頁碼，該範圍仍會列入頁數統計。
+4. 教材進度圖的數學長條套用相同規則，並依實際頁數計算填色百分比。
 
-更新資料夾：`gsat-study-tracker-v171.2.7-material-progress-same-tab`
+更新資料夾：`gsat-study-tracker-v171.2.8-recorded-math-pages`
 
 ## 驗證
 
-- 313 項單元／回歸測試全部通過。
+- 315 項單元／回歸測試全部通過。
 - 正式 TypeScript／Vite 建置通過。
 - 3 項 Chromium 瀏覽器 E2E 全部通過。
 
@@ -19,4 +21,4 @@
 
 ## Commit 建議
 
-`fix(ui): open material progress in the current tab`
+`fix(progress): count recorded math pages instead of checked suggestions`

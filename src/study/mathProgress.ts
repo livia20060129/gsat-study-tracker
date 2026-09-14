@@ -1,5 +1,6 @@
 import type { StudyItem, StudyItemFields, StudyRecord } from '../types';
 import { isMathProgressStudyItem } from '../domain/study/studyItemTypes.ts';
+import { recordedPageRangeFields } from './recordedPageRange.ts';
 
 export interface MathProgressSummary {
   dailyNewPages: number;
@@ -67,15 +68,16 @@ function mathProgressLeaves(item: StudyItem): StudyItem[] {
 
 function addCompletedMathItem(out: PageSetByMaterial, item: StudyItem): void {
   for (const leaf of mathProgressLeaves(item)) {
-    if (!isMathProgressStudyItem(leaf) || !leaf.done) continue;
-    if (leaf.type === 'mathStudy') addRange(out, leaf.f);
-    if (leaf.type === 'mathLecture' && Boolean(leaf.f.progress)) addRange(out, leaf.f);
+    if (!isMathProgressStudyItem(leaf)) continue;
+    const actualFields = recordedPageRangeFields(leaf.f);
+    if (!actualFields) continue;
+    if (leaf.type === 'mathStudy' || leaf.type === 'mathLecture') addRange(out, actualFields);
   }
 }
 
 /**
- * Pure extraction of completed math pages for one study record.
- * This is the only place that defines which task states count as math progress.
+ * Pure extraction of actually recorded math pages for one study record.
+ * Completion checkboxes never turn Calendar suggestions into page records.
  */
 export function extractCompletedMathPages(record: StudyRecord | null | undefined): PageSetByMaterial {
   const out: PageSetByMaterial = new Map();

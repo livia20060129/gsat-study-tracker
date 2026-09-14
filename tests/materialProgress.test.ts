@@ -79,6 +79,27 @@ test('records New Key books 1-2 pages against the correct unit boundary', () => 
   assert.equal(math.segments[1].completionPercent, 3);
 });
 
+test('math material progress uses actual page records instead of a checked Calendar suggestion', () => {
+  const suggested = item({
+    id: 'calendar-suggestion',
+    type: 'mathStudy',
+    done: true,
+    f: {
+      material: '新關鍵', book: '1~2', start: '29', end: '59',
+      calendarSuggestedStart: 29, calendarSuggestedEnd: 59,
+    },
+  });
+  let math = materialProgressRows([record([suggested])]).find(row => row.id === 'math:新關鍵:1~2');
+  assert.ok(math);
+  assert.equal(math.recorded, 0);
+
+  suggested.f.dailyWorkUserFields = { start: '29', end: '34' };
+  math = materialProgressRows([record([suggested])]).find(row => row.id === 'math:新關鍵:1~2');
+  assert.ok(math);
+  assert.equal(math.recorded, 1);
+  assert.equal(math.segments[1].completionPercent, 19);
+});
+
 test('accepts p.191 as New Key books 1-2 and rejects pages after the printed ending', () => {
   const finalPage = item({
     id: 'new-key-final-page',

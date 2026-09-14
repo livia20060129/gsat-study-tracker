@@ -52,13 +52,23 @@ test('已完成的合併子卡片會列入數學頁數並排除重疊頁碼', ()
   assert.equal(pageCount([parent]), 17);
 });
 
-test('群組內未完成的 Calendar／延期子卡片不會提前列入頁數', () => {
+test('實際填入的頁碼不依賴完成勾選，仍會列入頁數', () => {
   const completed = math('calendar-current', 158, 163);
   const pending = { ...math('tracker-deferred', 149, 165, false), deferredCarry: true };
   const parent = math('grouped-parent', 158, 163, false);
   parent.f.groupedWorkEntries = [completed, pending];
 
-  assert.equal(pageCount([parent]), 6);
+  assert.equal(pageCount([parent]), 17);
+});
+
+test('勾選 Calendar 建議頁數不會計入，實際修改頁碼後才會計入', () => {
+  const suggested = math('calendar-suggestion', 149, 165, true);
+  suggested.f.calendarSuggestedStart = 149;
+  suggested.f.calendarSuggestedEnd = 165;
+  assert.equal(pageCount([suggested]), 0);
+
+  suggested.f.dailyWorkUserFields = { start: '151', end: '155' };
+  assert.equal(pageCount([suggested]), 5);
 });
 
 test('沒有子卡片的合併連續範圍仍以大卡片範圍計算', () => {

@@ -17,6 +17,7 @@ import {
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from '../data/mathMaterialPageMaps.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
+import { recordedPageRangeFields } from './recordedPageRange.ts';
 
 export { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 
@@ -342,8 +343,17 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
   const fields = objectValue(item.f);
   const delegatesRangeToChildren = ['groupedWorkEntries', 'dailyWorkSourceItems']
     .some(key => Array.isArray(fields[key]) && (fields[key] as unknown[]).length > 0);
+  const type = String(item.type ?? '');
+  const actualMathFields = type === 'mathStudy' || type === 'mathLecture' || type === 'mathPractice'
+    ? recordedPageRangeFields(item.f)
+    : null;
+  if (!delegatesRangeToChildren && actualMathFields) {
+    const material = normalizeMathMaterial(actualMathFields.material);
+    const book = normalizeMathBook(actualMathFields.book);
+    const definitionId = material === '複習週記' ? 'math:複習週記' : `math:${material}:${book}`;
+    markRange(recorded, definitionId, actualMathFields.start, actualMathFields.end);
+  }
   if (hasRecordedActivity(item) && !delegatesRangeToChildren) {
-    const type = String(item.type ?? '');
     const title = String(fields.title ?? item.title ?? '');
     const mappedBook = canonicalPageMappedBook(fields.book ?? fields.title ?? item.title);
 
@@ -366,13 +376,6 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
       }
       else if (/英文文法總複習講義/.test(title)) markRange(recorded, 'english:grammar', fields.start, fields.end);
       else if (mappedBook && pageMappedBookSubject(mappedBook) === '英文') markBookSelection(recorded, mappedBook, fields);
-    }
-
-    if (type === 'mathStudy' || type === 'mathLecture' || type === 'mathPractice') {
-      const material = normalizeMathMaterial(fields.material);
-      const book = normalizeMathBook(fields.book);
-      const definitionId = material === '複習週記' ? 'math:複習週記' : `math:${material}:${book}`;
-      markRange(recorded, definitionId, fields.start, fields.end);
     }
 
     if (type === 'scienceReview') {
