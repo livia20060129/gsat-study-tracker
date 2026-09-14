@@ -68,7 +68,7 @@ function mathProgressLeaves(item: StudyItem): StudyItem[] {
 
 function addCompletedMathItem(out: PageSetByMaterial, item: StudyItem): void {
   for (const leaf of mathProgressLeaves(item)) {
-    if (!isMathProgressStudyItem(leaf)) continue;
+    if (!isMathProgressStudyItem(leaf) || leaf.done !== true) continue;
     const actualFields = recordedPageRangeFields(leaf.f);
     if (!actualFields) continue;
     if (leaf.type === 'mathStudy' || leaf.type === 'mathLecture') addRange(out, actualFields);
@@ -77,7 +77,8 @@ function addCompletedMathItem(out: PageSetByMaterial, item: StudyItem): void {
 
 /**
  * Pure extraction of actually recorded math pages for one study record.
- * Completion checkboxes never turn Calendar suggestions into page records.
+ * A completion checkbox alone never turns a Calendar suggestion into a page
+ * record; both an actual recorded range and item completion are required.
  */
 export function extractCompletedMathPages(record: StudyRecord | null | undefined): PageSetByMaterial {
   const out: PageSetByMaterial = new Map();

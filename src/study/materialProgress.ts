@@ -347,7 +347,7 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
   const actualMathFields = type === 'mathStudy' || type === 'mathLecture' || type === 'mathPractice'
     ? recordedPageRangeFields(item.f)
     : null;
-  if (!delegatesRangeToChildren && actualMathFields) {
+  if (!delegatesRangeToChildren && item.done === true && actualMathFields) {
     const material = normalizeMathMaterial(actualMathFields.material);
     const book = normalizeMathBook(actualMathFields.book);
     const definitionId = material === '複習週記' ? 'math:複習週記' : `math:${material}:${book}`;
