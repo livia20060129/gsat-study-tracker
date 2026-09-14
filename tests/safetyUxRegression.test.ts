@@ -34,6 +34,13 @@ test('typing is debounced while discrete changes and page exit remain durable', 
   assert.match(runtime, /visibilityState==='hidden'.*persist\(false\)/);
 });
 
+test('English review text stays in memory while typing and saves after leaving the field', () => {
+  assert.match(runtime, /function updateEnglishReviewWordText\(target,item\)/);
+  assert.match(runtime, /if\(t\.matches\('\[data-word-text\]'\)&&x\)\{updateEnglishReviewWordText\(t,x\);return\}/);
+  assert.match(runtime, /function handleChange\(e\)\{[\s\S]*?if\(t\.matches\('\[data-word-text\]'\)&&x\)\{updateEnglishReviewWordText\(t,x\);persist\(false\);return\}/);
+  assert.doesNotMatch(runtime, /updateEnglishReviewWordText\(t,x\);scheduleInputPersist\(\)/);
+});
+
 test('cloud status distinguishes local, pending, synced and failed states', () => {
   assert.match(runtime, /'已存本機 ✓'/);
   assert.match(runtime, /'Cloud 已同步 ✓'/);

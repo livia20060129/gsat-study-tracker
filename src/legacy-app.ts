@@ -3175,12 +3175,18 @@ function scheduleInputPersist(){
  cancelScheduledInputPersist();
  localInputSaveTimer=setTimeout(function(){localInputSaveTimer=null;persist(false)},LOCAL_INPUT_SAVE_MS);
 }
+function updateEnglishReviewWordText(target,item){
+ var words=item.f.words||(item.f.words=[]),index=Number(target.getAttribute('data-index'));
+ if(!words[index]||typeof words[index]!=='object')words[index]={};
+ words[index].text=target.value;
+ propagateDailyWorkField(item,'words',words);
+}
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();scheduleInputPersist();return}
  if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}scheduleInputPersist();updateSummary();return}
  if(t.matches('[data-mag-field]')&&x){var a=ensureMagazineEntries(x),i=Number(t.getAttribute('data-index'));if(!a[i])a[i]={};a[i][t.getAttribute('data-mag-field')]=t.value;propagateDailyWorkField(x,'entries',a);updateSummary();scheduleInputPersist();return}
- if(t.matches('[data-word-text]')&&x){var w=x.f.words||(x.f.words=[]),i2=Number(t.getAttribute('data-index'));if(!w[i2]||typeof w[i2]!=='object')w[i2]={};w[i2].text=t.value;propagateDailyWorkField(x,'words',w);scheduleInputPersist();return}
+ if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x);return}
 }
 var completionCelebrationTimer=null;
 function currentWorkloadCompletionPercent(){
@@ -3230,6 +3236,7 @@ function maybeCelebrateCompletion(previousPercent,completedByUser){
 }
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
+ if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x);persist(false);return}
  if(t.matches('[data-deferred]')&&x){
   var isDeferred=confirmedDeferred(x);
   if(t.checked&&!isDeferred){
