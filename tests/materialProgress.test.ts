@@ -38,6 +38,7 @@ test('reads a recorded math range from a grouped child without filling untouched
   const child = item({
     id: 'math-child',
     type: 'mathLecture',
+    done: true,
     f: { material: '教學講義', book: '1', start: '149', end: '165', progress: true },
   });
   const parent = item({ id: 'group', f: { groupedWorkEntries: [child] } });
@@ -79,7 +80,7 @@ test('records New Key books 1-2 pages against the correct unit boundary', () => 
   assert.equal(math.segments[1].completionPercent, 3);
 });
 
-test('math material progress uses actual page records instead of a checked Calendar suggestion', () => {
+test('checked Calendar math fills material progress from actual recorded pages, not suggested pages', () => {
   const suggested = item({
     id: 'calendar-suggestion',
     type: 'mathStudy',
@@ -94,9 +95,31 @@ test('math material progress uses actual page records instead of a checked Calen
   assert.equal(math.recorded, 0);
 
   suggested.f.dailyWorkUserFields = { start: '29', end: '34' };
+  suggested.done = false;
+  math = materialProgressRows([record([suggested])]).find(row => row.id === 'math:新關鍵:1~2');
+  assert.ok(math);
+  assert.equal(math.recorded, 0);
+
+  suggested.done = true;
   math = materialProgressRows([record([suggested])]).find(row => row.id === 'math:新關鍵:1~2');
   assert.ok(math);
   assert.equal(math.recorded, 1);
+  assert.equal(math.segments[1].completionPercent, 19);
+});
+
+test('material progress supports legacy boolean markers for actual Calendar page records', () => {
+  const completed = item({
+    id: 'legacy-calendar-record',
+    type: 'mathStudy',
+    done: true,
+    f: {
+      material: '新關鍵', book: '1~2', start: '29', end: '34',
+      calendarSuggestedStart: 29, calendarSuggestedEnd: 59,
+      dailyWorkUserFields: { start: true, end: true },
+    },
+  });
+  const math = materialProgressRows([record([completed])]).find(row => row.id === 'math:新關鍵:1~2');
+  assert.ok(math);
   assert.equal(math.segments[1].completionPercent, 19);
 });
 

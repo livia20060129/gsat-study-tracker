@@ -24,7 +24,11 @@ export function recordedPageRangeFields(fields: StudyItemFields | undefined): St
   if (!hasOwn(values, 'start') && !hasOwn(values, 'end')) return null;
   return {
     ...fields,
-    start: hasOwn(values, 'start') ? values.start : fields.start,
-    end: hasOwn(values, 'end') ? values.end : fields.end,
+    // Older records used `true` as an "edited by the user" marker while the
+    // actual value remained in fields.start/end. New records store the value
+    // directly. Supporting both prevents a checked Calendar card from being
+    // miscounted as page 1 instead of its recorded range.
+    start: hasOwn(values, 'start') ? (values.start === true ? fields.start : values.start) : fields.start,
+    end: hasOwn(values, 'end') ? (values.end === true ? fields.end : values.end) : fields.end,
   };
 }

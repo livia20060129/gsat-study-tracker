@@ -52,16 +52,16 @@ test('已完成的合併子卡片會列入數學頁數並排除重疊頁碼', ()
   assert.equal(pageCount([parent]), 17);
 });
 
-test('實際填入的頁碼不依賴完成勾選，仍會列入頁數', () => {
+test('實際填入但尚未勾選完成的頁碼不會列入統計', () => {
   const completed = math('calendar-current', 158, 163);
   const pending = { ...math('tracker-deferred', 149, 165, false), deferredCarry: true };
   const parent = math('grouped-parent', 158, 163, false);
   parent.f.groupedWorkEntries = [completed, pending];
 
-  assert.equal(pageCount([parent]), 17);
+  assert.equal(pageCount([parent]), 6);
 });
 
-test('勾選 Calendar 建議頁數不會計入，實際修改頁碼後才會計入', () => {
+test('勾選 Calendar 項目會計入實際紀錄頁碼，而不是 Calendar 建議頁碼', () => {
   const suggested = math('calendar-suggestion', 149, 165, true);
   suggested.f.calendarSuggestedStart = 149;
   suggested.f.calendarSuggestedEnd = 165;
@@ -69,6 +69,18 @@ test('勾選 Calendar 建議頁數不會計入，實際修改頁碼後才會計�
 
   suggested.f.dailyWorkUserFields = { start: '151', end: '155' };
   assert.equal(pageCount([suggested]), 5);
+
+  suggested.done = false;
+  assert.equal(pageCount([suggested]), 0);
+});
+
+test('舊版實際頁碼標記會讀取欄位中的頁碼，不會誤算成第 1 頁', () => {
+  const completed = math('legacy-calendar-record', 151, 155, true);
+  completed.f.calendarSuggestedStart = 149;
+  completed.f.calendarSuggestedEnd = 165;
+  completed.f.dailyWorkUserFields = { start: true, end: true };
+
+  assert.equal(pageCount([completed]), 5);
 });
 
 test('沒有子卡片的合併連續範圍仍以大卡片範圍計算', () => {

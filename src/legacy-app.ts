@@ -3280,12 +3280,12 @@ function handleChange(e){
    propagateDailyWorkDone(x,t.checked);
   clearPendingDeferred(x);
   clearDeferredLimitPrompt(x);
-   if(x.calendarIntegrationChild||x.calendarGroupedChild){
-    if(x.calendarGroupedChild)updateGroupedParentDone(x);
-    updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);persist(false);render();return
-  }
+    if(x.calendarIntegrationChild||x.calendarGroupedChild){
+     if(x.calendarGroupedChild)updateGroupedParentDone(x);
+     persist(false);updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);render();return
+   }
   if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persist(false);rebuildDeferredForWeek(data.date)}
-  updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);persist(false);return
+  persist(false);updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);return
  }
  if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');if(k==='progress'&&x.type==='scienceReview'){markCalendarNaturalProgressByUser(x,t.checked);propagateDailyWorkField(x,'calendarProgressSetByUser',true);propagateDailyWorkField(x,'calendarProgressUserValue',t.checked)}propagateDailyWorkField(x,k,t.checked);if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
  if(t.matches('[data-chinese-kind]')&&x&&x.type==='chineseReading'){

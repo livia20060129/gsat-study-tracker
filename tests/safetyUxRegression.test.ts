@@ -49,6 +49,11 @@ test('other notes save only after leaving the field', () => {
   assert.doesNotMatch(runtime, /\[[^\]]*'notes'[^\]]*\]\.forEach\(function\(k\)\{id\(k\)\.addEventListener\('input',headerInput\)/);
 });
 
+test('completion is persisted before progress summaries are recalculated', () => {
+  assert.match(runtime, /if\(x\.calendarIntegrationChild\|\|x\.calendarGroupedChild\)[\s\S]*?persist\(false\);updateSummary\(\)/);
+  assert.match(runtime, /if\(x\.done&&confirmedDeferred\(x\)\)[\s\S]*?persist\(false\);updateSummary\(\);maybeCelebrateCompletion/);
+});
+
 test('cloud status distinguishes local, pending, synced and failed states', () => {
   assert.match(runtime, /'已存本機 ✓'/);
   assert.match(runtime, /'Cloud 已同步 ✓'/);
