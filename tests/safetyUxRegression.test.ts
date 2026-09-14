@@ -47,3 +47,9 @@ test('mobile settings use a bottom sheet and CI runs real browser tests', () => 
   assert.match(workflow, /npx playwright install --with-deps chromium/);
   assert.match(workflow, /npm run test:e2e/);
 });
+
+test('material progress navigation stays in the current browser tab', () => {
+  const link = html.match(/<a[^>]*href="\.\/material\.progress\.html"[^>]*>教材進度圖<\/a>/)?.[0] || '';
+  assert.ok(link);
+  assert.doesNotMatch(link, /target="_blank"/);
+});

@@ -1,19 +1,17 @@
 # 最新更新
 
-版本：v171.2.6
+版本：v171.2.7
 
 ## 本次一次完成
 
-1. 合併大卡中的子卡片不再顯示 `p.x–y` 頁碼標題，直接呈現可操作欄位。
-2. 子卡片的完成勾選、時間、頁碼輸入、延期及其他欄位皆維持不變。
-3. Google Calendar 指定的數學講義版本改為固定顯示，不能在 Tracker 內誤改。
-4. 手動新增的數學卡片仍保留講義版本選單。
+1. 點擊標題列的「教材進度圖」後，改為在目前分頁直接前往教材進度頁。
+2. 不再另外開啟新分頁；「排程建議prompt」仍維持原本的新分頁開啟方式。
 
-更新資料夾：`gsat-study-tracker-v171.2.6-child-page-title-math-version-lock`
+更新資料夾：`gsat-study-tracker-v171.2.7-material-progress-same-tab`
 
 ## 驗證
 
-- 312 項單元／回歸測試全部通過。
+- 313 項單元／回歸測試全部通過。
 - 正式 TypeScript／Vite 建置通過。
 - 3 項 Chromium 瀏覽器 E2E 全部通過。
 
@@ -21,4 +19,4 @@
 
 ## Commit 建議
 
-`fix(math): hide child page headings and lock calendar material`
+`fix(ui): open material progress in the current tab`
