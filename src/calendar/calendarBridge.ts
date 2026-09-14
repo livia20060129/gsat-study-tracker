@@ -160,7 +160,17 @@ function sourceDateFrom(title: string, description: string): string {
 }
 
 function canonicalMathBook(value: string): string {
-  return normalized(value).replace(/\s*[+]\s*/g, '＋').replace(/\s*＋\s*/g, '＋');
+  return normalized(value)
+    .toUpperCase()
+    .replace(/第|冊/g, '')
+    .replace(/\s+/g, '')
+    .replace(/[+＋]/g, '＋')
+    .replace(/[~～–—－-]/g, '~');
+}
+
+function canonicalMathMaterial(value: string): string {
+  const text = normalized(value).replace(/\s+/g, '');
+  return ['教學講義', '智慧型', '新關鍵', '複習週記'].find(material => text.includes(material)) ?? normalized(value);
 }
 
 function mathHeading(title: string, description: string): { title: string; book: string } | null {
@@ -443,7 +453,12 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   };
 
   const parsedMathHeading = mathHeading(title, description);
-  if (row.category === 'math' || parsedMathHeading) {
+  const structuredMathMaterial = canonicalMathMaterial(note.material);
+  const structuredMathBook = canonicalMathBook(note.book);
+  const structuredMathNote = note.hasStandardFields
+    && Boolean(structuredMathBook)
+    && ['教學講義', '智慧型', '新關鍵', '複習週記'].includes(structuredMathMaterial);
+  if (row.category === 'math' || parsedMathHeading || structuredMathNote) {
     const legacyProgress = description.match(/(?:【|\[)?\s*單元進度\s*(?:】|\])?\s*[:：]?\s*(\d+)\s*\/\s*(\d+)/);
     const [structuredProgress, structuredTotal] = note.pageRange
       ? [null, null]
@@ -456,8 +471,8 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
       ...base,
       title: parsedMathHeading?.title ?? withoutOriginalDate(title),
       kind: 'math',
-      material: note.material || (note.hasStandardFields ? '' : field(description, '講義版本')),
-      book: canonicalMathBook(note.book || parsedMathHeading?.book || normalized(bookMatch?.[1] ?? title.split('｜')[0] ?? '')),
+      material: structuredMathMaterial || (note.hasStandardFields ? '' : canonicalMathMaterial(field(description, '講義版本'))),
+      book: structuredMathBook || canonicalMathBook(parsedMathHeading?.book || normalized(bookMatch?.[1] ?? title.split('｜')[0] ?? '')),
       progressIndex: structuredProgress ?? (note.hasStandardFields ? null : (legacyProgress ? Number(legacyProgress[1]) : null)),
       progressTotal: structuredTotal ?? (note.hasStandardFields ? null : (legacyProgress ? Number(legacyProgress[2]) : null)),
       startPage,

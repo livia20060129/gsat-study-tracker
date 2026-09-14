@@ -1238,6 +1238,7 @@ function resolveCloudMathPlan(parsed){
  if(!base&&!selected.ranges.length)return null;
  var range=selected.ranges[0],out=cloneObj(base||{unitPages:0,weekTarget:0});
  out.title=parsed.title;if(parsed.material)out.material=parsed.material;if(parsed.book)out.book=parsed.book;
+ if(parsed.standardNote&&(parsed.material||parsed.book))out.calendarMaterialSource='calendar';
  if(range){out.start=range[0];out.end=range[1];out.pages=range[1]-range[0]+1}
  out.calendarRangeSource=selected.source;out.calendarEventKey=parsed.eventKey;out.calendarSourceEventId=parsed.sourceEventId;return out;
 }
@@ -1743,12 +1744,14 @@ function applyCalendarMathPlan(rec,date){
  if(blank){x.f.material=p.material||'教學講義';x.f.book=p.book;x.f.start=String(p.start);x.f.end=String(p.end);changed=true}
  var userFields=x.f.dailyWorkUserFields&&typeof x.f.dailyWorkUserFields==='object'?x.f.dailyWorkUserFields:{};
  if(p.calendarRangeSource==='calendar'){
-  if(!Object.prototype.hasOwnProperty.call(userFields,'start')&&x.f.start!==String(p.start)){x.f.start=String(p.start);changed=true}
-  if(!Object.prototype.hasOwnProperty.call(userFields,'end')&&x.f.end!==String(p.end)){x.f.end=String(p.end);changed=true}
-  if(!x.f.material){x.f.material=p.material||'教學講義';changed=true}
-  if(p.book&&!x.f.book){x.f.book=p.book;changed=true}
+ if(!Object.prototype.hasOwnProperty.call(userFields,'start')&&x.f.start!==String(p.start)){x.f.start=String(p.start);changed=true}
+ if(!Object.prototype.hasOwnProperty.call(userFields,'end')&&x.f.end!==String(p.end)){x.f.end=String(p.end);changed=true}
  }
- var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedMaterial:p.material||'教學講義',calendarSuggestedBook:p.book,calendarRangeSource:p.calendarRangeSource||'unit'};
+ if(p.calendarMaterialSource==='calendar'){
+  if(p.material&&!Object.prototype.hasOwnProperty.call(userFields,'material')&&x.f.material!==p.material){x.f.material=p.material;changed=true}
+  if(p.book&&!Object.prototype.hasOwnProperty.call(userFields,'book')&&x.f.book!==p.book){x.f.book=p.book;changed=true}
+ }
+ var meta={calendarPlanTitle:p.title,calendarUnitPages:p.unitPages,calendarUnitTargetPages:Number(CALENDAR_MATH_UNIT_TARGET_OVERRIDES[p.title]||p.unitPages||0),calendarWeekTarget:calendarWeekMathTarget(date),calendarDailyPages:p.pages,calendarSuggestedStart:p.start,calendarSuggestedEnd:p.end,calendarSuggestedMaterial:p.material||'教學講義',calendarSuggestedBook:p.book,calendarRangeSource:p.calendarRangeSource||'unit',calendarMaterialSource:p.calendarMaterialSource||''};
  for(var k in meta)if(Object.prototype.hasOwnProperty.call(meta,k)&&x.f[k]!==meta[k]){x.f[k]=meta[k];changed=true}
  applyMathAuto(x.f);
  return changed;

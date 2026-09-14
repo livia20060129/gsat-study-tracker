@@ -9,6 +9,8 @@ import { propagateDailyWorkField } from '../src/study/dailyWorkGroup.ts';
 import { normalizeStudyTimerState } from '../src/study/studyTimer.ts';
 import { studyItemSubject } from '../src/study/subjectOrder.ts';
 import { summarizeSubjectTime } from '../src/study/subjectTime.ts';
+import { parseCalendarTask } from '../src/calendar/calendarBridge.ts';
+import { prioritizeCalendarPageRanges } from '../src/calendar/pagePriority.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
 import {
   canonicalPageMappedBook,
@@ -169,6 +171,55 @@ test('date switching stays on the current date when saving fails', () => {
   assert.equal(loadCount, 0);
   assert.deepEqual(states, ['saving', 'error']);
   assert.match(nodes.status.textContent, /已取消日期切換/);
+});
+
+test('Calendar New Key material and grouped book replace stale defaults unless the user edited them', () => {
+  const parsed = parseCalendarTask({
+    event_key: 'primary:new-key-34',
+    source_event_id: 'new-key-34',
+    calendar_id: 'primary',
+    event_date: '2026-09-14',
+    title: '數學講義：進度',
+    description: '【講義版本】新關鍵\n【冊別】3A-4A冊\n【頁碼範圍】31–57\n【識別碼】new-key-34',
+    category: 'studyItem',
+  });
+  assert.equal(parsed.kind, 'math');
+  if (parsed.kind !== 'math') throw new Error('Expected math Calendar item');
+  const resolveCloudMathPlan = runtimeFunction<(task: typeof parsed) => any>('resolveCloudMathPlan', {
+    CALENDAR_MATH_PLAN: {},
+    cloneObj: (value: unknown) => JSON.parse(JSON.stringify(value)),
+    prioritizeCalendarPageRanges,
+  });
+  const plan = resolveCloudMathPlan(parsed);
+  assert.equal(plan.calendarMaterialSource, 'calendar');
+  const applyCalendarMathPlan = runtimeFunction<(record: StudyRecord, date: string) => boolean>('applyCalendarMathPlan', {
+    activeCalendarMathPlan: () => plan,
+    CALENDAR_MATH_UNIT_TARGET_OVERRIDES: {},
+    calendarWeekMathTarget: () => 0,
+    applyMathAuto: () => {},
+  });
+  const automatic = item({
+    id: 'math-auto', type: 'mathStudy', source: 'preset',
+    f: { material: '教學講義', book: '3A', start: '1', end: '10' },
+  });
+  assert.equal(applyCalendarMathPlan({ date: '2026-09-14', items: [automatic] }, '2026-09-14'), true);
+  assert.deepEqual(
+    [automatic.f.material, automatic.f.book, automatic.f.start, automatic.f.end],
+    ['新關鍵', '3A~4A', '31', '57'],
+  );
+
+  const manual = item({
+    id: 'math-manual', type: 'mathStudy', source: 'preset',
+    f: {
+      material: '智慧型', book: '3A~4A', start: '5', end: '8',
+      dailyWorkUserFields: { material: true, book: true, start: true, end: true },
+    },
+  });
+  applyCalendarMathPlan({ date: '2026-09-14', items: [manual] }, '2026-09-14');
+  assert.deepEqual(
+    [manual.f.material, manual.f.book, manual.f.start, manual.f.end],
+    ['智慧型', '3A~4A', '5', '8'],
+  );
 });
 
 test('ten-minute cloud save uploads the current record without interrupting its timer', async () => {

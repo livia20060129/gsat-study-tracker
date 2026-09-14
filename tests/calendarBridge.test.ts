@@ -335,6 +335,31 @@ test('reads every field from the standardized Calendar note', () => {
   });
 });
 
+test('infers New Key math from standardized notes and normalizes grouped book spellings', () => {
+  const cases = [
+    ['1-2冊', '1~2', 29, 59],
+    ['1～2', '1~2', 60, 84],
+    ['3A-4A冊', '3A~4A', 31, 57],
+    ['3A～4A', '3A~4A', 154, 187],
+  ] as const;
+
+  for (const [calendarBook, expectedBook, start, end] of cases) {
+    const parsed = parseCalendarTask(row(
+      '數學講義：進度',
+      `【講義版本】新 關鍵
+【冊別】${calendarBook}
+【頁碼範圍】p.${start}–${end}
+【識別碼】new-key-${calendarBook}`,
+      'studyItem',
+    ));
+    assert.equal(parsed.kind, 'math');
+    if (parsed.kind !== 'math') throw new Error('Expected math Calendar item');
+    assert.equal(parsed.material, '新關鍵');
+    assert.equal(parsed.book, expectedBook);
+    assert.deepEqual([parsed.startPage, parsed.endPage], [start, end]);
+  }
+});
+
 test('removes Calendar line wrapping and whitespace from standardized identifiers', () => {
   const note = calendarStructuredNote(
     '【單元進度】第29回 【重點】分詞、比較與目的 【識別碼】 GSAT-\n WRITING-TEST-2026-17 ',

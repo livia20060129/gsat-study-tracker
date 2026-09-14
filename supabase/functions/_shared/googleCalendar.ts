@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.1
 import { staleCalendarEventKeys } from './calendarSyncDiff.ts';
 import { readableErrorMessage } from './functionResponse.ts';
 import { chunksOf, collectStringKeysetPages } from './keysetPagination.ts';
+import { classifyCalendarEvent } from './calendarClassification.ts';
 
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 export const CORS_HEADERS = {
@@ -253,21 +254,6 @@ function eventDate(event: GoogleEvent): string | null {
   return null;
 }
 
-function classify(title: string): string {
-  let value = title.trim();
-  value = value.replace(/^(今日項目|今日|本週項目|本周項目|本週|本周)\s*[｜:：]\s*/, '');
-  value = value.replace(/^(補做項目|補做)\s*[｜:：]\s*/, '');
-  if (/Essential Grammar in Use/i.test(value)) return 'essentialGrammar';
-  if (/^ACE Reading(?:\s*[｜:：]\s*|\s+)第/i.test(value)) return 'ace';
-  if (/^(?:國文\s*[｜:：]\s*)?古今悅讀一百(?:\s*[｜:：]\s*|\s+)第/.test(value)) return 'gujin';
-  if (/^英文文法(?:\s*[｜:：]\s*|\s+)/.test(value)) return 'grammar';
-  if (/^英文寫作測驗(?:\s*[｜:：]\s*|\s+)第/.test(value)) return 'writing';
-  if (/^自然整合(?:\s*[｜:：]\s*|\s+)/.test(value)) return 'naturalIntegration';
-  if (/^(物理|化學|生物|地科)(?:\s*[｜:：]\s*|\s+)/.test(value)) return 'natural';
-  if (/^(1|2|3A|4A|2\s*[＋+]\s*4A|2\s*[＋+]\s*3A)(?:\s*[｜:：]\s*|\s+)\S/.test(value)) return 'math';
-  return 'studyItem';
-}
-
 function plainCalendarDescription(value: string): string {
   const named: Record<string, string> = {
     amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
@@ -343,6 +329,7 @@ export async function syncCalendarForUser(admin: SupabaseClient, userId: string)
       if (event.status === 'cancelled') continue;
       const date = eventDate(event);
       if (!date) continue;
+      const description = plainCalendarDescription(event.description ?? '');
       fetchedKeys.add(key);
       rows.push({
         user_id: userId,
@@ -355,9 +342,9 @@ export async function syncCalendarForUser(admin: SupabaseClient, userId: string)
         end_at: event.end?.dateTime ?? null,
         is_all_day: Boolean(event.start?.date),
         title: event.summary ?? '(未命名行程)',
-        description: plainCalendarDescription(event.description ?? ''),
+        description,
         location: event.location ?? '',
-        category: classify(event.summary ?? ''),
+        category: classifyCalendarEvent(event.summary ?? '', description),
         event_updated_at: event.updated ?? null,
         metadata: {
           etag: event.etag ?? null,
