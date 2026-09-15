@@ -77,3 +77,37 @@ test('typed record fields write to storage only after leaving the field', async 
   await wordInput.blur();
   await expect.poll(() => page.evaluate(() => (window as any).__trackerStorageWrites)).toBeGreaterThan(0);
 });
+
+test('learning summary uses one week/month control for the complete page', async ({ page }) => {
+  // Leave the record editor first: its pagehide handler deliberately persists
+  // the current form and would otherwise overwrite this isolated fixture.
+  await page.goto('/summary.html');
+  await page.evaluate(() => {
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}${date}`, JSON.stringify({
+      schemaVersion: 1,
+      date,
+      wakeTime: '06:30',
+      items: [
+        { id: 'summary-math', type: 'mathStudy', done: true, minutes: '45', required: true, source: 'preset', f: { subject: '數學' } },
+      ],
+    }));
+  });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '學習總結' })).toBeVisible();
+  await expect(page.locator('#summaryModeSwitch')).toHaveCount(1);
+  await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(7);
+  await expect(page.locator('#calendarTitle')).toHaveText('週曆');
+  await expect(page.locator('#wakePeriodLabel')).toHaveText('本週平均');
+  await expect(page.locator('#summarySubjectDistribution')).toContainText('45');
+
+  await page.getByRole('tab', { name: '月' }).click();
+  await expect(page.locator('#calendarTitle')).toHaveText('月曆');
+  await expect(page.locator('#wakePeriodLabel')).toHaveText('本月平均');
+  await expect(page.locator('.summary-calendar-weekdays')).toBeVisible();
+  await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate());
+  await expect(page.locator('#periodLabel')).toContainText('月');
+});
