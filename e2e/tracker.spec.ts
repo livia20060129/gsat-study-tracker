@@ -105,6 +105,10 @@ test('learning summary uses one week/month control for the complete page', async
       items: [
         { id: 'summary-math', type: 'mathStudy', done: true, minutes: '45', required: true, source: 'preset', f: { subject: '數學' } },
         { id: 'summary-english', type: 'englishPractice', title: '英文閱讀', done: true, minutes: '15', required: true, source: 'preset', f: { subject: '英文' } },
+        { id: 'summary-english-listening', type: 'englishPractice', title: '英文聽力', done: true, minutes: '15', required: true, source: 'preset', f: { subject: '英文' } },
+        { id: 'summary-english-writing', type: 'englishPractice', title: '英文寫作', done: true, minutes: '15', required: true, source: 'preset', f: { subject: '英文' } },
+        { id: 'summary-english-grammar', type: 'englishPractice', title: '英文文法', done: true, minutes: '15', required: true, source: 'preset', f: { subject: '英文' } },
+        { id: 'summary-english-vocabulary', type: 'englishPractice', title: '英文單字', done: true, minutes: '15', required: true, source: 'preset', f: { subject: '英文' } },
       ],
     }));
   });
@@ -114,17 +118,23 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(7);
   await expect(page.locator('#calendarTitle')).toHaveText('週曆');
   await expect(page.locator('#wakePeriodLabel')).toHaveText('本週平均');
-  await expect(page.locator('#summarySubjectDistribution .summary-donut-center strong')).toHaveText('1.0');
+  await expect(page.locator('#summarySubjectDistribution .summary-donut-center strong')).toHaveText('2.0');
   await expect(page.locator('#summarySubjectDistribution .summary-donut-center span')).toHaveText('hr');
   await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').click();
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('學習時間');
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('完成率');
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜英文');
-  await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveText('閱讀');
-  await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-value')).toHaveText('100%｜0.3 hr');
+  await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveCount(5);
+  const detailRows = await page.locator('#summarySubjectDistribution .summary-subject-detail-name').evaluateAll(nodes => nodes.map(node => node.closest('li')?.getBoundingClientRect().top ?? 0));
+  expect(new Set(detailRows.slice(0, 4).map(value => Math.round(value))).size).toBe(1);
+  expect(Math.round(detailRows[4])).toBeGreaterThan(Math.round(detailRows[0]));
   await page.locator('#summarySubjectDistribution [data-summary-back]').first().click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配');
+  await page.locator('[data-summary-subject="數學"]').click();
+  await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜數學');
+  await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveText('講義進度');
+  await expect(page.locator('#summaryTrend')).toContainText('hr');
 
   await page.getByRole('tab', { name: '月' }).click();
   await expect(page.locator('#calendarTitle')).toHaveText('月曆');

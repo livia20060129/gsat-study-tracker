@@ -35,7 +35,6 @@ import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
 import { adjacentStudyItemsView, normalizeStudyItemsView, studyItemsViewIndex } from './ui/studyItemsView';
-import { adjacentCompletionView, completionTrendDayCount, completionTrendPoints, normalizeCompletionView } from './ui/completionTrend';
 import { renderItemDeleteFooter } from './ui/itemActions';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
 import { withCrossTabLock } from './storage/crossTabLock';
@@ -3058,7 +3057,7 @@ function renderWeeklyItems(){
  id('weeklyItemList').innerHTML=html;
  id('weeklyItemBadge').textContent=total+' 項';
 }
-var studyItemsView='today',overviewMetricView='minutes',completionView='rates';
+var studyItemsView='today',overviewMetricView='minutes';
 function updateStudyItemsView(focusSelected){
  studyItemsView=normalizeStudyItemsView(studyItemsView);
  var today=studyItemsView==='today',tabs=id('studyItemsViewTabs'),index=studyItemsViewIndex(studyItemsView);tabs.dataset.active=String(index);
@@ -3071,12 +3070,6 @@ function updateOverviewMetricView(focusSelected){
  var tabs=id('overviewMetricTabs'),index=overviewMetricIndex(overviewMetricView);tabs.dataset.active=String(index);
  tabs.querySelectorAll('[data-overview-metric]').forEach(function(button){var selected=button.getAttribute('data-overview-metric')===overviewMetricView;button.setAttribute('aria-selected',selected?'true':'false');button.tabIndex=selected?0:-1;if(selected&&focusSelected)button.focus()});
  document.querySelectorAll('[data-metric-panel]').forEach(function(panel){panel.hidden=panel.getAttribute('data-metric-panel')!==overviewMetricView});
-}
-function updateCompletionView(focusSelected){
- var available=completionTrendDayCount(parseDate(data.date).getDay())>0,tabs=id('completionViewTabs');
- completionView=normalizeCompletionView(completionView,available);tabs.hidden=!available;tabs.dataset.active=completionView==='trend'?'1':'0';
- tabs.querySelectorAll('[data-completion-view]').forEach(function(button){var selected=button.getAttribute('data-completion-view')===completionView;button.setAttribute('aria-selected',selected?'true':'false');button.tabIndex=selected?0:-1;if(selected&&focusSelected)button.focus()});
- document.querySelectorAll('[data-completion-panel]').forEach(function(panel){panel.hidden=panel.getAttribute('data-completion-panel')!==completionView});
 }
 function render(){
  deferredCapacityCache=null;
@@ -3097,7 +3090,7 @@ function render(){
  id('dailyNotice').textContent=isAway(data)?'今日外出：固定排程全部取消；自行新增項目仍可照常記錄。':(data.date>=DAILY_PRESET_START?dailyMessageForDate(data.date):'歷史日期：不自動改寫原有紀錄。');
  updateSummary();
  renderWeeklyItems();
- updateStudyItemsView();updateOverviewMetricView(false);updateCompletionView(false);
+ updateStudyItemsView();updateOverviewMetricView(false);
  refreshTimerUI();
 }
 function findRecursive(list,target){
@@ -3467,22 +3460,6 @@ function completionMetricsForWeek(date,lastDayIndex){
  }
  return summarizeCompletionUnits(units);
 }
-function renderCompletionTrend(date){
- var dayCount=completionTrendDayCount(parseDate(date).getDay()),chart=id('completionTrendChart');
- if(!dayCount){chart.innerHTML='';id('completionTrendRange').textContent='';return}
- var mon=mondayOf(parseDate(date)),values=[],labels=['一','二','三','四','五','六','日'];
- for(var i=0;i<dayCount;i++){
-  var dayDate=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(dayDate),rec=studyRecordForOverview(ds);
-  values.push(summarizeCompletionUnits(completionUnitsForRecord(rec,ds)).settlementPercent);
- }
- var points=completionTrendPoints(values,labels,640,190),line=points.map(function(point){return point.x+','+point.y}).join(' ');
- var area='42,152 '+line+' '+points[points.length-1].x+',152',svg='<svg viewBox="0 0 640 190" role="img" aria-label="星期一至星期'+(dayCount===5?'五':'日')+'每日結算完成率折線圖">';
- svg+='<defs><linearGradient id="completionTrendArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9eb4d1"/><stop offset="1" stop-color="#eef3f8"/></linearGradient></defs>';
- [100,50,0].forEach(function(value){var y=25+127*(1-value/100);svg+='<line class="completion-trend-grid" x1="42" y1="'+y+'" x2="622" y2="'+y+'"></line><text class="completion-trend-axis-label" x="3" y="'+(y+4)+'">'+value+'%</text>'});
- svg+='<polygon class="completion-trend-area" points="'+area+'"></polygon><polyline class="completion-trend-line" points="'+line+'"></polyline>';
- points.forEach(function(point){svg+='<circle class="completion-trend-point" cx="'+point.x+'" cy="'+point.y+'" r="4.5"></circle><text class="completion-trend-value" x="'+point.x+'" y="'+Math.max(14,point.y-9)+'">'+point.percent+'%</text><text class="completion-trend-day" x="'+point.x+'" y="178">週'+point.label+'</text>'});
- chart.innerHTML=svg+'</svg>';id('completionTrendRange').textContent=dayCount===5?'週一～週五':'週一～週日';
-}
 function updateSettlementMetrics(date){
  var day=parseDate(date).getDay(),box=id('settlementMetrics'),comparison=id('settlementComparison');
  if(day!==5&&day!==0){box.hidden=true;comparison.hidden=true;return}
@@ -3577,7 +3554,6 @@ function updateSummary(){
  id('workloadCompletionBar').style.width=completion.workloadPercent+'%';
   id('workloadCompletionText').textContent=completion.workloadCompleted+'/'+completion.workloadTotal+' 項工作量';
   updateSettlementMetrics(data.date);
-  renderCompletionTrend(data.date);updateCompletionView(false);
  renderSubjectTimeDonut(subjectTime);
  id('mathPagesTop').textContent=math.dailyNewPages;
  id('weekMathPages').textContent=math.weeklyNewPages;
@@ -3935,8 +3911,6 @@ id('studyItemsViewTabs').addEventListener('click',function(e){var button=e.targe
 id('studyItemsViewTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')studyItemsView='today';else if(e.key==='End')studyItemsView='week';else studyItemsView=adjacentStudyItemsView(studyItemsView,e.key==='ArrowRight'?1:-1);updateStudyItemsView(true)});
 id('overviewMetricTabs').addEventListener('click',function(e){var button=e.target.closest('[data-overview-metric]');if(!button)return;overviewMetricView=button.getAttribute('data-overview-metric');updateOverviewMetricView(false)});
 id('overviewMetricTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')overviewMetricView='minutes';else if(e.key==='End')overviewMetricView='mathWeek';else overviewMetricView=adjacentOverviewMetric(overviewMetricView,e.key==='ArrowRight'?1:-1);updateOverviewMetricView(true)});
-id('completionViewTabs').addEventListener('click',function(e){var button=e.target.closest('[data-completion-view]');if(!button)return;completionView=button.getAttribute('data-completion-view');updateCompletionView(false)});
-id('completionViewTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')completionView='rates';else if(e.key==='End')completionView='trend';else completionView=adjacentCompletionView(completionView,e.key==='ArrowRight'?1:-1);updateCompletionView(true)});
 id('activeTimerSummary').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('change',handleWeeklyChange);

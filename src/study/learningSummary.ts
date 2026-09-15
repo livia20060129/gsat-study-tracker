@@ -250,6 +250,11 @@ function text(value: unknown): string {
 }
 
 function normalizedTimeSubject(item: StudyItem, fallback?: SubjectTimeSubject): SubjectTimeSubject {
+  const scienceIdentity = [item.f?.subject, item.f?.title, item.title, item.type].map(text).join(' ');
+  if (/物理|physics/i.test(scienceIdentity)) return '物理';
+  if (/化學|chemistry/i.test(scienceIdentity)) return '化學';
+  if (/生物|biology/i.test(scienceIdentity)) return '生物';
+  if (/地科|地球科學|earth/i.test(scienceIdentity)) return '地科';
   const subject = studyItemSubject(item);
   if (subject !== '其他' && ['數學', '國文', '英文', '自然'].includes(subject)) {
     return subject as SubjectTimeSubject;

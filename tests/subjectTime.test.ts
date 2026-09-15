@@ -92,7 +92,7 @@ test('a single subject uses a complete two-part circle path', () => {
 
 test('uses one clear character for every subject label on the ring', () => {
   assert.deepEqual(SUBJECT_TIME_SHORT_LABELS, {
-    數學: '數', 國文: '國', 英文: '英', 自然: '自', 其他: '社',
+    數學: '數', 國文: '國', 英文: '英', 物理: '物', 化學: '化', 生物: '生', 地科: '地', 自然: '自', 其他: '社',
   });
 });
 

@@ -63,6 +63,24 @@ test('summary reuses completion rules and only counts time on completed work', (
   assert.deepEqual(subjectTime.slices.map(slice => slice.subject), ['數學', '國文']);
 });
 
+test('learning summary separates natural science into physics, chemistry, biology, and earth science', () => {
+  const entries = completedStudyTimeEntries([record('2026-09-15', [
+    { id: 'physics', type: 'scienceReview', title: '物理｜運動學', done: true, minutes: '10', required: true, f: { subject: '物理' } },
+    { id: 'chemistry', type: 'scienceReview', title: '化學｜化學反應', done: true, minutes: '20', required: true, f: { subject: '化學' } },
+    { id: 'biology', type: 'biologyInteractive', title: '生物｜細胞', done: true, minutes: '30', required: true, f: { subject: '生物' } },
+    { id: 'earth', type: 'scienceReview', title: '地科｜地質', done: true, minutes: '40', required: true, f: { subject: '地科' } },
+  ])]);
+  const summary = summarizeLearningPeriod([record('2026-09-15', [
+    { id: 'physics', type: 'scienceReview', title: '物理｜運動學', done: true, minutes: '10', required: true, f: { subject: '物理' } },
+    { id: 'chemistry', type: 'scienceReview', title: '化學｜化學反應', done: true, minutes: '20', required: true, f: { subject: '化學' } },
+    { id: 'biology', type: 'biologyInteractive', title: '生物｜細胞', done: true, minutes: '30', required: true, f: { subject: '生物' } },
+    { id: 'earth', type: 'scienceReview', title: '地科｜地質', done: true, minutes: '40', required: true, f: { subject: '地科' } },
+  ])], summaryPeriod('2026-09-15', 'week'));
+
+  assert.deepEqual(entries.map(entry => entry.subject).sort(), ['物理', '化學', '生物', '地科'].sort());
+  assert.deepEqual(summary.subjectTime.slices.map(slice => slice.subject), ['物理', '化學', '生物', '地科']);
+});
+
 test('all overview blocks derive from the same requested period', () => {
   const period = summaryPeriod('2026-09-17', 'week');
   const summary = summarizeLearningPeriod([
@@ -171,7 +189,10 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.doesNotMatch(runtime, /fetch\(|openai|anthropic|gemini/i);
   assert.match(runtime, /data-summary-back/);
   assert.match(runtime, /function returnToSubjectOverview\(\)/);
-  assert.match(styles, /is-returning \.summary-donut-shell\.is-detail/);
+  assert.match(runtime, /summary-donut-return-overlay/);
+  assert.match(runtime, /destinationRect\.left - sourceRect\.left/);
+  assert.match(styles, /\.summary-donut-return-overlay\{/);
+  assert.doesNotMatch(styles, /pointer-events:bounding-box/);
   assert.match(runtime, /--day-time-color:\$\{timeColor\}/);
   assert.match(runtime, /toFixed\(1\)/);
   assert.match(runtime, /<span>hr<\/span>/);
@@ -187,9 +208,16 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /相較上週/);
   assert.match(runtime, /小時 \$\{wakeDifference % 60\} 分鐘/);
   assert.match(styles, /summary-subject-detail-list\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(styles, /summary-dashboard-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(runtime, /trend-time-tick/);
+  assert.match(runtime, /\$\{timeTick\} hr/);
+  assert.match(runtime, /formatWholeDuration\(point\.totalMinutes\)/);
   assert.match(styles, /summary-conclusion article\.is-flat\{background:#edf5fc\}/);
+  assert.match(runtime, /remarkClass\[remarks\.timeState\]/);
+  assert.match(runtime, /remarkClass\[remarks\.completionState\]/);
   assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back header-action-link"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
   assert.match(index, /class="header-action-link" href="\.\/summary\.html">學習總結<\/a>/);
+  assert.doesNotMatch(index, /本週趨勢|completionTrendPanel|completionViewTabs/);
   assert.match(styles, /@import "\.\/header-action-link\.css"/);
   assert.match(sharedHeaderActions, /\.header-action-link\{/);
   assert.match(config, /learningSummary:\s*'\.\/summary\.html'/);

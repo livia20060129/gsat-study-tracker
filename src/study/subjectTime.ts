@@ -1,4 +1,4 @@
-export const SUBJECT_TIME_SUBJECTS = ['數學', '國文', '英文', '自然', '其他'] as const;
+export const SUBJECT_TIME_SUBJECTS = ['數學', '國文', '英文', '物理', '化學', '生物', '地科', '自然', '其他'] as const;
 
 export type SubjectTimeSubject = typeof SUBJECT_TIME_SUBJECTS[number];
 
@@ -6,6 +6,10 @@ export const SUBJECT_TIME_COLORS: Record<SubjectTimeSubject, string> = {
   數學: '#cfb273',
   國文: '#b9958b',
   英文: '#a898bd',
+  物理: '#8faec5',
+  化學: '#91b6a2',
+  生物: '#a8b78e',
+  地科: '#b8a58d',
   自然: '#8eaea1',
   其他: '#aab3bd',
 };
@@ -14,6 +18,10 @@ export const SUBJECT_TIME_SHORT_LABELS: Record<SubjectTimeSubject, string> = {
   數學: '數',
   國文: '國',
   英文: '英',
+  物理: '物',
+  化學: '化',
+  生物: '生',
+  地科: '地',
   自然: '自',
   其他: '社',
 };

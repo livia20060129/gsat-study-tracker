@@ -29,7 +29,6 @@ let activeAnchor = dateKey(new Date());
 let records: StudyRecord[] = [];
 let selectedSubject: SubjectTimeSubject | null = null;
 let animateSubjectDetail = false;
-let subjectReturnTimer: number | null = null;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -53,6 +52,11 @@ function formatMinutes(value: number): string {
 
 function formatHours(value: number): string {
   return (Math.round(value / 60 * 10) / 10).toFixed(1);
+}
+
+function formatWholeDuration(value: number): string {
+  const totalMinutes = Math.max(0, Math.round(value));
+  return `${Math.floor(totalMinutes / 60)} 小時 ${totalMinutes % 60} 分鐘`;
 }
 
 function signed(value: number, suffix: string): string {
@@ -189,20 +193,43 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
 function returnToSubjectOverview(): void {
   const target = element<HTMLDivElement>('summarySubjectDistribution');
   if (!selectedSubject || target.dataset.view !== 'detail') return;
-  if (subjectReturnTimer !== null) window.clearTimeout(subjectReturnTimer);
-  const finish = () => {
-    if (subjectReturnTimer !== null) window.clearTimeout(subjectReturnTimer);
-    subjectReturnTimer = null;
-    selectedSubject = null;
-    animateSubjectDetail = false;
-    renderAll();
-  };
+  const source = target.querySelector<HTMLElement>('.summary-donut-shell.is-detail');
+  const sourceRect = source?.getBoundingClientRect();
+  selectedSubject = null;
+  animateSubjectDetail = false;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    finish();
+    renderAll();
     return;
   }
-  target.classList.add('is-returning');
-  subjectReturnTimer = window.setTimeout(finish, 380);
+  const overlay = source?.cloneNode(true) as HTMLElement | undefined;
+  if (overlay && sourceRect) {
+    overlay.classList.add('summary-donut-return-overlay');
+    overlay.style.left = `${sourceRect.left}px`;
+    overlay.style.top = `${sourceRect.top}px`;
+    overlay.style.width = `${sourceRect.width}px`;
+    overlay.style.height = `${sourceRect.height}px`;
+    document.body.appendChild(overlay);
+  }
+  renderAll();
+  const destination = target.querySelector<HTMLElement>('.summary-donut-shell:not(.is-detail)');
+  if (!overlay || !sourceRect || !destination) {
+    overlay?.remove();
+    return;
+  }
+  const destinationRect = destination.getBoundingClientRect();
+  const moveX = destinationRect.left - sourceRect.left;
+  const moveY = destinationRect.top - sourceRect.top;
+  const scale = destinationRect.width / Math.max(1, sourceRect.width);
+  const overlayMotion = overlay.animate([
+    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+    { transform: `translate(${moveX}px, ${moveY}px) scale(${scale})`, opacity: 0 },
+  ], { duration: 360, easing: 'cubic-bezier(.2,.82,.2,1)', fill: 'forwards' });
+  destination.animate([
+    { opacity: 0 },
+    { opacity: 0, offset: .55 },
+    { opacity: 1 },
+  ], { duration: 360, easing: 'ease-out' });
+  void overlayMotion.finished.catch(() => undefined).then(() => overlay.remove());
 }
 
 function renderTrend(summary: LearningPeriodSummary): void {
@@ -210,8 +237,8 @@ function renderTrend(summary: LearningPeriodSummary): void {
   const days = summary.days;
   const width = 720;
   const height = 250;
-  const left = 42;
-  const right = 34;
+  const left = 58;
+  const right = 42;
   const top = 24;
   const bottom = 42;
   const plotWidth = width - left - right;
@@ -226,11 +253,12 @@ function renderTrend(summary: LearningPeriodSummary): void {
   }));
   const grid = [0, 50, 100].map(percent => {
     const y = top + plotHeight * (1 - percent / 100);
-    return `<line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}"/><text x="4" y="${y + 4}">${percent}%</text>`;
+    const timeTick = formatHours(maxMinutes * percent / 100);
+    return `<line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}"/><text class="trend-time-tick" x="4" y="${y + 4}">${timeTick} hr</text><text class="trend-completion-tick" x="${width - 4}" y="${y + 4}">${percent}%</text>`;
   }).join('');
   const bars = points.map(point => {
     const barHeight = plotHeight * point.totalMinutes / maxMinutes;
-    return `<rect x="${point.x - barWidth / 2}" y="${top + plotHeight - barHeight}" width="${barWidth}" height="${barHeight}" rx="4"><title>${point.date}：${formatMinutes(point.totalMinutes)}</title></rect>`;
+    return `<rect x="${point.x - barWidth / 2}" y="${top + plotHeight - barHeight}" width="${barWidth}" height="${barHeight}" rx="4"><title>${point.date}：${formatWholeDuration(point.totalMinutes)}</title></rect>`;
   }).join('');
   const line = points.map(point => `${point.x},${point.y}`).join(' ');
   const dots = points.map(point => `<circle cx="${point.x}" cy="${point.y}" r="3.8"><title>${point.date}：完成率 ${point.completionPercent}%</title></circle>`).join('');
@@ -270,11 +298,10 @@ function renderConclusion(current: LearningPeriodSummary, previous: LearningPeri
     previous.completion.settlementPercent,
   );
   const stateTitle = { increase: '增加', stable: '持平', decrease: '下降' } as const;
-  const timeDelta = current.subjectTime.totalMinutes - previous.subjectTime.totalMinutes;
-  const completionDelta = current.completion.settlementPercent - previous.completion.settlementPercent;
+  const remarkClass = { increase: 'is-up', stable: 'is-flat', decrease: 'is-down' } as const;
   element<HTMLDivElement>('summaryConclusion').innerHTML = `
-    <article class="${comparisonClass(timeDelta)}"><strong>學習時數${stateTitle[remarks.timeState]}</strong><p>${remarks.time}</p></article>
-    <article class="${comparisonClass(completionDelta)}"><strong>完成率${stateTitle[remarks.completionState]}</strong><p>${remarks.completion}</p></article>`;
+    <article class="${remarkClass[remarks.timeState]}"><strong>學習時數${stateTitle[remarks.timeState]}</strong><p>${remarks.time}</p></article>
+    <article class="${remarkClass[remarks.completionState]}"><strong>完成率${stateTitle[remarks.completionState]}</strong><p>${remarks.completion}</p></article>`;
 }
 
 function renderAll(): void {
