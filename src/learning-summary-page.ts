@@ -29,6 +29,7 @@ let activeAnchor = dateKey(new Date());
 let records: StudyRecord[] = [];
 let selectedSubject: SubjectTimeSubject | null = null;
 let animateSubjectDetail = false;
+let subjectReturnTimer: number | null = null;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -185,6 +186,25 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
   target.innerHTML = subjectDonutMarkup(summary);
 }
 
+function returnToSubjectOverview(): void {
+  const target = element<HTMLDivElement>('summarySubjectDistribution');
+  if (!selectedSubject || target.dataset.view !== 'detail') return;
+  if (subjectReturnTimer !== null) window.clearTimeout(subjectReturnTimer);
+  const finish = () => {
+    if (subjectReturnTimer !== null) window.clearTimeout(subjectReturnTimer);
+    subjectReturnTimer = null;
+    selectedSubject = null;
+    animateSubjectDetail = false;
+    renderAll();
+  };
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    finish();
+    return;
+  }
+  target.classList.add('is-returning');
+  subjectReturnTimer = window.setTimeout(finish, 380);
+}
+
 function renderTrend(summary: LearningPeriodSummary): void {
   const target = element<HTMLDivElement>('summaryTrend');
   const days = summary.days;
@@ -227,11 +247,19 @@ function renderComparison(current: LearningPeriodSummary, previous: LearningPeri
   const wakeDelta = current.averageWakeMinutes !== null && previous.averageWakeMinutes !== null
     ? current.averageWakeMinutes - previous.averageWakeMinutes
     : null;
-  const wakeText = wakeDelta === null ? '資料不足' : wakeDelta === 0 ? '相同' : `${wakeDelta < 0 ? '早起' : '晚起'} ${Math.abs(wakeDelta)} 分`;
+  const wakeDifference = Math.abs(wakeDelta ?? 0);
+  const wakeText = wakeDelta === null
+    ? '資料不足'
+    : wakeDelta === 0
+      ? '相同'
+      : `${wakeDelta < 0 ? '早起' : '晚起'} ${Math.floor(wakeDifference / 60)} 小時 ${wakeDifference % 60} 分鐘`;
   element<HTMLDListElement>('summaryComparison').innerHTML = `
     <div><dt>學習時間</dt><dd class="${comparisonClass(timeDelta)}">${signed(timeDelta / 60, ' hr')}</dd></div>
-    <div><dt>完成率</dt><dd class="${comparisonClass(completionDelta)}">${signed(completionDelta, '%')}</dd></div>
-    <div><dt>平均起床</dt><dd class="${wakeDelta === null ? 'is-flat' : comparisonClass(wakeDelta, true)}">${wakeText}</dd></div>`;
+    <div><dt>完成率</dt><dd class="${comparisonClass(completionDelta)}">${signed(completionDelta, '%')}</dd></div>`;
+  element<HTMLParagraphElement>('wakeComparisonLabel').textContent = activeMode === 'week' ? '相較上週' : '相較上月';
+  const wakeValue = element<HTMLElement>('wakeComparisonValue');
+  wakeValue.className = `summary-wake-comparison-value ${wakeDelta === null ? 'is-flat' : comparisonClass(wakeDelta, true)}`;
+  wakeValue.textContent = wakeText;
 }
 
 function renderConclusion(current: LearningPeriodSummary, previous: LearningPeriodSummary): void {
@@ -312,8 +340,7 @@ element<HTMLButtonElement>('nextPeriod').addEventListener('click', () => {
 element<HTMLDivElement>('summarySubjectDistribution').addEventListener('click', event => {
   const detailBack = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-back]');
   if (detailBack) {
-    selectedSubject = null;
-    renderAll();
+    returnToSubjectOverview();
     return;
   }
   const button = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-subject], [data-summary-subject-path]');

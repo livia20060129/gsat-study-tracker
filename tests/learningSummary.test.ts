@@ -124,6 +124,16 @@ test('round-based Chinese reading records merge into one material item in subjec
   assert.deepEqual(detail.slices, [{ label: '古今悅讀一百', minutes: 45, percent: 100 }]);
 });
 
+test('CNN Interactive English and Ivy magazine time merge into one magazine item', () => {
+  const entries = completedStudyTimeEntries([record('2026-09-16', [
+    { id: 'cnn', type: 'magazine', title: 'CNN互動英文', done: true, minutes: '20', required: true, source: 'custom', f: { subject: '英文' } },
+    { id: 'ivy', type: 'magazine', title: '常春藤', done: true, minutes: '40', required: true, source: 'custom', f: { subject: '英文' } },
+  ])]);
+  const detail = summarizeStudyItemTime(entries, '英文');
+
+  assert.deepEqual(detail.slices, [{ label: '雜誌', minutes: 60, percent: 100 }]);
+});
+
 test('fixed remarks are deterministic and use the requested five-percent thresholds', () => {
   const stable = fixedPeriodRemarks(104, 100, 74, 70);
   assert.equal(stable.timeState, 'stable');
@@ -159,6 +169,8 @@ test('summary page has one global week/month switch and no separate total-hours 
   const styles = readFileSync(new URL('../src/learning-summary.css', import.meta.url), 'utf8');
   assert.doesNotMatch(runtime, /fetch\(|openai|anthropic|gemini/i);
   assert.match(runtime, /data-summary-back/);
+  assert.match(runtime, /function returnToSubjectOverview\(\)/);
+  assert.match(styles, /is-returning \.summary-donut-shell\.is-detail/);
   assert.match(runtime, /--day-time-color:\$\{timeColor\}/);
   assert.match(runtime, /toFixed\(1\)/);
   assert.match(runtime, /<span>hr<\/span>/);
@@ -167,6 +179,14 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(styles, /\.summary-day-ring::before\{[^}]*mask:radial-gradient/);
   assert.match(styles, /\.summary-day-ring\{--day-ring-width:6px;position:relative;background:transparent\}/);
   assert.match(styles, /\.summary-day\.is-complete\{--day-accent:#70DE43\}/);
+  assert.doesNotMatch(html, /summary-side-stack/);
+  assert.match(html, /summary-conclusion-card[\s\S]*id="summaryComparison"[\s\S]*id="summaryConclusion"[\s\S]*id="averageWakeTime"/);
+  assert.match(html, /id="wakeComparisonLabel"[\s\S]*id="wakeComparisonValue"/);
+  assert.doesNotMatch(runtime, /<dt>平均起床<\/dt>/);
+  assert.match(runtime, /相較上週/);
+  assert.match(runtime, /小時 \$\{wakeDifference % 60\} 分鐘/);
+  assert.match(styles, /summary-subject-detail-list\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(styles, /summary-conclusion article\.is-flat\{background:#edf5fc\}/);
   assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
   assert.match(index, /href="\.\/summary\.html">學習總結<\/a>/);
   assert.match(config, /learningSummary:\s*'\.\/summary\.html'/);

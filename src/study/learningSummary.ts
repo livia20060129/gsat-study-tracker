@@ -283,11 +283,16 @@ function lectureVersionLabel(item: StudyItem): string {
     .join(' ');
 }
 
+function normalizedMagazineLabel(value: string): string {
+  if (/^(?:CNN\s*互動(?:英文|英語)|常春藤)$/i.test(value.trim())) return '雜誌';
+  return value;
+}
+
 function studyItemTimeLabel(item: StudyItem, fallback = ''): string {
   const explicit = withoutRoundSuffix(withoutSubjectPrefix(text(item.f?.title) || text(item.title)), item.f?.round);
   const fallbackLabel = withoutRoundSuffix(withoutSubjectPrefix(fallback), item.f?.round);
   const lectureVersion = lectureVersionLabel(item);
-  if (item.type === 'magazine') return fallbackLabel || explicit || '雜誌';
+  if (item.type === 'magazine') return normalizedMagazineLabel(fallbackLabel || explicit) || '雜誌';
   if (item.type === 'englishVocabInteractive') return '單字／片語';
   if (item.type === 'englishMixedWriting') return '混合題與作文';
   if (item.type === 'mathStudy' || item.type === 'mathLecture') return lectureVersion ? `${lectureVersion}｜進度` : '講義進度';

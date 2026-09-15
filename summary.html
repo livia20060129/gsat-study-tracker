@@ -58,22 +58,26 @@
         <div id="summaryTrend" class="summary-trend"></div>
       </section>
 
-      <div class="summary-side-stack">
-        <section class="summary-card summary-compact-card" aria-labelledby="wakeTitle">
-          <div class="summary-section-head"><h2 id="wakeTitle">平均起床時間</h2></div>
-          <p id="wakePeriodLabel" class="summary-eyebrow"></p>
-          <strong id="averageWakeTime" class="summary-big-value">—</strong>
-        </section>
-        <section class="summary-card summary-compact-card" aria-labelledby="comparisonTitle">
-          <div class="summary-section-head"><h2 id="comparisonTitle">與上期比較</h2></div>
-          <dl id="summaryComparison" class="summary-comparison"></dl>
-        </section>
-      </div>
     </div>
 
     <section class="summary-card summary-conclusion-card" aria-labelledby="conclusionTitle">
       <div class="summary-section-head"><h2 id="conclusionTitle">本期小結</h2></div>
-      <div id="summaryConclusion" class="summary-conclusion"></div>
+      <div class="summary-conclusion-layout">
+        <div class="summary-conclusion-main">
+          <section class="summary-period-comparison" aria-labelledby="comparisonTitle">
+            <h3 id="comparisonTitle">與上期比較</h3>
+            <dl id="summaryComparison" class="summary-comparison"></dl>
+          </section>
+          <div id="summaryConclusion" class="summary-conclusion"></div>
+        </div>
+        <aside class="summary-conclusion-wake" aria-labelledby="wakeTitle">
+          <h3 id="wakeTitle">平均起床時間</h3>
+          <p id="wakePeriodLabel" class="summary-eyebrow"></p>
+          <strong id="averageWakeTime" class="summary-big-value">—</strong>
+          <p id="wakeComparisonLabel" class="summary-wake-comparison-label"></p>
+          <strong id="wakeComparisonValue" class="summary-wake-comparison-value">—</strong>
+        </aside>
+      </div>
     </section>
     <p id="summarySource" class="summary-source" aria-live="polite"></p>
     <p id="summaryError" class="summary-error" role="alert" hidden></p>
