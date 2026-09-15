@@ -123,7 +123,7 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜英文');
   await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveText('閱讀');
   await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-value')).toHaveText('100%｜0.3 hr');
-  await page.locator('#subjectBack').click();
+  await page.locator('#summarySubjectDistribution [data-summary-back]').first().click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配');
 
   await page.getByRole('tab', { name: '月' }).click();

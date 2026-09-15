@@ -108,10 +108,10 @@ function detailDonutMarkup(
   const paths = slices.map((slice, index) => {
     const startPercent = cursor;
     cursor = index === slices.length - 1 ? 100 : Math.min(100, cursor + slice.percent);
-    return `<path class="summary-donut-slice is-detail" d="${subjectTimeArcPath({ startPercent, endPercent: cursor })}" fill="none" stroke="${slice.color}"><title>${escapeHtml(slice.label)}：${formatHours(slice.minutes)} 小時，占 ${slice.percent}%</title></path>`;
+    return `<path class="summary-donut-slice is-detail" d="${subjectTimeArcPath({ startPercent, endPercent: cursor })}" fill="none" stroke="${slice.color}"><title>${escapeHtml(slice.label)}：${formatHours(slice.minutes)} 小時，占 ${slice.percent}%；點擊返回全部科目</title></path>`;
   }).join('');
   return `<div class="summary-donut-shell is-detail">
-    <svg class="summary-donut-ring" viewBox="0 0 160 160" aria-label="此科目各項目完成時間占比">
+    <svg class="summary-donut-ring" data-summary-back viewBox="0 0 160 160" tabindex="0" role="button" aria-label="返回全部科目">
       <circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle>${paths}
     </svg>
     <div class="summary-donut-center"><strong>${formatHours(totalMinutes)}</strong><span>hr</span></div>
@@ -149,14 +149,12 @@ function renderCalendar(summary: LearningPeriodSummary): void {
 function renderSubjectDistribution(summary: LearningPeriodSummary): void {
   const target = element<HTMLDivElement>('summarySubjectDistribution');
   const title = element<HTMLHeadingElement>('subjectTitle');
-  const back = element<HTMLButtonElement>('subjectBack');
   if (selectedSubject) {
     target.dataset.view = 'detail';
     target.classList.toggle('animate-detail-entry', animateSubjectDetail);
     target.classList.remove('is-detail-ready');
     const detail = summarizeStudyItemTime(summary.timeEntries, selectedSubject);
     title.textContent = `科目分配｜${selectedSubject}`;
-    back.hidden = false;
     const baseColor = SUBJECT_TIME_COLORS[selectedSubject];
     const maxPercent = Math.max(1, ...detail.slices.map(slice => slice.percent));
     const slices = detail.slices.map(slice => ({
@@ -177,7 +175,6 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
     return;
   }
   title.textContent = '科目分配';
-  back.hidden = true;
   target.dataset.view = 'subjects';
   target.classList.remove('animate-detail-entry', 'is-detail-ready');
   const slices = summary.subjectTime.slices;
@@ -312,11 +309,13 @@ element<HTMLButtonElement>('nextPeriod').addEventListener('click', () => {
   activeAnchor = shiftSummaryAnchor(activeAnchor, activeMode, 1);
   renderAll();
 });
-element<HTMLButtonElement>('subjectBack').addEventListener('click', () => {
-  selectedSubject = null;
-  renderAll();
-});
 element<HTMLDivElement>('summarySubjectDistribution').addEventListener('click', event => {
+  const detailBack = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-back]');
+  if (detailBack) {
+    selectedSubject = null;
+    renderAll();
+    return;
+  }
   const button = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-subject], [data-summary-subject-path]');
   if (!button) return;
   const subject = (button.dataset.summarySubject ?? button.dataset.summarySubjectPath) as SubjectTimeSubject;
@@ -327,7 +326,7 @@ element<HTMLDivElement>('summarySubjectDistribution').addEventListener('click', 
 });
 element<HTMLDivElement>('summarySubjectDistribution').addEventListener('keydown', event => {
   if (event.key !== 'Enter' && event.key !== ' ') return;
-  const path = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-subject-path]');
+  const path = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-subject-path], [data-summary-back]');
   if (!path) return;
   event.preventDefault();
   path.dispatchEvent(new MouseEvent('click', { bubbles: true }));

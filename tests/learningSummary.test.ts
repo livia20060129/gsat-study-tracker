@@ -114,6 +114,16 @@ test('subject drilldown omits repeated subject names and separates lecture versi
   assert.ok(entries.every(entry => !entry.itemLabel.startsWith(entry.subject)));
 });
 
+test('round-based Chinese reading records merge into one material item in subject drilldown', () => {
+  const entries = completedStudyTimeEntries([record('2026-09-16', [
+    { id: 'gujin-1', type: 'chineseReading', title: '國文｜古今悅讀一百 第 1 回', done: true, minutes: '20', required: true, f: { kind: 'reading', round: '1' } },
+    { id: 'gujin-2', type: 'chineseReading', title: '國文｜古今悅讀一百 第 2 回', done: true, minutes: '25', required: true, f: { kind: 'reading', round: '2' } },
+  ])]);
+  const detail = summarizeStudyItemTime(entries, '國文');
+
+  assert.deepEqual(detail.slices, [{ label: '古今悅讀一百', minutes: 45, percent: 100 }]);
+});
+
 test('fixed remarks are deterministic and use the requested five-percent thresholds', () => {
   const stable = fixedPeriodRemarks(104, 100, 74, 70);
   assert.equal(stable.timeState, 'stable');
@@ -144,10 +154,11 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.doesNotMatch(html, /總時數/);
   assert.match(html, /圓內深淺＝當日學習時數/);
   assert.match(html, /深綠完整圓環＝100% 完成/);
-  assert.match(html, /id="subjectBack"/);
+  assert.doesNotMatch(html, /id="subjectBack"|返回全部科目<\/button>/);
   const runtime = readFileSync(new URL('../src/learning-summary-page.ts', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/learning-summary.css', import.meta.url), 'utf8');
   assert.doesNotMatch(runtime, /fetch\(|openai|anthropic|gemini/i);
+  assert.match(runtime, /data-summary-back/);
   assert.match(runtime, /--day-time-color:\$\{timeColor\}/);
   assert.match(runtime, /toFixed\(1\)/);
   assert.match(runtime, /<span>hr<\/span>/);
@@ -155,7 +166,7 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.doesNotMatch(styles, /background:rgba\([^)]*var\(--day-intensity\)/);
   assert.match(styles, /\.summary-day-ring::before\{[^}]*mask:radial-gradient/);
   assert.match(styles, /\.summary-day-ring\{--day-ring-width:6px;position:relative;background:transparent\}/);
-  assert.match(styles, /\.summary-day\.is-complete\{--day-accent:#256b49\}/);
+  assert.match(styles, /\.summary-day\.is-complete\{--day-accent:#70DE43\}/);
   assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
   assert.match(index, /href="\.\/summary\.html">學習總結<\/a>/);
   assert.match(config, /learningSummary:\s*'\.\/summary\.html'/);

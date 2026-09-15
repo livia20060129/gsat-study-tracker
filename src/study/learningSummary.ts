@@ -263,6 +263,16 @@ function withoutSubjectPrefix(value: unknown): string {
     .trim();
 }
 
+function withoutRoundSuffix(value: string, round: unknown): string {
+  const roundText = text(round);
+  if (!value || !roundText) return value;
+  const escapedRound = roundText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return value.replace(
+    new RegExp(`\\s*(?:[｜|：:·\\-–—]\\s*)?(?:第\\s*${escapedRound}\\s*回|Test\\s*${escapedRound}|${escapedRound}\\s*回)\\s*$`, 'i'),
+    '',
+  ).trim();
+}
+
 function lectureVersionLabel(item: StudyItem): string {
   const material = withoutSubjectPrefix(item.f?.material);
   const rawBook = text(item.f?.book);
@@ -274,8 +284,8 @@ function lectureVersionLabel(item: StudyItem): string {
 }
 
 function studyItemTimeLabel(item: StudyItem, fallback = ''): string {
-  const explicit = withoutSubjectPrefix(text(item.f?.title) || text(item.title));
-  const fallbackLabel = withoutSubjectPrefix(fallback);
+  const explicit = withoutRoundSuffix(withoutSubjectPrefix(text(item.f?.title) || text(item.title)), item.f?.round);
+  const fallbackLabel = withoutRoundSuffix(withoutSubjectPrefix(fallback), item.f?.round);
   const lectureVersion = lectureVersionLabel(item);
   if (item.type === 'magazine') return fallbackLabel || explicit || '雜誌';
   if (item.type === 'englishVocabInteractive') return '單字／片語';
