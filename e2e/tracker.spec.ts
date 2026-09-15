@@ -114,7 +114,8 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(7);
   await expect(page.locator('#calendarTitle')).toHaveText('週曆');
   await expect(page.locator('#wakePeriodLabel')).toHaveText('本週平均');
-  await expect(page.locator('#summarySubjectDistribution')).toContainText('60');
+  await expect(page.locator('#summarySubjectDistribution .summary-donut-center strong')).toHaveText('1.0');
+  await expect(page.locator('#summarySubjectDistribution .summary-donut-center span')).toHaveText('hr');
   await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').click();
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('學習時間');
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('完成率');

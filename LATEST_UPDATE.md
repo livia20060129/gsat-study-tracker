@@ -1,6 +1,11 @@
 # 最新更新
 
-版本：v171.4.2
+版本：v171.4.3
+
+## 自動測試修正
+
+- 學習總結已改用 `hr` 顯示時間，但端對端測試仍尋找舊的 `60` 分鐘文字，導致功能正確卻部署失敗。
+- 測試現在直接驗證圓環中央為 `1.0`、單位為 `hr`，與實際畫面一致。
 
 ## 科目圓環明細
 
@@ -39,7 +44,7 @@
 - 從手動切換至計時時，會把既有分鐘數換算成最接近的秒數作為計時起點；空白或無效值從 00:00 開始。
 - 例如手動填入 `12.5` 分，切換後計時器由 `12:30` 接續，不會遺失已記錄時間。
 
-更新資料夾：`gsat-study-tracker-v171.4.2-calendar-layer-separation`
+更新資料夾：`gsat-study-tracker-v171.4.3-e2e-hour-expectation`
 
 ## 驗證
 
@@ -51,4 +56,4 @@
 
 ## Commit 建議
 
-`fix(summary): separate calendar layers and standardize hour display`
+`test(summary): align e2e expectation with hour display`
