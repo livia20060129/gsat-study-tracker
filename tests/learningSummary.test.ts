@@ -158,6 +158,7 @@ test('summary page has one global week/month switch and no separate total-hours 
   const html = readFileSync(new URL('../summary.html', import.meta.url), 'utf8');
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const config = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
+  const sharedHeaderActions = readFileSync(new URL('../src/header-action-link.css', import.meta.url), 'utf8');
   assert.equal((html.match(/id="summaryModeSwitch"/g) || []).length, 1);
   assert.equal((html.match(/data-summary-mode=/g) || []).length, 2);
   assert.doesNotMatch(html, /summary-heading-icon/);
@@ -187,7 +188,9 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /小時 \$\{wakeDifference % 60\} 分鐘/);
   assert.match(styles, /summary-subject-detail-list\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /summary-conclusion article\.is-flat\{background:#edf5fc\}/);
-  assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
-  assert.match(index, /href="\.\/summary\.html">學習總結<\/a>/);
+  assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back header-action-link"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
+  assert.match(index, /class="header-action-link" href="\.\/summary\.html">學習總結<\/a>/);
+  assert.match(styles, /@import "\.\/header-action-link\.css"/);
+  assert.match(sharedHeaderActions, /\.header-action-link\{/);
   assert.match(config, /learningSummary:\s*'\.\/summary\.html'/);
 });

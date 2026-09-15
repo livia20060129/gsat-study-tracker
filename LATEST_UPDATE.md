@@ -1,6 +1,12 @@
 # 最新更新
 
-版本：v171.5.0
+版本：v171.5.1
+
+## 返回 Tracker 按鍵
+
+- 「回到 Tracker」改為與主頁標題列按鍵完全相同的白底、藍字、淡色邊框樣式。
+- 主頁與學習總結現在共用同一份按鍵樣式，之後修改時不會再次出現外觀落差。
+- 滑鼠指向、鍵盤焦點與手機版伸展方式皆保持一致。
 
 ## 學習總結版面
 
@@ -21,7 +27,7 @@
 - 本期小結判定為「持平」時使用淺藍底。
 - 增加維持淺綠底，下降維持淺紅底。
 
-更新資料夾：`gsat-study-tracker-v171.5.0-summary-layout`
+更新資料夾：`gsat-study-tracker-v171.5.1-shared-header-button`
 
 ## 驗證
 
@@ -32,4 +38,4 @@
 
 ## Commit 建議
 
-`feat(summary): consolidate insights and expand subject breakdown`
+`style(summary): match Tracker header action button`
