@@ -9,7 +9,7 @@ import {
 import { isConfirmedDeferred } from './deferDays.ts';
 import { effectiveTemplatePresetKey, specialItemTemplate } from './makeup.ts';
 import { studyItemSubject } from './subjectOrder.ts';
-import { summarizeSubjectTime, type SubjectTimeSummary } from './subjectTime.ts';
+import { summarizeSubjectTime, type SubjectTimeSubject, type SubjectTimeSummary } from './subjectTime.ts';
 import type { StudyItem, StudyRecord } from '../types.ts';
 
 export const SUMMARY_MODES = ['week', 'month'] as const;
@@ -42,8 +42,32 @@ export interface LearningPeriodSummary {
   records: StudyRecord[];
   completion: CompletionMetrics;
   subjectTime: SubjectTimeSummary;
+  timeEntries: CompletedStudyTimeEntry[];
   averageWakeMinutes: number | null;
   recordedDayCount: number;
+}
+
+export interface CompletedStudyTimeEntry {
+  key: string;
+  date: string;
+  subject: SubjectTimeSubject;
+  itemLabel: string;
+  minutes: number;
+}
+
+export interface StudyItemTimeSlice {
+  label: string;
+  minutes: number;
+  percent: number;
+}
+
+export type PeriodChangeState = 'increase' | 'stable' | 'decrease';
+
+export interface FixedPeriodRemarks {
+  timeState: PeriodChangeState;
+  completionState: PeriodChangeState;
+  time: string;
+  completion: string;
 }
 
 function parseDate(value: string): Date {
@@ -221,46 +245,211 @@ function numericMinutes(value: unknown): number {
   return Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
 }
 
-function collectCompletedTime(item: StudyItem, output: Array<{ subject: string; minutes: number }>): void {
+function text(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function normalizedTimeSubject(item: StudyItem, fallback?: SubjectTimeSubject): SubjectTimeSubject {
+  const subject = studyItemSubject(item);
+  if (subject !== '其他' && ['數學', '國文', '英文', '自然'].includes(subject)) {
+    return subject as SubjectTimeSubject;
+  }
+  return fallback ?? '其他';
+}
+
+function studyItemTimeLabel(item: StudyItem, fallback = ''): string {
+  const explicit = text(item.f?.title) || text(item.title);
+  const naturalSubject = text(item.f?.subject);
+  if (item.type === 'magazine') return '英文雜誌';
+  if (item.type === 'englishVocabInteractive') return '單字／片語';
+  if (item.type === 'englishMixedWriting') return '混合題與作文';
+  if (item.type === 'mathStudy' || item.type === 'mathLecture') return '數學講義進度';
+  if (item.type === 'mathPractice') return '數學講義題目';
+  if (item.type === 'mathOral') return '數學互動題';
+  if (item.type === 'biologyInteractive') return '生物互動題';
+  if (item.type === 'scienceReview' && /物理|化學|生物|地科/.test(naturalSubject)) return naturalSubject;
+  if (item.type === 'chineseReading') return explicit || '國文閱讀';
+  if (item.type === 'mock') return explicit || '歷屆／模考';
+  if (item.type === 'englishPractice') return explicit || '英文閱讀／練習';
+  return explicit || fallback || '其他項目';
+}
+
+function stableTimeKey(recordDate: string, item: StudyItem, label: string, childKey = ''): string {
+  const fields = item.f ?? {};
+  const originId = text(item.deferredOriginId)
+    || (Array.isArray(item.deferredOriginIds) ? text(item.deferredOriginIds[0]) : '');
+  const calendarKey = text(fields.calendarEventKey)
+    || text(fields.calendarEventId)
+    || (Array.isArray(fields.calendarEventKeys) ? text(fields.calendarEventKeys[0]) : '');
+  const semantic = [item.type, label, fields.start, fields.end, fields.round, fields.unit, childKey]
+    .map(text).join('|');
+  if (originId) return `origin:${originId}:${semantic}`;
+  if (calendarKey) return `calendar:${calendarKey}:${semantic}`;
+  if (item.id) return `item:${recordDate}:${item.id}:${childKey}`;
+  return `record:${recordDate}:${semantic}`;
+}
+
+function addCompletedTime(
+  output: CompletedStudyTimeEntry[],
+  recordDate: string,
+  item: StudyItem,
+  minutes: number,
+  fallbackSubject?: SubjectTimeSubject,
+  fallbackLabel = '',
+  childKey = '',
+): void {
+  if (minutes <= 0) return;
+  const subject = normalizedTimeSubject(item, fallbackSubject);
+  const itemLabel = studyItemTimeLabel(item, fallbackLabel);
+  output.push({
+    key: stableTimeKey(recordDate, item, itemLabel, childKey),
+    date: recordDate,
+    subject,
+    itemLabel,
+    minutes,
+  });
+}
+
+function collectCompletedTime(
+  item: StudyItem,
+  recordDate: string,
+  output: CompletedStudyTimeEntry[],
+  fallbackSubject?: SubjectTimeSubject,
+  fallbackLabel = '',
+): void {
+  // A confirmed deferral belongs to its final target date, never its old date.
+  if (confirmedDeferred(item)) return;
+  const itemSubject = normalizedTimeSubject(item, fallbackSubject);
+  const itemLabel = studyItemTimeLabel(item, fallbackLabel);
   const grouped = groupedChildren(item);
   if (grouped.length) {
-    grouped.forEach(child => collectCompletedTime(child, output));
+    grouped.forEach(child => collectCompletedTime(child, recordDate, output, itemSubject, itemLabel));
     return;
   }
   const interactive = childItems(item, 'interactiveEntries');
   if (interactive.length) {
-    interactive.forEach(child => collectCompletedTime(child, output));
+    interactive.forEach(child => collectCompletedTime(child, recordDate, output, itemSubject, itemLabel));
     return;
   }
   const integration = childItems(item, 'calendarIntegrationEntries');
   if (integration.length) {
-    integration.forEach(child => collectCompletedTime(child, output));
+    integration.forEach(child => collectCompletedTime(child, recordDate, output, itemSubject, itemLabel));
     return;
   }
   if (isSaturdayMakeup(item)) {
-    childItems(item, 'makeupEntries').forEach(child => collectCompletedTime(child, output));
+    childItems(item, 'makeupEntries').forEach(child => collectCompletedTime(child, recordDate, output, itemSubject, itemLabel));
     return;
   }
   const reviewEntries = childItems(item, 'reviewEntries');
   if (reviewEntries.length) {
-    reviewEntries.forEach(child => collectCompletedTime(child, output));
+    reviewEntries.forEach(child => collectCompletedTime(child, recordDate, output, itemSubject, itemLabel));
     return;
   }
   if (!item.done) return;
   if (specialItemTemplate(item) === 'fixedMagazine') {
-    const entries = Array.isArray(item.f?.entries) ? item.f.entries as Array<{ minutes?: unknown }> : [];
-    const minutes = entries.reduce((sum, entry) => sum + numericMinutes(entry?.minutes), 0);
-    if (minutes > 0) output.push({ subject: studyItemSubject(item), minutes });
+    const entries = Array.isArray(item.f?.entries)
+      ? item.f.entries as Array<{ id?: unknown; name?: unknown; minutes?: unknown }>
+      : [];
+    entries.forEach((entry, index) => {
+      const label = text(entry?.name) || itemLabel;
+      addCompletedTime(
+        output, recordDate, item, numericMinutes(entry?.minutes), itemSubject, label,
+        `magazine:${text(entry?.id) || `${label}:${index}`}`,
+      );
+    });
     return;
   }
   const minutes = numericMinutes(item.minutes);
-  if (minutes > 0) output.push({ subject: studyItemSubject(item), minutes });
+  addCompletedTime(output, recordDate, item, minutes, fallbackSubject, fallbackLabel);
+}
+
+/** Deduplicates the same saved/deferred/Calendar task and keeps its strongest completed record. */
+export function completedStudyTimeEntries(records: StudyRecord[]): CompletedStudyTimeEntry[] {
+  const unique = new Map<string, CompletedStudyTimeEntry>();
+  for (const record of records) {
+    const candidates: CompletedStudyTimeEntry[] = [];
+    visibleItems(record)
+      .filter(item => !isWeeklyCalendarItem(item))
+      .forEach(item => collectCompletedTime(item, record.date, candidates));
+    for (const candidate of candidates) {
+      const existing = unique.get(candidate.key);
+      if (!existing || candidate.minutes > existing.minutes
+        || (candidate.minutes === existing.minutes && candidate.date > existing.date)) {
+        unique.set(candidate.key, candidate);
+      }
+    }
+  }
+  return [...unique.values()].sort((left, right) => left.date.localeCompare(right.date) || left.key.localeCompare(right.key));
 }
 
 export function completedSubjectTimeForRecord(record: StudyRecord): SubjectTimeSummary {
-  const entries: Array<{ subject: string; minutes: number }> = [];
-  visibleItems(record).filter(item => !isWeeklyCalendarItem(item)).forEach(item => collectCompletedTime(item, entries));
-  return summarizeSubjectTime(entries);
+  return summarizeSubjectTime(completedStudyTimeEntries([record]));
+}
+
+function roundOne(value: number): number {
+  return Math.round((value + Number.EPSILON) * 10) / 10;
+}
+
+export function summarizeStudyItemTime(
+  entries: CompletedStudyTimeEntry[],
+  subject: SubjectTimeSubject,
+): { totalMinutes: number; slices: StudyItemTimeSlice[] } {
+  const totals = new Map<string, number>();
+  entries.filter(entry => entry.subject === subject).forEach(entry => {
+    totals.set(entry.itemLabel, (totals.get(entry.itemLabel) ?? 0) + entry.minutes);
+  });
+  const sorted = [...totals.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'zh-Hant'));
+  const totalMinutes = roundOne(sorted.reduce((sum, entry) => sum + entry[1], 0));
+  let allocated = 0;
+  const slices = sorted.map(([label, minutes], index) => {
+    const percent = index === sorted.length - 1
+      ? roundOne(100 - allocated)
+      : roundOne(totalMinutes > 0 ? minutes / totalMinutes * 100 : 0);
+    allocated = roundOne(allocated + percent);
+    return { label, minutes: roundOne(minutes), percent };
+  });
+  return { totalMinutes, slices };
+}
+
+export function classifyPeriodChange(current: number, previous: number): PeriodChangeState {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return 'stable';
+  if (previous === 0) return current > 0 ? 'increase' : current < 0 ? 'decrease' : 'stable';
+  const percentChange = ((current - previous) / Math.abs(previous)) * 100;
+  if (percentChange >= 5) return 'increase';
+  if (percentChange <= -5) return 'decrease';
+  return 'stable';
+}
+
+export function fixedPeriodRemarks(
+  currentMinutes: number,
+  previousMinutes: number,
+  currentCompletion: number,
+  previousCompletion: number,
+): FixedPeriodRemarks {
+  const timeState = classifyPeriodChange(currentMinutes, previousMinutes);
+  // Completion is already a percentage, so compare percentage-point change.
+  const completionDelta = currentCompletion - previousCompletion;
+  const completionState: PeriodChangeState = completionDelta >= 5
+    ? 'increase'
+    : completionDelta <= -5
+      ? 'decrease'
+      : 'stable';
+  const timeRemarks: Record<PeriodChangeState, string> = {
+    increase: '本期學習時數增加，建議維持目前節奏，同時留意休息與負荷。',
+    stable: '本期學習時數大致穩定，可以繼續觀察目前安排是否適合。',
+    decrease: '本期學習時數下降，可回顧近期狀態與排程，確認是否需要調整。',
+  };
+  const completionRemarks: Record<PeriodChangeState, string> = {
+    increase: '本期完成率提升，可以觀察哪些安排有助於任務順利完成。',
+    stable: '本期完成率大致穩定，可繼續維持並觀察較常卡住的項目。',
+    decrease: '本期完成率下降，可檢查是否有任務過多、延期集中或安排不適合的情況。',
+  };
+  return {
+    timeState,
+    completionState,
+    time: timeRemarks[timeState],
+    completion: completionRemarks[completionState],
+  };
 }
 
 export function wakeTimeMinutes(value: unknown): number | null {
@@ -275,7 +464,9 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
   const byDate = new Map(records.map(record => [record.date, record]));
   const periodRecords = period.dates.map(date => byDate.get(date)).filter(Boolean) as StudyRecord[];
   const allUnits = periodRecords.flatMap(summaryCompletionUnitsForRecord);
-  const subjectEntries: Array<{ subject: string; minutes: number }> = [];
+  const timeEntries = completedStudyTimeEntries(periodRecords);
+  const timeEntriesByDate = new Map<string, CompletedStudyTimeEntry[]>();
+  timeEntries.forEach(entry => timeEntriesByDate.set(entry.date, [...(timeEntriesByDate.get(entry.date) ?? []), entry]));
   const wakeValues: number[] = [];
   const days = period.dates.map(date => {
     const record = byDate.get(date);
@@ -286,8 +477,7 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
       };
     }
     const completion = summarizeCompletionUnits(summaryCompletionUnitsForRecord(record));
-    const subjectTime = completedSubjectTimeForRecord(record);
-    subjectTime.slices.forEach(slice => subjectEntries.push({ subject: slice.subject, minutes: slice.minutes }));
+    const subjectTime = summarizeSubjectTime(timeEntriesByDate.get(date) ?? []);
     const wakeMinutes = wakeTimeMinutes(record.wakeTime);
     if (wakeMinutes !== null) wakeValues.push(wakeMinutes);
     return {
@@ -301,7 +491,8 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
     days,
     records: periodRecords,
     completion: summarizeCompletionUnits(allUnits),
-    subjectTime: summarizeSubjectTime(subjectEntries),
+    subjectTime: summarizeSubjectTime(timeEntries),
+    timeEntries,
     averageWakeMinutes: wakeValues.length ? Math.round(wakeValues.reduce((sum, value) => sum + value, 0) / wakeValues.length) : null,
     recordedDayCount: periodRecords.length,
   };
@@ -318,4 +509,3 @@ export function calendarLeadingBlankCount(period: SummaryPeriod): number {
   const weekday = parseDate(period.start).getDay();
   return weekday === 0 ? 6 : weekday - 1;
 }
-

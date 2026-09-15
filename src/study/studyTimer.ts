@@ -47,6 +47,15 @@ export function resetStudyTimer(): StudyTimerState {
   return { mode: 'timer', accumulatedSeconds: 0, startedAt: null };
 }
 
+/** Uses the manual minute field as the timer baseline, rounded to the nearest second. */
+export function studyTimerFromManualMinutes(value: unknown): StudyTimerState {
+  const minutes = Number(value);
+  const accumulatedSeconds = Number.isFinite(minutes) && minutes > 0
+    ? Math.round(minutes * 60)
+    : 0;
+  return { mode: 'timer', accumulatedSeconds, startedAt: null };
+}
+
 /** Timer display deliberately stays in minutes:seconds, including values above 59 minutes. */
 export function formatStudyTimer(value: unknown, now = Date.now()): string {
   const totalSeconds = studyTimerElapsedSeconds(value, now);

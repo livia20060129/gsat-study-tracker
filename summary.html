@@ -12,7 +12,6 @@
   <main class="summary-page">
     <header class="summary-header">
       <div class="summary-heading">
-        <span class="summary-heading-icon" aria-hidden="true">▣</span>
         <div><h1>學習總結</h1><p>回顧過去，調整下一步。</p></div>
       </div>
       <div class="summary-period-nav" aria-label="切換統計期間">
@@ -34,11 +33,19 @@
         <span>週一</span><span>週二</span><span>週三</span><span>週四</span><span>週五</span><span>週六</span><span>週日</span>
       </div>
       <div id="summaryCalendar" class="summary-calendar" role="list"></div>
+      <div class="summary-calendar-legend" aria-label="週曆與月曆圖例">
+        <span><i class="legend-time" aria-hidden="true"></i>圓內深淺＝當日學習時數</span>
+        <span><i class="legend-completion" aria-hidden="true"></i>外圍圓環＝當日完成率</span>
+        <span><i class="legend-complete" aria-hidden="true"></i>深綠完整圓環＝100% 完成</span>
+      </div>
     </section>
 
     <div class="summary-dashboard-grid">
       <section class="summary-card summary-subject-card" aria-labelledby="subjectTitle">
-        <div class="summary-section-head"><h2 id="subjectTitle">科目分配</h2></div>
+        <div class="summary-section-head">
+          <h2 id="subjectTitle">科目分配</h2>
+          <button id="subjectBack" class="summary-subject-back" type="button" hidden>返回全部科目</button>
+        </div>
         <div id="summarySubjectDistribution" class="summary-subject-distribution"></div>
       </section>
 

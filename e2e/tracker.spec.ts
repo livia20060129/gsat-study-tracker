@@ -78,6 +78,17 @@ test('typed record fields write to storage only after leaving the field', async 
   await expect.poll(() => page.evaluate(() => (window as any).__trackerStorageWrites)).toBeGreaterThan(0);
 });
 
+test('timer starts from the closest second represented by manual minutes', async ({ page }) => {
+  await page.selectOption('#itemType', 'extra');
+  await page.click('#addItemBtn');
+  const card = page.locator('#itemList [data-item]').filter({ has: page.locator('[data-action="delete-item"]') }).last();
+  const minutes = card.locator('[data-minutes]');
+  await minutes.fill('12.5');
+  await minutes.blur();
+  await card.locator('[data-action="time-mode-select"][data-time-mode="timer"]').click();
+  await expect(card.locator('[data-timer-display]')).toHaveText('12:30');
+});
+
 test('learning summary uses one week/month control for the complete page', async ({ page }) => {
   // Leave the record editor first: its pagehide handler deliberately persists
   // the current form and would otherwise overwrite this isolated fixture.
@@ -93,6 +104,7 @@ test('learning summary uses one week/month control for the complete page', async
       wakeTime: '06:30',
       items: [
         { id: 'summary-math', type: 'mathStudy', done: true, minutes: '45', required: true, source: 'preset', f: { subject: '數學' } },
+        { id: 'summary-english', type: 'englishPractice', title: '英文閱讀', done: true, minutes: '15', required: true, source: 'preset', f: { subject: '英文' } },
       ],
     }));
   });
@@ -102,11 +114,21 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(7);
   await expect(page.locator('#calendarTitle')).toHaveText('週曆');
   await expect(page.locator('#wakePeriodLabel')).toHaveText('本週平均');
-  await expect(page.locator('#summarySubjectDistribution')).toContainText('45');
+  await expect(page.locator('#summarySubjectDistribution')).toContainText('60');
+  await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').click();
+  await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('學習時間');
+  await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('完成率');
+  await page.locator('[data-summary-subject="英文"]').click();
+  await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜英文');
+  await expect(page.locator('#summarySubjectDistribution')).toContainText('英文閱讀');
+  await expect(page.locator('#summarySubjectDistribution')).toContainText('100%｜15 分');
+  await page.locator('#subjectBack').click();
+  await expect(page.locator('#subjectTitle')).toHaveText('科目分配');
 
   await page.getByRole('tab', { name: '月' }).click();
   await expect(page.locator('#calendarTitle')).toHaveText('月曆');
   await expect(page.locator('#wakePeriodLabel')).toHaveText('本月平均');
+  await expect(page.locator('#conclusionTitle')).toHaveText('本月小結');
   await expect(page.locator('.summary-calendar-weekdays')).toBeVisible();
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate());
   await expect(page.locator('#periodLabel')).toContainText('月');

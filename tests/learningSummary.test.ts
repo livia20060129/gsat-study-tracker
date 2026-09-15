@@ -4,10 +4,13 @@ import test from 'node:test';
 
 import {
   calendarLeadingBlankCount,
+  completedStudyTimeEntries,
   completedSubjectTimeForRecord,
+  fixedPeriodRemarks,
   formatClockMinutes,
   shiftSummaryAnchor,
   summarizeLearningPeriod,
+  summarizeStudyItemTime,
   summaryCompletionUnitsForRecord,
   summaryPeriod,
 } from '../src/study/learningSummary.ts';
@@ -75,15 +78,60 @@ test('all overview blocks derive from the same requested period', () => {
   assert.equal(summary.days.length, 7);
 });
 
+test('completed time deduplicates deferred copies and item drilldown totals', () => {
+  const deferredOriginal = item('origin', true, '30', '英文');
+  deferredOriginal.deferred = true;
+  deferredOriginal.deferredTargetDay = 3;
+  const carried = item('carry-a', true, '30', '英文');
+  carried.deferredCarry = true;
+  carried.deferredOriginId = 'origin';
+  carried.title = '英文閱讀';
+  const duplicate = { ...carried, id: 'carry-b' };
+  const entries = completedStudyTimeEntries([
+    record('2026-09-15', [deferredOriginal]),
+    record('2026-09-16', [carried, duplicate]),
+  ]);
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].minutes, 30);
+  const detail = summarizeStudyItemTime(entries, '英文');
+  assert.equal(detail.totalMinutes, 30);
+  assert.equal(detail.slices.reduce((sum, slice) => sum + slice.percent, 0), 100);
+});
+
+test('fixed remarks are deterministic and use the requested five-percent thresholds', () => {
+  const stable = fixedPeriodRemarks(104, 100, 74, 70);
+  assert.equal(stable.timeState, 'stable');
+  assert.equal(stable.completionState, 'stable');
+  assert.equal(stable.time, '本期學習時數大致穩定，可以繼續觀察目前安排是否適合。');
+  assert.equal(stable.completion, '本期完成率大致穩定，可繼續維持並觀察較常卡住的項目。');
+
+  const increase = fixedPeriodRemarks(105, 100, 75, 70);
+  assert.equal(increase.timeState, 'increase');
+  assert.equal(increase.completionState, 'increase');
+  assert.equal(increase.time, '本期學習時數增加，建議維持目前節奏，同時留意休息與負荷。');
+  assert.equal(increase.completion, '本期完成率提升，可以觀察哪些安排有助於任務順利完成。');
+
+  const decrease = fixedPeriodRemarks(94.9, 100, 64.9, 70);
+  assert.equal(decrease.timeState, 'decrease');
+  assert.equal(decrease.completionState, 'decrease');
+  assert.equal(decrease.time, '本期學習時數下降，可回顧近期狀態與排程，確認是否需要調整。');
+  assert.equal(decrease.completion, '本期完成率下降，可檢查是否有任務過多、延期集中或安排不適合的情況。');
+});
+
 test('summary page has one global week/month switch and no separate total-hours card', () => {
   const html = readFileSync(new URL('../summary.html', import.meta.url), 'utf8');
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const config = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
   assert.equal((html.match(/id="summaryModeSwitch"/g) || []).length, 1);
   assert.equal((html.match(/data-summary-mode=/g) || []).length, 2);
+  assert.doesNotMatch(html, /summary-heading-icon/);
   assert.doesNotMatch(html, /總時數/);
-  assert.doesNotMatch(html, /圖內顏色|外圈圓環|0%|25%|50%|75%|100%/);
+  assert.match(html, /圓內深淺＝當日學習時數/);
+  assert.match(html, /深綠完整圓環＝100% 完成/);
+  assert.match(html, /id="subjectBack"/);
+  const runtime = readFileSync(new URL('../src/learning-summary-page.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(runtime, /fetch\(|openai|anthropic|gemini/i);
   assert.match(index, /href="\.\/summary\.html">學習總結<\/a>/);
   assert.match(config, /learningSummary:\s*'\.\/summary\.html'/);
 });
-

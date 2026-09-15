@@ -4,14 +4,22 @@ import {
   SUMMARY_MODES,
   calendarLeadingBlankCount,
   dateKey,
+  fixedPeriodRemarks,
   formatClockMinutes,
   shiftSummaryAnchor,
+  summarizeStudyItemTime,
   summarizeLearningPeriod,
   summaryPeriod,
   type LearningPeriodSummary,
   type SummaryMode,
 } from './study/learningSummary.ts';
-import { SUBJECT_TIME_COLORS, SUBJECT_TIME_SHORT_LABELS } from './study/subjectTime.ts';
+import {
+  SUBJECT_TIME_COLORS,
+  SUBJECT_TIME_SHORT_LABELS,
+  subjectTimeArcPath,
+  subjectTimeDonutSlices,
+  type SubjectTimeSubject,
+} from './study/subjectTime.ts';
 import type { StudyRecord } from './types.ts';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
@@ -19,6 +27,7 @@ const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 let activeMode: SummaryMode = location.hash === '#month' ? 'month' : 'week';
 let activeAnchor = dateKey(new Date());
 let records: StudyRecord[] = [];
+let selectedSubject: SubjectTimeSubject | null = null;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -51,6 +60,52 @@ function comparisonClass(value: number, lowerIsBetter = false): string {
   return better ? 'is-up' : 'is-down';
 }
 
+function formatDateLabel(value: string): string {
+  const [year, month, day] = value.split('-').map(Number);
+  return `${year} 年 ${month} 月 ${day} 日`;
+}
+
+function tintHex(hex: string, ratio: number): string {
+  const value = hex.replace('#', '');
+  const channels = [0, 2, 4].map(index => Number.parseInt(value.slice(index, index + 2), 16));
+  const tinted = channels.map(channel => Math.round(channel + (255 - channel) * ratio));
+  return `#${tinted.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function subjectDonutMarkup(summary: LearningPeriodSummary): string {
+  const arcs = subjectTimeDonutSlices(summary.subjectTime);
+  const paths = arcs.map(slice => `<path class="summary-donut-slice" data-summary-subject-path="${slice.subject}" d="${subjectTimeArcPath(slice)}" fill="none" stroke="${slice.color}" tabindex="0" role="button" aria-label="${slice.subject} ${slice.minutes} 分鐘，占 ${slice.percent}%"></path>`).join('');
+  const labels = arcs.map(slice => {
+    const fontSize = slice.endPercent - slice.startPercent < 6 ? 9.5 : 13;
+    return `<button class="summary-donut-label-button" type="button" data-summary-subject="${slice.subject}" style="left:${slice.labelX / 1.6}%;top:${slice.labelY / 1.6}%;font-size:${fontSize}px" aria-label="查看${slice.subject}項目">${SUBJECT_TIME_SHORT_LABELS[slice.subject]}</button>`;
+  }).join('');
+  return `<div class="summary-donut-shell">
+    <svg class="summary-donut-ring" viewBox="0 0 160 160" aria-label="本期各科完成時間占比">
+      <circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle>${paths}
+    </svg>
+    ${labels}
+    <div class="summary-donut-center"><strong>${summary.subjectTime.totalMinutes}</strong><span>分鐘</span></div>
+  </div>`;
+}
+
+function detailDonutMarkup(
+  totalMinutes: number,
+  slices: Array<{ label: string; minutes: number; percent: number; color: string }>,
+): string {
+  let cursor = 0;
+  const paths = slices.map((slice, index) => {
+    const startPercent = cursor;
+    cursor = index === slices.length - 1 ? 100 : Math.min(100, cursor + slice.percent);
+    return `<path class="summary-donut-slice is-detail" d="${subjectTimeArcPath({ startPercent, endPercent: cursor })}" fill="none" stroke="${slice.color}"><title>${escapeHtml(slice.label)}：${slice.minutes} 分鐘，占 ${slice.percent}%</title></path>`;
+  }).join('');
+  return `<div class="summary-donut-shell is-detail">
+    <svg class="summary-donut-ring" viewBox="0 0 160 160" aria-label="此科目各項目完成時間占比">
+      <circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle>${paths}
+    </svg>
+    <div class="summary-donut-center"><strong>${totalMinutes}</strong><span>分鐘</span></div>
+  </div>`;
+}
+
 function renderCalendar(summary: LearningPeriodSummary): void {
   const calendar = element<HTMLDivElement>('summaryCalendar');
   document.querySelector<HTMLElement>('.summary-calendar-weekdays')!.hidden = activeMode !== 'month';
@@ -62,13 +117,17 @@ function renderCalendar(summary: LearningPeriodSummary): void {
   const blanks = Array.from({ length: blankCount }, () => '<span class="summary-calendar-blank" aria-hidden="true"></span>');
   const days = summary.days.map(day => {
     const intensity = day.totalMinutes > 0 ? 0.12 + 0.58 * day.totalMinutes / maxMinutes : 0;
-    const detail = day.hasRecord
-      ? `${formatMinutes(day.totalMinutes)}｜完成率 ${day.completionPercent}%`
-      : '尚無紀錄';
-    return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-intensity:${intensity}">
-      <span class="summary-day-week">${activeMode === 'week' ? `週${day.weekday}` : ''}</span>
-      <div class="summary-day-ring"><div class="summary-day-core"><strong>${day.dayNumber}</strong></div></div>
-      <span class="summary-day-detail">${escapeHtml(detail)}</span>
+    const timeText = day.hasRecord ? formatMinutes(day.totalMinutes) : '尚無紀錄';
+    return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-intensity:${intensity}">
+      <button class="summary-day-button" type="button" data-summary-day aria-expanded="false" aria-label="${escapeHtml(formatDateLabel(day.date))}，${escapeHtml(timeText)}，完成率 ${day.completionPercent}%">
+        <span class="summary-day-week">${activeMode === 'week' ? `週${day.weekday}` : ''}</span>
+        <span class="summary-day-ring"><span class="summary-day-core"><strong>${day.dayNumber}</strong></span></span>
+      </button>
+      <span class="summary-day-tooltip" role="tooltip">
+        <strong>${escapeHtml(formatDateLabel(day.date))}</strong>
+        <span>學習時間：${escapeHtml(timeText)}</span>
+        <span>完成率：${day.completionPercent}%</span>
+      </span>
     </article>`;
   });
   calendar.innerHTML = [...blanks, ...days].join('');
@@ -76,19 +135,34 @@ function renderCalendar(summary: LearningPeriodSummary): void {
 
 function renderSubjectDistribution(summary: LearningPeriodSummary): void {
   const target = element<HTMLDivElement>('summarySubjectDistribution');
-  const slices = summary.subjectTime.slices;
-  if (!slices.length) {
-    target.innerHTML = `<div class="summary-donut is-empty"><div><strong>0</strong><span>分鐘</span></div></div><p class="summary-empty">本期尚無完成時間紀錄。</p>`;
+  const title = element<HTMLHeadingElement>('subjectTitle');
+  const back = element<HTMLButtonElement>('subjectBack');
+  if (selectedSubject) {
+    target.dataset.view = 'detail';
+    const detail = summarizeStudyItemTime(summary.timeEntries, selectedSubject);
+    title.textContent = `科目分配｜${selectedSubject}`;
+    back.hidden = false;
+    const baseColor = SUBJECT_TIME_COLORS[selectedSubject];
+    const maxPercent = Math.max(1, ...detail.slices.map(slice => slice.percent));
+    const slices = detail.slices.map(slice => ({
+      ...slice,
+      color: tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
+    }));
+    const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span>${escapeHtml(slice.label)}</span><strong>${slice.percent}%｜${slice.minutes} 分</strong></li>`).join('');
+    target.innerHTML = slices.length
+      ? `${detailDonutMarkup(detail.totalMinutes, slices)}<ul class="summary-subject-detail-list">${list}</ul>`
+      : `<div class="summary-donut-shell is-empty"><div class="summary-donut-center"><strong>0</strong><span>分鐘</span></div></div><p class="summary-empty">本期尚無此科目的完成時間紀錄。</p>`;
     return;
   }
-  let cursor = 0;
-  const stops = slices.map(slice => {
-    const start = cursor;
-    cursor += slice.percent;
-    return `${slice.color} ${start}% ${Math.min(100, cursor)}%`;
-  }).join(',');
-  const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span>${SUBJECT_TIME_SHORT_LABELS[slice.subject]}｜${slice.subject}</span><strong>${slice.percent}%</strong></li>`).join('');
-  target.innerHTML = `<div class="summary-donut" style="--donut:${stops}"><div><strong>${summary.subjectTime.totalMinutes}</strong><span>分鐘</span></div></div><ul>${list}</ul>`;
+  title.textContent = '科目分配';
+  back.hidden = true;
+  target.dataset.view = 'subjects';
+  const slices = summary.subjectTime.slices;
+  if (!slices.length) {
+    target.innerHTML = `<div class="summary-donut-shell is-empty"><svg class="summary-donut-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle></svg><div class="summary-donut-center"><strong>0</strong><span>分鐘</span></div></div><p class="summary-empty">本期尚無完成時間紀錄。</p>`;
+    return;
+  }
+  target.innerHTML = subjectDonutMarkup(summary);
 }
 
 function renderTrend(summary: LearningPeriodSummary): void {
@@ -141,19 +215,18 @@ function renderComparison(current: LearningPeriodSummary, previous: LearningPeri
 }
 
 function renderConclusion(current: LearningPeriodSummary, previous: LearningPeriodSummary): void {
+  const remarks = fixedPeriodRemarks(
+    current.subjectTime.totalMinutes,
+    previous.subjectTime.totalMinutes,
+    current.completion.settlementPercent,
+    previous.completion.settlementPercent,
+  );
+  const stateTitle = { increase: '增加', stable: '持平', decrease: '下降' } as const;
   const timeDelta = current.subjectTime.totalMinutes - previous.subjectTime.totalMinutes;
   const completionDelta = current.completion.settlementPercent - previous.completion.settlementPercent;
-  const timeTitle = timeDelta > 0 ? '學習時間增加' : timeDelta < 0 ? '學習時間減少' : '學習時間持平';
-  const completionTitle = completionDelta > 0 ? '完成度提高' : completionDelta < 0 ? '完成度下降' : '完成度持平';
-  const timeText = timeDelta === 0
-    ? '本期與上期的完成學習時間相同。'
-    : `本期比上期${timeDelta > 0 ? '多' : '少'}了 ${formatMinutes(Math.abs(timeDelta))}。`;
-  const completionText = completionDelta === 0
-    ? `本期完成率維持在 ${current.completion.settlementPercent}%。`
-    : `本期完成率比上期${completionDelta > 0 ? '提高' : '降低'} ${Math.abs(completionDelta)} 個百分點。`;
   element<HTMLDivElement>('summaryConclusion').innerHTML = `
-    <article class="${comparisonClass(timeDelta)}"><strong>${timeTitle}</strong><p>${timeText}</p></article>
-    <article class="${comparisonClass(completionDelta)}"><strong>${completionTitle}</strong><p>${completionText}</p></article>`;
+    <article class="${comparisonClass(timeDelta)}"><strong>學習時數${stateTitle[remarks.timeState]}</strong><p>${remarks.time}</p></article>
+    <article class="${comparisonClass(completionDelta)}"><strong>完成率${stateTitle[remarks.completionState]}</strong><p>${remarks.completion}</p></article>`;
 }
 
 function renderAll(): void {
@@ -172,6 +245,7 @@ function renderAll(): void {
   element<HTMLButtonElement>('previousPeriod').ariaLabel = activeMode === 'week' ? '上一週' : '上一月';
   element<HTMLButtonElement>('nextPeriod').ariaLabel = activeMode === 'week' ? '下一週' : '下一月';
   element<HTMLParagraphElement>('wakePeriodLabel').textContent = activeMode === 'week' ? '本週平均' : '本月平均';
+  element<HTMLHeadingElement>('conclusionTitle').textContent = activeMode === 'week' ? '本週小結' : '本月小結';
   element<HTMLElement>('averageWakeTime').textContent = formatClockMinutes(current.averageWakeMinutes);
   renderCalendar(current);
   renderSubjectDistribution(current);
@@ -214,6 +288,41 @@ element<HTMLButtonElement>('previousPeriod').addEventListener('click', () => {
 element<HTMLButtonElement>('nextPeriod').addEventListener('click', () => {
   activeAnchor = shiftSummaryAnchor(activeAnchor, activeMode, 1);
   renderAll();
+});
+element<HTMLButtonElement>('subjectBack').addEventListener('click', () => {
+  selectedSubject = null;
+  renderAll();
+});
+element<HTMLDivElement>('summarySubjectDistribution').addEventListener('click', event => {
+  const button = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-subject], [data-summary-subject-path]');
+  if (!button) return;
+  const subject = (button.dataset.summarySubject ?? button.dataset.summarySubjectPath) as SubjectTimeSubject;
+  if (!(subject in SUBJECT_TIME_COLORS)) return;
+  selectedSubject = subject;
+  renderAll();
+});
+element<HTMLDivElement>('summarySubjectDistribution').addEventListener('keydown', event => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const path = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-subject-path]');
+  if (!path) return;
+  event.preventDefault();
+  path.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+});
+element<HTMLDivElement>('summaryCalendar').addEventListener('click', event => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-summary-day]');
+  if (!button) return;
+  const day = button.closest<HTMLElement>('.summary-day');
+  if (!day) return;
+  const open = !day.classList.contains('is-tooltip-open');
+  document.querySelectorAll('.summary-day.is-tooltip-open').forEach(node => node.classList.remove('is-tooltip-open'));
+  document.querySelectorAll<HTMLButtonElement>('[data-summary-day]').forEach(node => node.setAttribute('aria-expanded', 'false'));
+  day.classList.toggle('is-tooltip-open', open);
+  button.setAttribute('aria-expanded', String(open));
+});
+document.addEventListener('click', event => {
+  if ((event.target as HTMLElement).closest('.summary-day')) return;
+  document.querySelectorAll('.summary-day.is-tooltip-open').forEach(node => node.classList.remove('is-tooltip-open'));
+  document.querySelectorAll<HTMLButtonElement>('[data-summary-day]').forEach(node => node.setAttribute('aria-expanded', 'false'));
 });
 window.addEventListener('storage', loadRecords);
 loadRecords();

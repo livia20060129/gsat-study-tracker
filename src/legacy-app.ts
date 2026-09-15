@@ -29,7 +29,7 @@ import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } fro
 import { SUBJECT_TIME_SHORT_LABELS, subjectTimeArcPath, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
-import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer } from './study/studyTimer';
+import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer, studyTimerFromManualMinutes } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
@@ -3139,7 +3139,10 @@ function selectTimerModeFromControl(item,control){
   if(state.startedAt!==null)state=pauseStudyTimer(state);
   state.mode='manual';setTimerStateForTarget(target,state);
   if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
- }else{state.mode='timer';setTimerStateForTarget(target,state)}
+ }else{
+  var manualMinutes=target.entry?target.entry.minutes:target.item.minutes;
+  state=studyTimerFromManualMinutes(manualMinutes);setTimerStateForTarget(target,state)
+ }
  persistTimerTarget(target);render();
 }
 function runTimerAction(item,control,action){

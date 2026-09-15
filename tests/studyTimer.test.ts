@@ -10,6 +10,7 @@ import {
   setTimedEntryMinutes,
   startStudyTimer,
   studyTimerElapsedSeconds,
+  studyTimerFromManualMinutes,
   timerMinutesValue,
 } from '../src/study/studyTimer.ts';
 
@@ -33,6 +34,15 @@ test('starts, pauses, and resumes by timestamp instead of relying on interval ti
   assert.deepEqual(paused, { mode: 'timer', accumulatedSeconds: 65, startedAt: null });
   const resumed = startStudyTimer(paused, 100_000);
   assert.equal(studyTimerElapsedSeconds(resumed, 105_000), 70);
+});
+
+test('switching from manual time seeds the timer at the nearest second', () => {
+  assert.deepEqual(studyTimerFromManualMinutes('12.5'), {
+    mode: 'timer', accumulatedSeconds: 750, startedAt: null,
+  });
+  assert.equal(formatStudyTimer(studyTimerFromManualMinutes('1.234')), '01:14');
+  assert.equal(formatStudyTimer(studyTimerFromManualMinutes('')), '00:00');
+  assert.equal(formatStudyTimer(studyTimerFromManualMinutes('-3')), '00:00');
 });
 
 test('formats elapsed time only as minutes and seconds even past one hour', () => {
