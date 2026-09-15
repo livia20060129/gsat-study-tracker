@@ -168,9 +168,10 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
       ...slice,
       color: tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
     }));
+    const detailRows = Math.max(1, Math.ceil(slices.length / 4));
     const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${formatHours(slice.minutes)} hr</span></li>`).join('');
     target.innerHTML = slices.length
-      ? `${detailDonutMarkup(detail.totalMinutes, slices)}<ul class="summary-subject-detail-list">${list}</ul>`
+      ? `${detailDonutMarkup(detail.totalMinutes, slices)}<ul class="summary-subject-detail-list" style="--summary-detail-rows:${detailRows}">${list}</ul>`
       : `<div class="summary-donut-shell is-empty"><div class="summary-donut-center"><strong>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無此科目的完成時間紀錄。</p>`;
     if (animateSubjectDetail) {
       target.getBoundingClientRect();

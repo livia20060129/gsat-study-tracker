@@ -208,7 +208,9 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /相較上週/);
   assert.match(runtime, /小時 \$\{wakeDifference % 60\} 分鐘/);
   assert.match(styles, /summary-subject-detail-list\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
-  assert.match(styles, /summary-subject-detail-list\{display:block;column-count:4/);
+  assert.match(styles, /summary-subject-detail-list\{display:grid;grid-template-columns:none;grid-template-rows:repeat\(var\(--summary-detail-rows,1\),auto\);grid-auto-flow:column/);
+  assert.match(runtime, /const detailRows = Math\.max\(1, Math\.ceil\(slices\.length \/ 4\)\)/);
+  assert.match(runtime, /--summary-detail-rows:\$\{detailRows\}/);
   assert.match(styles, /summary-dashboard-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   assert.match(runtime, /trend-time-tick/);
   assert.match(runtime, /\$\{timeTick\} hr/);
