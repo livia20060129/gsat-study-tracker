@@ -28,6 +28,7 @@ let activeMode: SummaryMode = location.hash === '#month' ? 'month' : 'week';
 let activeAnchor = dateKey(new Date());
 let records: StudyRecord[] = [];
 let selectedSubject: SubjectTimeSubject | null = null;
+let animateSubjectDetail = false;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -139,6 +140,8 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
   const back = element<HTMLButtonElement>('subjectBack');
   if (selectedSubject) {
     target.dataset.view = 'detail';
+    target.classList.toggle('animate-detail-entry', animateSubjectDetail);
+    target.classList.remove('is-detail-ready');
     const detail = summarizeStudyItemTime(summary.timeEntries, selectedSubject);
     title.textContent = `科目分配｜${selectedSubject}`;
     back.hidden = false;
@@ -148,15 +151,23 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
       ...slice,
       color: tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
     }));
-    const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span>${escapeHtml(slice.label)}</span><strong>${slice.percent}%｜${slice.minutes} 分</strong></li>`).join('');
+    const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${slice.minutes} 分鐘</span></li>`).join('');
     target.innerHTML = slices.length
       ? `${detailDonutMarkup(detail.totalMinutes, slices)}<ul class="summary-subject-detail-list">${list}</ul>`
       : `<div class="summary-donut-shell is-empty"><div class="summary-donut-center"><strong>0</strong><span>分鐘</span></div></div><p class="summary-empty">本期尚無此科目的完成時間紀錄。</p>`;
+    if (animateSubjectDetail) {
+      target.getBoundingClientRect();
+      requestAnimationFrame(() => target.classList.add('is-detail-ready'));
+    } else {
+      target.classList.add('is-detail-ready');
+    }
+    animateSubjectDetail = false;
     return;
   }
   title.textContent = '科目分配';
   back.hidden = true;
   target.dataset.view = 'subjects';
+  target.classList.remove('animate-detail-entry', 'is-detail-ready');
   const slices = summary.subjectTime.slices;
   if (!slices.length) {
     target.innerHTML = `<div class="summary-donut-shell is-empty"><svg class="summary-donut-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle></svg><div class="summary-donut-center"><strong>0</strong><span>分鐘</span></div></div><p class="summary-empty">本期尚無完成時間紀錄。</p>`;
@@ -299,6 +310,7 @@ element<HTMLDivElement>('summarySubjectDistribution').addEventListener('click', 
   const subject = (button.dataset.summarySubject ?? button.dataset.summarySubjectPath) as SubjectTimeSubject;
   if (!(subject in SUBJECT_TIME_COLORS)) return;
   selectedSubject = subject;
+  animateSubjectDetail = true;
   renderAll();
 });
 element<HTMLDivElement>('summarySubjectDistribution').addEventListener('keydown', event => {

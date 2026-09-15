@@ -257,21 +257,37 @@ function normalizedTimeSubject(item: StudyItem, fallback?: SubjectTimeSubject): 
   return fallback ?? '其他';
 }
 
+function withoutSubjectPrefix(value: unknown): string {
+  return text(value)
+    .replace(/^(?:數學\s*A?|數\s*A|國文|英文|自然|社會|物理|化學|生物|地科)\s*(?:[｜|：:·\-–—]\s*)?/i, '')
+    .trim();
+}
+
+function lectureVersionLabel(item: StudyItem): string {
+  const material = withoutSubjectPrefix(item.f?.material);
+  const rawBook = text(item.f?.book);
+  const book = rawBook && !/冊$/.test(rawBook) ? `${rawBook}冊` : rawBook;
+  return [material, book]
+    .filter(Boolean)
+    .filter((part, index, parts) => index === 0 || !parts[0].includes(part))
+    .join(' ');
+}
+
 function studyItemTimeLabel(item: StudyItem, fallback = ''): string {
-  const explicit = text(item.f?.title) || text(item.title);
-  const naturalSubject = text(item.f?.subject);
-  if (item.type === 'magazine') return '英文雜誌';
+  const explicit = withoutSubjectPrefix(text(item.f?.title) || text(item.title));
+  const fallbackLabel = withoutSubjectPrefix(fallback);
+  const lectureVersion = lectureVersionLabel(item);
+  if (item.type === 'magazine') return fallbackLabel || explicit || '雜誌';
   if (item.type === 'englishVocabInteractive') return '單字／片語';
   if (item.type === 'englishMixedWriting') return '混合題與作文';
-  if (item.type === 'mathStudy' || item.type === 'mathLecture') return '數學講義進度';
-  if (item.type === 'mathPractice') return '數學講義題目';
-  if (item.type === 'mathOral') return '數學互動題';
-  if (item.type === 'biologyInteractive') return '生物互動題';
-  if (item.type === 'scienceReview' && /物理|化學|生物|地科/.test(naturalSubject)) return naturalSubject;
-  if (item.type === 'chineseReading') return explicit || '國文閱讀';
+  if (item.type === 'mathStudy' || item.type === 'mathLecture') return lectureVersion ? `${lectureVersion}｜進度` : '講義進度';
+  if (item.type === 'mathPractice') return lectureVersion ? `${lectureVersion}｜題目` : '講義題目';
+  if (item.type === 'mathOral' || item.type === 'biologyInteractive') return '互動題';
+  if (item.type === 'scienceReview') return lectureVersion || explicit || fallbackLabel || '講義複習';
+  if (item.type === 'chineseReading') return explicit || fallbackLabel || '閱讀';
   if (item.type === 'mock') return explicit || '歷屆／模考';
-  if (item.type === 'englishPractice') return explicit || '英文閱讀／練習';
-  return explicit || fallback || '其他項目';
+  if (item.type === 'englishPractice') return explicit || fallbackLabel || '閱讀／練習';
+  return explicit || fallbackLabel || '其他項目';
 }
 
 function stableTimeKey(recordDate: string, item: StudyItem, label: string, childKey = ''): string {

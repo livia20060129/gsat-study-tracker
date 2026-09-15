@@ -120,8 +120,8 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('完成率');
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜英文');
-  await expect(page.locator('#summarySubjectDistribution')).toContainText('英文閱讀');
-  await expect(page.locator('#summarySubjectDistribution')).toContainText('100%｜15 分');
+  await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveText('閱讀');
+  await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-value')).toHaveText('100%｜15 分鐘');
   await page.locator('#subjectBack').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配');
 

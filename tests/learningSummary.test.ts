@@ -99,6 +99,21 @@ test('completed time deduplicates deferred copies and item drilldown totals', ()
   assert.equal(detail.slices.reduce((sum, slice) => sum + slice.percent, 0), 100);
 });
 
+test('subject drilldown omits repeated subject names and separates lecture versions', () => {
+  const entries = completedStudyTimeEntries([record('2026-09-16', [
+    { id: 'math-teaching', type: 'mathStudy', done: true, minutes: '20', required: true, f: { material: '教學講義', book: '2' } },
+    { id: 'math-key', type: 'mathStudy', done: true, minutes: '25', required: true, f: { material: '新關鍵', book: '1~2' } },
+    { id: 'english-reading', type: 'englishPractice', title: '英文閱讀', done: true, minutes: '15', required: true, f: { subject: '英文' } },
+  ])]);
+
+  assert.deepEqual(
+    entries.filter(entry => entry.subject === '數學').map(entry => entry.itemLabel).sort(),
+    ['教學講義 2冊｜進度', '新關鍵 1~2冊｜進度'].sort(),
+  );
+  assert.equal(entries.find(entry => entry.subject === '英文')?.itemLabel, '閱讀');
+  assert.ok(entries.every(entry => !entry.itemLabel.startsWith(entry.subject)));
+});
+
 test('fixed remarks are deterministic and use the requested five-percent thresholds', () => {
   const stable = fixedPeriodRemarks(104, 100, 74, 70);
   assert.equal(stable.timeState, 'stable');
@@ -131,7 +146,10 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(html, /深綠完整圓環＝100% 完成/);
   assert.match(html, /id="subjectBack"/);
   const runtime = readFileSync(new URL('../src/learning-summary-page.ts', import.meta.url), 'utf8');
+  const styles = readFileSync(new URL('../src/learning-summary.css', import.meta.url), 'utf8');
   assert.doesNotMatch(runtime, /fetch\(|openai|anthropic|gemini/i);
+  assert.match(styles, /background:rgba\(82,139,208,var\(--day-intensity\)\)/);
+  assert.match(styles, /\.summary-day\.is-complete\{--day-accent:#256b49\}/);
   assert.match(index, /href="\.\/summary\.html">學習總結<\/a>/);
   assert.match(config, /learningSummary:\s*'\.\/summary\.html'/);
 });
