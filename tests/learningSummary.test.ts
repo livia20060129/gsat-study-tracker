@@ -220,6 +220,7 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /remarkClass\[remarks\.completionState\]/);
   assert.match(html, /id="summaryContent"/);
   assert.match(runtime, /function switchSummaryMode\(mode: SummaryMode\)/);
+  assert.match(runtime, /exit\.cancel\(\);\s*applyMode\(\);/);
   assert.match(runtime, /height: `\$\{beforeHeight\}px`/);
   assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back header-action-link"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
   assert.match(index, /class="header-action-link" href="\.\/summary\.html">學習總結<\/a>/);

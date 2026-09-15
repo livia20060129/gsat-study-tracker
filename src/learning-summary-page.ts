@@ -358,6 +358,7 @@ function switchSummaryMode(mode: SummaryMode): void {
   summaryModeAnimation = exit;
   void exit.finished.then(() => {
     if (token !== summaryModeTransitionToken) return;
+    exit.cancel();
     applyMode();
     const afterHeight = content.getBoundingClientRect().height;
     const enter = content.animate([

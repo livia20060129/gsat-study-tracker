@@ -144,6 +144,8 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#calendarTitle')).toHaveText('月曆');
   await expect(page.locator('#wakePeriodLabel')).toHaveText('本月平均');
   await expect(page.locator('#conclusionTitle')).toHaveText('本月小結');
+  await expect(page.locator('#summaryContent')).not.toHaveClass(/is-mode-transitioning/);
+  await expect.poll(() => page.locator('#summaryContent').evaluate(node => getComputedStyle(node).opacity)).toBe('1');
   await expect(page.locator('.summary-calendar-weekdays')).toBeVisible();
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate());
   await expect(page.locator('#periodLabel')).toContainText('月');

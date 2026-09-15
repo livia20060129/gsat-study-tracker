@@ -27,7 +27,7 @@ test('keyboard segment navigation wraps in both directions', () => {
   assert.equal(adjacentOverviewMetric('minutes', -1), 'mathWeek');
 });
 
-test('overview metric panels resize smoothly and keep both completion metrics centered side by side', () => {
+test('overview metric panels resize smoothly and keep stacked completion metrics left aligned in a centered group', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
@@ -36,7 +36,9 @@ test('overview metric panels resize smoothly and keep both completion metrics ce
   assert.match(html, /class="metric-panel-stage"/);
   assert.match(styles, /metric-panel-stage\{[^}]*transition:min-height/);
   assert.match(styles, /overview-metric-stat\[data-metric-view="minutes"\]\{--metric-panel-height:282px\}/);
-  assert.match(styles, /completion-stat #completionRatePanel\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)[^}]*align-content:center/);
+  assert.match(styles, /completion-stat #completionRatePanel\{grid-template-columns:minmax\(0,420px\);justify-content:center;align-content:center/);
+  assert.match(styles, /completion-stat \.completion-metric-head\{flex-direction:row;align-items:baseline;justify-content:space-between;text-align:left\}/);
+  assert.match(styles, /completion-stat \.completion-metric \.small\{text-align:left\}/);
   assert.match(runtime, /card\.dataset\.metricView=overviewMetricView/);
   assert.match(runtime, /panel\.classList\.toggle\('is-active',selected\)/);
 });
