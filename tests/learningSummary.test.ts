@@ -208,6 +208,7 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /相較上週/);
   assert.match(runtime, /小時 \$\{wakeDifference % 60\} 分鐘/);
   assert.match(styles, /summary-subject-detail-list\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(styles, /summary-subject-detail-list\{display:block;column-count:4/);
   assert.match(styles, /summary-dashboard-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   assert.match(runtime, /trend-time-tick/);
   assert.match(runtime, /\$\{timeTick\} hr/);
@@ -215,6 +216,9 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(styles, /summary-conclusion article\.is-flat\{background:#edf5fc\}/);
   assert.match(runtime, /remarkClass\[remarks\.timeState\]/);
   assert.match(runtime, /remarkClass\[remarks\.completionState\]/);
+  assert.match(html, /id="summaryContent"/);
+  assert.match(runtime, /function switchSummaryMode\(mode: SummaryMode\)/);
+  assert.match(runtime, /height: `\$\{beforeHeight\}px`/);
   assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back header-action-link"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
   assert.match(index, /class="header-action-link" href="\.\/summary\.html">學習總結<\/a>/);
   assert.doesNotMatch(index, /本週趨勢|completionTrendPanel|completionViewTabs/);

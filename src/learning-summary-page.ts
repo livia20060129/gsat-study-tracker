@@ -29,6 +29,8 @@ let activeAnchor = dateKey(new Date());
 let records: StudyRecord[] = [];
 let selectedSubject: SubjectTimeSubject | null = null;
 let animateSubjectDetail = false;
+let summaryModeAnimation: Animation | null = null;
+let summaryModeTransitionToken = 0;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -329,6 +331,47 @@ function renderAll(): void {
   renderConclusion(current, previous);
 }
 
+function switchSummaryMode(mode: SummaryMode): void {
+  if (mode === activeMode) return;
+  const content = element<HTMLDivElement>('summaryContent');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const applyMode = () => {
+    activeMode = mode;
+    history.replaceState(null, '', `${location.pathname}${location.search}#${mode}`);
+    renderAll();
+  };
+  if (reducedMotion) {
+    summaryModeAnimation?.cancel();
+    summaryModeAnimation = null;
+    applyMode();
+    return;
+  }
+  const token = ++summaryModeTransitionToken;
+  const beforeHeight = content.getBoundingClientRect().height;
+  summaryModeAnimation?.cancel();
+  content.classList.add('is-mode-transitioning');
+  const exit = content.animate([
+    { opacity: 1, transform: 'translateY(0)' },
+    { opacity: 0, transform: 'translateY(-7px)' },
+  ], { duration: 130, easing: 'ease-out', fill: 'forwards' });
+  summaryModeAnimation = exit;
+  void exit.finished.then(() => {
+    if (token !== summaryModeTransitionToken) return;
+    applyMode();
+    const afterHeight = content.getBoundingClientRect().height;
+    const enter = content.animate([
+      { height: `${beforeHeight}px`, opacity: 0, transform: 'translateY(9px)' },
+      { height: `${afterHeight}px`, opacity: 1, transform: 'translateY(0)' },
+    ], { duration: 360, easing: 'cubic-bezier(.2,.78,.2,1)' });
+    summaryModeAnimation = enter;
+    void enter.finished.then(() => {
+      if (token !== summaryModeTransitionToken) return;
+      summaryModeAnimation = null;
+      content.classList.remove('is-mode-transitioning');
+    }).catch(() => {});
+  }).catch(() => {});
+}
+
 function loadRecords(): void {
   try {
     const result = readMaterialProgressRecords(localStorage);
@@ -352,9 +395,7 @@ element<HTMLDivElement>('summaryModeSwitch').addEventListener('click', event => 
   if (!button) return;
   const mode = button.dataset.summaryMode as SummaryMode;
   if (!SUMMARY_MODES.includes(mode)) return;
-  activeMode = mode;
-  history.replaceState(null, '', `${location.pathname}${location.search}#${mode}`);
-  renderAll();
+  switchSummaryMode(mode);
 });
 element<HTMLButtonElement>('previousPeriod').addEventListener('click', () => {
   activeAnchor = shiftSummaryAnchor(activeAnchor, activeMode, -1);

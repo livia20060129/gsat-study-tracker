@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -24,4 +25,18 @@ test('keyboard segment navigation wraps in both directions', () => {
   assert.equal(adjacentOverviewMetric('minutes', 1), 'mathToday');
   assert.equal(adjacentOverviewMetric('mathWeek', 1), 'minutes');
   assert.equal(adjacentOverviewMetric('minutes', -1), 'mathWeek');
+});
+
+test('overview metric panels resize smoothly and keep both completion metrics centered side by side', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
+
+  assert.match(html, /id="overviewStats"/);
+  assert.match(html, /class="metric-panel-stage"/);
+  assert.match(styles, /metric-panel-stage\{[^}]*transition:min-height/);
+  assert.match(styles, /overview-metric-stat\[data-metric-view="minutes"\]\{--metric-panel-height:282px\}/);
+  assert.match(styles, /completion-stat #completionRatePanel\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)[^}]*align-content:center/);
+  assert.match(runtime, /card\.dataset\.metricView=overviewMetricView/);
+  assert.match(runtime, /panel\.classList\.toggle\('is-active',selected\)/);
 });

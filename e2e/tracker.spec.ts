@@ -126,9 +126,13 @@ test('learning summary uses one week/month control for the complete page', async
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜英文');
   await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveCount(5);
-  const detailRows = await page.locator('#summarySubjectDistribution .summary-subject-detail-name').evaluateAll(nodes => nodes.map(node => node.closest('li')?.getBoundingClientRect().top ?? 0));
-  expect(new Set(detailRows.slice(0, 4).map(value => Math.round(value))).size).toBe(1);
-  expect(Math.round(detailRows[4])).toBeGreaterThan(Math.round(detailRows[0]));
+  const detailPositions = await page.locator('#summarySubjectDistribution .summary-subject-detail-name').evaluateAll(nodes => nodes.map(node => {
+    const rect = node.closest('li')?.getBoundingClientRect();
+    return { left: rect?.left ?? 0, top: rect?.top ?? 0 };
+  }));
+  expect(Math.abs(detailPositions[1].left - detailPositions[0].left)).toBeLessThan(3);
+  expect(detailPositions[1].top).toBeGreaterThan(detailPositions[0].top + 8);
+  expect(detailPositions[2].left).toBeGreaterThan(detailPositions[0].left + 8);
   await page.locator('#summarySubjectDistribution [data-summary-back]').first().click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配');
   await page.locator('[data-summary-subject="數學"]').click();

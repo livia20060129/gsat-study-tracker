@@ -3069,7 +3069,8 @@ function updateOverviewMetricView(focusSelected){
  overviewMetricView=normalizeOverviewMetric(overviewMetricView);
  var tabs=id('overviewMetricTabs'),index=overviewMetricIndex(overviewMetricView);tabs.dataset.active=String(index);
  tabs.querySelectorAll('[data-overview-metric]').forEach(function(button){var selected=button.getAttribute('data-overview-metric')===overviewMetricView;button.setAttribute('aria-selected',selected?'true':'false');button.tabIndex=selected?0:-1;if(selected&&focusSelected)button.focus()});
- document.querySelectorAll('[data-metric-panel]').forEach(function(panel){panel.hidden=panel.getAttribute('data-metric-panel')!==overviewMetricView});
+ var card=tabs.closest('.overview-metric-stat');if(card)card.dataset.metricView=overviewMetricView;
+ document.querySelectorAll('[data-metric-panel]').forEach(function(panel){var selected=panel.getAttribute('data-metric-panel')===overviewMetricView;panel.hidden=false;panel.classList.toggle('is-active',selected);panel.setAttribute('aria-hidden',selected?'false':'true');panel.inert=!selected});
 }
 function render(){
  deferredCapacityCache=null;
