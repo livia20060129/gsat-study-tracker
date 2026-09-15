@@ -209,8 +209,16 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /小時 \$\{wakeDifference % 60\} 分鐘/);
   assert.match(styles, /summary-subject-detail-list\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /summary-subject-detail-list\{display:grid;grid-template-columns:none;grid-template-rows:repeat\(var\(--summary-detail-rows,1\),auto\);grid-auto-flow:column/);
-  assert.match(runtime, /const detailRows = Math\.max\(1, Math\.ceil\(slices\.length \/ 4\)\)/);
+  assert.match(runtime, /const detailRows = Math\.max\(1, Math\.min\(4, slices\.length\)\)/);
   assert.match(runtime, /--summary-detail-rows:\$\{detailRows\}/);
+  assert.match(runtime, /pendingSubjectEntryOrigin/);
+  assert.match(runtime, /entryOrigin\.left \+ entryOrigin\.width \/ 2/);
+  assert.match(styles, /summary-day-tooltip\{display:block;visibility:hidden;opacity:0/);
+  assert.match(styles, /grid-template-columns:minmax\(100px,116px\) minmax\(0,1fr\)/);
+  assert.match(styles, /@media\(max-width:650px\)\{\.summary-page\{padding-top:16px\}/);
+  assert.match(styles, /\.summary-heading h1\{font-size:28px\}/);
+  assert.match(styles, /\.summary-back\{width:100%\}/);
+  assert.match(styles, /\.summary-mode-switch>span\{background:#528bd0/);
   assert.match(styles, /summary-dashboard-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
   assert.match(runtime, /trend-time-tick/);
   assert.match(runtime, /\$\{timeTick\} hr/);

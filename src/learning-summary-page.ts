@@ -28,7 +28,7 @@ let activeMode: SummaryMode = location.hash === '#month' ? 'month' : 'week';
 let activeAnchor = dateKey(new Date());
 let records: StudyRecord[] = [];
 let selectedSubject: SubjectTimeSubject | null = null;
-let animateSubjectDetail = false;
+let pendingSubjectEntryOrigin: DOMRect | null = null;
 let summaryModeAnimation: Animation | null = null;
 let summaryModeTransitionToken = 0;
 
@@ -157,8 +157,11 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
   const target = element<HTMLDivElement>('summarySubjectDistribution');
   const title = element<HTMLHeadingElement>('subjectTitle');
   if (selectedSubject) {
+    const entryOrigin = pendingSubjectEntryOrigin;
+    const shouldAnimateEntry = Boolean(entryOrigin)
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     target.dataset.view = 'detail';
-    target.classList.toggle('animate-detail-entry', animateSubjectDetail);
+    target.classList.toggle('animate-detail-entry', shouldAnimateEntry);
     target.classList.remove('is-detail-ready');
     const detail = summarizeStudyItemTime(summary.timeEntries, selectedSubject);
     title.textContent = `科目分配｜${selectedSubject}`;
@@ -168,18 +171,32 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
       ...slice,
       color: tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
     }));
-    const detailRows = Math.max(1, Math.ceil(slices.length / 4));
+    const detailRows = Math.max(1, Math.min(4, slices.length));
     const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${formatHours(slice.minutes)} hr</span></li>`).join('');
     target.innerHTML = slices.length
       ? `${detailDonutMarkup(detail.totalMinutes, slices)}<ul class="summary-subject-detail-list" style="--summary-detail-rows:${detailRows}">${list}</ul>`
       : `<div class="summary-donut-shell is-empty"><div class="summary-donut-center"><strong>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無此科目的完成時間紀錄。</p>`;
-    if (animateSubjectDetail) {
+    if (shouldAnimateEntry && entryOrigin) {
       target.getBoundingClientRect();
-      requestAnimationFrame(() => target.classList.add('is-detail-ready'));
+      requestAnimationFrame(() => {
+        const destination = target.querySelector<HTMLElement>('.summary-donut-shell.is-detail');
+        const destinationRect = destination?.getBoundingClientRect();
+        target.classList.add('is-detail-ready');
+        if (!destination || !destinationRect) return;
+        const moveX = entryOrigin.left + entryOrigin.width / 2
+          - (destinationRect.left + destinationRect.width / 2);
+        const moveY = entryOrigin.top + entryOrigin.height / 2
+          - (destinationRect.top + destinationRect.height / 2);
+        const scale = entryOrigin.width / Math.max(1, destinationRect.width);
+        destination.animate([
+          { transform: `translate(${moveX}px, ${moveY}px) scale(${scale})`, opacity: .82 },
+          { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+        ], { duration: 380, easing: 'cubic-bezier(.2,.82,.2,1)' });
+      });
     } else {
       target.classList.add('is-detail-ready');
     }
-    animateSubjectDetail = false;
+    pendingSubjectEntryOrigin = null;
     return;
   }
   title.textContent = '科目分配';
@@ -199,7 +216,7 @@ function returnToSubjectOverview(): void {
   const source = target.querySelector<HTMLElement>('.summary-donut-shell.is-detail');
   const sourceRect = source?.getBoundingClientRect();
   selectedSubject = null;
-  animateSubjectDetail = false;
+  pendingSubjectEntryOrigin = null;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     renderAll();
     return;
@@ -417,8 +434,10 @@ element<HTMLDivElement>('summarySubjectDistribution').addEventListener('click', 
   if (!button) return;
   const subject = (button.dataset.summarySubject ?? button.dataset.summarySubjectPath) as SubjectTimeSubject;
   if (!(subject in SUBJECT_TIME_COLORS)) return;
+  pendingSubjectEntryOrigin = element<HTMLDivElement>('summarySubjectDistribution')
+    .querySelector<HTMLElement>('.summary-donut-shell:not(.is-detail)')
+    ?.getBoundingClientRect() ?? null;
   selectedSubject = subject;
-  animateSubjectDetail = true;
   renderAll();
 });
 element<HTMLDivElement>('summarySubjectDistribution').addEventListener('keydown', event => {

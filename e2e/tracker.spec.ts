@@ -123,6 +123,7 @@ test('learning summary uses one week/month control for the complete page', async
   await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').click();
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('學習時間');
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('完成率');
+  await expect.poll(() => page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip').evaluate(node => getComputedStyle(node).opacity)).toBe('1');
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜英文');
   await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveCount(5);
@@ -130,11 +131,51 @@ test('learning summary uses one week/month control for the complete page', async
     const rect = node.closest('li')?.getBoundingClientRect();
     return { left: rect?.left ?? 0, top: rect?.top ?? 0 };
   }));
-  expect(Math.abs(detailPositions[1].left - detailPositions[0].left)).toBeLessThan(3);
-  expect(detailPositions[1].top).toBeGreaterThan(detailPositions[0].top + 8);
-  expect(detailPositions[2].left).toBeGreaterThan(detailPositions[0].left + 8);
+  for (let index = 1; index < 4; index += 1) {
+    expect(Math.abs(detailPositions[index].left - detailPositions[0].left)).toBeLessThan(3);
+    expect(detailPositions[index].top).toBeGreaterThan(detailPositions[index - 1].top + 8);
+  }
+  expect(detailPositions[4].left).toBeGreaterThan(detailPositions[0].left + 8);
   await page.locator('#summarySubjectDistribution [data-summary-back]').first().click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileHeader = await page.locator('.summary-header').evaluate(node => {
+    const heading = node.querySelector('h1')!.getBoundingClientRect();
+    const back = node.querySelector('.summary-back')!.getBoundingClientRect();
+    const header = node.getBoundingClientRect();
+    return {
+      headingBottom: heading.bottom,
+      headingFontSize: getComputedStyle(node.querySelector('h1')!).fontSize,
+      backTop: back.top,
+      backWidth: back.width,
+      headerWidth: header.width,
+    };
+  });
+  expect(mobileHeader.headingFontSize).toBe('28px');
+  expect(mobileHeader.backTop).toBeGreaterThan(mobileHeader.headingBottom);
+  expect(Math.abs(mobileHeader.backWidth - mobileHeader.headerWidth)).toBeLessThan(3);
+  await page.locator('[data-summary-subject="英文"]').click();
+  await expect(page.locator('#summarySubjectDistribution')).toHaveClass(/animate-detail-entry/);
+  await page.waitForTimeout(420);
+  const mobileDetailLayout = await page.locator('#summarySubjectDistribution').evaluate(node => {
+    const donut = node.querySelector('.summary-donut-shell.is-detail')?.getBoundingClientRect();
+    const items = Array.from(node.querySelectorAll('.summary-subject-detail-list li')).map(item => {
+      const rect = item.getBoundingClientRect();
+      return { left: rect.left, top: rect.top };
+    });
+    return { donutRight: donut?.right ?? 0, items };
+  });
+  expect(mobileDetailLayout.donutRight).toBeLessThan(mobileDetailLayout.items[0].left);
+  for (let index = 1; index < 4; index += 1) {
+    expect(Math.abs(mobileDetailLayout.items[index].left - mobileDetailLayout.items[0].left)).toBeLessThan(3);
+    expect(mobileDetailLayout.items[index].top).toBeGreaterThan(mobileDetailLayout.items[index - 1].top + 8);
+  }
+  expect(mobileDetailLayout.items[4].left).toBeGreaterThan(mobileDetailLayout.items[0].left + 8);
+  await page.locator('#summarySubjectDistribution [data-summary-back]').first().click();
+  await expect(page.locator('#subjectTitle')).toHaveText('科目分配');
+  await page.setViewportSize({ width: 1280, height: 720 });
+
   await page.locator('[data-summary-subject="數學"]').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜數學');
   await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveText('講義進度');
