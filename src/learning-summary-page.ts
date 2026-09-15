@@ -50,6 +50,10 @@ function formatMinutes(value: number): string {
   return minutes > 0 ? `${hours} 小時 ${minutes} 分` : `${hours} 小時`;
 }
 
+function formatHours(value: number): string {
+  return (Math.round(value / 60 * 10) / 10).toFixed(1);
+}
+
 function signed(value: number, suffix: string): string {
   const rounded = Math.round(value * 10) / 10;
   return `${rounded > 0 ? '+' : rounded < 0 ? '' : '±'}${rounded}${suffix}`;
@@ -73,9 +77,16 @@ function tintHex(hex: string, ratio: number): string {
   return `#${tinted.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
 }
 
+function opaqueStudyTimeColor(intensity: number): string {
+  const empty = [247, 250, 253];
+  const full = [82, 139, 208];
+  const ratio = Math.max(0, Math.min(1, intensity));
+  return `rgb(${empty.map((value, index) => Math.round(value + (full[index] - value) * ratio)).join(',')})`;
+}
+
 function subjectDonutMarkup(summary: LearningPeriodSummary): string {
   const arcs = subjectTimeDonutSlices(summary.subjectTime);
-  const paths = arcs.map(slice => `<path class="summary-donut-slice" data-summary-subject-path="${slice.subject}" d="${subjectTimeArcPath(slice)}" fill="none" stroke="${slice.color}" tabindex="0" role="button" aria-label="${slice.subject} ${slice.minutes} 分鐘，占 ${slice.percent}%"></path>`).join('');
+  const paths = arcs.map(slice => `<path class="summary-donut-slice" data-summary-subject-path="${slice.subject}" d="${subjectTimeArcPath(slice)}" fill="none" stroke="${slice.color}" tabindex="0" role="button" aria-label="${slice.subject} ${formatHours(slice.minutes)} 小時，占 ${slice.percent}%"></path>`).join('');
   const labels = arcs.map(slice => {
     const fontSize = slice.endPercent - slice.startPercent < 6 ? 9.5 : 13;
     return `<button class="summary-donut-label-button" type="button" data-summary-subject="${slice.subject}" style="left:${slice.labelX / 1.6}%;top:${slice.labelY / 1.6}%;font-size:${fontSize}px" aria-label="查看${slice.subject}項目">${SUBJECT_TIME_SHORT_LABELS[slice.subject]}</button>`;
@@ -85,7 +96,7 @@ function subjectDonutMarkup(summary: LearningPeriodSummary): string {
       <circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle>${paths}
     </svg>
     ${labels}
-    <div class="summary-donut-center"><strong>${summary.subjectTime.totalMinutes}</strong><span>分鐘</span></div>
+    <div class="summary-donut-center"><strong>${formatHours(summary.subjectTime.totalMinutes)}</strong><span>hr</span></div>
   </div>`;
 }
 
@@ -97,13 +108,13 @@ function detailDonutMarkup(
   const paths = slices.map((slice, index) => {
     const startPercent = cursor;
     cursor = index === slices.length - 1 ? 100 : Math.min(100, cursor + slice.percent);
-    return `<path class="summary-donut-slice is-detail" d="${subjectTimeArcPath({ startPercent, endPercent: cursor })}" fill="none" stroke="${slice.color}"><title>${escapeHtml(slice.label)}：${slice.minutes} 分鐘，占 ${slice.percent}%</title></path>`;
+    return `<path class="summary-donut-slice is-detail" d="${subjectTimeArcPath({ startPercent, endPercent: cursor })}" fill="none" stroke="${slice.color}"><title>${escapeHtml(slice.label)}：${formatHours(slice.minutes)} 小時，占 ${slice.percent}%</title></path>`;
   }).join('');
   return `<div class="summary-donut-shell is-detail">
     <svg class="summary-donut-ring" viewBox="0 0 160 160" aria-label="此科目各項目完成時間占比">
       <circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle>${paths}
     </svg>
-    <div class="summary-donut-center"><strong>${totalMinutes}</strong><span>分鐘</span></div>
+    <div class="summary-donut-center"><strong>${formatHours(totalMinutes)}</strong><span>hr</span></div>
   </div>`;
 }
 
@@ -118,8 +129,9 @@ function renderCalendar(summary: LearningPeriodSummary): void {
   const blanks = Array.from({ length: blankCount }, () => '<span class="summary-calendar-blank" aria-hidden="true"></span>');
   const days = summary.days.map(day => {
     const intensity = day.totalMinutes > 0 ? 0.12 + 0.58 * day.totalMinutes / maxMinutes : 0;
+    const timeColor = opaqueStudyTimeColor(intensity);
     const timeText = day.hasRecord ? formatMinutes(day.totalMinutes) : '尚無紀錄';
-    return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-intensity:${intensity}">
+    return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-time-color:${timeColor}">
       <button class="summary-day-button" type="button" data-summary-day aria-expanded="false" aria-label="${escapeHtml(formatDateLabel(day.date))}，${escapeHtml(timeText)}，完成率 ${day.completionPercent}%">
         <span class="summary-day-week">${activeMode === 'week' ? `週${day.weekday}` : ''}</span>
         <span class="summary-day-ring"><span class="summary-day-core"><strong>${day.dayNumber}</strong></span></span>
@@ -151,10 +163,10 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
       ...slice,
       color: tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
     }));
-    const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${slice.minutes} 分鐘</span></li>`).join('');
+    const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${formatHours(slice.minutes)} hr</span></li>`).join('');
     target.innerHTML = slices.length
       ? `${detailDonutMarkup(detail.totalMinutes, slices)}<ul class="summary-subject-detail-list">${list}</ul>`
-      : `<div class="summary-donut-shell is-empty"><div class="summary-donut-center"><strong>0</strong><span>分鐘</span></div></div><p class="summary-empty">本期尚無此科目的完成時間紀錄。</p>`;
+      : `<div class="summary-donut-shell is-empty"><div class="summary-donut-center"><strong>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無此科目的完成時間紀錄。</p>`;
     if (animateSubjectDetail) {
       target.getBoundingClientRect();
       requestAnimationFrame(() => target.classList.add('is-detail-ready'));
@@ -170,7 +182,7 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
   target.classList.remove('animate-detail-entry', 'is-detail-ready');
   const slices = summary.subjectTime.slices;
   if (!slices.length) {
-    target.innerHTML = `<div class="summary-donut-shell is-empty"><svg class="summary-donut-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle></svg><div class="summary-donut-center"><strong>0</strong><span>分鐘</span></div></div><p class="summary-empty">本期尚無完成時間紀錄。</p>`;
+    target.innerHTML = `<div class="summary-donut-shell is-empty"><svg class="summary-donut-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle></svg><div class="summary-donut-center"><strong>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無完成時間紀錄。</p>`;
     return;
   }
   target.innerHTML = subjectDonutMarkup(summary);

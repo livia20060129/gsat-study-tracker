@@ -148,8 +148,15 @@ test('summary page has one global week/month switch and no separate total-hours 
   const runtime = readFileSync(new URL('../src/learning-summary-page.ts', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/learning-summary.css', import.meta.url), 'utf8');
   assert.doesNotMatch(runtime, /fetch\(|openai|anthropic|gemini/i);
-  assert.match(styles, /background:rgba\(82,139,208,var\(--day-intensity\)\)/);
+  assert.match(runtime, /--day-time-color:\$\{timeColor\}/);
+  assert.match(runtime, /toFixed\(1\)/);
+  assert.match(runtime, /<span>hr<\/span>/);
+  assert.match(styles, /background:var\(--day-time-color\)/);
+  assert.doesNotMatch(styles, /background:rgba\([^)]*var\(--day-intensity\)/);
+  assert.match(styles, /\.summary-day-ring::before\{[^}]*mask:radial-gradient/);
+  assert.match(styles, /\.summary-day-ring\{--day-ring-width:6px;position:relative;background:transparent\}/);
   assert.match(styles, /\.summary-day\.is-complete\{--day-accent:#256b49\}/);
+  assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
   assert.match(index, /href="\.\/summary\.html">學習總結<\/a>/);
   assert.match(config, /learningSummary:\s*'\.\/summary\.html'/);
 });

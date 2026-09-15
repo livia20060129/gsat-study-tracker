@@ -19,12 +19,14 @@
         <strong id="periodLabel"></strong>
         <button id="nextPeriod" type="button" aria-label="下一週">›</button>
       </div>
-      <div class="summary-mode-switch" id="summaryModeSwitch" role="tablist" aria-label="總結尺度" data-active="0">
-        <span aria-hidden="true"></span>
-        <button type="button" role="tab" data-summary-mode="week" aria-selected="true">週</button>
-        <button type="button" role="tab" data-summary-mode="month" aria-selected="false" tabindex="-1">月</button>
+      <div class="summary-view-controls">
+        <a class="summary-back" href="./index.html">回到 Tracker</a>
+        <div class="summary-mode-switch" id="summaryModeSwitch" role="tablist" aria-label="總結尺度" data-active="0">
+          <span aria-hidden="true"></span>
+          <button type="button" role="tab" data-summary-mode="week" aria-selected="true">週</button>
+          <button type="button" role="tab" data-summary-mode="month" aria-selected="false" tabindex="-1">月</button>
+        </div>
       </div>
-      <a class="summary-back" href="./index.html">回到 Tracker</a>
     </header>
 
     <section class="summary-card summary-calendar-card" aria-labelledby="calendarTitle">
