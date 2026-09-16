@@ -116,7 +116,6 @@ export type ParsedCalendarTask =
       time: string;
       pageItems: Array<{ subject: '物理' | '化學' | '生物' | '地科'; start: number; end: number }>;
     })
-  | (ParsedBase & { kind: 'calendarItem' })
   | (ParsedBase & { kind: 'other' });
 
 function normalized(value: string): string {
@@ -620,5 +619,8 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     return { ...base, kind: 'fixedTemplate', template: fixedTemplate, startPage, endPage };
   }
 
-  return { ...base, route: route ?? 'today', kind: 'calendarItem' };
+  // Unknown Calendar events stay in Google Calendar but are not added to Tracker.
+  // A route prefix alone does not make an item recognizable: it must match one
+  // of the supported templates, books, identifiers, or subject formats above.
+  return { ...base, route: route ?? 'today', kind: 'other' };
 }

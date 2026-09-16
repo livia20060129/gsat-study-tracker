@@ -1731,8 +1731,6 @@ function cloudCalendarDefsForDate(date){
    if(!usesBuiltIn)out.push(calendarMathStudyDef(p,token,!p.makeup));
   }else if(p.kind==='fixedTemplate'){
    var fixedDef=calendarFixedTemplateDef(p,token);if(fixedDef)out.push(fixedDef);
-  }else if(p.kind==='calendarItem'){
-   out.push(presetDef('cal_item_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='natural'){
    var nr=resolveNaturalCalendarPlan(p,naturalRecommendationByTopic(p.topic)),nd='Google Calendar API：'+p.title,ff={subject:p.subject,calendarTopic:p.title,calendarSource:'Google Calendar API',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
    if(nr){
