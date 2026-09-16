@@ -22,6 +22,7 @@ test('辨識 Tracker 主要科目', () => {
   assert.equal(studyItemSubject(item('e', 'extra', 'Essential Grammar in Use')), '英文');
   assert.equal(studyItemSubject(item('c', 'chineseReading', '古今悅讀一百')), '國文');
   assert.equal(studyItemSubject(item('s', 'scienceReview', '自然')), '自然');
+  assert.equal(studyItemSubject(item('social', 'general', '歷史複習', '社會')), '社會');
   assert.equal(studyItemSubject(item('mock', 'mock', '歷屆／模考', '數學A')), '數學');
 });
 

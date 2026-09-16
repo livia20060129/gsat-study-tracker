@@ -1744,6 +1744,8 @@ function cloudCalendarDefsForDate(date){
   }else if(p.kind==='naturalIntegration'){
    var ni=cloudNaturalIntegrationDetailsByDate[date]||{};
    out.push(presetDef('cal_natural_'+token,'scienceReview','自然','Google Calendar API：'+p.title+'｜依指定科目與頁碼完成。',true,{subject:'混合',calendarTopic:p.title,calendarSource:'Google Calendar API',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review||'',calendarIntegrationPages:ni.pages||'',calendarIntegrationOutput:ni.output||'',calendarIntegrationMinimum:ni.minimum||'',calendarIntegrationTime:ni.time||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+  }else if(p.kind==='subjectItem'){
+   out.push(presetDef('cal_subject_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{subject:p.subject,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }
   var route=p.makeup?'today':(p.route||'today');
   for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup;out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup;out[oi].f.calendarSourceDate=p.sourceDate||p.date;if(p.identifier)out[oi].f.calendarIdentifier=p.identifier}

@@ -14,11 +14,21 @@ const baseRow = {
   category: 'other',
 };
 
-test('application service ignores a Calendar row without a recognized template', () => {
+test('application service accepts a Calendar row when its subject is recognizable', () => {
   const task = createCalendarStudyTask({
     ...baseRow,
     event_key: 'primary:event-1:2026-09-05',
     title: '今日項目｜複習英文單字',
+  });
+  assert.equal(task?.kind, 'subjectItem');
+  if (task?.kind === 'subjectItem') assert.equal(task.subject, '英文');
+});
+
+test('application service ignores a Calendar row without a recognizable subject', () => {
+  const task = createCalendarStudyTask({
+    ...baseRow,
+    event_key: 'primary:event-unknown:2026-09-05',
+    title: '今日項目｜準備明天行程',
   });
   assert.equal(task, null);
 });

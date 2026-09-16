@@ -11,6 +11,7 @@ export function studyItemSubject(item: StudyItem): string {
   if (/自然|物理|化學|生物|地科/.test(explicitSubject)) return '自然';
   if (/國文/.test(explicitSubject)) return '國文';
   if (/英文/.test(explicitSubject)) return '英文';
+  if (/社會|歷史|地理|公民/.test(explicitSubject)) return '社會';
   const title = `${text(item.title)} ${text(item.f?.title)}`;
   if (/^math|數學|數\s*A/i.test(type) || /數學|數\s*A/.test(title)) return '數學';
   if (/science|biology|physics|chemistry|earth/i.test(type) || /自然|物理|化學|生物|地科/.test(title)) return '自然';

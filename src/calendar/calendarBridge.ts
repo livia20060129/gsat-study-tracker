@@ -55,6 +55,17 @@ export interface CalendarStructuredNote {
   hasStandardFields: boolean;
 }
 
+export type CalendarRecognizedSubject =
+  | '國文'
+  | '英文'
+  | '數學'
+  | '物理'
+  | '化學'
+  | '生物'
+  | '地科'
+  | '自然'
+  | '社會';
+
 export type ParsedCalendarTask =
   | (ParsedBase & {
       kind: 'math';
@@ -116,10 +127,26 @@ export type ParsedCalendarTask =
       time: string;
       pageItems: Array<{ subject: '物理' | '化學' | '生物' | '地科'; start: number; end: number }>;
     })
+  | (ParsedBase & { kind: 'subjectItem'; subject: CalendarRecognizedSubject })
   | (ParsedBase & { kind: 'other' });
 
 function normalized(value: string): string {
   return value.replace(/\r/g, '').replace(/[ \t]+/g, ' ').trim();
+}
+
+/** Minimum admission rule for Calendar rows without a supported template. */
+export function recognizableCalendarSubject(value: string): CalendarRecognizedSubject | null {
+  const identity = normalized(value);
+  if (/物理/.test(identity)) return '物理';
+  if (/化學/.test(identity)) return '化學';
+  if (/生物/.test(identity)) return '生物';
+  if (/地科|地球科學/.test(identity)) return '地科';
+  if (/自然/.test(identity)) return '自然';
+  if (/數學|數\s*A(?:\b|(?=[｜|：:·\-–—\s]))/i.test(identity)) return '數學';
+  if (/國文|國語文/.test(identity)) return '國文';
+  if (/英文|英語|英聽|英語聽力|單字|片語|English/i.test(identity)) return '英文';
+  if (/社會|歷史|地理|公民/.test(identity)) return '社會';
+  return null;
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -619,8 +646,16 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
     return { ...base, kind: 'fixedTemplate', template: fixedTemplate, startPage, endPage };
   }
 
-  // Unknown Calendar events stay in Google Calendar but are not added to Tracker.
-  // A route prefix alone does not make an item recognizable: it must match one
-  // of the supported templates, books, identifiers, or subject formats above.
+  const recognizedSubject = recognizableCalendarSubject(title);
+  if (recognizedSubject) {
+    return {
+      ...base,
+      route: route ?? 'today',
+      kind: 'subjectItem',
+      subject: recognizedSubject,
+    };
+  }
+
+  // A route prefix alone is insufficient: fully unknown rows stay in Calendar.
   return { ...base, route: route ?? 'today', kind: 'other' };
 }
