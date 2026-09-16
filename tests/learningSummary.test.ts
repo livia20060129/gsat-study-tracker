@@ -210,10 +210,10 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.doesNotMatch(styles, /pointer-events:bounding-box/);
   assert.match(runtime, /--day-time-color:\$\{timeColor\}/);
   assert.match(runtime, /summaryMoodClass\(day\.mood\)/);
-  assert.match(styles, /\.summary-day\.is-mood-unwell\{--day-status-color:#FF7575\}/);
-  assert.match(styles, /\.summary-day\.is-mood-tired\{--day-status-color:#FFC78E\}/);
-  assert.match(styles, /\.summary-day\.is-mood-out\{--day-status-color:#fff0bd\}/);
-  assert.match(styles, /background:var\(--day-status-color,var\(--day-time-color\)\)/);
+  assert.match(styles, /\.summary-day\.is-mood-unwell\{--day-mood-color:#FF7575;--day-mood-strength:34%\}/);
+  assert.match(styles, /\.summary-day\.is-mood-tired\{--day-mood-color:#FFC78E;--day-mood-strength:34%\}/);
+  assert.match(styles, /\.summary-day\.is-mood-out\{--day-mood-color:#FFF0BD;--day-mood-strength:34%\}/);
+  assert.match(styles, /background:color-mix\(in srgb,var\(--day-mood-color,var\(--day-time-color\)\) var\(--day-mood-strength,0%\),var\(--day-time-color\)\)/);
   assert.match(runtime, /toFixed\(1\)/);
   assert.match(runtime, /<span>hr<\/span>/);
   assert.match(styles, /background:var\(--day-time-color\)/);
