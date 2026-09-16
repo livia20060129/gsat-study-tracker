@@ -5,8 +5,6 @@ import {
   DEEP_FIFTEEN_BOOK,
   ENGLISH_TOPIC_CLOZE_BOOK,
   ENGLISH_TOPIC_READING_BOOK,
-  ENGLISH_MIXED_30_BOOK,
-  ENGLISH_WEEKLY_PLAN_BOOK,
   pageMappedBookSubject,
   type PageMappedBook,
 } from '../data/bookPageMaps.ts';
@@ -17,12 +15,6 @@ import {
   isAzarGrammarBookTitle,
 } from '../data/azarGrammar.ts';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from '../data/mathMaterialPageMaps.ts';
-import {
-  CHEMISTRY_NAVIGATOR_PAGE_MAP,
-  MATH_GRAND_SLAM_PAGE_MAP,
-  PHYSICS_ADVANTAGE_PAGE_MAP,
-  PHYSICS_COMEBACK_PAGE_MAP,
-} from '../data/lecturePageMaps.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
 import { recordedPageRangeFields } from './recordedPageRange.ts';
@@ -243,15 +235,12 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
   },
   bookDefinition(ENGLISH_TOPIC_READING_BOOK),
   bookDefinition(ENGLISH_TOPIC_CLOZE_BOOK),
-  bookDefinition(ENGLISH_WEEKLY_PLAN_BOOK),
-  bookDefinition(ENGLISH_MIXED_30_BOOK),
   ...Object.entries(TEACHING_MATH_PAGE_MAP).map(([book, rows]) => mathDefinition('教學講義', book, rows)),
   mathDefinition('複習週記', '', REVIEW_WEEKLY_PAGE_MAP),
   mathDefinition('智慧型', '1~2', SMART_12_PAGE_MAP),
   mathDefinition('智慧型', '3A~4A', SMART_34_PAGE_MAP),
   mathDefinition('新關鍵', '1~2', NEWKEY_12_PAGE_MAP),
   mathDefinition('新關鍵', '3A~4A', NEWKEY_34_PAGE_MAP),
-  mathDefinition('新大滿貫', 'A', MATH_GRAND_SLAM_PAGE_MAP),
   ...Object.entries(DAY123_PAGE_MAPS).map(([subject, rows]) => ({
     id: `natural:${subject}:123日的淬鍊`, subject: 'natural' as const,
     title: `自然｜${subject}｜123日的淬鍊`, unitLabel: '章', segments: mappedSegments(rows),
@@ -260,9 +249,6 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
     id: `natural:${subject}:好考點`, subject: 'natural' as const,
     title: `自然｜${subject}｜好考點`, unitLabel: '單元', segments: mappedSegments(rows),
   })),
-  { id: 'natural:化學:領航', subject: 'natural', title: '自然｜化學｜領航', unitLabel: '分項', segments: mappedSegments(CHEMISTRY_NAVIGATOR_PAGE_MAP) },
-  { id: 'natural:物理:優勢', subject: 'natural', title: '自然｜物理｜優勢', unitLabel: '分項', segments: mappedSegments(PHYSICS_ADVANTAGE_PAGE_MAP) },
-  { id: 'natural:物理:逆轉勝', subject: 'natural', title: '自然｜物理｜逆轉勝', unitLabel: '全書', segments: mappedSegments(PHYSICS_COMEBACK_PAGE_MAP) },
 ];
 
 const definitionById = new Map(MATERIAL_DEFINITIONS.map(definition => [definition.id, definition]));
@@ -288,7 +274,6 @@ function normalizeMathMaterial(value: unknown): string {
   if (text.includes('複習週記')) return '複習週記';
   if (text.includes('智慧型')) return '智慧型';
   if (text.includes('新關鍵')) return '新關鍵';
-  if (text.includes('新大滿貫')) return '新大滿貫';
   return text;
 }
 
@@ -305,9 +290,6 @@ function normalizeNaturalMaterial(value: unknown): string {
   const text = String(value ?? '').replace(/\s+/g, '');
   if (text.includes('123日')) return '123日的淬鍊';
   if (text.includes('好考點')) return '好考點';
-  if (text.includes('領航')) return '領航';
-  if (text.includes('優勢')) return '優勢';
-  if (text.includes('逆轉勝')) return '逆轉勝';
   return text;
 }
 

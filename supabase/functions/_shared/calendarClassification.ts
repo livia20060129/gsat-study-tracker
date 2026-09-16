@@ -6,16 +6,13 @@ function normalizedTitle(value: string): string {
 
 function hasStructuredMathNote(description: string): boolean {
   const value = String(description ?? '');
-  return /【講義版本】\s*(?:教學講義|智慧型|新關鍵|新大滿貫|複習週記)/.test(value)
+  return /【講義版本】\s*(?:教學講義|智慧型|新關鍵|複習週記)/.test(value)
     && /【冊別】\s*(?:第\s*)?(?:數學\s*)?(?:A|1|2|3A|4A|1\s*[~～–—\-]\s*2|3A\s*[~～–—\-]\s*4A|2\s*[＋+]\s*(?:3A|4A))(?:\s*冊)?/i.test(value);
 }
 
 /** Classifies one fetched Google Calendar event before it is stored in Supabase. */
 export function classifyCalendarEvent(title: string, description = ''): string {
   const value = normalizedTitle(title);
-  const identifier = String(description ?? '').toUpperCase();
-  if (/GSAT-MATHA-NEW-DAMANFEN/.test(identifier)) return 'math';
-  if (/GSAT-(?:CHEM-LINGHANG|PHYS-(?:YOUSHI|NIZHUANSHENG))/.test(identifier)) return 'natural';
   if (/Essential Grammar in Use/i.test(value)) return 'essentialGrammar';
   if (/^ACE Reading(?:\s*[｜:：]\s*|\s+)第/i.test(value)) return 'ace';
   if (/^(?:國文\s*[｜:：]\s*)?古今悅讀一百(?:\s*[｜:：]\s*|\s+)第/.test(value)) return 'gujin';

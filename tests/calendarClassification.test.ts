@@ -24,16 +24,9 @@ test('recognizes grouped New Key book prefixes without misclassifying natural sc
   assert.equal(classifyCalendarEvent('物理｜牛頓運動定律', '【講義版本】新關鍵'), 'natural');
 });
 
-test('classifies New Grand Slam Math A from its standardized note', () => {
-  assert.equal(classifyCalendarEvent(
-    '矩陣',
-    '【講義版本】新大滿貫\n【冊別】數學A\n【頁碼範圍】316–320',
-  ), 'math');
-});
-
-test('lecture identifiers classify shortened math and natural titles', () => {
-  assert.equal(classifyCalendarEvent('矩陣', '【識別碼】GSAT-MATHA-NEW-DAMANFEN'), 'math');
-  assert.equal(classifyCalendarEvent('酸鹼反應', '【識別碼】GSAT-CHEM-LINGHANG'), 'natural');
-  assert.equal(classifyCalendarEvent('原子光譜', '【識別碼】GSAT-PHYS-YOUSHI'), 'natural');
-  assert.equal(classifyCalendarEvent('複習', '【識別碼】GSAT-PHYS-NIZHUANSHENG'), 'natural');
+test('removed personal materials no longer receive dedicated identifier classification', () => {
+  assert.equal(classifyCalendarEvent('矩陣', '【識別碼】GSAT-MATHA-NEW-DAMANFEN'), 'studyItem');
+  assert.equal(classifyCalendarEvent('酸鹼反應', '【識別碼】GSAT-CHEM-LINGHANG'), 'studyItem');
+  assert.equal(classifyCalendarEvent('原子光譜', '【識別碼】GSAT-PHYS-YOUSHI'), 'studyItem');
+  assert.equal(classifyCalendarEvent('複習', '【識別碼】GSAT-PHYS-NIZHUANSHENG'), 'studyItem');
 });

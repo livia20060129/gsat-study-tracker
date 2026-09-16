@@ -15,8 +15,6 @@ import {
   DEEP_FIFTEEN_BOOK,
   ENGLISH_TOPIC_CLOZE_BOOK,
   ENGLISH_TOPIC_READING_BOOK,
-  ENGLISH_MIXED_30_BOOK,
-  ENGLISH_WEEKLY_PLAN_BOOK,
 } from '../src/data/bookPageMaps.ts';
 import { cloneOriginalItemForMakeup } from '../src/study/makeup.ts';
 import type { StudyItem } from '../src/types.ts';
@@ -26,27 +24,8 @@ test('identifies every supported book from punctuation and surrounding Calendar 
   assert.equal(canonicalPageMappedBook('主題百匯 閱讀寫作新進化'), CHINESE_TOPIC_BOOK);
   assert.equal(canonicalPageMappedBook('英文｜主題百匯：篇章結構．閱讀測驗'), ENGLISH_TOPIC_READING_BOOK);
   assert.equal(canonicalPageMappedBook('【講義版本】主題百匯 克漏字'), ENGLISH_TOPIC_CLOZE_BOOK);
-  assert.equal(canonicalPageMappedBook('英文 學測週計畫'), ENGLISH_WEEKLY_PLAN_BOOK);
-  assert.equal(canonicalPageMappedBook('英文｜混合題30篇 實戰演練'), ENGLISH_MIXED_30_BOOK);
-  assert.equal(canonicalPageMappedBook('【識別碼】GSAT-ENG-WEEKPLAN'), ENGLISH_WEEKLY_PLAN_BOOK);
-  assert.equal(canonicalPageMappedBook('GSAT-ENG-MIXED30'), ENGLISH_MIXED_30_BOOK);
-});
-
-test('uses the supplied endings for the two new English lecture books', () => {
-  assert.equal(
-    bookPageText(ENGLISH_WEEKLY_PLAN_BOOK, 156, 165),
-    '學測模擬試題｜第16回（第1～5冊）（p.156–165）',
-  );
-  assert.equal(
-    bookPageText(ENGLISH_WEEKLY_PLAN_BOOK, 183, 191),
-    '附錄｜附錄2 113學年度學科能力測驗試題（p.183–191）',
-  );
-  assert.equal(
-    bookPageText(ENGLISH_MIXED_30_BOOK, 62, 63),
-    'Chapter 6 聚焦臺灣｜Test 1（p.62–63）',
-  );
-  assert.equal(bookPageText(ENGLISH_MIXED_30_BOOK, 71, 71), '附錄｜測驗用答案紙（p.71）');
-  assert.equal(bookPageText(ENGLISH_MIXED_30_BOOK, 72, 72), '頁碼不在已建立的教材本文範圍內。');
+  assert.equal(canonicalPageMappedBook('英文｜學測週計畫'), null);
+  assert.equal(canonicalPageMappedBook('英文｜混合題30篇實戰演練'), null);
 });
 
 test('looks up the requested topic and lesson, level, or round', () => {

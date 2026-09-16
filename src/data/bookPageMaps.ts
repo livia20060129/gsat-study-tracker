@@ -1,19 +1,13 @@
-import { LECTURE_IDENTIFIERS } from './lecturePageMaps.ts';
-
 export const DEEP_FIFTEEN_BOOK = '深耕十五';
 export const CHINESE_TOPIC_BOOK = '主題百匯：閱讀寫作新進化';
 export const ENGLISH_TOPIC_READING_BOOK = '主題百匯：篇章結構·閱讀測驗';
 export const ENGLISH_TOPIC_CLOZE_BOOK = '主題百匯：克漏字';
-export const ENGLISH_WEEKLY_PLAN_BOOK = '學測週計畫';
-export const ENGLISH_MIXED_30_BOOK = '混合題30篇實戰演練';
 
 export type PageMappedBook =
   | typeof DEEP_FIFTEEN_BOOK
   | typeof CHINESE_TOPIC_BOOK
   | typeof ENGLISH_TOPIC_READING_BOOK
-  | typeof ENGLISH_TOPIC_CLOZE_BOOK
-  | typeof ENGLISH_WEEKLY_PLAN_BOOK
-  | typeof ENGLISH_MIXED_30_BOOK;
+  | typeof ENGLISH_TOPIC_CLOZE_BOOK;
 
 export interface BookPageSection {
   start: number;
@@ -110,56 +104,19 @@ const englishCloze = groupedSections([
   { topic: '社會變遷', starts: [['第一回', 209], ['第二回', 212], ['第三回', 215], ['第四回', 218]], end: 220 },
 ]);
 
-const englishWeeklyPlan = groupedSections([
-  {
-    topic: '學測模擬試題',
-    starts: [
-      ['第1回（第1冊）', 4], ['第2回（第2冊）', 15], ['第3回（第3冊）', 25],
-      ['第4回（第4冊）', 34], ['第5回（第5冊）', 43], ['第6回（第1～2冊）', 51],
-      ['第7回（第1～3冊）', 62], ['第8回（第1～4冊）', 72], ['第9回（第1～5冊）', 83],
-      ['第10回（第1～5冊）', 93], ['第11回（第1～5冊）', 102], ['第12回（第1～5冊）', 112],
-      ['第13回（第1～5冊）', 124], ['第14回（第1～5冊）', 135], ['第15回（第1～5冊）', 146],
-      ['第16回（第1～5冊）', 156],
-    ],
-    end: 165,
-  },
-  {
-    topic: '附錄',
-    starts: [['附錄1 素養混合題演練', 166], ['附錄2 113學年度學科能力測驗試題', 183]],
-    end: 191,
-  },
-]);
-
-const englishMixed30 = groupedSections([
-  { topic: 'Chapter 1 歷史人文', starts: [['Test 1', 2], ['Test 2', 4], ['Test 3', 6], ['Test 4', 8], ['Test 5', 10]], end: 13 },
-  { topic: 'Chapter 2 創意發明', starts: [['Test 1', 14], ['Test 2', 16], ['Test 3', 18], ['Test 4', 20], ['Test 5', 22]], end: 25 },
-  { topic: 'Chapter 3 藝術展現', starts: [['Test 1', 26], ['Test 2', 28], ['Test 3', 30], ['Test 4', 32], ['Test 5', 34]], end: 37 },
-  { topic: 'Chapter 4 自然科學', starts: [['Test 1', 38], ['Test 2', 40], ['Test 3', 42], ['Test 4', 44], ['Test 5', 46]], end: 49 },
-  { topic: 'Chapter 5 動物環境', starts: [['Test 1', 50], ['Test 2', 52], ['Test 3', 54], ['Test 4', 56], ['Test 5', 58]], end: 61 },
-  { topic: 'Chapter 6 聚焦臺灣', starts: [['Test 1', 62], ['Test 2', 64], ['Test 3', 66], ['Test 4', 68], ['Test 5', 70]], end: 70 },
-  { topic: '附錄', starts: [['測驗用答案紙', 71]], end: 71 },
-]);
-
 export const BOOK_PAGE_MAPS: Record<PageMappedBook, BookPageSection[]> = {
   [DEEP_FIFTEEN_BOOK]: deepFifteen,
   [CHINESE_TOPIC_BOOK]: chineseTopics,
   [ENGLISH_TOPIC_READING_BOOK]: englishReading,
   [ENGLISH_TOPIC_CLOZE_BOOK]: englishCloze,
-  [ENGLISH_WEEKLY_PLAN_BOOK]: englishWeeklyPlan,
-  [ENGLISH_MIXED_30_BOOK]: englishMixed30,
 };
 
 export function canonicalPageMappedBook(value: unknown): PageMappedBook | null {
   const title = String(value ?? '').replace(/[：:·‧．]/g, ' ').replace(/\s+/g, ' ').trim();
-  const identifier = title.toUpperCase();
-  if (identifier.includes(LECTURE_IDENTIFIERS.englishWeeklyPlan)) return ENGLISH_WEEKLY_PLAN_BOOK;
-  if (identifier.includes(LECTURE_IDENTIFIERS.englishMixed30)) return ENGLISH_MIXED_30_BOOK;
   if (title.includes('深耕十五')) return DEEP_FIFTEEN_BOOK;
   if (title.includes('主題百匯') && title.includes('閱讀寫作新進化')) return CHINESE_TOPIC_BOOK;
   if (title.includes('主題百匯') && (title.includes('篇章結構') || title.includes('閱讀測驗'))) return ENGLISH_TOPIC_READING_BOOK;
   if (title.includes('主題百匯') && title.includes('克漏字')) return ENGLISH_TOPIC_CLOZE_BOOK;
-  if (title.replace(/\s+/g, '').includes('學測週計畫')) return ENGLISH_WEEKLY_PLAN_BOOK;
-  if (title.replace(/\s+/g, '').includes('混合題30篇實戰演練')) return ENGLISH_MIXED_30_BOOK;
   return null;
 }
 

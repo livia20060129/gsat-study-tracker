@@ -175,42 +175,14 @@ test('records New Key books 3A-4A boundaries and stops at p.187', () => {
   assert.equal(math.segments[6].completionPercent, 3);
 });
 
-test('adds the supplied New Grand Slam Math A map through p.353', () => {
-  const math = materialProgressRows([]).find(row => row.id === 'math:新大滿貫:A');
-  assert.ok(math);
-  assert.equal(math.segments[0].label, '單元1 數與式（p.6–19）');
-  assert.equal(math.segments[13].label, '單元14 矩陣（p.316–348）');
-  assert.equal(math.segments[14].label, '114學年度學科能力測驗（數學A考科）（p.349–353）');
-});
-
-test('adds Navigator, Advantage and Comeback lecture ranges without inventing Comeback unit pages', () => {
-  const rows = materialProgressRows([]);
-  const chemistry = rows.find(row => row.id === 'natural:化學:領航');
-  const physics = rows.find(row => row.id === 'natural:物理:優勢');
-  const comeback = rows.find(row => row.id === 'natural:物理:逆轉勝');
-  assert.ok(chemistry && physics && comeback);
-  assert.equal(chemistry.segments.at(-1)?.label, '第4章 生活中的化學｜4-4 化學的現代應用（p.265–290）');
-  assert.equal(physics.segments.at(-1)?.label, '第6章 量子現象｜6-2 原子光譜（p.230–244）');
-  assert.deepEqual(comeback.segments.map(segment => segment.label), [
-    '16週複習計畫｜來源未提供各單元頁界（p.1–255）',
-  ]);
-});
-
-test('records actual pages for the newly mapped math and natural lectures', () => {
-  const mathItem = item({
-    id: 'grand-slam', type: 'mathLecture', done: true,
-    f: { material: '新大滿貫', book: '數學A', start: '316', end: '320' },
-  });
-  const chemistryItem = item({
-    id: 'navigator', type: 'scienceReview', done: true,
-    f: { subject: '化學', material: '領航', start: '173', end: '187' },
-  });
-  const rows = materialProgressRows([record([mathItem, chemistryItem])]);
-  assert.equal(rows.find(row => row.id === 'math:新大滿貫:A')?.segments[13].recorded, true);
-  assert.match(
-    rows.find(row => row.id === 'natural:化學:領航')?.segments.find(segment => segment.recorded)?.label ?? '',
-    /3-4 水溶液中的酸鹼反應/,
-  );
+test('removed personal materials do not appear in material progress', () => {
+  const rowIds = materialProgressRows([]).map(row => row.id);
+  assert.equal(rowIds.includes('math:新大滿貫:A'), false);
+  assert.equal(rowIds.includes('natural:化學:領航'), false);
+  assert.equal(rowIds.includes('natural:物理:優勢'), false);
+  assert.equal(rowIds.includes('natural:物理:逆轉勝'), false);
+  assert.equal(rowIds.includes('book:學測週計畫'), false);
+  assert.equal(rowIds.includes('book:混合題30篇實戰演練'), false);
 });
 
 test('fills a page-based segment only by its actual covered percentage and deduplicates overlap', () => {

@@ -1,5 +1,4 @@
 import { isListeningTestBookTitle, listeningTestNumbers } from '../data/englishBooks.ts';
-import { lectureIdentifierMatch } from '../data/lecturePageMaps.ts';
 import {
   AZAR_GRAMMAR_BOOK_TITLE,
   azarGrammarChaptersForPages,
@@ -199,7 +198,7 @@ function canonicalMathBook(value: string): string {
 
 function canonicalMathMaterial(value: string): string {
   const text = normalized(value).replace(/\s+/g, '');
-  return ['新大滿貫', '教學講義', '智慧型', '新關鍵', '複習週記'].find(material => text.includes(material)) ?? normalized(value);
+  return ['教學講義', '智慧型', '新關鍵', '複習週記'].find(material => text.includes(material)) ?? normalized(value);
 }
 
 function mathHeading(title: string, description: string): { title: string; book: string } | null {
@@ -331,7 +330,7 @@ function naturalPageRange(value: string): [number | null, number | null] {
 }
 
 function naturalMaterial(value: string): string {
-  return ['123日的淬鍊', '好考點', '新關鍵', '新大滿貫', '大滿貫', '領航', '優勢', '逆轉勝']
+  return ['123日的淬鍊', '好考點', '新關鍵', '大滿貫']
     .find(material => value.includes(material)) ?? '';
 }
 
@@ -453,7 +452,6 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const title = normalized(makeupPrefix?.[2] ?? routedTitle);
   const description = calendarDescriptionText(row.description ?? '');
   const note = calendarStructuredNote(description);
-  const identifiedLecture = lectureIdentifierMatch(note.identifier);
   const structuredSourceDate = note.sourceDate;
   const deferredSource = /[（(]\s*原(?:定|訂)?\s*\d{1,2}\s*\/\s*\d{1,2}\s*[）)]/i.test(title)
     || /(?:【|\[)\s*延期來源\s*(?:】|\])/.test(description)
@@ -484,12 +482,12 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   };
 
   const parsedMathHeading = mathHeading(title, description);
-  const structuredMathMaterial = canonicalMathMaterial(note.material || (identifiedLecture?.kind === 'math' ? identifiedLecture.material : ''));
-  const structuredMathBook = canonicalMathBook(note.book || (identifiedLecture?.kind === 'math' ? identifiedLecture.book : ''));
+  const structuredMathMaterial = canonicalMathMaterial(note.material);
+  const structuredMathBook = canonicalMathBook(note.book);
   const structuredMathNote = note.hasStandardFields
     && Boolean(structuredMathBook)
-    && ['教學講義', '智慧型', '新關鍵', '新大滿貫', '複習週記'].includes(structuredMathMaterial);
-  if (row.category === 'math' || parsedMathHeading || structuredMathNote || identifiedLecture?.kind === 'math') {
+    && ['教學講義', '智慧型', '新關鍵', '複習週記'].includes(structuredMathMaterial);
+  if (row.category === 'math' || parsedMathHeading || structuredMathNote) {
     const legacyProgress = description.match(/(?:【|\[)?\s*單元進度\s*(?:】|\])?\s*[:：]?\s*(\d+)\s*\/\s*(\d+)/);
     const [structuredProgress, structuredTotal] = note.pageRange
       ? [null, null]
@@ -605,9 +603,8 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   }
 
   const natural = title.match(/^(物理|化學|生物|地科)(?:\s*[｜:：]\s*|\s+)(.+)$/);
-  const identifiedNatural = identifiedLecture?.kind === 'natural' ? identifiedLecture : null;
-  if (row.category === 'natural' || natural || identifiedNatural) {
-    if (natural || identifiedNatural) {
+  if (row.category === 'natural' || natural) {
+    if (natural) {
       const pageSource = `${title}\n${description}`;
       const [startPage, endPage] = note.hasStandardFields
         ? structuredPageRange(note.pageRange)
@@ -615,9 +612,9 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
       return {
         ...base,
         kind: 'natural',
-        subject: (natural?.[1] || identifiedNatural?.subject) as '物理' | '化學' | '生物' | '地科',
-        topic: normalized(natural?.[2] || withoutOriginalDate(title)),
-        material: note.material || identifiedNatural?.material || (note.hasStandardFields ? '' : naturalMaterial(pageSource)),
+        subject: natural[1] as '物理' | '化學' | '生物' | '地科',
+        topic: normalized(natural[2]),
+        material: note.material || (note.hasStandardFields ? '' : naturalMaterial(pageSource)),
         startPage,
         endPage,
       };
