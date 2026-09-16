@@ -4147,7 +4147,38 @@ var connectionSettingsPanel=id('connectionSettings');
 var connectionSettingsSummary=connectionSettingsPanel.querySelector(':scope > summary');
 if(connectionSettingsSummary)connectionSettingsSummary.addEventListener('click',function(e){
  if(e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea'))return;
- if(!connectionSettingsPanel.open||connectionSettingsPanel.classList.contains('is-closing')||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ var reduceConnectionMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ var narrowConnectionViewport=window.matchMedia('(max-width: 720px)').matches;
+ if(connectionSettingsPanel.classList.contains('is-opening')||connectionSettingsPanel.classList.contains('is-closing')){e.preventDefault();return}
+ if(!connectionSettingsPanel.open&&!reduceConnectionMotion&&!narrowConnectionViewport){
+  e.preventDefault();
+  var openingSummaryHeight=connectionSettingsSummary.getBoundingClientRect().height;
+  connectionSettingsPanel.classList.add('is-opening');
+  connectionSettingsPanel.style.setProperty('--connection-summary-height',openingSummaryHeight+'px');
+  connectionSettingsPanel.style.height=openingSummaryHeight+'px';
+  connectionSettingsPanel.open=true;
+  var openingExpandedHeight=Math.max(openingSummaryHeight,connectionSettingsPanel.scrollHeight);
+  connectionSettingsPanel.style.setProperty('--connection-expanded-height',openingExpandedHeight+'px');
+  var opened=false;
+  function connectionSettingsOpenTransitionEnd(event){
+   if(event.target!==connectionSettingsPanel||event.propertyName!=='height')return;
+   finishConnectionSettingsOpen();
+  }
+  function finishConnectionSettingsOpen(){
+   if(opened)return;
+   opened=true;
+   connectionSettingsPanel.removeEventListener('transitionend',connectionSettingsOpenTransitionEnd);
+   connectionSettingsPanel.classList.remove('is-opening');
+   connectionSettingsPanel.style.removeProperty('height');
+   connectionSettingsPanel.style.removeProperty('--connection-expanded-height');
+   connectionSettingsPanel.style.removeProperty('--connection-summary-height');
+  }
+  connectionSettingsPanel.addEventListener('transitionend',connectionSettingsOpenTransitionEnd);
+  requestAnimationFrame(function(){requestAnimationFrame(function(){connectionSettingsPanel.style.height=openingExpandedHeight+'px'})});
+  setTimeout(finishConnectionSettingsOpen,520);
+  return;
+ }
+ if(!connectionSettingsPanel.open||reduceConnectionMotion)return;
  e.preventDefault();
  var expandedHeight=connectionSettingsPanel.getBoundingClientRect().height;
  var summaryHeight=connectionSettingsSummary.getBoundingClientRect().height;
@@ -4172,7 +4203,7 @@ if(connectionSettingsSummary)connectionSettingsSummary.addEventListener('click',
  setTimeout(finishConnectionSettingsClose,420);
 });
 connectionSettingsPanel.addEventListener('toggle',function(e){
- if(e.currentTarget.open){
+ if(e.currentTarget.open&&!e.currentTarget.classList.contains('is-opening')){
   e.currentTarget.classList.remove('is-closing');
   e.currentTarget.style.removeProperty('--connection-expanded-height');
   e.currentTarget.style.removeProperty('--connection-summary-height');

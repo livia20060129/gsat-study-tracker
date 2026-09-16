@@ -54,8 +54,14 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
 
 test('connection settings visibly retract before the details element closes', async ({ page }) => {
   const settings = page.locator('#connectionSettings');
+  const collapsedHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
   await settings.locator(':scope > summary').click();
   await expect(settings).toHaveAttribute('open', '');
+  await expect(settings).toHaveClass(/is-opening/);
+  await page.waitForTimeout(120);
+  const openingHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
+  expect(openingHeight).toBeGreaterThan(collapsedHeight + 8);
+  await expect(settings).not.toHaveClass(/is-opening/);
   const expandedHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
 
   await settings.locator(':scope > summary').click();
