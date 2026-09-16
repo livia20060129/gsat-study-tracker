@@ -31,6 +31,7 @@ export interface LearningSummaryDay {
   dayNumber: number;
   weekday: string;
   hasRecord: boolean;
+  mood: string;
   totalMinutes: number;
   completionPercent: number;
   wakeMinutes: number | null;
@@ -509,7 +510,7 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
     if (!record) {
       return {
         date, dayNumber: parseDate(date).getDate(), weekday: ['日', '一', '二', '三', '四', '五', '六'][parseDate(date).getDay()],
-        hasRecord: false, totalMinutes: 0, completionPercent: 0, wakeMinutes: null,
+        hasRecord: false, mood: '', totalMinutes: 0, completionPercent: 0, wakeMinutes: null,
       };
     }
     const completion = summarizeCompletionUnits(summaryCompletionUnitsForRecord(record));
@@ -518,7 +519,7 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
     if (wakeMinutes !== null) wakeValues.push(wakeMinutes);
     return {
       date, dayNumber: parseDate(date).getDate(), weekday: ['日', '一', '二', '三', '四', '五', '六'][parseDate(date).getDay()],
-      hasRecord: true, totalMinutes: subjectTime.totalMinutes,
+      hasRecord: true, mood: String(record.mood ?? '').trim(), totalMinutes: subjectTime.totalMinutes,
       completionPercent: completion.settlementPercent, wakeMinutes,
     };
   });
