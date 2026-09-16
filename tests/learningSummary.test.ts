@@ -96,6 +96,21 @@ test('all overview blocks derive from the same requested period', () => {
   assert.equal(summary.days.length, 7);
 });
 
+test('summary days preserve mood for calendar status colors', () => {
+  const unwell = record('2026-09-14', []);
+  unwell.mood = '身體不適';
+  const tired = record('2026-09-15', []);
+  tired.mood = '較疲累';
+  const outside = record('2026-09-16', []);
+  outside.mood = '外出';
+  const summary = summarizeLearningPeriod([unwell, tired, outside], summaryPeriod('2026-09-14', 'week'));
+
+  assert.equal(summary.days[0].mood, '身體不適');
+  assert.equal(summary.days[1].mood, '較疲累');
+  assert.equal(summary.days[2].mood, '外出');
+  assert.equal(summary.days[3].mood, '');
+});
+
 test('completed time deduplicates deferred copies and item drilldown totals', () => {
   const deferredOriginal = item('origin', true, '30', '英文');
   deferredOriginal.deferred = true;
@@ -194,6 +209,11 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(styles, /\.summary-donut-return-overlay\{/);
   assert.doesNotMatch(styles, /pointer-events:bounding-box/);
   assert.match(runtime, /--day-time-color:\$\{timeColor\}/);
+  assert.match(runtime, /summaryMoodClass\(day\.mood\)/);
+  assert.match(styles, /\.summary-day\.is-mood-unwell\{--day-status-color:#FF7575\}/);
+  assert.match(styles, /\.summary-day\.is-mood-tired\{--day-status-color:#FFC78E\}/);
+  assert.match(styles, /\.summary-day\.is-mood-out\{--day-status-color:#fff0bd\}/);
+  assert.match(styles, /background:var\(--day-status-color,var\(--day-time-color\)\)/);
   assert.match(runtime, /toFixed\(1\)/);
   assert.match(runtime, /<span>hr<\/span>/);
   assert.match(styles, /background:var\(--day-time-color\)/);
