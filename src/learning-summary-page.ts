@@ -99,8 +99,15 @@ function summaryMoodClass(mood: string): string {
 }
 
 function summaryMoodSaturation(totalMinutes: number, maxMinutes: number): number {
-  if (totalMinutes <= 0 || maxMinutes <= 0) return 18;
-  return Math.round(42 + 58 * Math.min(1, totalMinutes / maxMinutes));
+  if (totalMinutes <= 0 || maxMinutes <= 0) return 28;
+  return Math.round(55 + 45 * Math.min(1, totalMinutes / maxMinutes));
+}
+
+function summaryMoodColor(mood: string, saturation: number): string {
+  if (mood === '身體不適') return `hsl(0 ${saturation}% 73%)`;
+  if (mood === '較疲累' || mood === '較疲倦') return `hsl(30 ${saturation}% 78%)`;
+  if (mood === '外出') return `hsl(44 ${saturation}% 87%)`;
+  return '';
 }
 
 function subjectDonutMarkup(summary: LearningPeriodSummary): string {
@@ -152,8 +159,9 @@ function renderCalendar(summary: LearningPeriodSummary): void {
     const timeText = day.hasRecord ? formatMinutes(day.totalMinutes) : '尚無紀錄';
     const moodClass = summaryMoodClass(day.mood);
     const moodSaturation = summaryMoodSaturation(day.totalMinutes, maxMinutes);
+    const coreColor = summaryMoodColor(day.mood, moodSaturation) || timeColor;
     const moodText = day.mood ? `，狀態 ${day.mood}` : '';
-    return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}${moodClass}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-time-color:${timeColor};--day-mood-saturation:${moodSaturation}%">
+    return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}${moodClass}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-time-color:${timeColor};--day-core-color:${coreColor}">
       <button class="summary-day-button" type="button" data-summary-day aria-expanded="false" aria-label="${escapeHtml(formatDateLabel(day.date))}，${escapeHtml(timeText)}，完成率 ${day.completionPercent}%${escapeHtml(moodText)}">
         <span class="summary-day-week">${activeMode === 'week' ? `週${day.weekday}` : ''}</span>
         <span class="summary-day-ring"><span class="summary-day-core"><strong>${day.dayNumber}</strong></span></span>
