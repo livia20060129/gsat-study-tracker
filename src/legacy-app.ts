@@ -41,6 +41,11 @@ import { withCrossTabLock } from './storage/crossTabLock';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from './data/mathMaterialPageMaps';
+import {
+  MATH_GRAND_SLAM_PAGE_MAP,
+  naturalLecturePageMap,
+  PHYSICS_COMEBACK_MATERIAL,
+} from './data/lecturePageMaps';
 import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEMS, CALENDAR_NATURAL_PLAN } from './data/naturalCalendar';
 import { isListeningTestBookTitle, LISTENING_TEST_BOOK_TITLE, LISTENING_TEST_MAX } from './data/englishBooks';
 import {
@@ -60,6 +65,8 @@ import {
   DEEP_FIFTEEN_BOOK,
   ENGLISH_TOPIC_CLOZE_BOOK,
   ENGLISH_TOPIC_READING_BOOK,
+  ENGLISH_MIXED_30_BOOK,
+  ENGLISH_WEEKLY_PLAN_BOOK,
   isEnglishPageMappedBook,
   pageMappedBookSubject,
 } from './data/bookPageMaps';
@@ -557,6 +564,8 @@ var EXTRA_READING_TITLES=[
  AZAR_GRAMMAR_BOOK_TITLE,
  ENGLISH_TOPIC_READING_BOOK,
  ENGLISH_TOPIC_CLOZE_BOOK,
+ ENGLISH_WEEKLY_PLAN_BOOK,
+ ENGLISH_MIXED_30_BOOK,
  '英文寫作測驗',
  '英文文法總複習講義',
  'Prism Reading',
@@ -1686,8 +1695,9 @@ function cloudCalendarDefsForDate(date){
   }else if(p.kind==='gujin'){
    (p.rounds||[]).forEach(function(round){out.push(presetDef('cal_gujin_'+round+'_'+token,'chineseReading','國文｜古今悅讀一百 第 '+round+' 回','Google Calendar API：'+p.title,true,{kind:'reading',round:String(round),calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}))});
   }else if(p.kind==='bookPages'){
-   var pageBookStart=p.startPage==null?'':String(p.startPage),pageBookEnd=p.endPage==null?pageBookStart:String(p.endPage),pageBookFields={kind:'book',book:p.book,start:pageBookStart,end:pageBookEnd,calendarBookRangeLocked:true,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
-   out.push(presetDef('cal_book_'+token,'chineseReading','國文','Google Calendar API：'+p.title,true,pageBookFields));
+   var pageBookStart=p.startPage==null?'':String(p.startPage),pageBookEnd=p.endPage==null?pageBookStart:String(p.endPage),pageBookFields={kind:'book',book:p.book,title:p.book,start:pageBookStart,end:pageBookEnd,calendarBookRangeLocked:true,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
+   if(p.subject==='英文')out.push(presetDef('cal_book_'+token,'extra','英文｜'+p.book,'Google Calendar API：'+p.title,true,pageBookFields));
+   else out.push(presetDef('cal_book_'+token,'chineseReading','國文','Google Calendar API：'+p.title,true,pageBookFields));
   }else if(p.kind==='bookScope'){
    var scopeRounds=p.rounds&&p.rounds.length?p.rounds:[''];
    scopeRounds.forEach(function(round,scopeIndex){
@@ -2400,13 +2410,13 @@ function ranges(map,start,end){
 }
 function rangeText(a,getName){if(!a.length)return'尚無對應資料';return a.map(function(z){var p=z.start===z.end?'p.'+z.start:'p.'+z.start+'–'+z.end;return getName(z.row)+'（'+p+'）'}).join('、')}
 function unique(a){return a.filter(function(v,i){return v&&a.indexOf(v)===i})}
-function mathMaterialOptions(v){return'<option value="">請選擇</option>'+['教學講義','智慧型','新關鍵','複習週記'].map(function(x){return'<option'+selected(x,v)+'>'+x+'</option>'}).join('')}
+function mathMaterialOptions(v){return'<option value="">請選擇</option>'+['教學講義','智慧型','新關鍵','新大滿貫','複習週記'].map(function(x){return'<option'+selected(x,v)+'>'+x+'</option>'}).join('')}
 function isCalendarMathMaterialLocked(x){
  return !!(x&&x.f&&x.f.material&&x.f.calendarMathMaterialLocked===true&&(x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice'));
 }
 function mathBookOptions(material,v){
- var a=material==='教學講義'?['1','2','3A','4A']:((material==='智慧型'||material==='新關鍵')?['1~2','3A~4A']:[]);
- return'<option value="">請選擇</option>'+a.map(function(x){return'<option value="'+x+'"'+selected(x,v)+'>'+(x==='1~2'?'1～2':x==='3A~4A'?'3A～4A':x)+'</option>'}).join('');
+ var a=material==='教學講義'?['1','2','3A','4A']:((material==='智慧型'||material==='新關鍵')?['1~2','3A~4A']:(material==='新大滿貫'?['A']:[]));
+ return'<option value="">請選擇</option>'+a.map(function(x){return'<option value="'+x+'"'+selected(x,v)+'>'+(x==='1~2'?'1～2':x==='3A~4A'?'3A～4A':x==='A'?'數學A':x)+'</option>'}).join('');
 }
 function mathAutoSections(f){
  if(!f||!f.material)return[];
@@ -2414,13 +2424,14 @@ function mathAutoSections(f){
  if(f.material==='複習週記')return ranges(REVIEW_WEEKLY_PAGE_MAP,f.start,f.end);
  if(f.material==='智慧型')return ranges(f.book==='1~2'?SMART_12_PAGE_MAP:(f.book==='3A~4A'?SMART_34_PAGE_MAP:[]),f.start,f.end);
  if(f.material==='新關鍵')return ranges(f.book==='1~2'?NEWKEY_12_PAGE_MAP:(f.book==='3A~4A'?NEWKEY_34_PAGE_MAP:[]),f.start,f.end);
+ if(f.material==='新大滿貫')return ranges(f.book==='A'?MATH_GRAND_SLAM_PAGE_MAP:[],f.start,f.end);
  return[];
 }
 function applyMathAuto(f){
  var a=mathAutoSections(f);if(!f)return;
  if(f.material==='教學講義'){f.unit=unique(a.map(function(z){return z.row[2]})).join('／');f.chapter=unique(a.map(function(z){return z.row[3]})).join('／')}
  else if(f.material==='複習週記'){f.unit='';f.chapter=unique(a.map(function(z){return z.row[2]})).join('／')}
- else if(f.material==='智慧型'||f.material==='新關鍵'){f.unit=unique(a.map(function(z){return z.row[2]})).join('／');f.chapter=''}
+ else if(f.material==='智慧型'||f.material==='新關鍵'||f.material==='新大滿貫'){f.unit=unique(a.map(function(z){return z.row[2]})).join('／');f.chapter=''}
 }
 function mathAutoText(f){
  var a=mathAutoSections(f);
@@ -2450,7 +2461,8 @@ function reasonField(f){return'<div class="field" style="margin-top:10px"><label
 function scienceMaterialOptions(subject,v){
  var a;
  if(subject==='混合')a=['複習週記'];
- else if(subject==='物理'||subject==='化學')a=['好考點','新關鍵','大滿貫','123日的淬鍊'];
+ else if(subject==='物理')a=['好考點','優勢','逆轉勝','新關鍵','大滿貫','123日的淬鍊'];
+ else if(subject==='化學')a=['好考點','領航','新關鍵','大滿貫','123日的淬鍊'];
  else if(subject==='生物'||subject==='地科')a=['新關鍵','大滿貫','123日的淬鍊'];
  else a=['新關鍵','大滿貫','123日的淬鍊'];
  return'<option value="">請選擇</option>'+a.map(function(x){return'<option'+selected(x,v)+'>'+x+'</option>'}).join('');
@@ -2514,6 +2526,21 @@ function day123Text(subject,start,end){
  return a.map(function(z){return z.chapter+'（'+(z.start===z.end?'p.'+z.start:'p.'+z.start+'–'+z.end)+'）'}).join('、');
 }
 
+function lectureNaturalPageMap(subject,material){return naturalLecturePageMap(subject,material)||[]}
+function lectureNaturalText(subject,material,start,end){
+ var map=lectureNaturalPageMap(subject,material),a=ranges(map,start,end);
+ if(!map.length)return'尚未建立此講義的頁碼對照。';
+ if(!a.length)return'頁碼不在已建立的教材本文範圍內。';
+ var text=rangeText(a,function(r){return r[2]+(r[3]?'｜'+r[3]:'')});
+ if(material===PHYSICS_COMEBACK_MATERIAL)text+='；來源照片未提供各單元頁界，需補目錄後才能細分。';
+ return text;
+}
+function applyLectureNatural(f){
+ var a=ranges(lectureNaturalPageMap(f.subject,f.material),f.start,f.end);
+ f.unit=unique(a.map(function(z){return z.row[2]})).join('／');
+ f.chapter=unique(a.map(function(z){return z.row[3]})).join('／');
+}
+
 function goodPointCombinedText(subject,start,end){
  var maps=goodPointMaps(subject),units=ranges(maps[0],start,end),chapters=ranges(maps[1],start,end);if(!units.length)return'尚無對應資料';
  var groups=[],standalone=[];
@@ -2561,7 +2588,7 @@ function renderScienceFields(x,reviewMode){
   for(var ii=0;ii<entries.length;ii++)ih+=renderCalendarNaturalIntegrationEntry(entries[ii]);
   return ih;
  }
- normalizeScience(f);if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))applyGoodPoint(f);if(f.subject==='混合')applyNaturalReview(x);
+ normalizeScience(f);if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))applyGoodPoint(f);else if(f.material==='領航'||f.material==='優勢'||f.material==='逆轉勝')applyLectureNatural(f);if(f.subject==='混合')applyNaturalReview(x);
  var subjectField=isCalendarNatural(x)
   ?'<div class="field"><label>科目</label><div class="fixed-book-value">'+esc(f.subject||'—')+'</div></div>'
   :'<div class="field"><label>科目</label><select data-field="subject"><option value="">請選擇</option>'+['混合','物理','化學','生物','地科'].map(function(s){return'<option'+selected(s,f.subject)+'>'+s+'</option>'}).join('')+'</select></div>';
@@ -2570,6 +2597,7 @@ function renderScienceFields(x,reviewMode){
  if(isCalendarNatural(x)&&f.calendarTopic)h+=calendarTopicSourceRow(x);
  if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))h+='<div class="field" style="margin-top:10px"><label>對應單元／章節</label><div class="small" data-science-auto>'+esc(goodPointCombinedText(f.subject,f.start,f.end))+'</div></div>';
  if(f.material==='123日的淬鍊'&&f.subject!=='混合')h+='<div class="field" style="margin-top:10px"><label>123日的淬鍊｜頁碼對應章節</label><div class="small" data-science-auto>'+esc(day123Text(f.subject,f.start,f.end))+'</div></div>';
+ if(f.material==='領航'||f.material==='優勢'||f.material==='逆轉勝')h+='<div class="field" style="margin-top:10px"><label>'+esc(f.material)+'｜頁碼對應單元／章節</label><div class="small" data-science-auto>'+esc(lectureNaturalText(f.subject,f.material,f.start,f.end))+'</div></div>';
  if(f.subject==='混合'&&f.material==='複習週記')h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-science-auto>'+esc(naturalReviewText(x))+'</div></div>';
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
  if(reviewMode||f.corrected)h+=reasonField(f);
@@ -2698,7 +2726,7 @@ function applyChineseItemSelection(item,value){
 }
 function readingOptions(v){return'<option value="">請選擇</option>'+EXTRA_READING_TITLES.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('')}
 function reviewEnglishOptions(v){
- var a=['ACE Reading',LISTENING_TEST_BOOK_TITLE,AZAR_GRAMMAR_BOOK_TITLE,'英文寫作測驗','英文文法總複習講義','Prism Reading'];
+ var a=['ACE Reading',LISTENING_TEST_BOOK_TITLE,AZAR_GRAMMAR_BOOK_TITLE,ENGLISH_WEEKLY_PLAN_BOOK,ENGLISH_MIXED_30_BOOK,'英文寫作測驗','英文文法總複習講義','Prism Reading'];
  return'<option value="">請選擇</option>'+a.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('');
 }
 function prismLevel(f){if(f.level)return String(f.level);var m=String(f.title||'').match(/^Prism Reading ([234])$/);return m?m[1]:''}
@@ -2724,7 +2752,7 @@ function renderExtraFields(x,reviewMode){
   }
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
  if(reviewMode||f.corrected)h+=reasonField(f);
- }else if(isEnglishPageMappedBook(t)){
+ }else if(isEnglishPageMappedBook(t)&&(t==='主題百匯：篇章結構·閱讀測驗'||t==='主題百匯：克漏字')){
   var englishPageBook=canonicalPageMappedBook(t);
   if(isCalendarPageMappedBook(x)){
    h+='<div class="grid-3"><div class="field"><label>書名</label><div class="fixed-book-value">'+esc(englishPageBook)+'</div></div><div class="field"><label>主題</label><div class="fixed-book-value">'+esc(f.topic||'—')+'</div></div><div class="field"><label>回次</label><div class="fixed-book-value">'+esc(f.round||'—')+'</div></div></div>';
@@ -2732,6 +2760,16 @@ function renderExtraFields(x,reviewMode){
   }else{
    h+='<div class="grid-3"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field"><label>主題</label><select data-book-topic>'+englishPageBookTopicOptions(englishPageBook,f.topic||'')+'</select></div><div class="field"><label>回次</label><select data-book-round>'+englishPageBookRoundOptions(englishPageBook,f.topic||'',f.round||'')+'</select></div></div>';
   }
+  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
+  if(reviewMode||f.corrected)h+=reasonField(f);
+ }else if(isEnglishPageMappedBook(t)){
+  var englishMappedBook=canonicalPageMappedBook(t),englishMappedStart=f.start||'',englishMappedEnd=f.end||'';
+  if(isCalendarPageMappedBook(x)){
+   h+='<div class="english-book-page-row"><div class="field"><label>書名</label><div class="fixed-book-value">'+esc(englishMappedBook)+'</div></div><div class="field compact-number"><label>起始頁</label><div class="fixed-book-value">'+esc(englishMappedStart||'—')+'</div></div><div class="field compact-number"><label>結束頁</label><div class="fixed-book-value">'+esc(englishMappedEnd||englishMappedStart||'—')+'</div></div></div>';
+  }else{
+   h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(englishMappedStart)+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(englishMappedEnd)+'"></div></div>';
+  }
+  h+=bookPageAutoField(englishMappedBook,englishMappedStart,englishMappedEnd);
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
  }else if(isAzarGrammar(t)){
@@ -3114,6 +3152,7 @@ function refreshAuto(card,x){
   normalizeScience(x.f);var s=card.querySelector('[data-science-auto]');
   if(x.f.material==='好考點'){applyGoodPoint(x.f);if(s)s.textContent=goodPointCombinedText(x.f.subject,x.f.start,x.f.end)}
   else if(x.f.material==='123日的淬鍊'){if(s)s.textContent=day123Text(x.f.subject,x.f.start,x.f.end)}
+  else if(x.f.material==='領航'||x.f.material==='優勢'||x.f.material==='逆轉勝'){applyLectureNatural(x.f);if(s)s.textContent=lectureNaturalText(x.f.subject,x.f.material,x.f.start,x.f.end)}
   else if(x.f.subject==='混合'){applyNaturalReview(x);if(s)s.textContent=naturalReviewText(x)}
  }
  var mappedBook=x.type==='chineseReading'?canonicalPageMappedBook(x.f&&x.f.book):(x.type==='extra'?canonicalPageMappedBook(x.f&&x.f.title):null);

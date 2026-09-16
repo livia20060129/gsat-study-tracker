@@ -286,6 +286,76 @@ test('a deferred English topic book stays typed and never falls back to page par
   }
 });
 
+test('reads the new English lecture books from actual Calendar page ranges', () => {
+  const weekly = parseCalendarTask(row(
+    '英文｜學測週計畫',
+    '【講義版本】學測週計畫\n【頁碼範圍】p.146–155\n【識別碼】weekly-plan-15',
+    'studyItem',
+  ));
+  const mixed = parseCalendarTask(row(
+    '英文｜混合題30篇實戰演練',
+    '【講義版本】混合題30篇 實戰演練\n【頁碼範圍】p.62–63\n【識別碼】mixed-30-26',
+    'studyItem',
+  ));
+
+  for (const parsed of [weekly, mixed]) {
+    assert.equal(parsed.kind, 'bookPages');
+    if (parsed.kind === 'bookPages') assert.equal(parsed.subject, '英文');
+  }
+  if (weekly.kind === 'bookPages') assert.deepEqual([weekly.book, weekly.startPage, weekly.endPage], ['學測週計畫', 146, 155]);
+  if (mixed.kind === 'bookPages') assert.deepEqual([mixed.book, mixed.startPage, mixed.endPage], ['混合題30篇實戰演練', 62, 63]);
+});
+
+test('reads New Grand Slam, Navigator and Advantage lecture names from standardized notes', () => {
+  const math = parseCalendarTask(row(
+    '數學A｜矩陣',
+    '【講義版本】新大滿貫\n【冊別】數學A\n【頁碼範圍】p.316–320\n【識別碼】grand-slam-matrix',
+    'math',
+  ));
+  const chemistry = parseCalendarTask(row(
+    '化學｜水溶液中的酸鹼反應',
+    '【講義版本】領航\n【頁碼範圍】p.173–187\n【識別碼】navigator-acid-base',
+    'natural',
+  ));
+  const physics = parseCalendarTask(row(
+    '物理｜原子光譜',
+    '【講義版本】優勢\n【頁碼範圍】p.230–244\n【識別碼】advantage-spectrum',
+    'natural',
+  ));
+
+  assert.equal(math.kind, 'math');
+  if (math.kind === 'math') assert.deepEqual([math.material, math.book, math.startPage, math.endPage], ['新大滿貫', 'A', 316, 320]);
+  assert.equal(chemistry.kind, 'natural');
+  if (chemistry.kind === 'natural') assert.deepEqual([chemistry.material, chemistry.startPage, chemistry.endPage], ['領航', 173, 187]);
+  assert.equal(physics.kind, 'natural');
+  if (physics.kind === 'natural') assert.deepEqual([physics.material, physics.startPage, physics.endPage], ['優勢', 230, 244]);
+});
+
+test('lecture identifiers select the correct map even with a shortened Calendar title', () => {
+  const chemistry = parseCalendarTask(row(
+    '酸鹼反應',
+    '【頁碼範圍】173–187\n【識別碼】GSAT-CHEM-LINGHANG',
+    'studyItem',
+  ));
+  const math = parseCalendarTask(row(
+    '矩陣',
+    '【頁碼範圍】316–320\n【識別碼】GSAT-MATHA-NEW-DAMANFEN',
+    'studyItem',
+  ));
+  const english = parseCalendarTask(row(
+    '第15回',
+    '【頁碼範圍】146–155\n【識別碼】GSAT-ENG-WEEKPLAN',
+    'studyItem',
+  ));
+
+  assert.equal(chemistry.kind, 'natural');
+  if (chemistry.kind === 'natural') assert.deepEqual([chemistry.subject, chemistry.material], ['化學', '領航']);
+  assert.equal(math.kind, 'math');
+  if (math.kind === 'math') assert.deepEqual([math.material, math.book], ['新大滿貫', 'A']);
+  assert.equal(english.kind, 'bookPages');
+  if (english.kind === 'bookPages') assert.deepEqual([english.subject, english.book], ['英文', '學測週計畫']);
+});
+
 test('infers an abbreviated English Topic Collection title from its topic and reads flexible round notation', () => {
   const cases = [
     ['英文｜主題百匯｜新新世代', '【單元進度】第２回', '主題百匯：克漏字', '新新世代', '第二回'],
