@@ -29,7 +29,10 @@ function runtimeFunction<T>(name: string, dependencies: Record<string, unknown>)
   const start = runtime.indexOf(`function ${name}(`);
   const end = runtime.indexOf('\nfunction ', start + 1);
   assert.ok(start >= 0 && end > start, `Missing runtime function: ${name}`);
-  return runInNewContext(`${runtime.slice(start, end)}\n${name}`, dependencies) as T;
+  return runInNewContext(`${runtime.slice(start, end)}\n${name}`, {
+    completionDateMarkup: () => '',
+    ...dependencies,
+  }) as T;
 }
 
 function item(overrides: Partial<StudyItem> = {}): StudyItem {
@@ -707,4 +710,12 @@ test('card footer uses left-aligned normal flow rather than overlapping fields',
   const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
   assert.match(styles, /\.item-footer-actions\{[^}]*display:flex;[^}]*justify-content:flex-start;[^}]*margin-top:10px/);
   assert.doesNotMatch(styles.match(/\.item-footer-actions\{[^}]*\}/)?.[0] || '', /position\s*:\s*(?:absolute|fixed)/);
+});
+
+test('manual completion stores late dates and mirrors deferred completion to its origin', () => {
+  assert.match(runtime, /applyManualCompletionMetadata\(x,t\.checked,data\.date,completionActionDate,data\.items\)/);
+  assert.match(runtime, /syncDeferredCompletionToOrigins\(deferredCompletionRequests,t\.checked,completionActionDate\)/);
+  assert.match(runtime, /propagateDailyWorkCompletionDates\(originTarget,checked\?actionDate:undefined,checked\?actionDate:undefined\)/);
+  assert.match(runtime, /completedSnapshot=existing\[matchIndex\].*deferredCompletionDate\(existing\[matchIndex\]\)>=date/);
+  assert.match(styles, /\.completion-checked-on\{/);
 });

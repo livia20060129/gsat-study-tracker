@@ -97,6 +97,10 @@ function mergeGroupedEntryProgress(templateEntries: StudyItem[], existingEntries
     const merged = cloneJson(template);
     merged.done = Boolean(existing.done);
     merged.minutes = existing.minutes || '';
+    if (existing.checkedOn) merged.checkedOn = existing.checkedOn;
+    else delete merged.checkedOn;
+    if (existing.deferredCompletedOn) merged.deferredCompletedOn = existing.deferredCompletedOn;
+    else delete merged.deferredCompletedOn;
     merged.f = { ...cloneJson(template.f || {}), ...cloneJson(existing.f || {}) };
     for (const key of ['title', 'book', 'topic', 'start', 'end', 'round', 'calendarBookRangeLocked', 'calendarMathMaterialLocked', 'calendarScopeParseError', 'calendarEventId', 'calendarEventIds', 'calendarEventKey', 'calendarEventKeys', 'calendarSourceDate', 'calendarSourceDates']) {
       if (template.f?.[key] !== undefined) merged.f[key] = cloneJson(template.f[key]);
@@ -180,6 +184,10 @@ export function mergeMakeupProgress(template: StudyItem, existing: StudyItem): S
   const merged = cloneJson(template);
   merged.done = Boolean(existing.done);
   merged.minutes = existing.minutes || '';
+  if (existing.checkedOn) merged.checkedOn = existing.checkedOn;
+  else delete merged.checkedOn;
+  if (existing.deferredCompletedOn) merged.deferredCompletedOn = existing.deferredCompletedOn;
+  else delete merged.deferredCompletedOn;
   merged.f = {
     ...(cloneJson(template.f || {})),
     ...(cloneJson(existing.f || {})),

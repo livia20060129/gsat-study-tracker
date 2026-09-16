@@ -21,7 +21,7 @@ import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, originalCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
-import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, replaceDailyWorkMinutes, ungroupDailyWorkItems } from './study/dailyWorkGroup';
+import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkCompletionDates, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, replaceDailyWorkMinutes, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
@@ -29,6 +29,7 @@ import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } fro
 import { SUBJECT_TIME_SHORT_LABELS, subjectTimeArcPath, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
+import { applyCompletionDateChange, completionDateLabel, deferredCompletionDate, manualCompletionDateChange } from './study/completionCheckedOn';
 import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer, studyTimerFromManualMinutes } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
@@ -42,8 +43,11 @@ import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec'
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from './data/mathMaterialPageMaps';
 import {
+  CHEMISTRY_NAVIGATOR_MATERIAL,
+  MATH_GRAND_SLAM_MATERIAL,
   MATH_GRAND_SLAM_PAGE_MAP,
   naturalLecturePageMap,
+  PHYSICS_ADVANTAGE_MATERIAL,
   PHYSICS_COMEBACK_MATERIAL,
 } from './data/lecturePageMaps';
 import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEMS, CALENDAR_NATURAL_PLAN } from './data/naturalCalendar';
@@ -1728,8 +1732,6 @@ function cloudCalendarDefsForDate(date){
    if(!usesBuiltIn)out.push(calendarMathStudyDef(p,token,!p.makeup));
   }else if(p.kind==='fixedTemplate'){
    var fixedDef=calendarFixedTemplateDef(p,token);if(fixedDef)out.push(fixedDef);
-  }else if(p.kind==='calendarItem'){
-   out.push(presetDef('cal_item_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }else if(p.kind==='natural'){
    var nr=resolveNaturalCalendarPlan(p,naturalRecommendationByTopic(p.topic)),nd='Google Calendar API：'+p.title,ff={subject:p.subject,calendarTopic:p.title,calendarSource:'Google Calendar API',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
    if(nr){
@@ -1743,6 +1745,8 @@ function cloudCalendarDefsForDate(date){
   }else if(p.kind==='naturalIntegration'){
    var ni=cloudNaturalIntegrationDetailsByDate[date]||{};
    out.push(presetDef('cal_natural_'+token,'scienceReview','自然','Google Calendar API：'+p.title+'｜依指定科目與頁碼完成。',true,{subject:'混合',calendarTopic:p.title,calendarSource:'Google Calendar API',calendarNaturalIntegration:true,calendarIntegrationReview:ni.review||'',calendarIntegrationPages:ni.pages||'',calendarIntegrationOutput:ni.output||'',calendarIntegrationMinimum:ni.minimum||'',calendarIntegrationTime:ni.time||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+  }else if(p.kind==='subjectItem'){
+   out.push(presetDef('cal_subject_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{subject:p.subject,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }
   var route=p.makeup?'today':(p.route||'today');
   for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup;out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup;out[oi].f.calendarSourceDate=p.sourceDate||p.date;if(p.identifier)out[oi].f.calendarIdentifier=p.identifier}
@@ -1927,6 +1931,8 @@ function mergeGroupedEntry(template,existing){
  var next=cloneValue(template),old=existing||null;
  if(!old)return next;
  next.done=!!old.done;next.minutes=old.minutes||'';
+ if(old.checkedOn)next.checkedOn=old.checkedOn;else delete next.checkedOn;
+ if(old.deferredCompletedOn)next.deferredCompletedOn=old.deferredCompletedOn;else delete next.deferredCompletedOn;
  next.deferred=!!old.deferred;
  if(old.deferredTargetDay!==undefined)next.deferredTargetDay=old.deferredTargetDay;else delete next.deferredTargetDay;
  next.f=Object.assign({},cloneValue(template.f||{}),cloneValue(old.f||{}));
@@ -1963,9 +1969,11 @@ function ensureDeferredForDate(rec,date){
   var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(d),r=loadData(ds);
   if(!r||!Array.isArray(r.items))continue;
   deferredCapacityCandidates(r.items).forEach(function(x){
-   if(!x||!isDeferrableStudyItem(x)||!confirmedDeferred(x)||x.done)return;
+   var completedOnTarget=x&&x.done&&deferredCompletionDate(x)>=date;
+   if(!x||!isDeferrableStudyItem(x)||!confirmedDeferred(x)||(x.done&&!completedOnTarget))return;
    if(deferredTargetDay(x)!==targetDay)return;
    var k=deferredCarryKey(ds,x),c=cloneOriginalItemForMakeup(x,{id:'preset-'+date+'-'+k,presetKey:k,originDate:ds});
+   if(completedOnTarget){c.done=true;c.checkedOn=deferredCompletionDate(x);c.deferredCompletedOn=deferredCompletionDate(x)}
    wanted[k]=c;
   });
  }
@@ -1976,7 +1984,7 @@ function ensureDeferredForDate(rec,date){
   for(var ei=0;ei<existing.length;ei++)if(!used[ei]&&existing[ei].presetKey===template.presetKey){matchIndex=ei;break}
   if(matchIndex<0)for(var ei2=0;ei2<existing.length;ei2++)if(!used[ei2]&&deferredCarryMatches(template,existing[ei2])){matchIndex=ei2;break}
   var keep=template;
-  if(matchIndex>=0){used[matchIndex]=true;keep=mergeMakeupProgress(template,existing[matchIndex]);if(JSON.stringify(keep)!==JSON.stringify(existing[matchIndex]))changed=true}
+  if(matchIndex>=0){used[matchIndex]=true;var completedSnapshot=existing[matchIndex]&&existing[matchIndex].done&&deferredCompletionDate(existing[matchIndex])>=date;keep=completedSnapshot?existing[matchIndex]:mergeMakeupProgress(template,existing[matchIndex]);if(JSON.stringify(keep)!==JSON.stringify(existing[matchIndex]))changed=true}
   else changed=true;
   clean.push(keep);
  });
@@ -2083,7 +2091,9 @@ function ensureDailyPresets(rec,date){
   for(var nei=0;nei<newEventKeys.length&&!legacyEventItem;nei++){legacyEventItem=legacyCalendarByEventKey[newEventKeys[nei]]||null;if(legacyEventItem)legacyEventMatchKey=newEventKeys[nei]}
   var legacyItem=legacyCalendarByPresetKey[d.key]||(mergedTemplate?legacyCalendarByTemplate[mergedTemplate]:null)||legacyEventItem;
    if(legacyItem){
-    if(legacyItem.done&&!x.done){x.done=true;changed=true}
+   if(legacyItem.done&&!x.done){x.done=true;changed=true}
+    if(legacyItem.checkedOn&&!x.checkedOn){x.checkedOn=legacyItem.checkedOn;changed=true}
+    if(legacyItem.deferredCompletedOn&&!x.deferredCompletedOn){x.deferredCompletedOn=legacyItem.deferredCompletedOn;changed=true}
     var isSplitBookDefinition=/^cal_book_/.test(d.key||''),mayCopyLegacyBookMinutes=!isSplitBookDefinition||!legacyEventMatchKey||!legacyCalendarBookMinuteUse[legacyEventMatchKey];
     if(!x.minutes&&legacyItem.minutes&&mayCopyLegacyBookMinutes){x.minutes=legacyItem.minutes;changed=true;if(isSplitBookDefinition&&legacyEventMatchKey)legacyCalendarBookMinuteUse[legacyEventMatchKey]=true}
     if(isGroupedWork(x)){
@@ -2095,6 +2105,8 @@ function ensureDailyPresets(rec,date){
      if(migratedSingle.length){
       var migratedSource=migratedSingle.find(function(entry){return !!entry.done})||migratedSingle[0];
       if(migratedSingle.every(function(entry){return !!entry.done})&&!x.done){x.done=true;changed=true}
+      if(migratedSource.checkedOn&&!x.checkedOn){x.checkedOn=migratedSource.checkedOn;changed=true}
+      if(migratedSource.deferredCompletedOn&&!x.deferredCompletedOn){x.deferredCompletedOn=migratedSource.deferredCompletedOn;changed=true}
       if(!x.minutes&&migratedSource.minutes){x.minutes=migratedSource.minutes;changed=true}
       if(migratedSource.deferred&&!x.deferred){x.deferred=true;changed=true}
       if(migratedSource.deferredTargetDay!==undefined&&x.deferredTargetDay!==migratedSource.deferredTargetDay){x.deferredTargetDay=migratedSource.deferredTargetDay;changed=true}
@@ -2208,12 +2220,13 @@ function ensureCalendarNaturalIntegrationEntries(x,date){
  x.done=out.length>0&&out.every(function(c){return !!c.done});
  return out;
 }
+function completionDateMarkup(x){var label=completionDateLabel(x);return label?'<span class="completion-checked-on">'+esc(label)+'</span>':''}
 function renderCalendarNaturalIntegrationEntry(c){
  var ranges=Array.isArray(c.ranges)?c.ranges:[];
  var single=ranges.length===1&&!c.dynamic&&!c.pageText.match(/ 或 /);
  var h='<div class="item subject-card subject-natural'+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
- h+='<div class="item-title">'+esc(c.subject)+'</div>'+renderTimeControl(c)+'</div>';
+ h+='<div class="item-title">'+esc(c.subject)+'</div>'+completionDateMarkup(c)+renderTimeControl(c)+'</div>';
  h+='<div class="inner"><div class="science-main-row">';
  h+='<div class="field"><label>科目</label><div class="fixed-book-value">'+esc(c.subject)+'</div></div>';
  h+='<div class="field"><label>講義版本</label><div class="fixed-book-value">123日的淬鍊</div></div>';
@@ -2410,7 +2423,13 @@ function ranges(map,start,end){
 }
 function rangeText(a,getName){if(!a.length)return'尚無對應資料';return a.map(function(z){var p=z.start===z.end?'p.'+z.start:'p.'+z.start+'–'+z.end;return getName(z.row)+'（'+p+'）'}).join('、')}
 function unique(a){return a.filter(function(v,i){return v&&a.indexOf(v)===i})}
-function mathMaterialOptions(v){return'<option value="">請選擇</option>'+['教學講義','智慧型','新關鍵','新大滿貫','複習週記'].map(function(x){return'<option'+selected(x,v)+'>'+x+'</option>'}).join('')}
+function manualOptionGroup(label,values,current,labelFor){
+ if(!values.length)return'';
+ return'<optgroup label="'+esc(label)+'">'+values.map(function(value){return'<option value="'+esc(value)+'"'+selected(value,current)+'>'+esc(labelFor?labelFor(value):value)+'</option>'}).join('')+'</optgroup>';
+}
+function mathMaterialOptions(v){
+ return'<option value="">請選擇</option>'+manualOptionGroup('新增講義',[MATH_GRAND_SLAM_MATERIAL],v,function(){return MATH_GRAND_SLAM_MATERIAL+'（數學A）'})+manualOptionGroup('其他講義',['教學講義','智慧型','新關鍵','複習週記'],v);
+}
 function isCalendarMathMaterialLocked(x){
  return !!(x&&x.f&&x.f.material&&x.f.calendarMathMaterialLocked===true&&(x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice'));
 }
@@ -2459,13 +2478,14 @@ function renderMathFields(x,reviewMode){
 function reasonField(f){return'<div class="field" style="margin-top:10px"><label>錯因／不熟觀念</label><textarea rows="3" data-field="reason" placeholder="記錄錯因、仍不熟的觀念或需要再複習的內容">'+esc(f.reason||'')+'</textarea></div>'}
 
 function scienceMaterialOptions(subject,v){
- var a;
+ var a,added=[];
  if(subject==='混合')a=['複習週記'];
- else if(subject==='物理')a=['好考點','優勢','逆轉勝','新關鍵','大滿貫','123日的淬鍊'];
- else if(subject==='化學')a=['好考點','領航','新關鍵','大滿貫','123日的淬鍊'];
+ else if(subject==='物理'){added=[PHYSICS_ADVANTAGE_MATERIAL,PHYSICS_COMEBACK_MATERIAL];a=['好考點','新關鍵','大滿貫','123日的淬鍊']}
+ else if(subject==='化學'){added=[CHEMISTRY_NAVIGATOR_MATERIAL];a=['好考點','新關鍵','大滿貫','123日的淬鍊']}
  else if(subject==='生物'||subject==='地科')a=['新關鍵','大滿貫','123日的淬鍊'];
  else a=['新關鍵','大滿貫','123日的淬鍊'];
- return'<option value="">請選擇</option>'+a.map(function(x){return'<option'+selected(x,v)+'>'+x+'</option>'}).join('');
+ var hint=!subject?'<optgroup label="新增講義（請先選科目）"><option disabled>化學｜'+CHEMISTRY_NAVIGATOR_MATERIAL+'</option><option disabled>物理｜'+PHYSICS_ADVANTAGE_MATERIAL+'</option><option disabled>物理｜'+PHYSICS_COMEBACK_MATERIAL+'</option></optgroup>':'';
+ return'<option value="">請選擇</option>'+manualOptionGroup('新增講義',added,v)+hint+manualOptionGroup(subject==='混合'?'講義':'其他講義',a,v);
 }
 function normalizeScience(f){
  if(!f)return;
@@ -2473,6 +2493,8 @@ function normalizeScience(f){
  else{
   if(f.material==='複習週記')f.material='';
   if((f.subject==='生物'||f.subject==='地科')&&f.material==='好考點')f.material='';
+  if(f.material==='領航'&&f.subject!=='化學')f.material='';
+  if((f.material==='優勢'||f.material==='逆轉勝')&&f.subject!=='物理')f.material='';
  }
 }
 function goodPointMaps(subject){return subject==='物理'?[GOODPOINT_PHYSICS_PAGE_MAP,GOODPOINT_PHYSICS_CHAPTER_MAP]:subject==='化學'?[GOODPOINT_CHEMISTRY_PAGE_MAP,GOODPOINT_CHEMISTRY_CHAPTER_MAP]:[[],[]]}
@@ -2724,10 +2746,13 @@ function applyChineseItemSelection(item,value){
  }
  apply(item);return{kind:item.f.kind,book:item.f.book}
 }
-function readingOptions(v){return'<option value="">請選擇</option>'+EXTRA_READING_TITLES.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('')}
+function readingOptions(v){
+ var added=[ENGLISH_WEEKLY_PLAN_BOOK,ENGLISH_MIXED_30_BOOK],other=EXTRA_READING_TITLES.filter(function(title){return added.indexOf(title)<0});
+ return'<option value="">請選擇</option>'+manualOptionGroup('新增講義',added,v)+manualOptionGroup('其他英文項目',other,v);
+}
 function reviewEnglishOptions(v){
- var a=['ACE Reading',LISTENING_TEST_BOOK_TITLE,AZAR_GRAMMAR_BOOK_TITLE,ENGLISH_WEEKLY_PLAN_BOOK,ENGLISH_MIXED_30_BOOK,'英文寫作測驗','英文文法總複習講義','Prism Reading'];
- return'<option value="">請選擇</option>'+a.map(function(x){return'<option value="'+esc(x)+'"'+selected(x,v)+'>'+esc(x)+'</option>'}).join('');
+ var added=[ENGLISH_WEEKLY_PLAN_BOOK,ENGLISH_MIXED_30_BOOK],other=['ACE Reading',LISTENING_TEST_BOOK_TITLE,AZAR_GRAMMAR_BOOK_TITLE,'英文寫作測驗','英文文法總複習講義','Prism Reading'];
+ return'<option value="">請選擇</option>'+manualOptionGroup('新增講義',added,v)+manualOptionGroup('其他英文項目',other,v);
 }
 function prismLevel(f){if(f.level)return String(f.level);var m=String(f.title||'').match(/^Prism Reading ([234])$/);return m?m[1]:''}
 function prismCefr(v){return String(v)==='2'?'B1':String(v)==='3'?'B2':String(v)==='4'?'C1':'尚未選擇'}
@@ -2944,6 +2969,7 @@ function renderGroupedWorkEntry(entry,index){
  var h='<div class="item grouped-work-entry '+studyItemSubjectClass(entry)+(entry.done?' done':'')+(confirmedDeferred(entry)?' deferred':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(entry.done)+'>';
  if(entry.f&&entry.f.calendarMakeup===true)h+='<div class="small">今日補做｜Google Calendar</div>';
+ h+=completionDateMarkup(entry);
  h+=renderTimeControl(entry)+'</div>';
  var fields=renderItemFields(entry,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
@@ -2997,6 +3023,7 @@ function renderEnglishReview(x){
 function renderNestedEntry(x,kind){
  var review=kind==='review',h='<div class="item '+(review?'review-entry ':'makeup-entry ')+studyItemSubjectClass(x)+'" data-item="'+esc(x.id)+'"><div class="item-top">';
  if(!review)h+='<input type="checkbox" data-done'+checked(x.done)+'>';
+ if(!review)h+=completionDateMarkup(x);
  h+='<div class="field" style="flex:1"><label>項目類型</label><select data-nested-type="'+kind+'">'+(review?reviewTypeOptions(x.type):nestedTypeOptions(x.type))+'</select></div>';
  if(!review)h+=renderTimeControl(x);
  h+='</div>';
@@ -3016,6 +3043,7 @@ function renderGeneralFields(x){
 function renderDailyInteractiveEntry(c){
  var h='<div class="item '+studyItemSubjectClass(c)+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
+ h+=completionDateMarkup(c);
  if(c.locked)h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><div class="fixed-book-value">'+esc(itemTitle(c))+'</div>'+(c.description?'<div class="small" style="margin-top:5px">'+esc(c.description)+'</div>':'')+'</div>';
  else h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><select data-interactive-type>'+interactiveDailyTypeOptions(c.type)+'</select></div>';
  h+=renderTimeControl(c)+'</div>';
@@ -3042,7 +3070,7 @@ function renderCard(x,canDelete){
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x)||isGroupedWork(x);
  var h='<div class="item '+studyItemSubjectClass(x)+(x.done?' done':'')+(isDeferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(noTopDone?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
- if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
+ if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';if(!noTopDone)h+=completionDateMarkup(x);h+='</div>';
  if(!hidesTopMinutes(x)&&!isGroupedWork(x))h+=renderTimeControl(x);
  h+='</div>';
  var fields=renderItemFields(x,false);
@@ -3087,7 +3115,7 @@ function renderWeeklyItems(){
   total+=items.length;
   html+='<details class="weekly-day" open><summary><span><strong>'+weekdays[dayDate.getDay()]+'</strong><span class="weekly-date">'+esc(ds.slice(5).replace('-','／'))+'</span></span><span class="weekly-day-actions"><span class="small">'+accepted+'／'+items.length+'</span></span></summary>';
   html+='<div class="weekly-day-items">';
-  items.forEach(function(x){var state=weeklyItemState(x);html+='<div class="weekly-item-row '+studyItemSubjectClass(x)+'"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><label class="weekly-item-check"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span>'+esc(weeklyItemDisplayTitle(x))+'</span></label></div>'});
+  items.forEach(function(x){var state=weeklyItemState(x),completionLabel=completionDateLabel(x);html+='<div class="weekly-item-row '+studyItemSubjectClass(x)+'"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><label class="weekly-item-check"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span>'+esc(weeklyItemDisplayTitle(x))+(completionLabel?'<small class="completion-checked-on">'+esc(completionLabel)+'</small>':'')+'</span></label></div>'});
   html+='</div>';
   html+='</details>';
  }
@@ -3137,6 +3165,97 @@ function findRecursive(list,target){
  for(var i=0;i<list.length;i++){var x=list[i];if(x&&x.id===target)return x;if(x&&x.f){var y=findRecursive(x.f.makeupEntries,target)||findRecursive(x.f.reviewEntries,target)||findRecursive(x.f.interactiveEntries,target)||findRecursive(x.f.calendarIntegrationEntries,target)||findRecursive(x.f.groupedWorkEntries,target);if(y)return y}}return null;
 }
 function findItem(target){return data?findRecursive(data.items,target):null}
+function completionChildItems(x,includeSources){
+ if(!x||!x.f)return[];
+ var names=['groupedWorkEntries','interactiveEntries','calendarIntegrationEntries','makeupEntries'];if(includeSources)names.push('dailyWorkSourceItems');
+ var out=[];names.forEach(function(name){if(Array.isArray(x.f[name]))out=out.concat(x.f[name])});return out;
+}
+function findCompletionRecursive(list,target,visited){
+ if(!Array.isArray(list))return null;visited=visited||new Set();
+ for(var i=0;i<list.length;i++){
+  var x=list[i];if(!x||visited.has(x))continue;visited.add(x);if(x.id===target)return x;
+  var found=findCompletionRecursive(completionChildItems(x,true),target,visited);if(found)return found;
+ }
+ return null;
+}
+function deferredCarrierAncestor(list,target){
+ var visited=new Set();
+ function visit(items,inherited){
+  if(!Array.isArray(items))return null;
+  for(var i=0;i<items.length;i++){
+   var x=items[i];if(!x||visited.has(x))continue;visited.add(x);var carrier=x.deferredCarry?x:inherited;
+   if(x===target)return{found:true,carrier:carrier||null};
+   var nested=visit(completionChildItems(x,true),carrier);if(nested)return nested;
+  }
+  return null;
+ }
+ var result=visit(list,null);return result?result.carrier:null;
+}
+function applyManualCompletionMetadata(item,checked,recordDate,actionDate,rootItems){
+ var requests=[],visited=new Set(),ancestor=deferredCarrierAncestor(rootItems,item);
+ function visit(target,inheritedCarrier){
+  if(!target||visited.has(target))return;visited.add(target);
+  var carrier=target.deferredCarry?target:inheritedCarrier;
+  var previous=target.deferredCompletedOn||deferredCompletionDate(target);
+  var change=manualCompletionDateChange({checked:checked,recordDate:recordDate,actionDate:actionDate,deferredCarry:!!carrier,confirmedDeferred:confirmedDeferred(target),previousDeferredCompletedOn:previous});
+  applyCompletionDateChange(target,change);
+  var represented=[];
+  if(target.f&&Array.isArray(target.f.dailyWorkSourceItems))represented=represented.concat(target.f.dailyWorkSourceItems);
+  if(target.f&&Array.isArray(target.f.groupedWorkEntries))represented=represented.concat(target.f.groupedWorkEntries);
+  if(change.syncDeferredOrigin&&carrier&&!represented.length)requests.push({carrier:carrier,target:target,change:change,previousDeferredCompletedOn:previous});
+  represented.forEach(function(child){visit(child,carrier)});
+ }
+ visit(item,ancestor);return requests;
+}
+function completionIdentityMatch(candidate,target){
+ if(!candidate||!target)return false;
+ if(candidate.id&&candidate.id===target.id)return true;
+ if(candidate.presetKey&&target.presetKey&&candidate.presetKey===target.presetKey)return true;
+ if(groupedEntryMatch(candidate,target))return true;
+ var af=candidate.f||{},bf=target.f||{};
+ return candidate.type===target.type&&String(candidate.title||'')===String(target.title||'')&&String(af.subject||'')===String(bf.subject||'')&&String(af.round||'')===String(bf.round||'')&&String(af.start||'')===String(bf.start||'')&&String(af.end||'')===String(bf.end||'');
+}
+function completionTargetWithinOrigin(originRoot,target,carrier){
+ if(!originRoot)return null;
+ if(target===carrier||target.id===carrier.id)return originRoot;
+ var exact=findCompletionRecursive([originRoot],target.id);if(exact&&exact!==originRoot)return exact;
+ var originIds=deferredCarryOriginIds(target);for(var oi=0;oi<originIds.length;oi++){var byOrigin=findCompletionRecursive([originRoot],originIds[oi]);if(byOrigin)return byOrigin}
+ var candidates=[],visited=new Set();
+ (function collect(item){if(!item||visited.has(item))return;visited.add(item);candidates.push(item);completionChildItems(item,true).forEach(collect)})(originRoot);
+ return candidates.find(function(candidate){return candidate!==originRoot&&completionIdentityMatch(candidate,target)})||null;
+}
+function refreshCompletionTree(item,visited){
+ if(!item)return;visited=visited||new Set();if(visited.has(item))return;visited.add(item);
+ var groups=[];
+ if(item.f&&Array.isArray(item.f.dailyWorkSourceItems)&&item.f.dailyWorkSourceItems.length)groups=item.f.dailyWorkSourceItems;
+ else if(item.f&&Array.isArray(item.f.groupedWorkEntries)&&item.f.groupedWorkEntries.length)groups=item.f.groupedWorkEntries;
+ else if(item.f&&Array.isArray(item.f.calendarIntegrationEntries)&&item.f.calendarIntegrationEntries.length)groups=item.f.calendarIntegrationEntries;
+ else if(item.f&&Array.isArray(item.f.interactiveEntries)&&item.f.interactiveEntries.length)groups=item.f.interactiveEntries;
+ groups.forEach(function(child){refreshCompletionTree(child,visited)});if(groups.length)item.done=groups.every(function(child){return !!child.done});
+}
+function syncDeferredCompletionToOrigins(requests,checked,actionDate){
+ if(!Array.isArray(requests)||!requests.length)return;
+ var records={};
+ requests.forEach(function(request){
+  var carrier=request.carrier,target=request.target,dates=[];
+  function addDate(value){value=String(value||'').trim();if(/^\d{4}-\d{2}-\d{2}$/.test(value)&&dates.indexOf(value)<0)dates.push(value)}
+  if(Array.isArray(carrier.deferredOriginDates))carrier.deferredOriginDates.forEach(addDate);addDate(carrier.deferredOriginDate);
+  var ids=deferredCarryOriginIds(carrier);
+  dates.forEach(function(originDate){
+   var rec=records[originDate]||(records[originDate]=loadData(originDate)),originRoot=null;
+   for(var i=0;i<ids.length&&!originRoot;i++)originRoot=findCompletionRecursive(rec.items,ids[i]);
+   if(!originRoot)return;
+   var originTarget=completionTargetWithinOrigin(originRoot,target,carrier);if(!originTarget)return;
+   if(!checked&&originTarget.deferredCompletedOn&&request.previousDeferredCompletedOn&&originTarget.deferredCompletedOn!==request.previousDeferredCompletedOn)return;
+   propagateDailyWorkDone(originTarget,checked);
+   propagateDailyWorkCompletionDates(originTarget,checked?actionDate:undefined,checked?actionDate:undefined);
+  });
+ });
+ Object.keys(records).forEach(function(originDate){
+  var rec=records[originDate];rec.items.forEach(function(item){refreshCompletionTree(item)});rec.localDirty=true;rec.syncConflict=false;
+  if(writeStoredRecord(rec))queueCloudSave(rec);
+ });
+}
 function parentSpecial(target,arrayName){
  for(var i=0;i<data.items.length;i++){var p=data.items[i],a=p&&p.f&&p.f[arrayName];if(Array.isArray(a))for(var j=0;j<a.length;j++)if(a[j]&&a[j].id===target)return p}return null;
 }
@@ -3308,12 +3427,14 @@ function handleChange(e){
  }
  if(t.matches('[data-done]')&&x){
   var previousWorkloadPercent=currentWorkloadCompletionPercent();
+   var completionActionDate=dateString(new Date()),deferredCompletionRequests=applyManualCompletionMetadata(x,t.checked,data.date,completionActionDate,data.items);
    if(x.type==='scienceReview'){
     markCalendarNaturalCompletionByUser(x,t.checked);
     propagateDailyWorkField(x,'calendarCompletionSetByUser',true);
     propagateDailyWorkField(x,'calendarCompletionUserValue',t.checked);
    }
    propagateDailyWorkDone(x,t.checked);
+  syncDeferredCompletionToOrigins(deferredCompletionRequests,t.checked,completionActionDate);
   clearPendingDeferred(x);
   clearDeferredLimitPrompt(x);
     if(x.calendarIntegrationChild||x.calendarGroupedChild){
@@ -3321,7 +3442,7 @@ function handleChange(e){
      persist(false);updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);render();return
    }
   if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persist(false);rebuildDeferredForWeek(data.date)}
-  persist(false);updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);return
+  persist(false);updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);render();return
  }
  if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');if(k==='progress'&&x.type==='scienceReview'){markCalendarNaturalProgressByUser(x,t.checked);propagateDailyWorkField(x,'calendarProgressSetByUser',true);propagateDailyWorkField(x,'calendarProgressUserValue',t.checked)}propagateDailyWorkField(x,k,t.checked);if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
  if(t.matches('[data-chinese-kind]')&&x&&x.type==='chineseReading'){
@@ -3425,8 +3546,10 @@ function handleWeeklyChange(e){
  var ds=t.getAttribute('data-week-date'),itemId=t.getAttribute('data-week-item');if(!ds||!itemId)return;
  var rec=ds===data.date?data:studyRecordForOverview(ds);
  var item=findRecursive(rec.items,itemId);if(!item){renderWeeklyItems();return}
+ var completionActionDate=dateString(new Date()),deferredCompletionRequests=applyManualCompletionMetadata(item,t.checked,ds,completionActionDate,rec.items);
  if(item.type==='scienceReview')markCalendarNaturalCompletionByUser(item,t.checked);
- item.done=t.checked;
+ propagateDailyWorkDone(item,t.checked);
+ syncDeferredCompletionToOrigins(deferredCompletionRequests,t.checked,completionActionDate);
  if(item.done){item.deferred=false;delete item.deferredTargetDay}
  if(ds===data.date){persist(false);render();return}
  rec.localDirty=true;rec.syncConflict=false;
@@ -4026,20 +4149,34 @@ if(connectionSettingsSummary)connectionSettingsSummary.addEventListener('click',
  if(e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea'))return;
  if(!connectionSettingsPanel.open||connectionSettingsPanel.classList.contains('is-closing')||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
  e.preventDefault();
+ var expandedHeight=connectionSettingsPanel.getBoundingClientRect().height;
+ var summaryHeight=connectionSettingsSummary.getBoundingClientRect().height;
+ connectionSettingsPanel.style.setProperty('--connection-expanded-height',expandedHeight+'px');
+ connectionSettingsPanel.style.setProperty('--connection-summary-height',summaryHeight+'px');
  connectionSettingsPanel.classList.add('is-closing');
- var content=connectionSettingsPanel.querySelector('.connection-settings-content');
  var closed=false;
+ function connectionSettingsCloseAnimationEnd(event){
+  if(event.target!==connectionSettingsPanel)return;
+  finishConnectionSettingsClose();
+ }
  function finishConnectionSettingsClose(){
   if(closed)return;
   closed=true;
+  connectionSettingsPanel.removeEventListener('animationend',connectionSettingsCloseAnimationEnd);
   connectionSettingsPanel.open=false;
   connectionSettingsPanel.classList.remove('is-closing');
+  connectionSettingsPanel.style.removeProperty('--connection-expanded-height');
+  connectionSettingsPanel.style.removeProperty('--connection-summary-height');
  }
- if(content)content.addEventListener('animationend',finishConnectionSettingsClose,{once:true});
- setTimeout(finishConnectionSettingsClose,320);
+ connectionSettingsPanel.addEventListener('animationend',connectionSettingsCloseAnimationEnd);
+ setTimeout(finishConnectionSettingsClose,420);
 });
 connectionSettingsPanel.addEventListener('toggle',function(e){
- if(e.currentTarget.open)e.currentTarget.classList.remove('is-closing');
+ if(e.currentTarget.open){
+  e.currentTarget.classList.remove('is-closing');
+  e.currentTarget.style.removeProperty('--connection-expanded-height');
+  e.currentTarget.style.removeProperty('--connection-summary-height');
+ }
  document.body.classList.toggle('connection-sheet-open',!!e.currentTarget.open);
 });
 document.addEventListener('focusout',function(){setTimeout(applyPendingVisibleCloudRefresh,0)});

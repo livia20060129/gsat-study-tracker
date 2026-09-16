@@ -93,3 +93,15 @@ test('a one-decimal timer result survives the stored record round trip', () => {
   assert.equal(stored.items[0].minutes, '1.5');
   assert.deepEqual(stored.items[0].f.timeTracking, item.f.timeTracking);
 });
+
+test('manual and deferred completion dates survive the cloud-compatible payload round trip', () => {
+  const completed = math('deferred-finished', 211, 215, true);
+  completed.done = true;
+  completed.checkedOn = '2026-09-17';
+  completed.deferredCompletedOn = '2026-09-17';
+
+  const stored = reload({ date: '2026-09-17', items: [completed] });
+
+  assert.equal(stored.items[0].checkedOn, '2026-09-17');
+  assert.equal(stored.items[0].deferredCompletedOn, '2026-09-17');
+});

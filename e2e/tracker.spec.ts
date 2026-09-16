@@ -52,6 +52,20 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
   await context.close();
 });
 
+test('connection settings visibly retract before the details element closes', async ({ page }) => {
+  const settings = page.locator('#connectionSettings');
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toHaveAttribute('open', '');
+  const expandedHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
+
+  await settings.locator(':scope > summary').click();
+  await expect(settings).toHaveClass(/is-closing/);
+  await page.waitForTimeout(120);
+  const retractingHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
+  expect(retractingHeight).toBeLessThan(expandedHeight - 8);
+  await expect(settings).not.toHaveAttribute('open', '');
+});
+
 test('typed record fields write to storage only after leaving the field', async ({ page }) => {
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
@@ -91,6 +105,51 @@ test('timer starts from the closest second represented by manual minutes', async
   await minutes.blur();
   await card.locator('[data-action="time-mode-select"][data-time-mode="timer"]').click();
   await expect(card.locator('[data-timer-display]')).toHaveText('12:30');
+});
+
+test('completing deferred work records its date and checks the original day', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.clock.install({ time: new Date('2026-09-17T12:00:00+08:00') });
+  await page.goto('/');
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-09-16`, JSON.stringify({
+      schemaVersion: 1,
+      date: '2026-09-16',
+      items: [{
+        id: 'deferred-origin',
+        type: 'general',
+        title: '延期同步測試',
+        done: false,
+        minutes: '',
+        required: true,
+        source: 'preset',
+        presetKey: 'e2e_deferred_source',
+        deferred: true,
+        deferredTargetDay: 4,
+        f: {},
+      }],
+    }));
+  });
+  await page.reload();
+
+  const deferredCard = page.locator('#dailyItemList [data-item]').filter({ hasText: '延期同步測試' });
+  await expect(deferredCard).toHaveCount(1);
+  const checkbox = deferredCard.locator('[data-done]').first();
+  await checkbox.check();
+  await expect(deferredCard.locator('.completion-checked-on')).toHaveText('延期完成：2026-09-17');
+
+  const completedOrigin = await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-09-16') || '{}').items.find((item: { id: string }) => item.id === 'deferred-origin'));
+  expect(completedOrigin.done).toBe(true);
+  expect(completedOrigin.checkedOn).toBe('2026-09-17');
+  expect(completedOrigin.deferredCompletedOn).toBe('2026-09-17');
+
+  await checkbox.uncheck();
+  const restoredOrigin = await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-09-16') || '{}').items.find((item: { id: string }) => item.id === 'deferred-origin'));
+  expect(restoredOrigin.done).toBe(false);
+  expect(restoredOrigin.checkedOn).toBeUndefined();
+  expect(restoredOrigin.deferredCompletedOn).toBeUndefined();
 });
 
 test('learning summary uses one week/month control for the complete page', async ({ page }) => {

@@ -72,6 +72,10 @@ export interface StudyItem {
   deferredOriginId?: string;
   deferredOriginDates?: string[];
   deferredOriginIds?: string[];
+  /** Actual local date when an older record was manually checked. */
+  checkedOn?: string;
+  /** Actual completion date recorded from the deferred target-day card. */
+  deferredCompletedOn?: string;
   locked?: boolean;
   calendarGroupedChild?: boolean;
   mondayFixedVocab?: boolean;

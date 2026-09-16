@@ -191,9 +191,13 @@ test('groups interrupted deferred ranges and preserves child progress on rebuild
   assert.equal(entries.length, 2);
   const existing = structuredClone(template);
   (existing.f.groupedWorkEntries as StudyItem[])[0].done = true;
+  (existing.f.groupedWorkEntries as StudyItem[])[0].checkedOn = '2026-09-17';
+  (existing.f.groupedWorkEntries as StudyItem[])[0].deferredCompletedOn = '2026-09-17';
 
   const merged = mergeMakeupProgress(template, existing);
   assert.equal((merged.f.groupedWorkEntries as StudyItem[])[0].done, true);
+  assert.equal((merged.f.groupedWorkEntries as StudyItem[])[0].checkedOn, '2026-09-17');
+  assert.equal((merged.f.groupedWorkEntries as StudyItem[])[0].deferredCompletedOn, '2026-09-17');
   assert.equal((merged.f.groupedWorkEntries as StudyItem[])[1].done, false);
 });
 

@@ -347,6 +347,28 @@ export function propagateDailyWorkDone(item: StudyItem, done: boolean): void {
   apply(item);
 }
 
+/** Keeps completion-date metadata on every hidden source represented by a card. */
+export function propagateDailyWorkCompletionDates(
+  item: StudyItem,
+  checkedOn?: string,
+  deferredCompletedOn?: string,
+): void {
+  const visited = new Set<StudyItem>();
+  const apply = (target: StudyItem): void => {
+    if (!target || visited.has(target)) return;
+    visited.add(target);
+    if (checkedOn) target.checkedOn = checkedOn;
+    else delete target.checkedOn;
+    if (deferredCompletedOn) target.deferredCompletedOn = deferredCompletedOn;
+    else delete target.deferredCompletedOn;
+    const sources = target.f?.dailyWorkSourceItems;
+    if (Array.isArray(sources)) sources.forEach(apply);
+    const children = target.f?.groupedWorkEntries;
+    if (Array.isArray(children)) children.forEach(apply);
+  };
+  apply(item);
+}
+
 /** Stores a merged card's minutes on the same preferred source used when rebuilding it. */
 export function propagateDailyWorkMinutes(item: StudyItem, minutes: string): void {
   item.minutes = minutes;
