@@ -163,6 +163,54 @@ test('Calendar math cards lock the supplied lecture version while manual cards k
   assert.match(manual, /<select data-field="material">/);
 });
 
+test('manual added-item selectors expose all newly mapped lectures', () => {
+  const selected = (value: unknown, current: unknown) => String(value) === String(current) ? ' selected' : '';
+  const esc = (value: unknown) => String(value ?? '');
+  const manualOptionGroup = runtimeFunction<(label: string, values: string[], current: string, labelFor?: (value: string) => string) => string>(
+    'manualOptionGroup',
+    { selected, esc },
+  );
+  const mathOptions = runtimeFunction<(current: string) => string>('mathMaterialOptions', {
+    MATH_GRAND_SLAM_MATERIAL: '新大滿貫',
+    manualOptionGroup,
+  });
+  const scienceOptions = runtimeFunction<(subject: string, current: string) => string>('scienceMaterialOptions', {
+    CHEMISTRY_NAVIGATOR_MATERIAL: '領航',
+    PHYSICS_ADVANTAGE_MATERIAL: '優勢',
+    PHYSICS_COMEBACK_MATERIAL: '逆轉勝',
+    manualOptionGroup,
+  });
+  const readingOptions = runtimeFunction<(current: string) => string>('readingOptions', {
+    ENGLISH_WEEKLY_PLAN_BOOK: '學測週計畫',
+    ENGLISH_MIXED_30_BOOK: '混合題30篇實戰演練',
+    EXTRA_READING_TITLES: ['雜誌', '學測週計畫', '混合題30篇實戰演練'],
+    manualOptionGroup,
+  });
+
+  assert.match(mathOptions(''), /新增講義/);
+  assert.match(mathOptions(''), /新大滿貫（數學A）/);
+  assert.match(scienceOptions('化學', ''), /<optgroup label="新增講義"><option value="領航"/);
+  assert.match(scienceOptions('物理', ''), /<option value="優勢"/);
+  assert.match(scienceOptions('物理', ''), /<option value="逆轉勝"/);
+  assert.match(scienceOptions('', ''), /新增講義（請先選科目）/);
+  assert.match(readingOptions(''), /<option value="學測週計畫"/);
+  assert.match(readingOptions(''), /<option value="混合題30篇實戰演練"/);
+});
+
+test('manual natural lecture is cleared when the subject no longer matches', () => {
+  const normalize = runtimeFunction<(fields: Record<string, unknown>) => void>('normalizeScience', {
+    CHEMISTRY_NAVIGATOR_MATERIAL: '領航',
+    PHYSICS_ADVANTAGE_MATERIAL: '優勢',
+    PHYSICS_COMEBACK_MATERIAL: '逆轉勝',
+  });
+  const chemistry = { subject: '物理', material: '領航' };
+  const physics = { subject: '化學', material: '優勢' };
+  normalize(chemistry);
+  normalize(physics);
+  assert.equal(chemistry.material, '');
+  assert.equal(physics.material, '');
+});
+
 test('date switching saves the current date before loading the requested date', () => {
   const sequence: string[] = [];
   const nodes = {
