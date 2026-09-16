@@ -98,15 +98,15 @@ function summaryMoodClass(mood: string): string {
   return '';
 }
 
-function summaryMoodSaturation(totalMinutes: number, maxMinutes: number): number {
-  if (totalMinutes <= 0 || maxMinutes <= 0) return 55;
-  return Math.round(55 + 45 * Math.min(1, totalMinutes / maxMinutes));
+function summaryMoodOpacity(totalMinutes: number, maxMinutes: number): number {
+  if (totalMinutes <= 0 || maxMinutes <= 0) return 0.38;
+  return Number((0.45 + 0.55 * Math.min(1, totalMinutes / maxMinutes)).toFixed(3));
 }
 
-function summaryMoodColor(mood: string, saturation: number): string {
-  if (mood === '身體不適') return `hsl(0 ${saturation}% 73%)`;
-  if (mood === '較疲累' || mood === '較疲倦') return `hsl(30 ${saturation}% 78%)`;
-  if (mood === '外出') return `hsl(44 ${saturation}% 87%)`;
+function summaryMoodColor(mood: string, opacity: number): string {
+  if (mood === '身體不適') return `rgb(255 117 117 / ${opacity})`;
+  if (mood === '較疲累' || mood === '較疲倦') return `rgb(255 199 142 / ${opacity})`;
+  if (mood === '外出') return `rgb(255 240 189 / ${opacity})`;
   return '';
 }
 
@@ -158,8 +158,8 @@ function renderCalendar(summary: LearningPeriodSummary): void {
     const timeColor = opaqueStudyTimeColor(intensity);
     const timeText = day.hasRecord ? formatMinutes(day.totalMinutes) : '尚無紀錄';
     const moodClass = summaryMoodClass(day.mood);
-    const moodSaturation = summaryMoodSaturation(day.totalMinutes, maxMinutes);
-    const coreColor = summaryMoodColor(day.mood, moodSaturation) || timeColor;
+    const moodOpacity = summaryMoodOpacity(day.totalMinutes, maxMinutes);
+    const coreColor = summaryMoodColor(day.mood, moodOpacity) || timeColor;
     const moodText = day.mood ? `，狀態 ${day.mood}` : '';
     return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}${moodClass}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-time-color:${timeColor};--day-core-color:${coreColor}">
       <button class="summary-day-button" type="button" data-summary-day aria-expanded="false" aria-label="${escapeHtml(formatDateLabel(day.date))}，${escapeHtml(timeText)}，完成率 ${day.completionPercent}%${escapeHtml(moodText)}">
