@@ -4020,7 +4020,28 @@ id('deleteUndoBtn').addEventListener('click',undoLastSmallDelete);
 id('calendarConnectBtn').addEventListener('click',calendarConnect);
 id('calendarSyncBtn').addEventListener('click',calendarSyncNow);
 id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);
-id('connectionSettings').addEventListener('toggle',function(e){document.body.classList.toggle('connection-sheet-open',!!e.currentTarget.open)});
+var connectionSettingsPanel=id('connectionSettings');
+var connectionSettingsSummary=connectionSettingsPanel.querySelector(':scope > summary');
+if(connectionSettingsSummary)connectionSettingsSummary.addEventListener('click',function(e){
+ if(e.target&&e.target.closest&&e.target.closest('button,a,input,select,textarea'))return;
+ if(!connectionSettingsPanel.open||connectionSettingsPanel.classList.contains('is-closing')||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ e.preventDefault();
+ connectionSettingsPanel.classList.add('is-closing');
+ var content=connectionSettingsPanel.querySelector('.connection-settings-content');
+ var closed=false;
+ function finishConnectionSettingsClose(){
+  if(closed)return;
+  closed=true;
+  connectionSettingsPanel.open=false;
+  connectionSettingsPanel.classList.remove('is-closing');
+ }
+ if(content)content.addEventListener('animationend',finishConnectionSettingsClose,{once:true});
+ setTimeout(finishConnectionSettingsClose,320);
+});
+connectionSettingsPanel.addEventListener('toggle',function(e){
+ if(e.currentTarget.open)e.currentTarget.classList.remove('is-closing');
+ document.body.classList.toggle('connection-sheet-open',!!e.currentTarget.open);
+});
 document.addEventListener('focusout',function(){setTimeout(applyPendingVisibleCloudRefresh,0)});
 window.addEventListener('online',function(){retryDirtyCloudRecordsOnReconnect().catch(function(e){cloudSetMessage('網路恢復後重試失敗：'+(e&&e.message?e.message:String(e)),false)})});
 window.addEventListener('offline',function(){cloudSetMessage('目前離線；新紀錄已保存在本機，恢復連線後會立即重試。',false)});

@@ -45,6 +45,10 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
   await expect(page.locator('#connectionSettings')).toHaveAttribute('open', '');
   expect(await page.locator('#connectionSettings').evaluate(node => getComputedStyle(node).position)).toBe('fixed');
   await expect(page.locator('body')).toHaveClass(/connection-sheet-open/);
+  await page.locator('#connectionSettings > summary').click();
+  await expect(page.locator('#connectionSettings')).toHaveClass(/is-closing/);
+  await expect(page.locator('#connectionSettings')).not.toHaveAttribute('open', '');
+  await expect(page.locator('body')).not.toHaveClass(/connection-sheet-open/);
   await context.close();
 });
 

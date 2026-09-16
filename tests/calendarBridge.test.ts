@@ -356,6 +356,22 @@ test('lecture identifiers select the correct map even with a shortened Calendar 
   if (english.kind === 'bookPages') assert.deepEqual([english.subject, english.book], ['英文', '學測週計畫']);
 });
 
+test('lecture identifiers still select the material after adding a unique event suffix', () => {
+  const chemistry = parseCalendarTask(row(
+    '酸鹼反應',
+    '【頁碼範圍】173–187\n【識別碼】GSAT-CHEM-LINGHANG-20260916-01',
+    'studyItem',
+  ));
+
+  assert.equal(chemistry.kind, 'natural');
+  if (chemistry.kind === 'natural') {
+    assert.deepEqual(
+      [chemistry.subject, chemistry.material, chemistry.startPage, chemistry.endPage],
+      ['化學', '領航', 173, 187],
+    );
+  }
+});
+
 test('infers an abbreviated English Topic Collection title from its topic and reads flexible round notation', () => {
   const cases = [
     ['英文｜主題百匯｜新新世代', '【單元進度】第２回', '主題百匯：克漏字', '新新世代', '第二回'],

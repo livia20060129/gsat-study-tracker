@@ -21,12 +21,13 @@ export type LectureIdentifierMatch =
 
 export function lectureIdentifierMatch(value: unknown): LectureIdentifierMatch | null {
   const identifier = String(value ?? '').toUpperCase().replace(/[\s​-‍﻿]+/g, '');
-  if (identifier === LECTURE_IDENTIFIERS.chemistryNavigator) return { kind: 'natural', subject: '化學', material: CHEMISTRY_NAVIGATOR_MATERIAL };
-  if (identifier === LECTURE_IDENTIFIERS.physicsAdvantage) return { kind: 'natural', subject: '物理', material: PHYSICS_ADVANTAGE_MATERIAL };
-  if (identifier === LECTURE_IDENTIFIERS.physicsComeback) return { kind: 'natural', subject: '物理', material: PHYSICS_COMEBACK_MATERIAL };
-  if (identifier === LECTURE_IDENTIFIERS.englishWeeklyPlan) return { kind: 'englishBook', book: '學測週計畫' };
-  if (identifier === LECTURE_IDENTIFIERS.englishMixed30) return { kind: 'englishBook', book: '混合題30篇實戰演練' };
-  if (identifier === LECTURE_IDENTIFIERS.mathGrandSlamA) return { kind: 'math', material: MATH_GRAND_SLAM_MATERIAL, book: 'A' };
+  const matches = (materialIdentifier: string) => identifier === materialIdentifier || identifier.startsWith(`${materialIdentifier}-`);
+  if (matches(LECTURE_IDENTIFIERS.chemistryNavigator)) return { kind: 'natural', subject: '化學', material: CHEMISTRY_NAVIGATOR_MATERIAL };
+  if (matches(LECTURE_IDENTIFIERS.physicsAdvantage)) return { kind: 'natural', subject: '物理', material: PHYSICS_ADVANTAGE_MATERIAL };
+  if (matches(LECTURE_IDENTIFIERS.physicsComeback)) return { kind: 'natural', subject: '物理', material: PHYSICS_COMEBACK_MATERIAL };
+  if (matches(LECTURE_IDENTIFIERS.englishWeeklyPlan)) return { kind: 'englishBook', book: '學測週計畫' };
+  if (matches(LECTURE_IDENTIFIERS.englishMixed30)) return { kind: 'englishBook', book: '混合題30篇實戰演練' };
+  if (matches(LECTURE_IDENTIFIERS.mathGrandSlamA)) return { kind: 'math', material: MATH_GRAND_SLAM_MATERIAL, book: 'A' };
   return null;
 }
 
