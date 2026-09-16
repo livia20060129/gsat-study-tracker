@@ -1,6 +1,6 @@
 # GSAT Study Tracker
 
-目前版本：**v171.5.13**
+目前版本：**v171.5.14**
 
 個人版學測讀書追蹤器，整合每日／每週項目、Google Calendar 唯讀排程、Supabase 跨裝置同步、計時、完成率、教材進度與學習總結。
 
@@ -167,6 +167,7 @@ VITE_GOOGLE_CLIENT_ID
 
 ## V. 此版本重要更新（v171.x.xx）
 
+- **v171.5.14**：補上 Cloudflare Workers 靜態資產部署設定，固定 Node 22 與 Wrangler 版本，直接部署 Vite 產生的 `dist`，不再讓 Wrangler 在 CI 中嘗試自動改寫 Vite 設定而失敗。
 - **v171.5.13**：完成勾選加入日期判斷。未延期的過期項目會記錄實際勾選日，未來項目不會提前留下日期；延期項目完成時會記錄延期完成日並同步原日期來源，排程重建後仍保留完成的延期卡。
 - **v171.5.12**：修正 Cloud／Calendar 連線設定收回時只有內容淡出、外框最後瞬間縮回的問題。桌面版會同步縮短外框高度，手機版會完整向下收回；動畫結束前保留內容與遮罩狀態，避免畫面突然消失或提早恢復捲動。
 - **v171.5.11**：Calendar 匯入改採「科目為最低門檻」。既有教材與固定模板照原規則建立；未知模板只要能辨識國文、英文、數學、物理、化學、生物、地科、自然或社會，仍會建立對應科目的一般卡片，完全無法判斷科目時才忽略。
@@ -224,6 +225,16 @@ npx playwright install chromium
 npm run test:e2e
 npm run build
 ```
+
+Cloudflare Workers Builds：
+
+```text
+Build command: npm run build
+Deploy command: npx wrangler deploy
+Root directory: /
+```
+
+`wrangler.jsonc` 會直接部署 `dist` 靜態資產；本機也可使用 `npm run deploy:cloudflare` 完成建置與部署。
 
 本機環境設定：
 
