@@ -99,7 +99,7 @@ function summaryMoodClass(mood: string): string {
 }
 
 function summaryMoodSaturation(totalMinutes: number, maxMinutes: number): number {
-  if (totalMinutes <= 0 || maxMinutes <= 0) return 28;
+  if (totalMinutes <= 0 || maxMinutes <= 0) return 55;
   return Math.round(55 + 45 * Math.min(1, totalMinutes / maxMinutes));
 }
 

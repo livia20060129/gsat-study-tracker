@@ -218,6 +218,7 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.doesNotMatch(styles, /var\(--day-core-color,var\(--day-time-color\)\)/);
   assert.doesNotMatch(styles, /color-mix\(in srgb,var\(--day-mood-color/);
   assert.match(runtime, /function summaryMoodSaturation\(totalMinutes: number, maxMinutes: number\)/);
+  assert.match(runtime, /totalMinutes <= 0 \|\| maxMinutes <= 0\) return 55/);
   assert.match(runtime, /55 \+ 45 \* Math\.min\(1, totalMinutes \/ maxMinutes\)/);
   assert.match(runtime, /--day-core-color:\$\{coreColor\}/);
   assert.match(runtime, /toFixed\(1\)/);
