@@ -39,14 +39,13 @@ test('parses 大考英聽A攻略 Test 1-10 as the ACE-style test template', () =
   if (spaced.kind === 'listeningA') assert.deepEqual(spaced.tests, [5]);
 });
 
-test('reads 大考英聽A攻略 Test from the Calendar note and keeps an invalid range as an English item', () => {
+test('reads 大考英聽A攻略 Test from the Calendar note and does not drop an invalid event', () => {
   const fromNote = parseCalendarTask(row('大考英聽A攻略', '【單元進度】Test 6'));
   const invalid = parseCalendarTask(row('大考英聽A攻略｜Test 11'));
 
   assert.equal(fromNote.kind, 'listeningA');
   if (fromNote.kind === 'listeningA') assert.deepEqual(fromNote.tests, [6]);
-  assert.equal(invalid.kind, 'subjectItem');
-  if (invalid.kind === 'subjectItem') assert.equal(invalid.subject, '英文');
+  assert.equal(invalid.kind, 'calendarItem');
 });
 
 test('parses separate Essential Grammar units from the description', () => {
@@ -61,27 +60,22 @@ test('does not create Essential Grammar units beyond Unit 115', () => {
   if (parsed.kind === 'essentialGrammar') assert.deepEqual(parsed.units, [114, 115]);
 });
 
-test('route prefixes preserve subject-recognizable Calendar items', () => {
+test('routes prefixed Calendar items to today or this week', () => {
   const today = parseCalendarTask(row('今日項目｜英文單字複習'));
   const week = parseCalendarTask(row('本週項目｜整理自然錯題'));
-  assert.equal(today.kind, 'subjectItem');
-  if (today.kind === 'subjectItem') assert.equal(today.subject, '英文');
+  assert.equal(today.kind, 'calendarItem');
   assert.equal(today.route, 'today');
   assert.equal(today.title, '英文單字複習');
-  assert.equal(week.kind, 'subjectItem');
-  if (week.kind === 'subjectItem') assert.equal(week.subject, '自然');
+  assert.equal(week.kind, 'calendarItem');
   assert.equal(week.route, 'week');
   assert.equal(week.title, '整理自然錯題');
 });
 
-test('keeps an unprefixed subject item and ignores a fully unknown item', () => {
+test('routes unprefixed Calendar items to today', () => {
   const generic = parseCalendarTask(row('整理化學錯題'));
-  const unknown = parseCalendarTask(row('準備明天行程'));
   const essentialGrammar = parseCalendarTask(row('Essential Grammar in Use｜Unit 20'));
-  assert.equal(generic.kind, 'subjectItem');
-  if (generic.kind === 'subjectItem') assert.equal(generic.subject, '化學');
+  assert.equal(generic.kind, 'calendarItem');
   assert.equal(generic.route, 'today');
-  assert.equal(unknown.kind, 'other');
   assert.equal(essentialGrammar.route, 'today');
 });
 
@@ -99,10 +93,9 @@ test('routes Calendar makeup to today and preserves a recognized item template',
   assert.equal(makeup.title, 'Essential Grammar in Use｜Unit 22');
 });
 
-test('subject-recognizable Calendar makeup is routed to today', () => {
+test('Calendar makeup overrides a weekly prefix and goes to today', () => {
   const makeup = parseCalendarTask(row('本週項目｜補做項目｜整理自然錯題'));
-  assert.equal(makeup.kind, 'subjectItem');
-  if (makeup.kind === 'subjectItem') assert.equal(makeup.subject, '自然');
+  assert.equal(makeup.kind, 'calendarItem');
   assert.equal(makeup.route, 'today');
   assert.equal(makeup.makeup, true);
   assert.equal(makeup.title, '整理自然錯題');
