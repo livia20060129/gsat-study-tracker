@@ -210,8 +210,8 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.doesNotMatch(styles, /pointer-events:bounding-box/);
   assert.match(runtime, /--day-time-color:\$\{timeColor\}/);
   assert.match(runtime, /summaryMoodClass\(day\.mood\)/);
-  assert.match(styles, /\.summary-day\.is-mood-unwell\{--day-status-color:#a9434d\}/);
-  assert.match(styles, /\.summary-day\.is-mood-tired\{--day-status-color:#f5d8dc\}/);
+  assert.match(styles, /\.summary-day\.is-mood-unwell\{--day-status-color:#FF7575\}/);
+  assert.match(styles, /\.summary-day\.is-mood-tired\{--day-status-color:#FFAD86\}/);
   assert.match(styles, /\.summary-day\.is-mood-out\{--day-status-color:#fff0bd\}/);
   assert.match(styles, /background:var\(--day-status-color,var\(--day-time-color\)\)/);
   assert.match(runtime, /toFixed\(1\)/);
