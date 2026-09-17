@@ -27,6 +27,7 @@ import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/pr
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
 import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } from './study/subjectOrder';
 import { SUBJECT_TIME_SHORT_LABELS, subjectTimeArcPath, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
+import { completedStudyTimeEntries } from './study/learningSummary';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { applyCompletionDateChange, completionDateLabel, deferredCompletionDate, manualCompletionDateChange } from './study/completionCheckedOn';
@@ -3519,6 +3520,7 @@ function handleWeeklyChange(e){
  if(ds===data.date){persist(false);render();return}
  rec.localDirty=true;rec.syncConflict=false;
  if(writeStoredRecord(rec))queueCloudSave(rec);
+ updateSummary();
  renderWeeklyItems();
 }
 
@@ -3642,36 +3644,18 @@ function renderSubjectTimeDonut(summary){
  chart.addEventListener('click',function(){delete chart.dataset.pinnedSubject;showTotal()});
 }
 
+function completedTimeEntriesForOverviewDate(date){
+ var records=[],included={};
+ localStudyDates().forEach(function(recordDate){
+  var rec=data&&data.date===recordDate?cloneRecord(data):readStoredRecord(recordDate);
+  if(rec){records.push(rec);included[recordDate]=true}
+ });
+ if(data&&data.date&&!included[data.date])records.push(cloneRecord(data));
+ return completedStudyTimeEntries(records).filter(function(entry){return entry.date===date});
+}
 function updateSummary(){
  mathProgressIndex.upsert(data);
- var subjectMinuteEntries=[],active=visibleItems(data);
- function addSubjectMinutes(item,value){var minutes=Number(value||0);if(Number.isFinite(minutes)&&minutes>0)subjectMinuteEntries.push({subject:studyItemSubject(item),minutes:minutes})}
- function collectCompletedMinutes(x){
-  if(!x)return;
-  if(isGroupedWork(x)){
-   var grouped=groupedWorkEntries(x);x.done=grouped.length>0&&grouped.every(function(child){return !!child.done});
-   grouped.forEach(collectCompletedMinutes);
-   return;
-  }
-  if(isInteractiveDaily(x)){
-   var interactive=ensureInteractiveEntries(x);x.done=interactive.length>0&&interactive.every(function(child){return !!child.done});
-   interactive.forEach(collectCompletedMinutes);
-   return;
-  }
-  if(isCalendarNaturalIntegration(x)){
-   var integration=ensureCalendarNaturalIntegrationEntries(x,data.date);x.done=integration.length>0&&integration.every(function(child){return !!child.done});
-   integration.forEach(collectCompletedMinutes);
-   return;
-  }
-  if(isSaturdayMakeup(x)){
-   ensureEntryArray(x,'makeupEntries').forEach(collectCompletedMinutes);
-   return;
-  }
-  if(!x.done)return;
-  if(isFixedMagazine(x))addSubjectMinutes(x,fixedMagazineMinutes(x));
-  else if(!isEnglishReview(x))addSubjectMinutes(x,x.minutes);
- }
- active.forEach(collectCompletedMinutes);
+ var subjectMinuteEntries=completedTimeEntriesForOverviewDate(data.date).map(function(entry){return{subject:entry.subject,minutes:entry.minutes}});
  var subjectTime=summarizeSubjectTime(subjectMinuteEntries);
  var completion=summarizeCompletionUnits(completionUnitsForRecord(data,data.date)),pct=completion.itemPercent;
  var math=calculateMathProgress(mathProgressIndex.view(),data.date,calendarWeekMathTarget(data.date));

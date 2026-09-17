@@ -23,9 +23,9 @@ function validDate(value: unknown): value is string {
 
 /**
  * Resolves the date metadata for a user-triggered completion checkbox.
- * Normal work records only a late check; deferred carry work records the
- * actual completion date on or after its target day and asks the runtime to
- * mirror that completion back to the original record.
+ * Normal work records every check made on a date other than the scheduled
+ * record date. Deferred carry work always records the actual check date and
+ * asks the runtime to mirror that completion back to the original record.
  */
 export function manualCompletionDateChange(input: ManualCompletionDateInput): ManualCompletionDateChange {
   const previousDeferredDate = validDate(input.previousDeferredCompletedOn)
@@ -40,14 +40,13 @@ export function manualCompletionDateChange(input: ManualCompletionDateInput): Ma
     return { syncDeferredOrigin: false };
   }
   if (input.deferredCarry) {
-    if (input.actionDate < input.recordDate) return { syncDeferredOrigin: false };
     return {
       checkedOn: input.actionDate,
       deferredCompletedOn: input.actionDate,
       syncDeferredOrigin: true,
     };
   }
-  if (input.confirmedDeferred || input.actionDate <= input.recordDate) {
+  if (input.confirmedDeferred || input.actionDate === input.recordDate) {
     return { syncDeferredOrigin: false };
   }
   return {
