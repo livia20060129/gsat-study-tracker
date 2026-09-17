@@ -179,6 +179,7 @@ test('learning summary uses one week/month control for the complete page', async
         { id: 'summary-english-grammar', type: 'englishPractice', title: '英文文法', done: true, minutes: '15', required: true, source: 'preset', f: { subject: '英文' } },
         { id: 'summary-english-vocabulary', type: 'englishPractice', title: '英文單字', done: true, minutes: '15', required: true, source: 'preset', f: { subject: '英文' } },
         { id: 'summary-physics', type: 'scienceReview', title: '物理｜運動', done: true, minutes: '10', required: true, source: 'preset', f: { subject: '物理' } },
+        { id: 'summary-physics-force', type: 'scienceReview', title: '物理｜力學', done: true, minutes: '10', required: true, source: 'preset', f: { subject: '物理' } },
         { id: 'summary-chemistry', type: 'scienceReview', title: '化學｜反應', done: true, minutes: '20', required: true, source: 'preset', f: { subject: '化學' } },
         { id: 'summary-biology', type: 'biologyInteractive', title: '生物｜細胞', done: true, minutes: '30', required: true, source: 'preset', f: { subject: '生物' } },
         { id: 'summary-earth', type: 'scienceReview', title: '地科｜地質', done: true, minutes: '40', required: true, source: 'preset', f: { subject: '地科' } },
@@ -191,7 +192,7 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(7);
   await expect(page.locator('#calendarTitle')).toHaveText('週曆');
   await expect(page.locator('#wakePeriodLabel')).toHaveText('本週平均');
-  await expect(page.locator('#summarySubjectDistribution .summary-donut-center strong')).toHaveText('3.7');
+  await expect(page.locator('#summarySubjectDistribution .summary-donut-center strong')).toHaveText('3.8');
   await expect(page.locator('#summarySubjectDistribution .summary-donut-center span')).toHaveText('hr');
   await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').click();
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('學習時間');
@@ -215,8 +216,14 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('[data-summary-subject="物理"], [data-summary-subject="化學"], [data-summary-subject="生物"], [data-summary-subject="地科"]')).toHaveCount(0);
   await page.locator('[data-summary-subject="自然"]').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜自然');
-  await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveText(['物理', '化學', '生物', '地科']);
-  await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-list i')).toHaveCount(4);
+  const naturalItems = page.locator('#summarySubjectDistribution .summary-subject-detail-name');
+  await expect(naturalItems).toHaveCount(5);
+  for (const label of ['物理｜運動', '物理｜力學', '化學｜反應', '生物｜互動題', '地科｜地質']) {
+    await expect(naturalItems.filter({ hasText: label })).toHaveCount(1);
+  }
+  const naturalColors = await page.locator('#summarySubjectDistribution .summary-subject-detail-list i')
+    .evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
+  expect(new Set(naturalColors).size).toBeGreaterThanOrEqual(4);
   await page.locator('#summarySubjectDistribution [data-summary-back]').first().click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配');
 

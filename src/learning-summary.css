@@ -36,3 +36,4 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(142,174,161,.3);outl
 @media(max-width:650px){.summary-page{padding-top:16px}.summary-header{display:flex;align-items:stretch;flex-direction:column;gap:12px;margin-bottom:16px;padding:0}.summary-heading{order:1}.summary-heading h1{font-size:28px}.summary-heading p{margin-top:5px;font-size:13px}.summary-view-controls{order:2;display:grid;grid-template-columns:1fr;justify-self:stretch;width:100%;gap:10px}.summary-back{width:100%}.summary-mode-switch{justify-self:end;width:104px}.summary-period-nav{order:3;grid-column:auto;grid-row:auto;width:100%}}
 @media(prefers-reduced-motion:reduce){.summary-day-tooltip{transition:none}}
 .summary-mode-switch>span{background:#528bd0;box-shadow:0 3px 10px rgba(55,103,163,.2)}
+.legend-unwell{border:3px solid #fff;background:#ff7575}.legend-tired{border:3px solid #fff;background:#ffc78e}.legend-out{border:3px solid #fff;background:#fff0bd}

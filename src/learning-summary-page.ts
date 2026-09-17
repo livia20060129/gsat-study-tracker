@@ -192,18 +192,31 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
     target.dataset.view = 'detail';
     target.classList.toggle('animate-detail-entry', shouldAnimateEntry);
     target.classList.remove('is-detail-ready');
-    const detail = selectedSubject === '自然'
+    const naturalDetail = selectedSubject === '自然'
       ? summarizeNaturalScienceTime(summary.timeEntries)
-      : summarizeStudyItemTime(summary.timeEntries, selectedSubject);
+      : null;
+    const detail = naturalDetail ?? summarizeStudyItemTime(summary.timeEntries, selectedSubject);
     title.textContent = `科目分配｜${selectedSubject}`;
     const baseColor = SUBJECT_TIME_COLORS[selectedSubject];
     const maxPercent = Math.max(1, ...detail.slices.map(slice => slice.percent));
-    const slices = detail.slices.map(slice => ({
-      ...slice,
-      color: selectedSubject === '自然'
-        ? SUBJECT_TIME_COLORS[slice.label === '自然整合' ? '自然' : slice.label as SubjectTimeSubject]
-        : tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
-    }));
+    const naturalSubjectMax = new Map<SubjectTimeSubject, number>();
+    if (naturalDetail) {
+      naturalDetail.slices.forEach(slice => {
+        naturalSubjectMax.set(slice.subject, Math.max(naturalSubjectMax.get(slice.subject) ?? 0, slice.percent));
+      });
+    }
+    const slices = naturalDetail
+      ? naturalDetail.slices.map(slice => ({
+        ...slice,
+        color: tintHex(
+          SUBJECT_TIME_COLORS[slice.subject],
+          0.42 * (1 - slice.percent / Math.max(1, naturalSubjectMax.get(slice.subject) ?? 1)),
+        ),
+      }))
+      : detail.slices.map(slice => ({
+        ...slice,
+        color: tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
+      }));
     const detailRows = Math.max(1, Math.min(4, slices.length));
     const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${formatHours(slice.minutes)} hr</span></li>`).join('');
     target.innerHTML = slices.length

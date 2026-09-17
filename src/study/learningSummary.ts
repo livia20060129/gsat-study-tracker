@@ -63,6 +63,10 @@ export interface StudyItemTimeSlice {
   percent: number;
 }
 
+export interface NaturalScienceItemTimeSlice extends StudyItemTimeSlice {
+  subject: SubjectTimeSubject;
+}
+
 export const NATURAL_SCIENCE_SUBJECTS = ['物理', '化學', '生物', '地科'] as const;
 
 export type PeriodChangeState = 'increase' | 'stable' | 'decrease';
@@ -467,32 +471,45 @@ export function summarizeStudyItemTime(
   return { totalMinutes, slices };
 }
 
-/** Breaks the overview's natural-science slice back into the four science subjects. */
+/** Keeps item-level detail while grouping the natural-science overview into one slice. */
 export function summarizeNaturalScienceTime(
   entries: CompletedStudyTimeEntry[],
-): { totalMinutes: number; slices: StudyItemTimeSlice[] } {
-  const labels = [...NATURAL_SCIENCE_SUBJECTS, '自然整合'] as const;
-  const totals = new Map<string, number>(labels.map(label => [label, 0]));
+): { totalMinutes: number; slices: NaturalScienceItemTimeSlice[] } {
+  const subjectOrder: SubjectTimeSubject[] = [...NATURAL_SCIENCE_SUBJECTS, '自然'];
+  const totals = new Map<string, { subject: SubjectTimeSubject; itemLabel: string; minutes: number }>();
   entries.forEach(entry => {
-    const label = NATURAL_SCIENCE_SUBJECTS.includes(entry.subject as typeof NATURAL_SCIENCE_SUBJECTS[number])
-      ? entry.subject
-      : entry.subject === '自然'
-        ? '自然整合'
-        : '';
-    if (!label) return;
-    totals.set(label, (totals.get(label) ?? 0) + entry.minutes);
+    const isDetailedScience = NATURAL_SCIENCE_SUBJECTS.includes(
+      entry.subject as typeof NATURAL_SCIENCE_SUBJECTS[number],
+    );
+    if (!isDetailedScience && entry.subject !== '自然') return;
+    const subject = entry.subject;
+    const key = `${subject}\u0000${entry.itemLabel}`;
+    const existing = totals.get(key);
+    totals.set(key, {
+      subject,
+      itemLabel: entry.itemLabel,
+      minutes: (existing?.minutes ?? 0) + entry.minutes,
+    });
   });
-  const populated = labels
-    .map(label => [label, totals.get(label) ?? 0] as const)
-    .filter(([, minutes]) => minutes > 0);
-  const totalMinutes = roundOne(populated.reduce((sum, [, minutes]) => sum + minutes, 0));
+  const populated = [...totals.values()]
+    .filter(entry => entry.minutes > 0)
+    .sort((left, right) => subjectOrder.indexOf(left.subject) - subjectOrder.indexOf(right.subject)
+      || right.minutes - left.minutes
+      || left.itemLabel.localeCompare(right.itemLabel, 'zh-Hant'));
+  const totalMinutes = roundOne(populated.reduce((sum, entry) => sum + entry.minutes, 0));
   let allocated = 0;
-  const slices = populated.map(([label, minutes], index) => {
+  const slices = populated.map((entry, index) => {
     const percent = index === populated.length - 1
       ? roundOne(100 - allocated)
-      : roundOne(totalMinutes > 0 ? minutes / totalMinutes * 100 : 0);
+      : roundOne(totalMinutes > 0 ? entry.minutes / totalMinutes * 100 : 0);
     allocated = roundOne(allocated + percent);
-    return { label, minutes: roundOne(minutes), percent };
+    const subjectLabel = entry.subject === '自然' ? '自然整合' : entry.subject;
+    return {
+      subject: entry.subject,
+      label: `${subjectLabel}｜${entry.itemLabel}`,
+      minutes: roundOne(entry.minutes),
+      percent,
+    };
   });
   return { totalMinutes, slices };
 }

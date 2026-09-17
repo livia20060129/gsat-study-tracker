@@ -67,27 +67,31 @@ test('summary reuses completion rules and only counts time on completed work', (
 });
 
 test('learning summary separates natural science into physics, chemistry, biology, and earth science', () => {
-  const entries = completedStudyTimeEntries([record('2026-09-15', [
+  const scienceItems: StudyItem[] = [
     { id: 'physics', type: 'scienceReview', title: '物理｜運動學', done: true, minutes: '10', required: true, f: { subject: '物理' } },
+    { id: 'physics-force', type: 'scienceReview', title: '物理｜力學', done: true, minutes: '5', required: true, f: { subject: '物理' } },
     { id: 'chemistry', type: 'scienceReview', title: '化學｜化學反應', done: true, minutes: '20', required: true, f: { subject: '化學' } },
     { id: 'biology', type: 'biologyInteractive', title: '生物｜細胞', done: true, minutes: '30', required: true, f: { subject: '生物' } },
     { id: 'earth', type: 'scienceReview', title: '地科｜地質', done: true, minutes: '40', required: true, f: { subject: '地科' } },
-  ])]);
-  const summary = summarizeLearningPeriod([record('2026-09-15', [
-    { id: 'physics', type: 'scienceReview', title: '物理｜運動學', done: true, minutes: '10', required: true, f: { subject: '物理' } },
-    { id: 'chemistry', type: 'scienceReview', title: '化學｜化學反應', done: true, minutes: '20', required: true, f: { subject: '化學' } },
-    { id: 'biology', type: 'biologyInteractive', title: '生物｜細胞', done: true, minutes: '30', required: true, f: { subject: '生物' } },
-    { id: 'earth', type: 'scienceReview', title: '地科｜地質', done: true, minutes: '40', required: true, f: { subject: '地科' } },
-  ])], summaryPeriod('2026-09-15', 'week'));
+  ];
+  const entries = completedStudyTimeEntries([record('2026-09-15', scienceItems)]);
+  const summary = summarizeLearningPeriod(
+    [record('2026-09-15', scienceItems)],
+    summaryPeriod('2026-09-15', 'week'),
+  );
 
-  assert.deepEqual(entries.map(entry => entry.subject).sort(), ['物理', '化學', '生物', '地科'].sort());
+  assert.deepEqual([...new Set(entries.map(entry => entry.subject))].sort(), ['物理', '化學', '生物', '地科'].sort());
   assert.deepEqual(summary.subjectTime.slices.map(slice => slice.subject), ['物理', '化學', '生物', '地科']);
   const overview = groupedSummarySubjectTime(entries);
   assert.deepEqual(overview.slices.map(slice => slice.subject), ['自然']);
-  assert.equal(overview.slices[0].minutes, 100);
+  assert.equal(overview.slices[0].minutes, 105);
   const naturalDetail = summarizeNaturalScienceTime(entries);
-  assert.deepEqual(naturalDetail.slices.map(slice => slice.label), ['物理', '化學', '生物', '地科']);
-  assert.deepEqual(naturalDetail.slices.map(slice => slice.minutes), [10, 20, 30, 40]);
+  assert.deepEqual(
+    naturalDetail.slices.map(slice => slice.label),
+    ['物理｜運動學', '物理｜力學', '化學｜化學反應', '生物｜互動題', '地科｜地質'],
+  );
+  assert.deepEqual(naturalDetail.slices.map(slice => slice.minutes), [10, 5, 20, 30, 40]);
+  assert.deepEqual(naturalDetail.slices.map(slice => slice.subject), ['物理', '物理', '化學', '生物', '地科']);
   assert.equal(naturalDetail.slices.reduce((sum, slice) => sum + slice.percent, 0), 100);
 });
 
@@ -236,7 +240,11 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.doesNotMatch(html, /summary-heading-icon/);
   assert.doesNotMatch(html, /總時數/);
   assert.match(html, /圓內深淺＝當日學習時數/);
-  assert.match(html, /深綠完整圓環＝100% 完成/);
+  assert.match(html, /亮綠完整圓環＝100% 完成/);
+  assert.match(html, /紅色圓心＝身體不適/);
+  assert.match(html, /橘色圓心＝疲倦/);
+  assert.match(html, /黃色圓心＝外出/);
+  assert.doesNotMatch(html, /深綠完整圓環/);
   assert.doesNotMatch(html, /id="subjectBack"|返回全部科目<\/button>/);
   const runtime = readFileSync(new URL('../src/learning-summary-page.ts', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/learning-summary.css', import.meta.url), 'utf8');
@@ -271,6 +279,10 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(styles, /\.summary-day-ring::before\{[^}]*mask:radial-gradient/);
   assert.match(styles, /\.summary-day-ring\{--day-ring-width:6px;position:relative;background:transparent\}/);
   assert.match(styles, /\.summary-day\.is-complete\{--day-accent:#70DE43\}/);
+  assert.match(styles, /\.legend-complete\{border-color:#70DE43\}/);
+  assert.match(styles, /\.legend-unwell\{[^}]*background:#ff7575\}/);
+  assert.match(styles, /\.legend-tired\{[^}]*background:#ffc78e\}/);
+  assert.match(styles, /\.legend-out\{[^}]*background:#fff0bd\}/);
   assert.doesNotMatch(html, /summary-side-stack/);
   assert.match(html, /summary-conclusion-card[\s\S]*id="summaryComparison"[\s\S]*id="summaryConclusion"[\s\S]*id="averageWakeTime"/);
   assert.match(html, /id="wakeComparisonLabel"[\s\S]*id="wakeComparisonValue"/);
