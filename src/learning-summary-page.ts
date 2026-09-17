@@ -6,7 +6,9 @@ import {
   dateKey,
   fixedPeriodRemarks,
   formatClockMinutes,
+  groupedSummarySubjectTime,
   shiftSummaryAnchor,
+  summarizeNaturalScienceTime,
   summarizeStudyItemTime,
   summarizeLearningPeriod,
   summaryPeriod,
@@ -111,7 +113,8 @@ function summaryMoodColor(mood: string, opacity: number): string {
 }
 
 function subjectDonutMarkup(summary: LearningPeriodSummary): string {
-  const arcs = subjectTimeDonutSlices(summary.subjectTime);
+  const subjectTime = groupedSummarySubjectTime(summary.timeEntries);
+  const arcs = subjectTimeDonutSlices(subjectTime);
   const paths = arcs.map(slice => `<path class="summary-donut-slice" data-summary-subject-path="${slice.subject}" d="${subjectTimeArcPath(slice)}" fill="none" stroke="${slice.color}" tabindex="0" role="button" aria-label="${slice.subject} ${formatHours(slice.minutes)} 小時，占 ${slice.percent}%"></path>`).join('');
   const labels = arcs.map(slice => {
     const fontSize = slice.endPercent - slice.startPercent < 6 ? 9.5 : 13;
@@ -122,7 +125,7 @@ function subjectDonutMarkup(summary: LearningPeriodSummary): string {
       <circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle>${paths}
     </svg>
     ${labels}
-    <div class="summary-donut-center"><strong>${formatHours(summary.subjectTime.totalMinutes)}</strong><span>hr</span></div>
+    <div class="summary-donut-center"><strong>${formatHours(subjectTime.totalMinutes)}</strong><span>hr</span></div>
   </div>`;
 }
 
@@ -161,8 +164,9 @@ function renderCalendar(summary: LearningPeriodSummary): void {
     const moodOpacity = summaryMoodOpacity(day.totalMinutes, maxMinutes);
     const coreColor = summaryMoodColor(day.mood, moodOpacity) || timeColor;
     const moodText = day.mood ? `，狀態 ${day.mood}` : '';
+    const periodCompletionText = day.hasRecord && !day.completionIncludedInPeriod ? '，不列入週／月完成率' : '';
     return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}${moodClass}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-time-color:${timeColor};--day-core-color:${coreColor}">
-      <button class="summary-day-button" type="button" data-summary-day aria-expanded="false" aria-label="${escapeHtml(formatDateLabel(day.date))}，${escapeHtml(timeText)}，完成率 ${day.completionPercent}%${escapeHtml(moodText)}">
+      <button class="summary-day-button" type="button" data-summary-day aria-expanded="false" aria-label="${escapeHtml(formatDateLabel(day.date))}，${escapeHtml(timeText)}，完成率 ${day.completionPercent}%${escapeHtml(moodText)}${escapeHtml(periodCompletionText)}">
         <span class="summary-day-week">${activeMode === 'week' ? `週${day.weekday}` : ''}</span>
         <span class="summary-day-ring"><span class="summary-day-core"><strong>${day.dayNumber}</strong></span></span>
       </button>
@@ -170,6 +174,7 @@ function renderCalendar(summary: LearningPeriodSummary): void {
         <strong>${escapeHtml(formatDateLabel(day.date))}</strong>
         <span>學習時間：${escapeHtml(timeText)}</span>
         <span>完成率：${day.completionPercent}%</span>
+        ${periodCompletionText ? '<span>不列入週／月完成率</span>' : ''}
         ${day.mood ? `<span>狀態：${escapeHtml(day.mood)}</span>` : ''}
       </span>
     </article>`;
@@ -187,13 +192,17 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
     target.dataset.view = 'detail';
     target.classList.toggle('animate-detail-entry', shouldAnimateEntry);
     target.classList.remove('is-detail-ready');
-    const detail = summarizeStudyItemTime(summary.timeEntries, selectedSubject);
+    const detail = selectedSubject === '自然'
+      ? summarizeNaturalScienceTime(summary.timeEntries)
+      : summarizeStudyItemTime(summary.timeEntries, selectedSubject);
     title.textContent = `科目分配｜${selectedSubject}`;
     const baseColor = SUBJECT_TIME_COLORS[selectedSubject];
     const maxPercent = Math.max(1, ...detail.slices.map(slice => slice.percent));
     const slices = detail.slices.map(slice => ({
       ...slice,
-      color: tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
+      color: selectedSubject === '自然'
+        ? SUBJECT_TIME_COLORS[slice.label === '自然整合' ? '自然' : slice.label as SubjectTimeSubject]
+        : tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
     }));
     const detailRows = Math.max(1, Math.min(4, slices.length));
     const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${formatHours(slice.minutes)} hr</span></li>`).join('');
@@ -226,7 +235,7 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
   title.textContent = '科目分配';
   target.dataset.view = 'subjects';
   target.classList.remove('animate-detail-entry', 'is-detail-ready');
-  const slices = summary.subjectTime.slices;
+  const slices = groupedSummarySubjectTime(summary.timeEntries).slices;
   if (!slices.length) {
     target.innerHTML = `<div class="summary-donut-shell is-empty"><svg class="summary-donut-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle></svg><div class="summary-donut-center"><strong>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無完成時間紀錄。</p>`;
     return;

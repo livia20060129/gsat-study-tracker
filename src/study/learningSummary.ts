@@ -34,6 +34,7 @@ export interface LearningSummaryDay {
   mood: string;
   totalMinutes: number;
   completionPercent: number;
+  completionIncludedInPeriod: boolean;
   wakeMinutes: number | null;
 }
 
@@ -61,6 +62,8 @@ export interface StudyItemTimeSlice {
   minutes: number;
   percent: number;
 }
+
+export const NATURAL_SCIENCE_SUBJECTS = ['物理', '化學', '生物', '地科'] as const;
 
 export type PeriodChangeState = 'increase' | 'stable' | 'decrease';
 
@@ -157,6 +160,12 @@ function isWeeklyCalendarItem(item: StudyItem): boolean {
 function visibleItems(record: StudyRecord): StudyItem[] {
   const items = Array.isArray(record.items) ? record.items : [];
   return items.filter(item => !(record.mood === '外出' && item?.source === 'preset'));
+}
+
+/** These statuses keep their daily progress display but do not affect period completion. */
+export function completionIncludedInPeriod(record: Pick<StudyRecord, 'mood'>): boolean {
+  const mood = String(record.mood ?? '').trim();
+  return mood !== '外出' && mood !== '身體不適';
 }
 
 function isSaturdayMakeup(item: StudyItem): boolean {
@@ -423,6 +432,16 @@ export function completedSubjectTimeForRecord(record: StudyRecord): SubjectTimeS
   return summarizeSubjectTime(completedStudyTimeEntries([record]));
 }
 
+/** Groups the four natural-science subjects into one overview slice without changing stored entries. */
+export function groupedSummarySubjectTime(entries: CompletedStudyTimeEntry[]): SubjectTimeSummary {
+  return summarizeSubjectTime(entries.map(entry => ({
+    subject: NATURAL_SCIENCE_SUBJECTS.includes(entry.subject as typeof NATURAL_SCIENCE_SUBJECTS[number])
+      ? '自然'
+      : entry.subject,
+    minutes: entry.minutes,
+  })));
+}
+
 function roundOne(value: number): number {
   return Math.round((value + Number.EPSILON) * 10) / 10;
 }
@@ -440,6 +459,36 @@ export function summarizeStudyItemTime(
   let allocated = 0;
   const slices = sorted.map(([label, minutes], index) => {
     const percent = index === sorted.length - 1
+      ? roundOne(100 - allocated)
+      : roundOne(totalMinutes > 0 ? minutes / totalMinutes * 100 : 0);
+    allocated = roundOne(allocated + percent);
+    return { label, minutes: roundOne(minutes), percent };
+  });
+  return { totalMinutes, slices };
+}
+
+/** Breaks the overview's natural-science slice back into the four science subjects. */
+export function summarizeNaturalScienceTime(
+  entries: CompletedStudyTimeEntry[],
+): { totalMinutes: number; slices: StudyItemTimeSlice[] } {
+  const labels = [...NATURAL_SCIENCE_SUBJECTS, '自然整合'] as const;
+  const totals = new Map<string, number>(labels.map(label => [label, 0]));
+  entries.forEach(entry => {
+    const label = NATURAL_SCIENCE_SUBJECTS.includes(entry.subject as typeof NATURAL_SCIENCE_SUBJECTS[number])
+      ? entry.subject
+      : entry.subject === '自然'
+        ? '自然整合'
+        : '';
+    if (!label) return;
+    totals.set(label, (totals.get(label) ?? 0) + entry.minutes);
+  });
+  const populated = labels
+    .map(label => [label, totals.get(label) ?? 0] as const)
+    .filter(([, minutes]) => minutes > 0);
+  const totalMinutes = roundOne(populated.reduce((sum, [, minutes]) => sum + minutes, 0));
+  let allocated = 0;
+  const slices = populated.map(([label, minutes], index) => {
+    const percent = index === populated.length - 1
       ? roundOne(100 - allocated)
       : roundOne(totalMinutes > 0 ? minutes / totalMinutes * 100 : 0);
     allocated = roundOne(allocated + percent);
@@ -500,7 +549,9 @@ export function wakeTimeMinutes(value: unknown): number | null {
 export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryPeriod): LearningPeriodSummary {
   const byDate = new Map(records.map(record => [record.date, record]));
   const periodRecords = period.dates.map(date => byDate.get(date)).filter(Boolean) as StudyRecord[];
-  const allUnits = periodRecords.flatMap(summaryCompletionUnitsForRecord);
+  const allUnits = periodRecords
+    .filter(completionIncludedInPeriod)
+    .flatMap(summaryCompletionUnitsForRecord);
   const timeEntries = completedStudyTimeEntries(periodRecords);
   const timeEntriesByDate = new Map<string, CompletedStudyTimeEntry[]>();
   timeEntries.forEach(entry => timeEntriesByDate.set(entry.date, [...(timeEntriesByDate.get(entry.date) ?? []), entry]));
@@ -510,7 +561,8 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
     if (!record) {
       return {
         date, dayNumber: parseDate(date).getDate(), weekday: ['日', '一', '二', '三', '四', '五', '六'][parseDate(date).getDay()],
-        hasRecord: false, mood: '', totalMinutes: 0, completionPercent: 0, wakeMinutes: null,
+        hasRecord: false, mood: '', totalMinutes: 0, completionPercent: 0,
+        completionIncludedInPeriod: false, wakeMinutes: null,
       };
     }
     const completion = summarizeCompletionUnits(summaryCompletionUnitsForRecord(record));
@@ -520,7 +572,8 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
     return {
       date, dayNumber: parseDate(date).getDate(), weekday: ['日', '一', '二', '三', '四', '五', '六'][parseDate(date).getDay()],
       hasRecord: true, mood: String(record.mood ?? '').trim(), totalMinutes: subjectTime.totalMinutes,
-      completionPercent: completion.settlementPercent, wakeMinutes,
+      completionPercent: completion.settlementPercent,
+      completionIncludedInPeriod: completionIncludedInPeriod(record), wakeMinutes,
     };
   });
   return {
