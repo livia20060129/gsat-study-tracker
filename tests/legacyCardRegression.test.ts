@@ -67,6 +67,65 @@ function metrics(items: StudyItem[]) {
   return completion.summarizeCompletionUnits(recordUnits(record, record.date));
 }
 
+test('cloud bootstrap renders the saved day without replacing it with fallback presets', () => {
+  const nodes = {
+    studyDate: { value: '2026-09-18' },
+    weekdayText: { textContent: '' },
+    status: { textContent: '' },
+  };
+  let presetCalls = 0;
+  let persistCalls = 0;
+  let renderCalls = 0;
+  const load = runtimeFunction<(options?: { skipCloudRead?: boolean; cacheOnly?: boolean; skipPresetReconcile?: boolean }) => void>(
+    'load',
+    {
+      id: (name: keyof typeof nodes) => nodes[name],
+      loadData: (date: string) => ({ date, items: [{ id: 'saved-calendar-item' }] }),
+      updateCloudConflictUI: () => {},
+      updateStorageRecoveryUI: () => {},
+      weekdays: ['日', '一', '二', '三', '四', '五', '六'],
+      parseDate: (date: string) => new Date(`${date}T12:00:00`),
+      ensureDailyPresets: () => {
+        presetCalls += 1;
+        return true;
+      },
+      ensureEnglishReviewWordEntryIds: () => false,
+      writeHeader: () => {},
+      render: () => {
+        renderCalls += 1;
+      },
+      persist: () => {
+        persistCalls += 1;
+        return true;
+      },
+      cloudUser: {},
+      cloudBootstrapPending: true,
+      cloudPullDate: () => {},
+    },
+  );
+
+  load({ skipCloudRead: true, cacheOnly: true, skipPresetReconcile: true });
+  assert.equal(renderCalls, 1);
+  assert.equal(presetCalls, 0);
+  assert.equal(persistCalls, 0);
+
+  load({ skipCloudRead: true });
+  assert.equal(renderCalls, 2);
+  assert.equal(presetCalls, 1);
+  assert.equal(persistCalls, 1);
+});
+
+test('cloud activation waits for Calendar data before reconciling visible presets', () => {
+  assert.match(runtime, /load\(\{skipCloudRead:true,cacheOnly:true,skipPresetReconcile:true\}\)/);
+  assert.match(runtime, /refreshVisibleDataAfterBackgroundSync\(\{skipPresetReconcile:true\}\)/);
+  assert.match(runtime, /setCloudVisibleRefreshPending\(true,options\)/);
+  assert.match(runtime, /load\(Object\.assign\(\{skipCloudRead:true\},options\|\|\{\}\)\)/);
+  assert.match(
+    runtime,
+    /await withOperationTimeout\(calendarRefreshStatus\(false\)[\s\S]*?if\(serial===cloudActivationSerial\)refreshVisibleDataAfterBackgroundSync\(\)/,
+  );
+});
+
 test('runtime metrics wait for confirmation, subtract once on retargeting, and restore on cancellation', () => {
   const moving = item({ deferred: true });
   const items = [item({ done: true }), item(), moving];

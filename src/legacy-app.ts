@@ -613,6 +613,7 @@ var PERIODIC_CLOUD_SAVE_MS=10*60*1000;
 var cloudHasError=false;
 var cloudAuthPending=false;
 var cloudVisibleRefreshPending=false;
+var cloudVisibleRefreshOptions=null;
 var deleteUndoState=null;
 var deleteUndoTimer=null;
 var DELETE_UNDO_MS=8000;
@@ -1350,19 +1351,21 @@ function isEditingRecordControl(){
  var active=document.activeElement,tag=active&&active.tagName?String(active.tagName).toUpperCase():'';
  return (tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')&&active!==id('studyDate');
 }
-function setCloudVisibleRefreshPending(pending){
+function setCloudVisibleRefreshPending(pending,options){
  cloudVisibleRefreshPending=!!pending;
+ cloudVisibleRefreshOptions=cloudVisibleRefreshPending?Object.assign({},options||{}):null;
  var notice=id('cloudRefreshNotice');if(notice)notice.hidden=!cloudVisibleRefreshPending;
 }
-function refreshVisibleDataAfterBackgroundSync(){
- if(isEditingRecordControl()){setCloudVisibleRefreshPending(true);return false}
+function refreshVisibleDataAfterBackgroundSync(options){
+ if(isEditingRecordControl()){setCloudVisibleRefreshPending(true,options);return false}
  setCloudVisibleRefreshPending(false);
- load({skipCloudRead:true});return true;
+ load(Object.assign({skipCloudRead:true},options||{}));return true;
 }
 function applyPendingVisibleCloudRefresh(){
  if(!cloudVisibleRefreshPending||isEditingRecordControl())return false;
+ var options=cloudVisibleRefreshOptions;
  if(!persist(false))return false;
- setCloudVisibleRefreshPending(false);load({skipCloudRead:true});return true;
+ setCloudVisibleRefreshPending(false);load(Object.assign({skipCloudRead:true},options||{}));return true;
 }
 async function retryDirtyCloudRecordsOnReconnect(){
  if(!cloudClient||!cloudUser||!currentStorageIsUserScoped())return false;
@@ -1385,7 +1388,7 @@ async function activateCloudUser(user){
  // cached day from being generated and mistaken for a newer server record.
  try{
   rebuildMathProgressIndex();
-  load({skipCloudRead:true,cacheOnly:true});
+  load({skipCloudRead:true,cacheOnly:true,skipPresetReconcile:true});
  }catch(e){
   if(serial===cloudActivationSerial){
    cloudBootstrapPending=false;cloudLoading=false;updateCloudActionButtons();
@@ -1409,7 +1412,7 @@ async function activateCloudUser(user){
  cloudBootstrapPending=false;
  updateCloudActionButtons();
  var queued=queueDirtyCloudRecords();
- var refreshed=refreshVisibleDataAfterBackgroundSync();
+ var refreshed=refreshVisibleDataAfterBackgroundSync({skipPresetReconcile:true});
  if(recordStats&&recordStats.ok){
   var msg='登入完成；本機快取已立即顯示，'+recordStats.message;
   if(queued)msg+=' 另有 '+queued+' 天已排入背景上傳。';
@@ -1428,6 +1431,7 @@ async function refreshCalendarAfterCloudActivation(serial){
    timeoutMs:CLOUD_CALENDAR_BOOTSTRAP_TIMEOUT_MS,
    message:'Calendar 狀態讀取超過 15 秒；這不影響 Cloud 登入與雲端紀錄。'
   });
+  if(serial===cloudActivationSerial)refreshVisibleDataAfterBackgroundSync();
  }catch(e){
   if(serial===cloudActivationSerial)calendarSetMessage(e&&e.message?e.message:String(e),false);
  }
@@ -3711,7 +3715,7 @@ function persist(show){
 function load(options){
  var opts=options||{},d=id('studyDate').value;pendingDeferredTargets={};deferredLimitPrompt=null;data=loadData(d);updateCloudConflictUI(data.syncConflict?d:'');updateStorageRecoveryUI();id('weekdayText').textContent=weekdays[parseDate(d).getDay()];
  if(data.storageIssue){writeHeader();render();id('status').textContent=d+' 的本機紀錄無法讀取；原始內容已保留，修復前不會覆蓋。';return}
- var changed=ensureDailyPresets(data,d);if(ensureEnglishReviewWordEntryIds(data))changed=true;writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
+ var changed=false;if(!opts.skipPresetReconcile)changed=ensureDailyPresets(data,d);if(ensureEnglishReviewWordEntryIds(data))changed=true;writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
  if(cloudUser&&!cloudBootstrapPending&&!opts.skipCloudRead)cloudPullDate(d,false);
 }
 
