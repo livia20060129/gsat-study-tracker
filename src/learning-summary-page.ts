@@ -65,7 +65,10 @@ function formatWholeDuration(value: number): string {
 
 function signed(value: number, suffix: string): string {
   const rounded = Math.round(value * 10) / 10;
-  return `${rounded > 0 ? '+' : rounded < 0 ? '' : '±'}${rounded}${suffix}`;
+  let prefix = '';
+  if (rounded > 0) prefix = '+';
+  else if (rounded === 0) prefix = '±';
+  return `${prefix}${rounded}${suffix}`;
 }
 
 function comparisonClass(value: number, lowerIsBetter = false): string {

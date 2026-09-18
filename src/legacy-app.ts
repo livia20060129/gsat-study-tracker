@@ -27,10 +27,16 @@ import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/pr
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
 import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } from './study/subjectOrder';
 import { SUBJECT_TIME_SHORT_LABELS, subjectTimeArcPath, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
-import { completedStudyTimeEntries } from './study/learningSummary';
+import { completedTimeEntriesForOverviewDate } from './application/overview/overviewStudyTime.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
-import { applyCompletionDateChange, completionDateLabel, deferredCompletionDate, manualCompletionDateChange } from './study/completionCheckedOn';
+import { completionDateLabel } from './study/completionCheckedOn';
+import {
+  applyManualCompletionMetadata,
+  completionTargetWithinOrigin,
+  findCompletionItem,
+  refreshCompletionTree,
+} from './study/completionTree';
 import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer, studyTimerFromManualMinutes } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
@@ -3132,74 +3138,6 @@ function findRecursive(list,target){
  for(var i=0;i<list.length;i++){var x=list[i];if(x&&x.id===target)return x;if(x&&x.f){var y=findRecursive(x.f.makeupEntries,target)||findRecursive(x.f.reviewEntries,target)||findRecursive(x.f.interactiveEntries,target)||findRecursive(x.f.calendarIntegrationEntries,target)||findRecursive(x.f.groupedWorkEntries,target);if(y)return y}}return null;
 }
 function findItem(target){return data?findRecursive(data.items,target):null}
-function completionChildItems(x,includeSources){
- if(!x||!x.f)return[];
- var names=['groupedWorkEntries','interactiveEntries','calendarIntegrationEntries','makeupEntries'];if(includeSources)names.push('dailyWorkSourceItems');
- var out=[];names.forEach(function(name){if(Array.isArray(x.f[name]))out=out.concat(x.f[name])});return out;
-}
-function findCompletionRecursive(list,target,visited){
- if(!Array.isArray(list))return null;visited=visited||new Set();
- for(var i=0;i<list.length;i++){
-  var x=list[i];if(!x||visited.has(x))continue;visited.add(x);if(x.id===target)return x;
-  var found=findCompletionRecursive(completionChildItems(x,true),target,visited);if(found)return found;
- }
- return null;
-}
-function deferredCarrierAncestor(list,target){
- var visited=new Set();
- function visit(items,inherited){
-  if(!Array.isArray(items))return null;
-  for(var i=0;i<items.length;i++){
-   var x=items[i];if(!x||visited.has(x))continue;visited.add(x);var carrier=x.deferredCarry?x:inherited;
-   if(x===target)return{found:true,carrier:carrier||null};
-   var nested=visit(completionChildItems(x,true),carrier);if(nested)return nested;
-  }
-  return null;
- }
- var result=visit(list,null);return result?result.carrier:null;
-}
-function applyManualCompletionMetadata(item,checked,recordDate,actionDate,rootItems){
- var requests=[],visited=new Set(),ancestor=deferredCarrierAncestor(rootItems,item);
- function visit(target,inheritedCarrier){
-  if(!target||visited.has(target))return;visited.add(target);
-  var carrier=target.deferredCarry?target:inheritedCarrier;
-  var previous=target.deferredCompletedOn||deferredCompletionDate(target);
-  var change=manualCompletionDateChange({checked:checked,recordDate:recordDate,actionDate:actionDate,deferredCarry:!!carrier,confirmedDeferred:confirmedDeferred(target),previousDeferredCompletedOn:previous});
-  applyCompletionDateChange(target,change);
-  var represented=[];
-  if(target.f&&Array.isArray(target.f.dailyWorkSourceItems))represented=represented.concat(target.f.dailyWorkSourceItems);
-  if(target.f&&Array.isArray(target.f.groupedWorkEntries))represented=represented.concat(target.f.groupedWorkEntries);
-  if(change.syncDeferredOrigin&&carrier&&!represented.length)requests.push({carrier:carrier,target:target,change:change,previousDeferredCompletedOn:previous});
-  represented.forEach(function(child){visit(child,carrier)});
- }
- visit(item,ancestor);return requests;
-}
-function completionIdentityMatch(candidate,target){
- if(!candidate||!target)return false;
- if(candidate.id&&candidate.id===target.id)return true;
- if(candidate.presetKey&&target.presetKey&&candidate.presetKey===target.presetKey)return true;
- if(groupedEntryMatch(candidate,target))return true;
- var af=candidate.f||{},bf=target.f||{};
- return candidate.type===target.type&&String(candidate.title||'')===String(target.title||'')&&String(af.subject||'')===String(bf.subject||'')&&String(af.round||'')===String(bf.round||'')&&String(af.start||'')===String(bf.start||'')&&String(af.end||'')===String(bf.end||'');
-}
-function completionTargetWithinOrigin(originRoot,target,carrier){
- if(!originRoot)return null;
- if(target===carrier||target.id===carrier.id)return originRoot;
- var exact=findCompletionRecursive([originRoot],target.id);if(exact&&exact!==originRoot)return exact;
- var originIds=deferredCarryOriginIds(target);for(var oi=0;oi<originIds.length;oi++){var byOrigin=findCompletionRecursive([originRoot],originIds[oi]);if(byOrigin)return byOrigin}
- var candidates=[],visited=new Set();
- (function collect(item){if(!item||visited.has(item))return;visited.add(item);candidates.push(item);completionChildItems(item,true).forEach(collect)})(originRoot);
- return candidates.find(function(candidate){return candidate!==originRoot&&completionIdentityMatch(candidate,target)})||null;
-}
-function refreshCompletionTree(item,visited){
- if(!item)return;visited=visited||new Set();if(visited.has(item))return;visited.add(item);
- var groups=[];
- if(item.f&&Array.isArray(item.f.dailyWorkSourceItems)&&item.f.dailyWorkSourceItems.length)groups=item.f.dailyWorkSourceItems;
- else if(item.f&&Array.isArray(item.f.groupedWorkEntries)&&item.f.groupedWorkEntries.length)groups=item.f.groupedWorkEntries;
- else if(item.f&&Array.isArray(item.f.calendarIntegrationEntries)&&item.f.calendarIntegrationEntries.length)groups=item.f.calendarIntegrationEntries;
- else if(item.f&&Array.isArray(item.f.interactiveEntries)&&item.f.interactiveEntries.length)groups=item.f.interactiveEntries;
- groups.forEach(function(child){refreshCompletionTree(child,visited)});if(groups.length)item.done=groups.every(function(child){return !!child.done});
-}
 function syncDeferredCompletionToOrigins(requests,checked,actionDate){
  if(!Array.isArray(requests)||!requests.length)return;
  var records={};
@@ -3210,7 +3148,7 @@ function syncDeferredCompletionToOrigins(requests,checked,actionDate){
   var ids=deferredCarryOriginIds(carrier);
   dates.forEach(function(originDate){
    var rec=records[originDate]||(records[originDate]=loadData(originDate)),originRoot=null;
-   for(var i=0;i<ids.length&&!originRoot;i++)originRoot=findCompletionRecursive(rec.items,ids[i]);
+   for(var i=0;i<ids.length&&!originRoot;i++)originRoot=findCompletionItem(rec.items,ids[i]);
    if(!originRoot)return;
    var originTarget=completionTargetWithinOrigin(originRoot,target,carrier);if(!originTarget)return;
    if(!checked&&originTarget.deferredCompletedOn&&request.previousDeferredCompletedOn&&originTarget.deferredCompletedOn!==request.previousDeferredCompletedOn)return;
@@ -3644,18 +3582,18 @@ function renderSubjectTimeDonut(summary){
  chart.addEventListener('click',function(){delete chart.dataset.pinnedSubject;showTotal()});
 }
 
-function completedTimeEntriesForOverviewDate(date){
- var records=[],included={};
+function studyRecordsForOverview(){
+ var records=[];
  localStudyDates().forEach(function(recordDate){
-  var rec=data&&data.date===recordDate?cloneRecord(data):readStoredRecord(recordDate);
-  if(rec){records.push(rec);included[recordDate]=true}
+  var rec=readStoredRecord(recordDate);
+  if(rec)records.push(rec);
  });
- if(data&&data.date&&!included[data.date])records.push(cloneRecord(data));
- return completedStudyTimeEntries(records).filter(function(entry){return entry.date===date});
+ return records;
 }
 function updateSummary(){
  mathProgressIndex.upsert(data);
- var subjectMinuteEntries=completedTimeEntriesForOverviewDate(data.date).map(function(entry){return{subject:entry.subject,minutes:entry.minutes}});
+ var completedEntries=completedTimeEntriesForOverviewDate(studyRecordsForOverview(),cloneRecord(data),data.date);
+ var subjectMinuteEntries=completedEntries.map(function(entry){return{subject:entry.subject,minutes:entry.minutes}});
  var subjectTime=summarizeSubjectTime(subjectMinuteEntries);
  var completion=summarizeCompletionUnits(completionUnitsForRecord(data,data.date)),pct=completion.itemPercent;
  var math=calculateMathProgress(mathProgressIndex.view(),data.date,calendarWeekMathTarget(data.date));

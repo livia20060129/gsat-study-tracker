@@ -499,7 +499,7 @@ export function activeStudyRecordPrefix(storage: Pick<Storage, 'length' | 'key' 
   if (validRecordPrefix(active)) return active;
   const prefixes = discoveredPrefixes(storage);
   const userPrefix = prefixes.find(prefix => prefix.startsWith('study-v11:user:'));
-  return userPrefix ?? (prefixes.includes('study-v11:guest:') ? 'study-v11:guest:' : 'study-v11:guest:');
+  return userPrefix ?? 'study-v11:guest:';
 }
 
 export function readMaterialProgressRecords(storage: Pick<Storage, 'length' | 'key' | 'getItem'>): {

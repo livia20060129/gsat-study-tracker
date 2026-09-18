@@ -9,7 +9,7 @@ import { propagateDailyWorkField } from '../src/study/dailyWorkGroup.ts';
 import { normalizeStudyTimerState } from '../src/study/studyTimer.ts';
 import { studyItemSubject } from '../src/study/subjectOrder.ts';
 import { summarizeSubjectTime } from '../src/study/subjectTime.ts';
-import { completedStudyTimeEntries } from '../src/study/learningSummary.ts';
+import { completedStudyTimeEntries } from '../src/study/completedStudyTime.ts';
 import { parseCalendarTask } from '../src/calendar/calendarBridge.ts';
 import { prioritizeCalendarPageRanges } from '../src/calendar/pagePriority.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
@@ -436,6 +436,8 @@ test('every completed time-capable child counts without waiting for its parent c
   let renderedTotal = -1;
   const update = runtimeFunction<() => void>('updateSummary', {
     data: { date: '2026-09-13', items },
+    studyRecordsForOverview: () => [{ date: '2026-09-13', items }],
+    cloneRecord: (record: StudyRecord) => structuredClone(record),
     completedTimeEntriesForOverviewDate: () => completedStudyTimeEntries([{ date: '2026-09-13', items }]),
     mathProgressIndex: { upsert() {}, view: () => [] },
     visibleItems: (record: { items: StudyItem[] }) => record.items,
@@ -465,28 +467,6 @@ test('every completed time-capable child counts without waiting for its parent c
 
   update();
   assert.equal(renderedTotal, 32);
-});
-
-test('today overview includes minutes checked from past and future source dates', () => {
-  const past = item({ id: 'past', done: true, minutes: '20', f: { subject: '數學' }, checkedOn: '2026-09-17' });
-  const sameDay = item({ id: 'same-day', done: true, minutes: '10', f: { subject: '國文' } });
-  const future = item({ id: 'future', done: true, minutes: '40', f: { subject: '英文' }, checkedOn: '2026-09-17' });
-  const records: Record<string, StudyRecord> = {
-    '2026-09-16': { date: '2026-09-16', items: [past] },
-    '2026-09-17': { date: '2026-09-17', items: [sameDay] },
-    '2026-09-18': { date: '2026-09-18', items: [future] },
-  };
-  const collect = runtimeFunction<(date: string) => Array<{ date: string; minutes: number }>>('completedTimeEntriesForOverviewDate', {
-    data: records['2026-09-17'],
-    localStudyDates: () => Object.keys(records),
-    cloneRecord: (value: StudyRecord) => structuredClone(value),
-    readStoredRecord: (date: string) => records[date],
-    completedStudyTimeEntries,
-  });
-
-  const entries = collect('2026-09-17');
-  assert.equal(entries.reduce((sum, entry) => sum + entry.minutes, 0), 70);
-  assert.ok(entries.every(entry => entry.date === '2026-09-17'));
 });
 
 test('mixed writing places both quarter-width scores beside one spanning priority field', () => {
