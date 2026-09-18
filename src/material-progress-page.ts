@@ -5,6 +5,7 @@ import {
   normalizedProgressSubject,
   readMaterialProgressRecords,
   subjectIndex,
+  type MaterialProgressGroup,
   type MaterialProgressRow,
   type MaterialProgressSubject,
 } from './study/materialProgress.ts';
@@ -67,6 +68,40 @@ function renderRow(row: MaterialProgressRow): HTMLElement {
   return article;
 }
 
+const GROUP_ORDER: Record<MaterialProgressSubject, MaterialProgressGroup[]> = {
+  chinese: ['國文教材'],
+  english: ['學測', '補充'],
+  math: ['複習講義（兩冊以上一本）', '分冊講義（一冊一本）'],
+  natural: ['物理', '化學', '生物', '地科'],
+};
+
+function renderGroup(group: MaterialProgressGroup, groupRows: MaterialProgressRow[], index: number): HTMLElement {
+  const section = document.createElement('section');
+  section.className = 'material-group';
+
+  if (activeSubject !== 'chinese') {
+    const heading = document.createElement('h3');
+    heading.className = 'material-group-title';
+    heading.id = `materialGroup${index}`;
+    heading.textContent = group;
+    section.setAttribute('aria-labelledby', heading.id);
+    section.append(heading);
+  }
+
+  const groupList = document.createElement('div');
+  groupList.className = 'material-group-list';
+  groupList.append(...groupRows.map(renderRow));
+  section.append(groupList);
+  return section;
+}
+
+function renderGroups(subjectRows: MaterialProgressRow[]): HTMLElement[] {
+  return GROUP_ORDER[activeSubject].flatMap((group, index) => {
+    const groupRows = subjectRows.filter(row => row.group === group);
+    return groupRows.length > 0 ? [renderGroup(group, groupRows, index)] : [];
+  });
+}
+
 function render(): void {
   document.body.dataset.subject = activeSubject;
   const switcher = element<HTMLDivElement>('subjectSwitch');
@@ -93,7 +128,7 @@ function render(): void {
   element<HTMLElement>('subjectSummary').textContent = `${SUBJECT_LABELS[activeSubject]}合計完成 ${completionPercent}%`;
 
   const list = element<HTMLDivElement>('materialProgressList');
-  list.replaceChildren(...subjectRows.map(renderRow));
+  list.replaceChildren(...renderGroups(subjectRows));
 }
 
 function load(): void {

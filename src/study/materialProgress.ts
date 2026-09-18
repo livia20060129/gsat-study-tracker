@@ -24,6 +24,16 @@ export { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 
 export const MATERIAL_PROGRESS_SUBJECTS = ['chinese', 'english', 'math', 'natural'] as const;
 export type MaterialProgressSubject = (typeof MATERIAL_PROGRESS_SUBJECTS)[number];
+export type MaterialProgressGroup =
+  | '國文教材'
+  | '學測'
+  | '補充'
+  | '複習講義（兩冊以上一本）'
+  | '分冊講義（一冊一本）'
+  | '物理'
+  | '化學'
+  | '生物'
+  | '地科';
 
 export interface MaterialProgressSegment {
   key: string;
@@ -39,6 +49,7 @@ export interface MaterialProgressSegment {
 export interface MaterialProgressRow {
   id: string;
   subject: MaterialProgressSubject;
+  group: MaterialProgressGroup;
   title: string;
   unitLabel: string;
   recorded: number;
@@ -64,6 +75,7 @@ interface SegmentDefinition {
 interface MaterialDefinition {
   id: string;
   subject: MaterialProgressSubject;
+  group: MaterialProgressGroup;
   title: string;
   unitLabel: string;
   segments: SegmentDefinition[];
@@ -187,9 +199,11 @@ function mappedSegments(rows: readonly PageMapRow[]): SegmentDefinition[] {
 
 function bookDefinition(book: PageMappedBook): MaterialDefinition {
   const subject = pageMappedBookSubject(book) === '國文' ? 'chinese' : 'english';
+  const group = subject === 'chinese' ? '國文教材' : book === UNLOCK_3_BOOK ? '補充' : '學測';
   return {
     id: `book:${book}`,
     subject,
+    group,
     title: book,
     unitLabel: '篇',
     segments: BOOK_PAGE_MAPS[book].map((section, index) => ({
@@ -207,6 +221,7 @@ function mathDefinition(material: string, book: string, rows: readonly PageMapRo
   return {
     id: material === '複習週記' ? 'math:複習週記' : `math:${material}:${book}`,
     subject: 'math',
+    group: material === '教學講義' ? '分冊講義（一冊一本）' : '複習講義（兩冊以上一本）',
     title: material === '複習週記' ? '數學｜複習週記' : `數學｜${material}｜${book}`,
     unitLabel: '單元',
     segments: mappedSegments(rows),
@@ -214,17 +229,18 @@ function mathDefinition(material: string, book: string, rows: readonly PageMapRo
 }
 
 const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
-  { id: 'chinese:gujin', subject: 'chinese', title: '國文｜古今悅讀一百', unitLabel: '回', segments: numberedSegments(100, '第') },
+  { id: 'chinese:gujin', subject: 'chinese', group: '國文教材', title: '國文｜古今悅讀一百', unitLabel: '回', segments: numberedSegments(100, '第') },
   bookDefinition(DEEP_FIFTEEN_BOOK),
   bookDefinition(CHINESE_TOPIC_BOOK),
-  { id: 'english:ace', subject: 'english', title: '英文｜ACE Reading', unitLabel: '回', segments: numberedSegments(60, '第') },
-  { id: 'english:listening', subject: 'english', title: `英文｜${LISTENING_TEST_BOOK_TITLE}`, unitLabel: 'Test', segments: numberedSegments(10, 'Test') },
-  { id: 'english:essential', subject: 'english', title: '英文｜Essential Grammar in Use', unitLabel: 'Unit', segments: numberedSegments(115, 'Unit') },
-  { id: 'english:writing', subject: 'english', title: '英文｜英文寫作測驗', unitLabel: '回', segments: numberedSegments(40, '第') },
-  { id: 'english:grammar', subject: 'english', title: '英文｜英文文法總複習講義', unitLabel: '章節', segments: mappedSegments(GRAMMAR_REVIEW_PAGE_MAP) },
+  { id: 'english:ace', subject: 'english', group: '學測', title: '英文｜ACE Reading', unitLabel: '回', segments: numberedSegments(60, '第') },
+  { id: 'english:listening', subject: 'english', group: '學測', title: `英文｜${LISTENING_TEST_BOOK_TITLE}`, unitLabel: 'Test', segments: numberedSegments(10, 'Test') },
+  { id: 'english:essential', subject: 'english', group: '補充', title: '英文｜Essential Grammar in Use', unitLabel: 'Unit', segments: numberedSegments(115, 'Unit') },
+  { id: 'english:writing', subject: 'english', group: '學測', title: '英文｜英文寫作測驗', unitLabel: '回', segments: numberedSegments(40, '第') },
+  { id: 'english:grammar', subject: 'english', group: '學測', title: '英文｜英文文法總複習講義', unitLabel: '章節', segments: mappedSegments(GRAMMAR_REVIEW_PAGE_MAP) },
   {
     id: 'english:azar-intermediate',
     subject: 'english',
+    group: '補充',
     title: `英文｜${AZAR_GRAMMAR_BOOK_TITLE}`,
     unitLabel: '分項',
     segments: AZAR_GRAMMAR_SECTIONS.map(section => ({
@@ -244,11 +260,11 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
   mathDefinition('新關鍵', '1~2', NEWKEY_12_PAGE_MAP),
   mathDefinition('新關鍵', '3A~4A', NEWKEY_34_PAGE_MAP),
   ...Object.entries(DAY123_PAGE_MAPS).map(([subject, rows]) => ({
-    id: `natural:${subject}:123日的淬鍊`, subject: 'natural' as const,
+    id: `natural:${subject}:123日的淬鍊`, subject: 'natural' as const, group: subject as MaterialProgressGroup,
     title: `自然｜${subject}｜123日的淬鍊`, unitLabel: '章', segments: mappedSegments(rows),
   })),
   ...Object.entries(GOODPOINT_PAGE_MAPS).map(([subject, rows]) => ({
-    id: `natural:${subject}:好考點`, subject: 'natural' as const,
+    id: `natural:${subject}:好考點`, subject: 'natural' as const, group: subject as MaterialProgressGroup,
     title: `自然｜${subject}｜好考點`, unitLabel: '單元', segments: mappedSegments(rows),
   })),
 ];
@@ -472,6 +488,7 @@ export function materialProgressRows(records: readonly StudyRecord[]): MaterialP
     return {
       id: definition.id,
       subject: definition.subject,
+      group: definition.group,
       title: definition.title,
       unitLabel: definition.unitLabel,
       recorded: segments.filter(segment => segment.recorded).length,

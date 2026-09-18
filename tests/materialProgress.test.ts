@@ -34,6 +34,22 @@ test('leaves unrecorded material segments empty and alternates segment tones', (
   assert.ok(ace.segments.every(segment => !segment.recorded));
 });
 
+test('classifies the progress chart by the same material groups as manual entry', () => {
+  const rows = materialProgressRows([]);
+  const groupFor = (id: string) => rows.find(row => row.id === id)?.group;
+
+  assert.equal(groupFor('english:ace'), '學測');
+  assert.equal(groupFor('english:grammar'), '學測');
+  assert.equal(groupFor('english:azar-intermediate'), '補充');
+  assert.equal(groupFor('book:Unlock 3 (Listening, Speaking, Critical Thinking)'), '補充');
+  assert.equal(groupFor('math:新關鍵:1~2'), '複習講義（兩冊以上一本）');
+  assert.equal(groupFor('math:教學講義:1'), '分冊講義（一冊一本）');
+  assert.equal(groupFor('natural:物理:123日的淬鍊'), '物理');
+  assert.equal(groupFor('natural:化學:好考點'), '化學');
+  assert.equal(groupFor('natural:生物:123日的淬鍊'), '生物');
+  assert.equal(groupFor('natural:地科:123日的淬鍊'), '地科');
+});
+
 test('reads a recorded math range from a grouped child without filling untouched units', () => {
   const child = item({
     id: 'math-child',
