@@ -6,6 +6,7 @@ import {
   ENGLISH_TOPIC_CLOZE_BOOK,
   ENGLISH_TOPIC_READING_BOOK,
   pageMappedBookSubject,
+  UNLOCK_3_BOOK,
   type PageMappedBook,
 } from '../data/bookPageMaps.ts';
 import { LISTENING_TEST_BOOK_TITLE, isListeningTestBookTitle } from '../data/englishBooks.ts';
@@ -193,7 +194,7 @@ function bookDefinition(book: PageMappedBook): MaterialDefinition {
     unitLabel: '篇',
     segments: BOOK_PAGE_MAPS[book].map((section, index) => ({
       key: String(index + 1),
-      label: `${section.topic}｜${section.detail}（p.${section.start}–${section.end}）`,
+      label: `${section.topic}｜${section.detail}（p.${section.start}${section.start === section.end ? '' : `–${section.end}`}）`,
       start: section.start,
       end: section.end,
       topic: section.topic,
@@ -235,6 +236,7 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
   },
   bookDefinition(ENGLISH_TOPIC_READING_BOOK),
   bookDefinition(ENGLISH_TOPIC_CLOZE_BOOK),
+  bookDefinition(UNLOCK_3_BOOK),
   ...Object.entries(TEACHING_MATH_PAGE_MAP).map(([book, rows]) => mathDefinition('教學講義', book, rows)),
   mathDefinition('複習週記', '', REVIEW_WEEKLY_PAGE_MAP),
   mathDefinition('智慧型', '1~2', SMART_12_PAGE_MAP),

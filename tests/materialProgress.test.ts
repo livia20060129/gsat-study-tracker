@@ -240,6 +240,27 @@ test('requires actual activity before an English topic round is filled', () => {
   assert.match(row.segments.find(segment => segment.recorded)?.label ?? '', /第二回/);
 });
 
+test('fills Unlock 3 progress from completed actual page records', () => {
+  const completed = item({
+    id: 'unlock-unit-1-part',
+    type: 'extra',
+    done: true,
+    f: {
+      title: 'Unlock 3 (Listening, Speaking, Critical Thinking)',
+      start: '14',
+      end: '24',
+    },
+  });
+  const unlock = materialProgressRows([record([completed])])
+    .find(row => row.id === 'book:Unlock 3 (Listening, Speaking, Critical Thinking)');
+
+  assert.ok(unlock);
+  assert.equal(unlock.recorded, 1);
+  assert.equal(unlock.segments.find(segment => segment.recorded)?.completionPercent, 50);
+  assert.match(unlock.segments.find(segment => segment.recorded)?.label ?? '', /Unit 1｜Animals/);
+  assert.match(unlock.segments.at(-1)?.label ?? '', /Acknowledgements（p\.223）/);
+});
+
 test('includes completed Calendar natural integration child ranges', () => {
   const calendar = item({
     id: 'calendar-natural',

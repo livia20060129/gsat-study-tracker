@@ -70,7 +70,9 @@ import {
   ENGLISH_TOPIC_CLOZE_BOOK,
   ENGLISH_TOPIC_READING_BOOK,
   isEnglishPageMappedBook,
+  pageMappedBookUsesScopeSelection,
   pageMappedBookSubject,
+  UNLOCK_3_BOOK,
 } from './data/bookPageMaps';
 import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository';
 import { SupabaseStudyRecordRepository } from './infrastructure/storage/supabaseStudyRecordRepository';
@@ -559,15 +561,19 @@ var CALENDAR_GRAMMAR_PLAN={"2026-08-20":{"title":"Ch.1 英文基本句型（1／
 
 var CALENDAR_WRITING_TEST_PLAN={"2026-08-21":{"round":17,"focus":"基礎連接詞"},"2026-08-24":{"round":19,"focus":"原因、結果與條件"},"2026-08-26":{"round":1,"focus":"讓步、原因與條件"},"2026-08-28":{"round":4,"focus":"條件、替代與時間"},"2026-08-31":{"round":6,"focus":"時間、結果與並列"},"2026-09-02":{"round":23,"focus":"條件、結果與關係詞"},"2026-09-04":{"round":7,"focus":"倍數、同級與條件"},"2026-09-07":{"round":5,"focus":"助動詞、偏好與並列"},"2026-09-09":{"round":8,"focus":"感官、比較與 too...to"},"2026-09-11":{"round":26,"focus":"轉折、結果與偏好"},"2026-09-14":{"round":15,"focus":"使役、感官與慣用語"},"2026-09-16":{"round":18,"focus":"動名詞與介系詞"},"2026-09-18":{"round":9,"focus":"分詞構句與目的"},"2026-09-21":{"round":10,"focus":"結果句型與分詞構句"},"2026-09-23":{"round":11,"focus":"結果句型與偏好"},"2026-09-25":{"round":24,"focus":"不定詞與重要搭配"},"2026-09-28":{"round":29,"focus":"分詞、比較與目的"},"2026-09-30":{"round":30,"focus":"分詞構句與 otherwise"},"2026-10-02":{"round":33,"focus":"目的、不定詞與 help"},"2026-10-05":{"round":34,"focus":"倒裝、比較與形式主詞"},"2026-10-07":{"round":36,"focus":"受詞補語與動詞搭配"},"2026-10-09":{"round":37,"focus":"動詞搭配與助動詞"},"2026-10-12":{"round":38,"focus":"pay／see／take 搭配"},"2026-10-14":{"round":39,"focus":"spend／find it／prefer"},"2026-10-16":{"round":40,"focus":"原因、疑問詞與 too...to"},"2026-10-19":{"round":2,"focus":"關係副詞與成對連接"},"2026-10-21":{"round":3,"focus":"that／who／when 子句"},"2026-10-23":{"round":12,"focus":"whose 與 lest"},"2026-10-26":{"round":14,"focus":"關係詞與受詞補語"},"2026-10-28":{"round":16,"focus":"since／while 與形式主詞"},"2026-10-30":{"round":20,"focus":"原因、讓步與關係子句"},"2026-11-02":{"round":21,"focus":"關係結構與結果句型"},"2026-11-04":{"round":22,"focus":"whose／when／if 子句"},"2026-11-06":{"round":25,"focus":"關係副詞與時間子句"},"2026-11-09":{"round":27,"focus":"關係代名詞與成對連接"},"2026-11-11":{"round":28,"focus":"關係副詞與否定時間"},"2026-11-13":{"round":31,"focus":"關係子句與補充連接"},"2026-11-16":{"round":13,"focus":"Only when 倒裝與讓步"},"2026-11-18":{"round":32,"focus":"倒裝、關係詞與比較"},"2026-11-20":{"round":35,"focus":"雙重比較與轉折"}};
 
-var EXTRA_READING_TITLES=[
- '雜誌',
+var GSAT_ENGLISH_TITLES=[
  'ACE Reading',
- '大考英聽A攻略',
- AZAR_GRAMMAR_BOOK_TITLE,
+ '英文寫作測驗',
  ENGLISH_TOPIC_READING_BOOK,
  ENGLISH_TOPIC_CLOZE_BOOK,
- '英文寫作測驗',
  '英文文法總複習講義',
+ '大考英聽A攻略'
+];
+var SUPPLEMENT_ENGLISH_TITLES=[
+ '雜誌',
+ AZAR_GRAMMAR_BOOK_TITLE,
+ 'Essential Grammar in Use',
+ UNLOCK_3_BOOK,
  'Prism Reading',
  'Traumaland- Josh Silver',
  'Warriors- Erin Hunter',
@@ -575,7 +581,6 @@ var EXTRA_READING_TITLES=[
  '英文字彙王: 核心單字2001~ 4000',
  '英文字彙王: 核心單字4001~ 6000',
  'ENGLISH VOCABULARY IN USE',
- 'Essential Grammar in Use',
  '學一次用一輩子的字首．字根．字尾'
 ];
 
@@ -2463,7 +2468,9 @@ function manualOptionGroup(label,values,current,labelFor){
  return'<optgroup label="'+esc(label)+'">'+values.map(function(value){return'<option value="'+esc(value)+'"'+selected(value,current)+'>'+esc(labelFor?labelFor(value):value)+'</option>'}).join('')+'</optgroup>';
 }
 function mathMaterialOptions(v){
- return'<option value="">請選擇</option>'+manualOptionGroup('講義',['教學講義','智慧型','新關鍵','複習週記'],v);
+ return'<option value="">請選擇</option>'
+  +manualOptionGroup('複習講義（兩冊以上一本）',['智慧型','新關鍵','複習週記'],v)
+  +manualOptionGroup('分冊講義（一冊一本）',['教學講義'],v);
 }
 function isCalendarMathMaterialLocked(x){
  return !!(x&&x.f&&x.f.material&&x.f.calendarMathMaterialLocked===true&&(x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice'));
@@ -2517,7 +2524,7 @@ function scienceMaterialOptions(subject,v){
  else if(subject==='物理'||subject==='化學')a=['好考點','新關鍵','大滿貫','123日的淬鍊'];
  else if(subject==='生物'||subject==='地科')a=['新關鍵','大滿貫','123日的淬鍊'];
  else a=['新關鍵','大滿貫','123日的淬鍊'];
- return'<option value="">請選擇</option>'+manualOptionGroup('講義',a,v);
+ return'<option value="">請選擇</option>'+manualOptionGroup(subject||'請先選擇科目',a,v);
 }
 function normalizeScience(f){
  if(!f)return;
@@ -2761,11 +2768,14 @@ function applyChineseItemSelection(item,value){
  apply(item);return{kind:item.f.kind,book:item.f.book}
 }
 function readingOptions(v){
- return'<option value="">請選擇</option>'+manualOptionGroup('英文項目',EXTRA_READING_TITLES,v);
+ return'<option value="">請選擇</option>'
+  +manualOptionGroup('學測',GSAT_ENGLISH_TITLES,v)
+  +manualOptionGroup('補充',SUPPLEMENT_ENGLISH_TITLES,v);
 }
 function reviewEnglishOptions(v){
- var other=['ACE Reading',LISTENING_TEST_BOOK_TITLE,AZAR_GRAMMAR_BOOK_TITLE,'英文寫作測驗','英文文法總複習講義','Prism Reading'];
- return'<option value="">請選擇</option>'+manualOptionGroup('英文項目',other,v);
+ var gsat=['ACE Reading',LISTENING_TEST_BOOK_TITLE,ENGLISH_TOPIC_READING_BOOK,ENGLISH_TOPIC_CLOZE_BOOK,'英文寫作測驗','英文文法總複習講義'];
+ var supplement=[AZAR_GRAMMAR_BOOK_TITLE,UNLOCK_3_BOOK,'Prism Reading'];
+ return'<option value="">請選擇</option>'+manualOptionGroup('學測',gsat,v)+manualOptionGroup('補充',supplement,v);
 }
 function prismLevel(f){if(f.level)return String(f.level);var m=String(f.title||'').match(/^Prism Reading ([234])$/);return m?m[1]:''}
 function prismCefr(v){return String(v)==='2'?'B1':String(v)==='3'?'B2':String(v)==='4'?'C1':'尚未選擇'}
@@ -2790,7 +2800,7 @@ function renderExtraFields(x,reviewMode){
   }
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
  if(reviewMode||f.corrected)h+=reasonField(f);
- }else if(isEnglishPageMappedBook(t)&&(t==='主題百匯：篇章結構·閱讀測驗'||t==='主題百匯：克漏字')){
+ }else if(isEnglishPageMappedBook(t)&&pageMappedBookUsesScopeSelection(t)){
   var englishPageBook=canonicalPageMappedBook(t);
   if(isCalendarPageMappedBook(x)){
    h+='<div class="grid-3"><div class="field"><label>書名</label><div class="fixed-book-value">'+esc(englishPageBook)+'</div></div><div class="field"><label>主題</label><div class="fixed-book-value">'+esc(f.topic||'—')+'</div></div><div class="field"><label>回次</label><div class="fixed-book-value">'+esc(f.round||'—')+'</div></div></div>';
@@ -3726,7 +3736,7 @@ function itemDetails(x){
  else if(x.type==='mock')s+='｜科目：'+(isLockedEnglishMock(x)?'英文':line(f.subject))+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
  else if(x.type==='englishVocabInteractive'){var vw=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(vw.length?vw.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
  else if(x.type==='general'&&isEnglishReview(x)){var w=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(w.length?w.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
- else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEnglishPageMappedBook(f.title)){s+='｜'+line(f.title)+'｜主題：'+line(f.topic)+'｜回次：'+line(f.round)+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isAzarGrammar(f.title)){s+='｜'+AZAR_GRAMMAR_BOOK_TITLE+(f.azarChapterLabel?'｜'+line(f.azarChapterLabel):'')+(f.azarSectionCode?'｜分項：'+line(f.azarSectionCode)+line(f.azarSectionTitle):'')+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}else if(isListeningTestBook(f.title)){s+='｜'+LISTENING_TEST_BOOK_TITLE+'｜Test '+line(f.round)+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEssentialGrammar(f.title))s+='｜Essential Grammar in Use｜Unit '+line(f.unitStart||f.unit)+'～'+line(f.unitEnd||f.unitStart||f.unit)+'（全書 115 Unit）';else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
+ else if(x.type==='extra'){if(isMagazineTitle(f.title))s+='｜雜誌｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit);else if(isAce(f.title)){s+='｜ACE Reading｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEnglishPageMappedBook(f.title)&&pageMappedBookUsesScopeSelection(f.title)){s+='｜'+line(f.title)+'｜主題：'+line(f.topic)+'｜回次：'+line(f.round)+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEnglishPageMappedBook(f.title)){s+='｜'+line(f.title)+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜對應：'+bookPageText(f.title,f.start,f.end)}else if(isAzarGrammar(f.title)){s+='｜'+AZAR_GRAMMAR_BOOK_TITLE+(f.azarChapterLabel?'｜'+line(f.azarChapterLabel):'')+(f.azarSectionCode?'｜分項：'+line(f.azarSectionCode)+line(f.azarSectionTitle):'')+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}else if(isListeningTestBook(f.title)){s+='｜'+LISTENING_TEST_BOOK_TITLE+'｜Test '+line(f.round)+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isWritingTest(f.title)){s+='｜英文寫作測驗｜第'+line(f.round)+'回'+(f.calendarFocus?'｜重點：'+line(f.calendarFocus):'')+'｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isGrammarReview(f.title)){s+='｜英文文法總複習講義'+(f.calendarGrammarTitle?'｜'+line(f.calendarGrammarTitle):'')+'｜實際頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.reason)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isPrism(f.title)){s+='｜Prism Reading '+line(prismLevel(f))+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}else if(isEssentialGrammar(f.title))s+='｜Essential Grammar in Use｜Unit '+line(f.unitStart||f.unit)+'～'+line(f.unitEnd||f.unitStart||f.unit)+'（全書 115 Unit）';else{s+='｜'+line(f.title);if(isTraumaland(f.title))s+='｜Topic：'+line(f.topic||f.progress);else if(isWarriors(f.title))s+='｜冊別：'+warriorsBookLabel(f.warriorsBook)+'｜Chapter '+line(f.chapter);else s+='｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁'}}
  return s;
 }
 function reviewEntrySummary(x){var d=itemDetails(x).replace(/｜進度：[✓—]｜批改：[✓—]｜訂正：[✓—]/g,'');var s=itemTitle(x)+d;if(x.type!=='mock')s+='｜錯因／不熟觀念：'+line(x.f&&x.f.reason);return s}

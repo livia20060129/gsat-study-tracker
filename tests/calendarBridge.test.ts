@@ -274,6 +274,22 @@ test('reads Chinese books by fixed pages and English topic books by fixed topic 
   }
 });
 
+test('reads Unlock 3 as a page-based English book', () => {
+  const parsed = parseCalendarTask(row(
+    '英文｜Unlock 3 (Listening, Speaking, Critical Thinking)',
+    '【頁碼範圍】p.146–167\n【識別碼】unlock-3-unit-7',
+    'studyItem',
+  ));
+
+  assert.equal(parsed.kind, 'bookPages');
+  if (parsed.kind === 'bookPages') {
+    assert.equal(parsed.book, 'Unlock 3 (Listening, Speaking, Critical Thinking)');
+    assert.equal(parsed.subject, '英文');
+    assert.equal(parsed.startPage, 146);
+    assert.equal(parsed.endPage, 167);
+  }
+});
+
 test('a deferred English topic book stays typed and never falls back to page parsing', () => {
   const parsed = parseCalendarTask(row(
     '補做｜英文｜主題百匯 克漏字｜新新世代',

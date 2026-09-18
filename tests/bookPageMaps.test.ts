@@ -15,6 +15,7 @@ import {
   DEEP_FIFTEEN_BOOK,
   ENGLISH_TOPIC_CLOZE_BOOK,
   ENGLISH_TOPIC_READING_BOOK,
+  UNLOCK_3_BOOK,
 } from '../src/data/bookPageMaps.ts';
 import { cloneOriginalItemForMakeup } from '../src/study/makeup.ts';
 import type { StudyItem } from '../src/types.ts';
@@ -24,6 +25,8 @@ test('identifies every supported book from punctuation and surrounding Calendar 
   assert.equal(canonicalPageMappedBook('主題百匯 閱讀寫作新進化'), CHINESE_TOPIC_BOOK);
   assert.equal(canonicalPageMappedBook('英文｜主題百匯：篇章結構．閱讀測驗'), ENGLISH_TOPIC_READING_BOOK);
   assert.equal(canonicalPageMappedBook('【講義版本】主題百匯 克漏字'), ENGLISH_TOPIC_CLOZE_BOOK);
+  assert.equal(canonicalPageMappedBook('英文｜Unlock 3 (Listening, Speaking, Critical Thinking)'), UNLOCK_3_BOOK);
+  assert.equal(canonicalPageMappedBook('Unlock 3 (Linstening, speaking, critical thinking)'), UNLOCK_3_BOOK);
   assert.equal(canonicalPageMappedBook('英文｜學測週計畫'), null);
   assert.equal(canonicalPageMappedBook('英文｜混合題30篇實戰演練'), null);
 });
@@ -41,6 +44,13 @@ test('looks up the requested topic and lesson, level, or round', () => {
   assert.deepEqual(bookDetails(ENGLISH_TOPIC_READING_BOOK), ['第一回', '第二回']);
   assert.deepEqual(bookDetails(ENGLISH_TOPIC_CLOZE_BOOK), ['第一回', '第二回', '第三回', '第四回']);
   assert.deepEqual(bookDetailsForTopic(ENGLISH_TOPIC_CLOZE_BOOK, '新新世代'), ['第一回', '第二回', '第三回', '第四回']);
+  assert.equal(bookPageText(UNLOCK_3_BOOK, 14, 35), 'Unit 1｜Animals（p.14–35）');
+  assert.equal(
+    bookPageText(UNLOCK_3_BOOK, 34, 38),
+    'Unit 1｜Animals（p.34–35）、Unit 2｜The environment（p.36–38）',
+  );
+  assert.equal(bookPageText(UNLOCK_3_BOOK, 223, 223), 'Reference｜Acknowledgements（p.223）');
+  assert.equal(bookPageText(UNLOCK_3_BOOK, 224, 224), '頁碼不在已建立的教材本文範圍內。');
 });
 
 test('a page range crossing sections lists each affected section with its own clipped pages', () => {

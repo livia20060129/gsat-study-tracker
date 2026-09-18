@@ -2,12 +2,14 @@ export const DEEP_FIFTEEN_BOOK = '深耕十五';
 export const CHINESE_TOPIC_BOOK = '主題百匯：閱讀寫作新進化';
 export const ENGLISH_TOPIC_READING_BOOK = '主題百匯：篇章結構·閱讀測驗';
 export const ENGLISH_TOPIC_CLOZE_BOOK = '主題百匯：克漏字';
+export const UNLOCK_3_BOOK = 'Unlock 3 (Listening, Speaking, Critical Thinking)';
 
 export type PageMappedBook =
   | typeof DEEP_FIFTEEN_BOOK
   | typeof CHINESE_TOPIC_BOOK
   | typeof ENGLISH_TOPIC_READING_BOOK
-  | typeof ENGLISH_TOPIC_CLOZE_BOOK;
+  | typeof ENGLISH_TOPIC_CLOZE_BOOK
+  | typeof UNLOCK_3_BOOK;
 
 export interface BookPageSection {
   start: number;
@@ -104,11 +106,28 @@ const englishCloze = groupedSections([
   { topic: '社會變遷', starts: [['第一回', 209], ['第二回', 212], ['第三回', 215], ['第四回', 218]], end: 220 },
 ]);
 
+const unlock3: BookPageSection[] = [
+  { start: 4, end: 7, topic: 'Front matter', detail: 'Map of the book' },
+  { start: 8, end: 13, topic: 'Front matter', detail: 'Your guide to Unlock' },
+  { start: 14, end: 35, topic: 'Unit 1', detail: 'Animals' },
+  { start: 36, end: 57, topic: 'Unit 2', detail: 'The environment' },
+  { start: 58, end: 79, topic: 'Unit 3', detail: 'Transport' },
+  { start: 80, end: 101, topic: 'Unit 4', detail: 'Customs and traditions' },
+  { start: 102, end: 123, topic: 'Unit 5', detail: 'Health and fitness' },
+  { start: 124, end: 145, topic: 'Unit 6', detail: 'Discovery and invention' },
+  { start: 146, end: 167, topic: 'Unit 7', detail: 'Fashion' },
+  { start: 168, end: 189, topic: 'Unit 8', detail: 'Economics' },
+  { start: 190, end: 200, topic: 'Reference', detail: 'Glossary' },
+  { start: 201, end: 222, topic: 'Reference', detail: 'Video and audio scripts' },
+  { start: 223, end: 223, topic: 'Reference', detail: 'Acknowledgements' },
+];
+
 export const BOOK_PAGE_MAPS: Record<PageMappedBook, BookPageSection[]> = {
   [DEEP_FIFTEEN_BOOK]: deepFifteen,
   [CHINESE_TOPIC_BOOK]: chineseTopics,
   [ENGLISH_TOPIC_READING_BOOK]: englishReading,
   [ENGLISH_TOPIC_CLOZE_BOOK]: englishCloze,
+  [UNLOCK_3_BOOK]: unlock3,
 };
 
 export function canonicalPageMappedBook(value: unknown): PageMappedBook | null {
@@ -117,6 +136,7 @@ export function canonicalPageMappedBook(value: unknown): PageMappedBook | null {
   if (title.includes('主題百匯') && title.includes('閱讀寫作新進化')) return CHINESE_TOPIC_BOOK;
   if (title.includes('主題百匯') && (title.includes('篇章結構') || title.includes('閱讀測驗'))) return ENGLISH_TOPIC_READING_BOOK;
   if (title.includes('主題百匯') && title.includes('克漏字')) return ENGLISH_TOPIC_CLOZE_BOOK;
+  if (/unlock\s*3\b/i.test(title)) return UNLOCK_3_BOOK;
   return null;
 }
 

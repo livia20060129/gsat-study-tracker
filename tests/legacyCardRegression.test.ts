@@ -19,6 +19,7 @@ import {
   DEEP_FIFTEEN_BOOK,
   ENGLISH_TOPIC_CLOZE_BOOK,
   isEnglishPageMappedBook,
+  pageMappedBookUsesScopeSelection,
   pageMappedBookSubject,
 } from '../src/data/bookPageMaps.ts';
 
@@ -181,10 +182,17 @@ test('manual added-item selectors only expose the personal tracker materials', (
     manualOptionGroup,
   });
   const readingOptions = runtimeFunction<(current: string) => string>('readingOptions', {
-    EXTRA_READING_TITLES: ['雜誌', 'ACE Reading'],
+    GSAT_ENGLISH_TITLES: ['ACE Reading', '英文寫作測驗'],
+    SUPPLEMENT_ENGLISH_TITLES: ['雜誌', 'Unlock 3 (Listening, Speaking, Critical Thinking)'],
     manualOptionGroup,
   });
 
+  assert.match(mathOptions(''), /optgroup label="複習講義（兩冊以上一本）"/);
+  assert.match(mathOptions(''), /optgroup label="分冊講義（一冊一本）"/);
+  assert.match(scienceOptions('化學', ''), /optgroup label="化學"/);
+  assert.match(readingOptions(''), /optgroup label="學測"/);
+  assert.match(readingOptions(''), /optgroup label="補充"/);
+  assert.match(readingOptions(''), /Unlock 3 \(Listening, Speaking, Critical Thinking\)/);
   assert.doesNotMatch(mathOptions(''), /新大滿貫/);
   assert.doesNotMatch(scienceOptions('化學', ''), /領航/);
   assert.doesNotMatch(scienceOptions('物理', ''), /優勢|逆轉勝/);
@@ -599,6 +607,7 @@ test('English Topic Collection books use ACE-style topic and round fields withou
     isPrism: () => false,
     isAce: () => false,
     isEnglishPageMappedBook,
+    pageMappedBookUsesScopeSelection,
     canonicalPageMappedBook,
     isCalendarPageMappedBook: () => false,
     readingOptions: () => `<option selected>${ENGLISH_TOPIC_CLOZE_BOOK}</option>`,
@@ -628,6 +637,7 @@ test('Calendar book scopes render as fixed fields for all four supported books',
     isPrism: () => false,
     isAce: () => false,
     isEnglishPageMappedBook,
+    pageMappedBookUsesScopeSelection,
     canonicalPageMappedBook,
     isCalendarPageMappedBook: (x: StudyItem) => x.f.calendarBookRangeLocked === true,
     readingOptions: () => '',
