@@ -62,6 +62,16 @@ test('cloud status distinguishes local, pending, synced and failed states', () =
   assert.match(html, /id="cloudRefreshNotice"/);
 });
 
+test('Cloud login cannot be blocked indefinitely by record or Calendar bootstrap', () => {
+  assert.match(runtime, /import \{ completionDateLabel, deferredCompletionDate \} from '\.\/study\/completionCheckedOn'/);
+  assert.match(runtime, /CLOUD_AUTH_TIMEOUT_MS=15000/);
+  assert.match(runtime, /CLOUD_RECORD_BOOTSTRAP_TIMEOUT_MS=20000/);
+  assert.match(runtime, /controller\.abort\(\)/);
+  assert.match(runtime, /setTimeout\(function\(\)\{refreshCalendarAfterCloudActivation\(serial\)\},0\)/);
+  assert.match(runtime, /已登入，但載入帳號本機快取失敗/);
+  assert.doesNotMatch(runtime, /Promise\.all\(\[cloudPullAllRecords\(\{silent:true\}\),calendarRefreshStatus\(false\)\]\)/);
+});
+
 test('mobile settings use a bottom sheet and CI runs real browser tests', () => {
   assert.match(styles, /\.connection-dock\[open\]\{position:fixed/);
   assert.match(workflow, /npx playwright install --with-deps chromium/);

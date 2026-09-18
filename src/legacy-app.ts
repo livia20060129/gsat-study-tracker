@@ -28,9 +28,10 @@ import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, 
 import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } from './study/subjectOrder';
 import { SUBJECT_TIME_SHORT_LABELS, subjectTimeArcPath, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
 import { completedTimeEntriesForOverviewDate } from './application/overview/overviewStudyTime.ts';
+import { withOperationTimeout } from './application/cloud/operationTimeout.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
-import { completionDateLabel } from './study/completionCheckedOn';
+import { completionDateLabel, deferredCompletionDate } from './study/completionCheckedOn';
 import {
   applyManualCompletionMetadata,
   completionTargetWithinOrigin,
@@ -605,10 +606,14 @@ var cloudConflictDate='';
 var periodicCloudSaveBusy=false;
 var PERIODIC_CLOUD_SAVE_MS=10*60*1000;
 var cloudHasError=false;
+var cloudAuthPending=false;
 var cloudVisibleRefreshPending=false;
 var deleteUndoState=null;
 var deleteUndoTimer=null;
 var DELETE_UNDO_MS=8000;
+var CLOUD_AUTH_TIMEOUT_MS=15000;
+var CLOUD_RECORD_BOOTSTRAP_TIMEOUT_MS=20000;
+var CLOUD_CALENDAR_BOOTSTRAP_TIMEOUT_MS=15000;
 
 var calendarConnected=false;
 var calendarCacheLoaded=false;
@@ -645,6 +650,7 @@ function dirtyCloudDates(){
  return localStudyDates().filter(function(date){var rec=readStoredRecord(date);return !!rec&&!!rec.localDirty&&!rec.syncConflict});
 }
 function updateCloudStatusBadge(){
+ if(cloudAuthPending){setConnectionBadge('cloudStatusBadge','登入中','busy');return}
  if(!cloudUser){setConnectionBadge('cloudStatusBadge','本機模式','offline');return}
  if(cloudLoading||cloudBootstrapPending||cloudManualSyncPending){setConnectionBadge('cloudStatusBadge','同步中','busy');return}
  var pending=dirtyCloudDates().length;
@@ -666,6 +672,11 @@ function cloudUpdateUI(){
  updateCloudActionButtons();
  updateStorageRecoveryUI();
  calendarUpdateUI();
+}
+function setCloudAuthPending(pending){
+ cloudAuthPending=!!pending;
+ ['cloudSignInBtn','cloudSignUpBtn','cloudForgotPasswordBtn','cloudResendVerificationBtn'].forEach(function(buttonId){var button=id(buttonId);if(button)button.disabled=cloudAuthPending});
+ updateCloudStatusBadge();
 }
 function cloneRecord(rec){
  try{return JSON.parse(JSON.stringify(rec))}catch(e){return rec}
@@ -878,7 +889,7 @@ async function cloudPullAllRecordsOnce(options){
  try{
   cloudLoading=true;
   if(!opts.silent)cloudSetMessage('正在讀取雲端紀錄…',true);
-  var snapshots=await cloudRecordRepository.loadMany(since);total=snapshots.length;
+  var snapshots=await cloudRecordRepository.loadMany(since,opts.signal);total=snapshots.length;
   snapshots.forEach(function(snapshot){
    var cloud=snapshot.record,date=snapshot.studyDate;
    cloudDates[date]=true;
@@ -1098,10 +1109,13 @@ async function repairStorageIssueFromCloud(){
 async function cloudSignIn(){
  var email=id('cloudEmail').value.trim(),password=id('cloudPassword').value;
  if(!email||!password){cloudSetMessage('請輸入 Email 與密碼。',false);return}
+ if(cloudAuthPending)return;
+ setCloudAuthPending(true);cloudSetMessage('正在登入 Cloud 帳號…',true);
  try{
-  var r=await cloudClient.auth.signInWithPassword({email:email,password:password});
+  var r=await withOperationTimeout(cloudClient.auth.signInWithPassword({email:email,password:password}),{timeoutMs:CLOUD_AUTH_TIMEOUT_MS,message:'登入伺服器逾時；請確認網路後再試一次。'});
   if(r.error)throw r.error;cloudSetMessage('登入成功，正在切換到此帳號的獨立資料空間。',true);
  }catch(e){cloudSetMessage('登入失敗：'+(e&&e.message?e.message:String(e)),false)}
+ finally{setCloudAuthPending(false)}
 }
 async function cloudSignUp(){
  var email=id('cloudEmail').value.trim(),password=id('cloudPassword').value;
@@ -1358,36 +1372,59 @@ async function retryDirtyCloudRecordsOnReconnect(){
 }
 async function activateCloudUser(user){
  var serial=++cloudActivationSerial;cloudUser=user||null;setStorageScope(cloudUser?cloudUser.id:null);cloudBootstrapPending=!!cloudUser;cloudUpdateUI();clearCalendarRuntime();
- rebuildMathProgressIndex();
  if(!cloudUser){
-  cloudBootstrapPending=false;cloudSetMessage('已登出；目前使用獨立 guest 本機資料。',true);load({skipCloudRead:true});return;
+  cloudBootstrapPending=false;cloudSetMessage('已登出；目前使用獨立 guest 本機資料。',true);rebuildMathProgressIndex();load({skipCloudRead:true});return;
  }
 
  // Render the account-scoped cache immediately. cacheOnly prevents a missing
  // cached day from being generated and mistaken for a newer server record.
- load({skipCloudRead:true,cacheOnly:true});
- cloudSetMessage('登入完成；已先載入本機快取，雲端紀錄與 Calendar 正在背景同步。',true);
- var recordStats=null;
  try{
-  var results=await Promise.all([cloudPullAllRecords({silent:true}),calendarRefreshStatus(false)]);
-  recordStats=results[0];
+  rebuildMathProgressIndex();
+  load({skipCloudRead:true,cacheOnly:true});
+ }catch(e){
+  if(serial===cloudActivationSerial){
+   cloudBootstrapPending=false;cloudLoading=false;updateCloudActionButtons();
+   cloudSetMessage('已登入，但載入帳號本機快取失敗：'+(e&&e.message?e.message:String(e))+'。',false);
+  }
+  return;
+ }
+ cloudSetMessage('登入完成；已先載入本機快取，正在讀取雲端紀錄。',true);
+ var recordStats=null;
+ var controller=new AbortController();
+ try{
+  recordStats=await withOperationTimeout(cloudPullAllRecords({silent:true,signal:controller.signal}),{
+   timeoutMs:CLOUD_RECORD_BOOTSTRAP_TIMEOUT_MS,
+   message:'雲端紀錄讀取超過 20 秒，已停止本次讀取；本機快取仍安全保留。',
+   onTimeout:function(){controller.abort()}
+  });
  }catch(e){
   recordStats={ok:false,error:e&&e.message?e.message:String(e)};
  }
  if(serial!==cloudActivationSerial)return;
  cloudBootstrapPending=false;
  updateCloudActionButtons();
- var calendarCleaned=calendarConnected?reconcileStoredCalendarPresets():0;
  var queued=queueDirtyCloudRecords();
  var refreshed=refreshVisibleDataAfterBackgroundSync();
  if(recordStats&&recordStats.ok){
   var msg='登入完成；本機快取已立即顯示，'+recordStats.message;
-  if(calendarCleaned)msg+=' Calendar 已更新 '+calendarCleaned+' 天本機項目。';
   if(queued)msg+=' 另有 '+queued+' 天已排入背景上傳。';
   if(!refreshed)msg+=' 目前正在輸入；完成輸入後會安全合併並更新畫面，也可按「立即套用」。';
   cloudSetMessage(msg,recordStats.conflicts?false:true);
  }else{
   cloudSetMessage('已登入並使用本機快取；背景讀取雲端失敗：'+((recordStats&&recordStats.error)||'未知錯誤')+'。',false);
+ }
+ setTimeout(function(){refreshCalendarAfterCloudActivation(serial)},0);
+}
+async function refreshCalendarAfterCloudActivation(serial){
+ if(serial!==cloudActivationSerial||!cloudUser)return;
+ calendarSetMessage('正在讀取 Google Calendar 連線狀態…',true);
+ try{
+  await withOperationTimeout(calendarRefreshStatus(false),{
+   timeoutMs:CLOUD_CALENDAR_BOOTSTRAP_TIMEOUT_MS,
+   message:'Calendar 狀態讀取超過 15 秒；這不影響 Cloud 登入與雲端紀錄。'
+  });
+ }catch(e){
+  if(serial===cloudActivationSerial)calendarSetMessage(e&&e.message?e.message:String(e),false);
  }
 }
 async function initCloud(){
@@ -1399,7 +1436,10 @@ async function initCloud(){
   if((cloudUser&&next&&cloudUser.id===next.id)||(!cloudUser&&!next))return;
   setTimeout(function(){activateCloudUser(next)},0);
  });
- var s=await cloudClient.auth.getSession(),initialUser=s.data&&s.data.session?s.data.session.user:null;
+ var s=null;
+ try{s=await withOperationTimeout(cloudClient.auth.getSession(),{timeoutMs:CLOUD_AUTH_TIMEOUT_MS,message:'讀取登入狀態逾時；已先以本機模式開啟。'})}
+ catch(e){cloudSetMessage(e&&e.message?e.message:String(e),false)}
+ var initialUser=s&&s.data&&s.data.session?s.data.session.user:null;
  if(!data||!((cloudUser&&initialUser&&cloudUser.id===initialUser.id)||(!cloudUser&&!initialUser)))await activateCloudUser(initialUser);
  else cloudUpdateUI();
  var params=new URLSearchParams(window.location.search);if(params.get('calendar')==='connected'){

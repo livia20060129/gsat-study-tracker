@@ -1,8 +1,17 @@
 import { expect, test } from '@playwright/test';
 
+const pageErrors = new WeakMap<object, string[]>();
+
 test.beforeEach(async ({ page }) => {
+  const errors: string[] = [];
+  pageErrors.set(page, errors);
+  page.on('pageerror', error => { errors.push(error.message); });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '每日讀書完成度紀錄卡' })).toBeVisible();
+});
+
+test.afterEach(async ({ page }) => {
+  expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
 test('whole-card deletion requires confirmation and small-row deletion can be undone', async ({ page }) => {
@@ -151,7 +160,10 @@ test('completing deferred work records its date and checks the original day', as
   expect(completedOrigin.checkedOn).toBe('2026-09-17');
   expect(completedOrigin.deferredCompletedOn).toBe('2026-09-17');
 
-  await checkbox.uncheck();
+  await page.reload();
+  await expect(page.locator('#dailyItemList [data-item]').filter({ hasText: '延期同步測試' }).locator('[data-done]').first()).toBeChecked();
+
+  await page.locator('#dailyItemList [data-item]').filter({ hasText: '延期同步測試' }).locator('[data-done]').first().uncheck();
   const restoredOrigin = await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-09-16') || '{}').items.find((item: { id: string }) => item.id === 'deferred-origin'));
   expect(restoredOrigin.done).toBe(false);
   expect(restoredOrigin.checkedOn).toBeUndefined();
