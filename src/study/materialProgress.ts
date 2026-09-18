@@ -28,8 +28,8 @@ export type MaterialProgressGroup =
   | '國文教材'
   | '學測'
   | '補充'
-  | '複習講義（兩冊以上一本）'
-  | '分冊講義（一冊一本）'
+  | '複習講義'
+  | '分冊講義'
   | '物理'
   | '化學'
   | '生物'
@@ -221,7 +221,7 @@ function mathDefinition(material: string, book: string, rows: readonly PageMapRo
   return {
     id: material === '複習週記' ? 'math:複習週記' : `math:${material}:${book}`,
     subject: 'math',
-    group: material === '教學講義' ? '分冊講義（一冊一本）' : '複習講義（兩冊以上一本）',
+    group: material === '教學講義' ? '分冊講義' : '複習講義',
     title: material === '複習週記' ? '數學｜複習週記' : `數學｜${material}｜${book}`,
     unitLabel: '單元',
     segments: mappedSegments(rows),

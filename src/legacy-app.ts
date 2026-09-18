@@ -2469,8 +2469,8 @@ function manualOptionGroup(label,values,current,labelFor){
 }
 function mathMaterialOptions(v){
  return'<option value="">請選擇</option>'
-  +manualOptionGroup('複習講義（兩冊以上一本）',['智慧型','新關鍵','複習週記'],v)
-  +manualOptionGroup('分冊講義（一冊一本）',['教學講義'],v);
+  +manualOptionGroup('複習講義',['智慧型','新關鍵','複習週記'],v)
+  +manualOptionGroup('分冊講義',['教學講義'],v);
 }
 function isCalendarMathMaterialLocked(x){
  return !!(x&&x.f&&x.f.material&&x.f.calendarMathMaterialLocked===true&&(x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice'));

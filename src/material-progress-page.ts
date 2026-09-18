@@ -71,7 +71,7 @@ function renderRow(row: MaterialProgressRow): HTMLElement {
 const GROUP_ORDER: Record<MaterialProgressSubject, MaterialProgressGroup[]> = {
   chinese: ['國文教材'],
   english: ['學測', '補充'],
-  math: ['複習講義（兩冊以上一本）', '分冊講義（一冊一本）'],
+  math: ['複習講義', '分冊講義'],
   natural: ['物理', '化學', '生物', '地科'],
 };
 

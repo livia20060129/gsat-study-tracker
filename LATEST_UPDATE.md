@@ -1,16 +1,15 @@
 # 最新更新
 
-版本：v171.6.3
+版本：v171.6.4
 
-## 教材進度圖加入教材分類
+## 簡化數學教材分類名稱
 
-- 英文教材進度分成「學測／補充」；Unlock 3、Azar 與 Essential Grammar in Use 歸入補充，其餘學測教材依原資料顯示。
-- 數學教材進度分成「複習講義（兩冊以上一本）／分冊講義（一冊一本）」。
-- 自然教材進度依「物理／化學／生物／地科」分段，相同科目的不同講義會排在同一區。
-- 國文維持原本教材排列，不額外增加重複標題。
-- 分類只影響顯示順序及標題；完成頁數、完成百分比、深淺交錯與既有資料都不變。
+- 手動新增項目的數學教材選單改為只顯示「複習講義／分冊講義」。
+- 教材進度圖的數學分段標題同步改為「複習講義／分冊講義」。
+- 不再顯示「兩冊以上一本／一冊一本」括號說明。
+- 實際教材歸類、頁碼、完成百分比與既有紀錄都不變。
 
-更新資料夾：`gsat-study-tracker-v171.6.3-material-progress-groups`
+更新資料夾：`gsat-study-tracker-v171.6.4-short-math-group-labels`
 
 ## 驗證
 
@@ -21,4 +20,4 @@
 
 ## Commit 建議
 
-`feat(progress): group materials by study category`
+`fix(progress): shorten math material group labels`

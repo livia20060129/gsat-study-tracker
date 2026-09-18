@@ -187,8 +187,8 @@ test('manual added-item selectors only expose the personal tracker materials', (
     manualOptionGroup,
   });
 
-  assert.match(mathOptions(''), /optgroup label="複習講義（兩冊以上一本）"/);
-  assert.match(mathOptions(''), /optgroup label="分冊講義（一冊一本）"/);
+  assert.match(mathOptions(''), /optgroup label="複習講義"/);
+  assert.match(mathOptions(''), /optgroup label="分冊講義"/);
   assert.match(scienceOptions('化學', ''), /optgroup label="化學"/);
   assert.match(readingOptions(''), /optgroup label="學測"/);
   assert.match(readingOptions(''), /optgroup label="補充"/);
