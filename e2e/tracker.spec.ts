@@ -14,6 +14,27 @@ test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
+test('both math page panels stay vertically centered and left aligned', async ({ page }) => {
+  for (const view of ['mathToday', 'mathWeek']) {
+    await page.locator(`[data-overview-metric="${view}"]`).click();
+    const panel = page.locator(`[data-metric-panel="${view}"]`);
+    await expect(panel).toHaveClass(/is-active/);
+    await page.waitForTimeout(480);
+    const position = await panel.evaluate(node => {
+      const panelRect = node.getBoundingClientRect();
+      const children = Array.from(node.children).map(child => child.getBoundingClientRect());
+      const contentTop = Math.min(...children.map(rect => rect.top));
+      const contentBottom = Math.max(...children.map(rect => rect.bottom));
+      return {
+        centerDifference: Math.abs((contentTop + contentBottom) / 2 - (panelRect.top + panelRect.bottom) / 2),
+        leftDifference: Math.abs(children[0].left - (panelRect.left + 5)),
+      };
+    });
+    expect(position.centerDifference).toBeLessThan(3);
+    expect(position.leftDifference).toBeLessThan(3);
+  }
+});
+
 test('whole-card deletion requires confirmation and small-row deletion can be undone', async ({ page }) => {
   await page.selectOption('#itemType', 'extra');
   await page.click('#addItemBtn');
