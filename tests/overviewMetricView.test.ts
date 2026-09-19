@@ -35,7 +35,7 @@ test('overview metric panels resize smoothly and keep stacked completion metrics
   assert.match(html, /id="overviewStats"/);
   assert.match(html, /class="metric-panel-stage"/);
   assert.equal((html.match(/class="metric-panel metric-math-panel"/g) || []).length, 2);
-  assert.match(styles, /metric-panel-stage\{[^}]*transition:min-height/);
+  assert.match(styles, /metric-panel-stage\{[^}]*flex:1 1 auto;[^}]*transition:min-height/);
   assert.match(styles, /metric-panel-stage \.metric-math-panel\{align-items:flex-start;justify-content:center;padding:6px 5px;text-align:left\}/);
   assert.match(styles, /overview-metric-stat\[data-metric-view="minutes"\]\{--metric-panel-height:282px\}/);
   assert.match(styles, /completion-stat #completionRatePanel\{grid-template-columns:minmax\(0,420px\);justify-content:center;align-content:center/);

@@ -14,7 +14,12 @@ test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
-test('both math page panels stay vertically centered and left aligned', async ({ page }) => {
+test('both math page panels stay vertically centered and left aligned with settlement metrics', async ({ page }) => {
+  await page.setViewportSize({ width: 760, height: 900 });
+  await page.locator('#studyDate').fill('2026-09-20');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(page.locator('#settlementMetrics')).toBeVisible();
+
   for (const view of ['mathToday', 'mathWeek']) {
     await page.locator(`[data-overview-metric="${view}"]`).click();
     const panel = page.locator(`[data-metric-panel="${view}"]`);
@@ -22,15 +27,19 @@ test('both math page panels stay vertically centered and left aligned', async ({
     await page.waitForTimeout(480);
     const position = await panel.evaluate(node => {
       const panelRect = node.getBoundingClientRect();
+      const stageRect = node.parentElement!.getBoundingClientRect();
+      const cardRect = node.closest('.overview-metric-stat')!.getBoundingClientRect();
       const children = Array.from(node.children).map(child => child.getBoundingClientRect());
       const contentTop = Math.min(...children.map(rect => rect.top));
       const contentBottom = Math.max(...children.map(rect => rect.bottom));
       return {
         centerDifference: Math.abs((contentTop + contentBottom) / 2 - (panelRect.top + panelRect.bottom) / 2),
+        stageBottomGap: Math.abs(stageRect.bottom - (cardRect.bottom - 12)),
         leftDifference: Math.abs(children[0].left - (panelRect.left + 5)),
       };
     });
     expect(position.centerDifference).toBeLessThan(3);
+    expect(position.stageBottomGap).toBeLessThan(3);
     expect(position.leftDifference).toBeLessThan(3);
   }
 });
