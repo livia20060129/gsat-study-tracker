@@ -165,9 +165,10 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
  [data-minutes],[data-mag-field="minutes"]{width:78px!important}
  .connection-dock{top:6px;max-height:none;overflow:visible}
  .connection-dock[open]{position:fixed;top:auto;right:8px;bottom:max(8px,env(safe-area-inset-bottom));left:8px;z-index:120;max-height:calc(100dvh - 16px);margin:0;overflow:auto;overscroll-behavior:contain;border-radius:19px;-webkit-backdrop-filter:none;backdrop-filter:none;contain:paint;isolation:isolate}
- .connection-dock[open].is-preparing{opacity:0;transform:translate3d(0,28px,0);transition:none}
- .connection-dock[open].is-animating{opacity:1;transform:translate3d(0,0,0);transition:opacity .24s ease,transform .34s cubic-bezier(.2,.78,.2,1)}
- .connection-dock[open].is-animating:not(.is-expanded){opacity:0;transform:translate3d(0,28px,0)}
+ .connection-dock[open].is-preparing{transition:none}
+ .connection-dock[open].is-animating{transition:height .38s cubic-bezier(.2,.78,.2,1),border-radius .24s ease,box-shadow .3s ease}
+ .connection-dock[open].is-animating .connection-settings-content{opacity:1;transform:translate3d(0,0,0);transition:opacity .2s ease .08s,transform .34s cubic-bezier(.2,.78,.2,1)}
+ .connection-dock[open].is-preparing .connection-settings-content,.connection-dock[open].is-animating:not(.is-expanded) .connection-settings-content{opacity:0;transform:translate3d(0,-6px,0);transition-delay:0s}
  body.connection-sheet-open{overscroll-behavior:none}
  .connection-dock[open] .connection-status-bar{position:sticky;top:0;z-index:2;background:rgba(255,255,255,.98);border-radius:18px 18px 0 0}
  .connection-status-bar{gap:8px;padding:8px 10px}

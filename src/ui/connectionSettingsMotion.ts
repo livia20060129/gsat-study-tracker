@@ -2,6 +2,7 @@ type ConnectionMotionState = 'idle' | 'opening' | 'closing';
 
 const MOTION_FALLBACK_MS = 520;
 const MOBILE_FLOW_MARGIN_PX = 14;
+const MOBILE_VIEWPORT_GAP_PX = 8;
 const MOBILE_QUERY = '(max-width: 720px)';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
@@ -30,6 +31,7 @@ export function setupConnectionSettingsMotion(
   let resizeFrame = 0;
   let fallbackTimer = 0;
   let mobileReservedHeight = 0;
+  let mobileCollapsedHeight = 0;
   let backgroundScrollGuarded = false;
   let lastTouchY: number | null = null;
 
@@ -118,15 +120,49 @@ export function setupConnectionSettingsMotion(
     mobilePlaceholder.style.removeProperty('height');
   }
 
+  function setMobileAnchor(collapsedRect: DOMRect): void {
+    mobileCollapsedHeight = collapsedRect.height;
+    panel.style.top = `${collapsedRect.top}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.left = `${collapsedRect.left}px`;
+    panel.style.width = `${collapsedRect.width}px`;
+  }
+
+  function clearMobileAnchor(): void {
+    panel.style.removeProperty('top');
+    panel.style.removeProperty('right');
+    panel.style.removeProperty('bottom');
+    panel.style.removeProperty('left');
+    panel.style.removeProperty('width');
+    mobileCollapsedHeight = 0;
+  }
+
+  function mobileExpandedHeight(anchorTop: number): number {
+    const visualViewport = window.visualViewport;
+    const viewportBottom = visualViewport
+      ? visualViewport.offsetTop + visualViewport.height
+      : window.innerHeight;
+    const summaryHeight = summary.getBoundingClientRect().height;
+    const availableHeight = Math.max(
+      summaryHeight,
+      viewportBottom - anchorTop - MOBILE_VIEWPORT_GAP_PX,
+    );
+    return Math.min(limitedExpandedHeight(panel), availableHeight);
+  }
+
   function clearScheduledWork(): void {
     cancelAnimationFrame(paintFrame);
     cancelAnimationFrame(resizeFrame);
     window.clearTimeout(fallbackTimer);
   }
 
-  function clearMotionStyles(preserveHeight = false): void {
+  function clearMotionStyles(preserveMobileGeometry = false): void {
     panel.classList.remove('is-preparing', 'is-animating', 'is-opening', 'is-closing', 'is-expanded');
-    if (!preserveHeight) panel.style.removeProperty('height');
+    if (!preserveMobileGeometry) {
+      panel.style.removeProperty('height');
+      clearMobileAnchor();
+    }
     panel.style.removeProperty('--connection-summary-height');
     panel.style.removeProperty('--connection-expanded-height');
   }
@@ -157,11 +193,15 @@ export function setupConnectionSettingsMotion(
     clearScheduledWork();
     state = 'idle';
     const mobile = isMobile();
-    const collapsedHeight = panel.getBoundingClientRect().height;
+    const collapsedRect = panel.getBoundingClientRect();
     clearMotionStyles();
-    if (mobile) reserveMobileSpace(collapsedHeight);
+    if (mobile) {
+      reserveMobileSpace(collapsedRect.height);
+      setMobileAnchor(collapsedRect);
+      panel.style.height = `${collapsedRect.height}px`;
+    }
     panel.open = true;
-    if (mobile) panel.style.height = `${limitedExpandedHeight(panel)}px`;
+    if (mobile) panel.style.height = `${mobileExpandedHeight(collapsedRect.top)}px`;
     syncBackgroundScrollGuard();
   }
 
@@ -181,24 +221,29 @@ export function setupConnectionSettingsMotion(
     }
     state = 'opening';
     const mobile = isMobile();
-    const collapsedHeight = panel.getBoundingClientRect().height;
+    const collapsedRect = panel.getBoundingClientRect();
     const summaryHeight = summary.getBoundingClientRect().height;
-    if (mobile) reserveMobileSpace(collapsedHeight);
+    if (mobile) {
+      reserveMobileSpace(collapsedRect.height);
+      setMobileAnchor(collapsedRect);
+      panel.style.height = `${collapsedRect.height}px`;
+    }
     panel.classList.add('is-preparing', 'is-opening');
     panel.style.setProperty('--connection-summary-height', `${summaryHeight}px`);
     if (!mobile) panel.style.height = `${summaryHeight}px`;
     panel.open = true;
     syncBackgroundScrollGuard();
 
-    const expandedHeight = limitedExpandedHeight(panel);
+    const expandedHeight = mobile
+      ? mobileExpandedHeight(collapsedRect.top)
+      : limitedExpandedHeight(panel);
     panel.style.setProperty('--connection-expanded-height', `${expandedHeight}px`);
-    if (mobile) panel.style.height = `${expandedHeight}px`;
     panel.getBoundingClientRect();
     paintFrame = requestAnimationFrame(() => {
       if (state !== 'opening') return;
       panel.classList.remove('is-preparing');
       panel.classList.add('is-animating', 'is-expanded');
-      if (!mobile) panel.style.height = `${limitedExpandedHeight(panel)}px`;
+      panel.style.height = `${mobile ? expandedHeight : limitedExpandedHeight(panel)}px`;
     });
     finishAfterTimeout(finishOpening);
   }
@@ -215,13 +260,13 @@ export function setupConnectionSettingsMotion(
     panel.style.setProperty('--connection-expanded-height', `${expandedHeight}px`);
     panel.style.setProperty('--connection-summary-height', `${summaryHeight}px`);
     panel.classList.add('is-animating', 'is-closing', 'is-expanded');
-    if (!mobile) panel.style.height = `${expandedHeight}px`;
+    panel.style.height = `${expandedHeight}px`;
     panel.getBoundingClientRect();
 
     paintFrame = requestAnimationFrame(() => {
       if (state !== 'closing') return;
       panel.classList.remove('is-expanded');
-      if (!mobile) panel.style.height = `${summaryHeight}px`;
+      panel.style.height = `${mobile ? mobileCollapsedHeight || summaryHeight : summaryHeight}px`;
     });
     finishAfterTimeout(finishClosing);
   }
@@ -237,8 +282,7 @@ export function setupConnectionSettingsMotion(
 
   function handleTransitionEnd(event: TransitionEvent): void {
     if (event.target !== panel) return;
-    const expectedProperty = isMobile() ? 'transform' : 'height';
-    if (event.propertyName !== expectedProperty) return;
+    if (event.propertyName !== 'height') return;
     if (state === 'opening') finishOpening();
     else if (state === 'closing') finishClosing();
   }
@@ -257,7 +301,8 @@ export function setupConnectionSettingsMotion(
   function handleViewportResize(): void {
     syncBackgroundScrollGuard();
     if (state !== 'idle' || !panel.open || !isMobile()) return;
-    panel.style.height = `${limitedExpandedHeight(panel)}px`;
+    const anchorTop = Number.parseFloat(panel.style.top) || panel.getBoundingClientRect().top;
+    panel.style.height = `${mobileExpandedHeight(anchorTop)}px`;
   }
 
   const resizeObserver = content && typeof ResizeObserver !== 'undefined'
