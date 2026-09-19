@@ -219,6 +219,21 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
   expect(centeredFieldOffsets).toHaveLength(2);
   expect(centeredFieldOffsets.every(offset => offset < 3)).toBe(true);
 
+  const inputStageBounds = await page.locator('#routineTimeField').evaluate(node => {
+    const stage = node.querySelector('.routine-time-input-stage')?.getBoundingClientRect();
+    const inputs = Array.from(node.querySelectorAll<HTMLInputElement>('.routine-time-inputs input')).map(input => input.getBoundingClientRect());
+    return {
+      stageTop: stage?.top ?? 0,
+      stageBottom: stage?.bottom ?? 0,
+      inputs: inputs.map(input => ({ top: input.top, bottom: input.bottom })),
+    };
+  });
+  expect(inputStageBounds.inputs).toHaveLength(2);
+  expect(
+    inputStageBounds.inputs.every(input => input.top >= inputStageBounds.stageTop && input.bottom <= inputStageBounds.stageBottom),
+    JSON.stringify(inputStageBounds),
+  ).toBe(true);
+
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     (window as any).__routineStorageWrites = 0;

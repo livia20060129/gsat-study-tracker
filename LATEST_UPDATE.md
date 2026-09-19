@@ -1,28 +1,24 @@
 # 最新更新
 
-版本：v171.6.19
+版本：v171.6.20
 
-## 今日資訊版面
+## 作息時間版面修正
 
-- 日期與今日狀態的「標籤＋輸入控制」整組在各自欄位內上下置中，保留原本靠左排列。
-- 作息時間不再常駐顯示「起床／就寢」摘要，小時與分鐘輸入框也不顯示提示字。
-- 凌晨 00:00～05:59 的就寢仍會顯示必要的「此時間視為隔日凌晨」提示，跨日資料與睡眠計算規則不變。
-
-## 名稱調整
-
-- 首頁入口、頁面標題與瀏覽器分頁名稱由「學習總結」統一改為「週／月總結」。
-- `summary.html` 網址、週／月統計資料、動畫及個人狀態功能完全不變。
+- 移除摘要後不再沿用原本 190px 的卡片高度，固定高度縮為符合目前內容的 156px，消除底部異常留白。
+- 小時與分鐘輸入區由 42px 增加為 46px，並取消內層裁切，完整顯示輸入框的上、下及圓角邊框。
+- 起床／就寢切換仍維持固定高度與原有過渡動畫；凌晨就寢的隔日提示也保留在固定空間內，不會讓版面跳動。
+- 日期與今日狀態仍與作息卡等高，標籤及輸入控制維持上下置中、靠左排列。
 
 ## 驗證
 
-- 自動測試確認作息輸入框沒有可見提示字、常駐摘要已移除，以及日期與今日狀態欄確實上下置中。
+- 新增瀏覽器幾何檢查，確認兩個時間輸入框完整落在輸入區內，不會再被裁切。
 - 398 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 11 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.19-routine-layout-required-files`
-- `gsat-study-tracker-v171.6.19-routine-layout-full-project`
+- `gsat-study-tracker-v171.6.20-routine-card-required-files`
+- `gsat-study-tracker-v171.6.20-routine-card-full-project`
 
 ## Commit 建議
 
-`fix(ui): refine routine layout and rename summary page`
+`fix(routine): remove excess space and prevent input clipping`
