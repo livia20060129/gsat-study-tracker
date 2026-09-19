@@ -1,24 +1,24 @@
 # 最新更新
 
-版本：v171.6.20
+版本：v171.6.21
 
-## 作息時間版面修正
+## 作息時間底部空白
 
-- 移除摘要後不再沿用原本 190px 的卡片高度，固定高度縮為符合目前內容的 156px，消除底部異常留白。
-- 小時與分鐘輸入區由 42px 增加為 46px，並取消內層裁切，完整顯示輸入框的上、下及圓角邊框。
-- 起床／就寢切換仍維持固定高度與原有過渡動畫；凌晨就寢的隔日提示也保留在固定空間內，不會讓版面跳動。
-- 日期與今日狀態仍與作息卡等高，標籤及輸入控制維持上下置中、靠左排列。
+- 刪除作息卡底部原先供「此時間視為隔日凌晨」使用的獨立版面列。
+- 作息卡固定高度由 156px 縮為 134px，輸入框下方只保留與其他邊緣一致的正常內距。
+- 隔日凌晨提示改為條件式顯示在卡片右上角，不占用下方空間，也不會在起床／就寢切換時改變卡片高度。
+- 小時與分鐘輸入框仍完整顯示，日期及今日狀態欄繼續與作息卡等高並上下置中。
 
 ## 驗證
 
-- 新增瀏覽器幾何檢查，確認兩個時間輸入框完整落在輸入區內，不會再被裁切。
+- 瀏覽器測試新增底部距離限制，防止提示列或固定高度再次製造不合理空白。
 - 398 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 11 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.20-routine-card-required-files`
-- `gsat-study-tracker-v171.6.20-routine-card-full-project`
+- `gsat-study-tracker-v171.6.21-routine-spacing-required-files`
+- `gsat-study-tracker-v171.6.21-routine-spacing-full-project`
 
 ## Commit 建議
 
-`fix(routine): remove excess space and prevent input clipping`
+`fix(routine): remove reserved space below time inputs`
