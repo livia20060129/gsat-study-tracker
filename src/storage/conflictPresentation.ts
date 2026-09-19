@@ -14,6 +14,10 @@ const FIELD_LABELS: Record<string, string> = {
   date: '日期',
   mood: '今日狀態',
   wakeTime: '起床時間',
+  bedtime: '就寢時間',
+  time: '時間',
+  dateTime: '實際日期時間',
+  nextDay: '隔日凌晨狀態',
   biggestBlock: '今日最大卡點',
   firstThingTomorrow: '明天第一件事',
   notes: '其他補充',
@@ -151,6 +155,10 @@ function finalPathProperty(path: string): string {
 function fieldLabel(conflict: StudyRecordSyncConflict): string {
   if (!conflict.path || conflict.path === '$') return '整日紀錄';
   const property = finalPathProperty(conflict.path);
+  if (conflict.path.includes('.bedtime.')) {
+    const detail = property === 'time' ? '顯示時間' : property === 'dateTime' ? '實際日期時間' : '隔日凌晨狀態';
+    return `就寢時間（${detail}）`;
+  }
   if (/\]$/.test(conflict.path)) {
     if (property === 'items') return '整張讀書卡';
     if (property === 'words') return '整筆單字／搭配詞';

@@ -112,7 +112,18 @@
   <div class="grid-3">
    <div class="field"><label for="studyDate">日期</label><input id="studyDate" type="date"></div>
    <div class="field"><label for="mood">今日狀態</label><select id="mood"><option value="">未填寫</option><option>精神良好</option><option>普通</option><option>較疲累</option><option>身體不適</option><option>外出</option></select></div>
-   <div class="field"><label>起床時間</label><div class="inline"><input id="wakeHour" type="number" min="0" max="23" step="1" inputmode="numeric" placeholder="小時"><span>時</span><input id="wakeMinute" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="分鐘"><span>分</span></div></div>
+   <div class="field routine-time-field" id="routineTimeField">
+    <label id="routineTimeLabel">作息時間</label>
+    <div class="routine-time-switch" id="routineTimeModeSwitch" role="tablist" aria-label="選擇作息時間" data-active="0">
+     <span class="routine-time-indicator" aria-hidden="true"></span>
+     <button type="button" role="tab" data-routine-mode="wake" aria-selected="true">起床</button>
+     <button type="button" role="tab" data-routine-mode="bedtime" aria-selected="false" tabindex="-1">就寢</button>
+    </div>
+    <div class="routine-time-input-stage">
+     <div class="inline routine-time-inputs"><input id="wakeHour" type="number" min="0" max="23" step="1" inputmode="numeric" placeholder="小時" aria-label="起床小時"><span>時</span><input id="wakeMinute" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="分鐘" aria-label="起床分鐘"><span>分</span></div>
+    </div>
+    <div class="routine-time-meta"><span id="routineTimeSummary">起床 —｜就寢 —</span><span id="routineNextDayHint" hidden>此時間視為隔日凌晨</span></div>
+   </div>
   </div>
   <div class="stats overview-stats" id="overviewStats" style="margin-top:12px">
    <div class="stat overview-metric-stat" data-metric-view="minutes">

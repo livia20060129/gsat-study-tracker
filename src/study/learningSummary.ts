@@ -52,7 +52,6 @@ export interface LearningSummaryDay {
   totalMinutes: number;
   completionPercent: number;
   completionIncludedInPeriod: boolean;
-  wakeMinutes: number | null;
 }
 
 export interface LearningPeriodSummary {
@@ -62,7 +61,6 @@ export interface LearningPeriodSummary {
   completion: CompletionMetrics;
   subjectTime: SubjectTimeSummary;
   timeEntries: CompletedStudyTimeEntry[];
-  averageWakeMinutes: number | null;
   recordedDayCount: number;
 }
 
@@ -298,14 +296,6 @@ export function fixedPeriodRemarks(
   };
 }
 
-export function wakeTimeMinutes(value: unknown): number | null {
-  const match = String(value ?? '').match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? hour * 60 + minute : null;
-}
-
 export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryPeriod): LearningPeriodSummary {
   const byDate = new Map(records.map(record => [record.date, record]));
   const periodRecords = period.dates.map(date => byDate.get(date)).filter(Boolean) as StudyRecord[];
@@ -318,7 +308,6 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
     .filter(entry => entry.date >= period.start && entry.date <= period.end);
   const timeEntriesByDate = new Map<string, CompletedStudyTimeEntry[]>();
   timeEntries.forEach(entry => timeEntriesByDate.set(entry.date, [...(timeEntriesByDate.get(entry.date) ?? []), entry]));
-  const wakeValues: number[] = [];
   const days = period.dates.map(date => {
     const record = byDate.get(date);
     const subjectTime = summarizeSubjectTime(timeEntriesByDate.get(date) ?? []);
@@ -326,17 +315,15 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
       return {
         date, dayNumber: parseDate(date).getDate(), weekday: ['日', '一', '二', '三', '四', '五', '六'][parseDate(date).getDay()],
         hasRecord: subjectTime.totalMinutes > 0, mood: '', totalMinutes: subjectTime.totalMinutes, completionPercent: 0,
-        completionIncludedInPeriod: false, wakeMinutes: null,
+        completionIncludedInPeriod: false,
       };
     }
     const completion = summarizeCompletionUnits(summaryCompletionUnitsForRecord(record));
-    const wakeMinutes = wakeTimeMinutes(record.wakeTime);
-    if (wakeMinutes !== null) wakeValues.push(wakeMinutes);
     return {
       date, dayNumber: parseDate(date).getDate(), weekday: ['日', '一', '二', '三', '四', '五', '六'][parseDate(date).getDay()],
       hasRecord: true, mood: String(record.mood ?? '').trim(), totalMinutes: subjectTime.totalMinutes,
       completionPercent: completion.settlementPercent,
-      completionIncludedInPeriod: completionIncludedInPeriod(record), wakeMinutes,
+      completionIncludedInPeriod: completionIncludedInPeriod(record),
     };
   });
   return {
@@ -346,15 +333,8 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
     completion: summarizeCompletionUnits(allUnits),
     subjectTime: summarizeSubjectTime(timeEntries),
     timeEntries,
-    averageWakeMinutes: wakeValues.length ? Math.round(wakeValues.reduce((sum, value) => sum + value, 0) / wakeValues.length) : null,
     recordedDayCount: new Set([...periodRecords.map(record => record.date), ...timeEntries.map(entry => entry.date)]).size,
   };
-}
-
-export function formatClockMinutes(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) return '—';
-  const normalized = Math.round(value);
-  return `${String(Math.floor(normalized / 60) % 24).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
 }
 
 export function calendarLeadingBlankCount(period: SummaryPeriod): number {

@@ -83,6 +83,7 @@ import { loadAllCalendarTaskRows } from './infrastructure/storage/supabaseCalend
 import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudyTaskService';
 import { createClient } from '@supabase/supabase-js';
 import { parseProgressImportText, progressImportBackupPayload, progressImportResultText } from './application/progressImport';
+import { bedtimeRecordForStudyDate } from './study/sleep';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -588,6 +589,9 @@ var SUPPLEMENT_ENGLISH_TITLES=[
 ];
 
 var data=null;
+var routineTimeMode='wake';
+var routineTimeDrafts={wake:{hour:'',minute:''},bedtime:{hour:'',minute:''}};
+var routineTimeSwitchTimer=null;
 var mathProgressIndex=new MathProgressIndex();
 var pendingDeferredTargets={};
 var deferredLimitPrompt=null;
@@ -1535,7 +1539,7 @@ function loadData(date){
   if(Array.isArray(o.syncConflictDetails))b.syncConflictDetails=cloneObj(o.syncConflictDetails);
   if(o.syncConflictLocal)b.syncConflictLocal=cloneObj(o.syncConflictLocal);
   if(o.syncConflictCloud)b.syncConflictCloud=cloneObj(o.syncConflictCloud);
-  b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
+  b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';if(o.bedtime&&typeof o.bedtime==='object')b.bedtime=cloneObj(o.bedtime);b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
   var storedCelebrations=o.completionCelebrations&&o.completionCelebrations.version===3?o.completionCelebrations:null;
   b.completionCelebrations={version:3,half:!!(storedCelebrations&&storedCelebrations.half),complete:!!(storedCelebrations&&storedCelebrations.complete)};
   if(Array.isArray(o.items))for(var i=0;i<o.items.length;i++){var it=normalizeItem(o.items[i],date);if(it)b.items.push(it)}
@@ -3693,14 +3697,34 @@ function updateSummary(){
  id('weekMathPercent').textContent=math.weeklyPercent+'%';
 }
 function wakeParts(s){var m=String(s||'').match(/^(\d{1,2}):(\d{1,2})$/);return m?{hour:m[1],minute:m[2]}:{hour:'',minute:''}}
-function composeWake(){var h=id('wakeHour').value,m=id('wakeMinute').value;if(h===''||m==='')return'';h=Number(h);m=Number(m);if(!Number.isInteger(h)||!Number.isInteger(m)||h<0||h>23||m<0||m>59)return'';return pad(h)+':'+pad(m)}
-function readHeader(){data.mood=id('mood').value;data.wakeTime=composeWake();data.biggestBlock=id('biggestBlock').value;data.firstThingTomorrow=id('firstThingTomorrow').value;data.notes=id('notes').value}
-function writeHeader(){id('mood').value=data.mood||'';var w=wakeParts(data.wakeTime);id('wakeHour').value=w.hour;id('wakeMinute').value=w.minute;id('biggestBlock').value=data.biggestBlock||'';id('firstThingTomorrow').value=data.firstThingTomorrow||'';id('notes').value=data.notes||''}
+function routineDraftTime(mode){var draft=routineTimeDrafts[mode]||{},h=draft.hour,m=draft.minute;if(h===''||m==='')return'';h=Number(h);m=Number(m);if(!Number.isInteger(h)||!Number.isInteger(m)||h<0||h>23||m<0||m>59)return'';return pad(h)+':'+pad(m)}
+function captureRoutineDraft(){routineTimeDrafts[routineTimeMode]={hour:id('wakeHour').value,minute:id('wakeMinute').value}}
+function syncRoutineDraftToRecord(){
+ var value=routineDraftTime(routineTimeMode);
+ if(routineTimeMode==='wake')data.wakeTime=value;
+ else if(value){var bedtime=bedtimeRecordForStudyDate(data.date,value);if(bedtime)data.bedtime=bedtime}
+ else delete data.bedtime;
+}
+function updateRoutineTimeSummary(){
+ var wake=routineDraftTime('wake')||'—',bedtime=routineDraftTime('bedtime')||'—';id('routineTimeSummary').textContent='起床 '+wake+'｜就寢 '+bedtime;
+ var bedtimeValue=routineDraftTime('bedtime'),nextDay=routineTimeMode==='bedtime'&&bedtimeValue&&Number(bedtimeValue.slice(0,2))<6;id('routineNextDayHint').hidden=!nextDay;
+}
+function updateRoutineTimeUI(){
+ var switcher=id('routineTimeModeSwitch'),activeIndex=routineTimeMode==='wake'?0:1,draft=routineTimeDrafts[routineTimeMode];switcher.dataset.active=String(activeIndex);
+ switcher.querySelectorAll('[data-routine-mode]').forEach(function(button){var selected=button.getAttribute('data-routine-mode')===routineTimeMode;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1});
+ id('wakeHour').value=draft.hour;id('wakeMinute').value=draft.minute;id('wakeHour').setAttribute('aria-label',(routineTimeMode==='wake'?'起床':'就寢')+'小時');id('wakeMinute').setAttribute('aria-label',(routineTimeMode==='wake'?'起床':'就寢')+'分鐘');updateRoutineTimeSummary();
+}
+function setRoutineTimeMode(mode){
+ if(mode!== 'wake'&&mode!=='bedtime'||mode===routineTimeMode)return;captureRoutineDraft();syncRoutineDraftToRecord();routineTimeMode=mode;var field=id('routineTimeField');if(routineTimeSwitchTimer)clearTimeout(routineTimeSwitchTimer);field.classList.add('is-switching');updateRoutineTimeUI();routineTimeSwitchTimer=setTimeout(function(){field.classList.remove('is-switching');routineTimeSwitchTimer=null},220);
+}
+function readHeader(){data.mood=id('mood').value;captureRoutineDraft();syncRoutineDraftToRecord();data.biggestBlock=id('biggestBlock').value;data.firstThingTomorrow=id('firstThingTomorrow').value;data.notes=id('notes').value;updateRoutineTimeSummary()}
+function writeHeader(){id('mood').value=data.mood||'';routineTimeMode='wake';routineTimeDrafts={wake:wakeParts(data.wakeTime),bedtime:wakeParts(data.bedtime&&data.bedtime.time)};updateRoutineTimeUI();id('biggestBlock').value=data.biggestBlock||'';id('firstThingTomorrow').value=data.firstThingTomorrow||'';id('notes').value=data.notes||''}
 function validate(){
  var ok=true,msg='';
  var wakeHour=id('wakeHour'),wakeMinute=id('wakeMinute'),wakeHourValue=wakeHour.value===''?null:Number(wakeHour.value),wakeMinuteValue=wakeMinute.value===''?null:Number(wakeMinute.value);
- var wakeHourValid=wakeHourValue===null||(Number.isInteger(wakeHourValue)&&wakeHourValue>=0&&wakeHourValue<=23),wakeMinuteValid=wakeMinuteValue===null||(Number.isInteger(wakeMinuteValue)&&wakeMinuteValue>=0&&wakeMinuteValue<=59);
- wakeHour.setCustomValidity(wakeHourValid?'':'小時請填 00～23。');wakeMinute.setCustomValidity(wakeMinuteValid?'':'分鐘請填 00～59。');if(!wakeHourValid||!wakeMinuteValid){ok=false;msg='起床時間格式不正確；小時請填 00～23，分鐘請填 00～59。'}
+ function draftValid(draft){var h=draft.hour===''?null:Number(draft.hour),m=draft.minute===''?null:Number(draft.minute);return(h===null)===(m===null)&&(h===null||(Number.isInteger(h)&&h>=0&&h<=23&&Number.isInteger(m)&&m>=0&&m<=59))}
+ var wakeHourValid=wakeHourValue===null||(Number.isInteger(wakeHourValue)&&wakeHourValue>=0&&wakeHourValue<=23),wakeMinuteValid=wakeMinuteValue===null||(Number.isInteger(wakeMinuteValue)&&wakeMinuteValue>=0&&wakeMinuteValue<=59),wakePairValid=(wakeHourValue===null)===(wakeMinuteValue===null),wakeDraftValid=draftValid(routineTimeDrafts.wake),bedtimeDraftValid=draftValid(routineTimeDrafts.bedtime),routineLabel=!wakeDraftValid?'起床':(!bedtimeDraftValid?'就寢':(routineTimeMode==='wake'?'起床':'就寢'));
+ wakeHour.setCustomValidity(wakeHourValid&&wakeMinuteValid&&wakePairValid?'':'請完整填寫有效時間。');wakeMinute.setCustomValidity(wakeHourValid&&wakeMinuteValid&&wakePairValid?'':'請完整填寫有效時間。');if(!wakeHourValid||!wakeMinuteValid||!wakePairValid||!wakeDraftValid||!bedtimeDraftValid){ok=false;msg=routineLabel+'時間格式不正確；小時請填 00～23，分鐘請填 00～59，或將兩欄都留空。'}
  document.querySelectorAll('[data-field="essayScore"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=18);el.setCustomValidity(x?'':'作文範圍起點請填 0～18。');if(!x){ok=false;msg='英文作文分數超出範圍。'}});
  document.querySelectorAll('[data-field="mixedScore"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=10);el.setCustomValidity(x?'':'混合題分數請填 0～10。');if(!x){ok=false;msg='英文混合題分數超出範圍。'}});
  document.querySelectorAll('[data-field="score"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=25);el.setCustomValidity(x?'':'國文寫作分數請填 0～25。');if(!x){ok=false;msg='國文寫作分數超出範圍。'}});
@@ -3778,7 +3802,7 @@ function itemSummary(x){
  return s;
 }
 function daySummary(date){
- var rec=loadData(date);if(rec.storageIssue)return'【'+date+' '+weekdays[parseDate(date).getDay()]+'】\n本機紀錄無法讀取，原始資料已保留等待修復。';ensureDailyPresets(rec,date);var a=['【'+date+' '+weekdays[parseDate(date).getDay()]+'】','狀態：'+line(rec.mood),'起床時間：'+line(rec.wakeTime)];if(isAway(rec))a.push('固定排程：因外出取消');visibleItems(rec).forEach(function(x){a.push(itemSummary(x))});a.push('最大卡點：'+line(rec.biggestBlock));a.push('明天第一件事：'+line(rec.firstThingTomorrow));a.push('補充：'+line(rec.notes));return a.join('\n');
+ var rec=loadData(date);if(rec.storageIssue)return'【'+date+' '+weekdays[parseDate(date).getDay()]+'】\n本機紀錄無法讀取，原始資料已保留等待修復。';ensureDailyPresets(rec,date);var bedtimeText=rec.bedtime&&rec.bedtime.time?rec.bedtime.time+(rec.bedtime.nextDay?'（隔日凌晨）':''):'—',a=['【'+date+' '+weekdays[parseDate(date).getDay()]+'】','狀態：'+line(rec.mood),'起床時間：'+line(rec.wakeTime),'就寢時間：'+bedtimeText];if(isAway(rec))a.push('固定排程：因外出取消');visibleItems(rec).forEach(function(x){a.push(itemSummary(x))});a.push('最大卡點：'+line(rec.biggestBlock));a.push('明天第一件事：'+line(rec.firstThingTomorrow));a.push('補充：'+line(rec.notes));return a.join('\n');
 }
 function buildWeekSummary(){persist(false);var mon=mondayOf(parseDate(data.date)),a=['本週讀書紀錄｜'+dateString(mon)+'～'+dateString(new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,12))];for(var i=0;i<7;i++){var d=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12);a.push('\n'+daySummary(dateString(d)))}return a.join('\n')}
 function importProgressItemKey(x){
@@ -3834,6 +3858,8 @@ function mergedImportedProgressRecord(current,incoming){
  next.date=d;
  next.mood=mergeImportedProgressValue(next.mood,incoming.mood)||'';
  next.wakeTime=mergeImportedProgressValue(next.wakeTime,incoming.wakeTime)||'';
+ next.bedtime=mergeImportedProgressValue(next.bedtime,incoming.bedtime);
+ if(!next.bedtime)delete next.bedtime;
  next.biggestBlock=mergeImportedProgressValue(next.biggestBlock,incoming.biggestBlock)||'';
  next.firstThingTomorrow=mergeImportedProgressValue(next.firstThingTomorrow,incoming.firstThingTomorrow)||'';
  next.notes=mergeImportedProgressValue(next.notes,incoming.notes)||'';
@@ -4047,6 +4073,9 @@ id('englishReviewList').addEventListener('input',handleInput);id('englishReviewL
 id('itemList').addEventListener('input',handleInput);id('itemList').addEventListener('change',handleChange);id('itemList').addEventListener('click',handleClick);
 id('studyDate').addEventListener('change',function(e){switchStudyDate(e.target.value)});
 id('mood').addEventListener('change',function(){readHeader();render();persist(false)});
+id('routineTimeModeSwitch').addEventListener('pointerdown',function(){captureRoutineDraft();syncRoutineDraftToRecord()});
+id('routineTimeModeSwitch').addEventListener('click',function(e){var button=e.target.closest('[data-routine-mode]');if(button)setRoutineTimeMode(button.getAttribute('data-routine-mode'))});
+id('routineTimeModeSwitch').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();var mode=e.key==='Home'||e.key==='ArrowLeft'?'wake':'bedtime';setRoutineTimeMode(mode);id('routineTimeModeSwitch').querySelector('[data-routine-mode="'+mode+'"]').focus()});
 ['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerChange)});
 id('notes').addEventListener('input',notesInput);id('notes').addEventListener('change',headerChange);
 id('addItemBtn').addEventListener('click',addCustom);

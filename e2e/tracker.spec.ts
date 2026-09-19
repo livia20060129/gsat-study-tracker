@@ -192,6 +192,54 @@ test('typed record fields write to storage only after leaving the field', async 
   await expect.poll(() => page.evaluate(() => (window as any).__trackerStorageWrites)).toBeGreaterThan(0);
 });
 
+test('routine switch preserves drafts, saves on blur, and stays fixed-height on mobile', async ({ page }) => {
+  const date = await page.locator('#studyDate').inputValue();
+  await page.goto('/summary.html');
+  await page.evaluate(({ date }) => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}${date}`, JSON.stringify({ schemaVersion: 1, date, wakeTime: '07:20', items: [] }));
+  }, { date });
+  await page.goto('/');
+  await expect(page.locator('#wakeHour')).toHaveValue(/0?7/);
+  await expect(page.locator('#wakeMinute')).toHaveValue('20');
+  await expect(page.locator('#routineTimeSummary')).toHaveText('起床 07:20｜就寢 —');
+
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    (window as any).__routineStorageWrites = 0;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      (window as any).__routineStorageWrites += 1;
+      return original.call(this, key, value);
+    };
+  });
+  await page.locator('#wakeHour').fill('8');
+  await page.locator('[data-routine-mode="bedtime"]').dispatchEvent('click');
+  expect(await page.evaluate(() => (window as any).__routineStorageWrites)).toBe(0);
+  await page.locator('#wakeHour').fill('1');
+  await page.locator('#wakeMinute').fill('30');
+  await expect(page.locator('#routineNextDayHint')).toBeVisible();
+  await page.locator('[data-routine-mode="wake"]').dispatchEvent('click');
+  await expect(page.locator('#wakeHour')).toHaveValue('8');
+  await expect(page.locator('#wakeMinute')).toHaveValue('20');
+  await page.locator('[data-routine-mode="bedtime"]').dispatchEvent('click');
+  await expect(page.locator('#wakeHour')).toHaveValue('1');
+  await expect(page.locator('#wakeMinute')).toHaveValue('30');
+  await page.locator('#wakeMinute').blur();
+  await expect.poll(() => page.evaluate(() => (window as any).__routineStorageWrites)).toBeGreaterThan(0);
+
+  const stored = await page.evaluate(({ date }) => JSON.parse(localStorage.getItem(`study-v11:guest:${date}`) || '{}'), { date });
+  expect(stored.wakeTime).toBe('08:20');
+  expect(stored.bedtime).toEqual({ time: '01:30', dateTime: expect.stringMatching(/T01:30$/), nextDay: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const beforeHeight = await page.locator('#routineTimeField').evaluate(node => node.getBoundingClientRect().height);
+  await page.locator('[data-routine-mode="wake"]').click();
+  await page.waitForTimeout(280);
+  const afterHeight = await page.locator('#routineTimeField').evaluate(node => node.getBoundingClientRect().height);
+  expect(Math.abs(afterHeight - beforeHeight)).toBeLessThan(1);
+});
+
 test('cloud conflict prompt names the card, field, and both values', async ({ page }) => {
   const date = await page.locator('#studyDate').inputValue();
   await page.goto('/summary.html');
@@ -302,10 +350,18 @@ test('learning summary uses one week/month control for the complete page', async
   await page.evaluate(() => {
     const now = new Date();
     const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const previous = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12);
+    const previousDate = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}-${String(previous.getDate()).padStart(2, '0')}`;
     const prefix = 'study-v11:guest:';
     localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}${previousDate}`, JSON.stringify({
+      schemaVersion: 2,
+      date: previousDate,
+      bedtime: { time: '23:45', dateTime: `${previousDate}T23:45`, nextDay: false },
+      items: [],
+    }));
     localStorage.setItem(`${prefix}${date}`, JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       date,
       wakeTime: '06:30',
       items: [
@@ -328,10 +384,13 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#summaryModeSwitch')).toHaveCount(1);
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(7);
   await expect(page.locator('#calendarTitle')).toHaveText('週曆');
-  await expect(page.locator('#wakePeriodLabel')).toHaveText('本週平均');
+  await expect(page.locator('#personalStatusPeriod')).toHaveText('本週作息統計');
+  await expect(page.locator('#averageWakeTime')).toHaveText('06:30');
+  await expect(page.locator('#validSleepCount')).toContainText('1／7 晚');
+  await expect(page.locator('#sleepTrend')).toBeVisible();
   await expect(page.locator('#summarySubjectDistribution .summary-donut-center strong')).toHaveText('3.8');
   await expect(page.locator('#summarySubjectDistribution .summary-donut-center span')).toHaveText('hr');
-  await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').click();
+  await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').last().click();
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('學習時間');
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('完成率');
   await expect.poll(() => page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip').evaluate(node => getComputedStyle(node).opacity)).toBe('1');
@@ -408,7 +467,7 @@ test('learning summary uses one week/month control for the complete page', async
 
   await page.getByRole('tab', { name: '月' }).click();
   await expect(page.locator('#calendarTitle')).toHaveText('月曆');
-  await expect(page.locator('#wakePeriodLabel')).toHaveText('本月平均');
+  await expect(page.locator('#personalStatusPeriod')).toHaveText('本月作息統計');
   await expect(page.locator('#conclusionTitle')).toHaveText('本月小結');
   await expect(page.locator('#summaryContent')).not.toHaveClass(/is-mode-transitioning/);
   await expect.poll(() => page.locator('#summaryContent').evaluate(node => getComputedStyle(node).opacity)).toBe('1');

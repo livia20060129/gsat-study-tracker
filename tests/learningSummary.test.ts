@@ -8,7 +8,6 @@ import {
   completedStudyTimeEntries,
   completedSubjectTimeForRecord,
   fixedPeriodRemarks,
-  formatClockMinutes,
   groupedSummarySubjectTime,
   shiftSummaryAnchor,
   summarizeLearningPeriod,
@@ -153,8 +152,6 @@ test('all overview blocks derive from the same requested period', () => {
 
   assert.equal(summary.records.length, 2);
   assert.equal(summary.subjectTime.totalMinutes, 20);
-  assert.equal(summary.averageWakeMinutes, 405);
-  assert.equal(formatClockMinutes(summary.averageWakeMinutes), '06:45');
   assert.equal(summary.days.length, 7);
 });
 
@@ -332,11 +329,14 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(styles, /\.legend-tired\{[^}]*background:#ffc78e\}/);
   assert.match(styles, /\.legend-out\{[^}]*background:#fff0bd\}/);
   assert.doesNotMatch(html, /summary-side-stack/);
-  assert.match(html, /summary-conclusion-card[\s\S]*id="summaryComparison"[\s\S]*id="summaryConclusion"[\s\S]*id="averageWakeTime"/);
-  assert.match(html, /id="wakeComparisonLabel"[\s\S]*id="wakeComparisonValue"/);
+  assert.match(html, /summary-conclusion-card[\s\S]*id="summaryComparison"[\s\S]*id="summaryConclusion"/);
+  assert.match(html, /summary-personal-card[\s\S]*id="averageSleepDuration"[\s\S]*id="averageBedtime"[\s\S]*id="averageWakeTime"[\s\S]*id="validSleepCount"/);
+  assert.match(html, /id="sleepTrend"[\s\S]*id="sleepComparisonValue"/);
+  assert.doesNotMatch(html, /id="wakeComparisonLabel"|id="wakeComparisonValue"/);
   assert.doesNotMatch(runtime, /<dt>平均起床<\/dt>/);
-  assert.match(runtime, /相較上週/);
-  assert.match(runtime, /小時 \$\{wakeDifference % 60\} 分鐘/);
+  assert.match(runtime, /summarizeSleepPeriod\(records, period\.dates\)/);
+  assert.match(runtime, /sleepComparisonText\(current\.averageSleepMinutes, previous\.averageSleepMinutes\)/);
+  assert.doesNotMatch(runtime, /averageWakeMinutes.*current\.completion|subjectTime.*averageWakeMinutes/);
   assert.match(styles, /summary-subject-detail-list\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /summary-subject-detail-list\{display:grid;grid-template-columns:none;grid-template-rows:repeat\(var\(--summary-detail-rows,1\),auto\);grid-auto-flow:column/);
   assert.match(runtime, /const detailRows = Math\.max\(1, Math\.min\(4, slices\.length\)\)/);

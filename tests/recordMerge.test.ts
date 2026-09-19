@@ -291,6 +291,24 @@ test('three-way merge combines changes to different fields and flags the same fi
   assert.equal(recordSyncConflicts(conflict.record).length, 1);
 });
 
+test('routine fields merge independently across tabs', () => {
+  const base = markRecordSynced({
+    date: '2026-09-20', wakeTime: '07:00',
+    bedtime: { time: '23:30', dateTime: '2026-09-20T23:30', nextDay: false },
+    items: [],
+  });
+  const local = structuredClone(base);
+  const cloud = structuredClone(base);
+  local.wakeTime = '07:20';
+  local.localDirty = true;
+  cloud.bedtime = { time: '23:45', dateTime: '2026-09-20T23:45', nextDay: false };
+
+  const merged = mergeStudyRecordsThreeWay(local, cloud);
+  assert.equal(merged.conflicts.length, 0);
+  assert.equal(merged.record.wakeTime, '07:20');
+  assert.deepEqual(merged.record.bedtime, cloud.bedtime);
+});
+
 test('delete versus edit becomes a visible conflict instead of resurrecting silently', () => {
   const base = markRecordSynced({ date: '2026-09-12', items: [item('essay', '20')] });
   const local = structuredClone(base);
