@@ -203,7 +203,21 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
   await page.goto('/');
   await expect(page.locator('#wakeHour')).toHaveValue(/0?7/);
   await expect(page.locator('#wakeMinute')).toHaveValue('20');
-  await expect(page.locator('#routineTimeSummary')).toHaveText('起床 07:20｜就寢 —');
+  await expect(page.locator('#routineTimeSummary')).toHaveCount(0);
+  await expect(page.locator('#wakeHour')).not.toHaveAttribute('placeholder');
+  await expect(page.locator('#wakeMinute')).not.toHaveAttribute('placeholder');
+
+  const centeredFieldOffsets = await page.locator('.today-info-centered-field').evaluateAll(nodes => nodes.map(node => {
+    const field = node.getBoundingClientRect();
+    const label = node.querySelector('label')?.getBoundingClientRect();
+    const control = node.querySelector('input, select')?.getBoundingClientRect();
+    if (!label || !control) return Number.POSITIVE_INFINITY;
+    const contentCenter = (label.top + control.bottom) / 2;
+    const fieldCenter = (field.top + field.bottom) / 2;
+    return Math.abs(contentCenter - fieldCenter);
+  }));
+  expect(centeredFieldOffsets).toHaveLength(2);
+  expect(centeredFieldOffsets.every(offset => offset < 3)).toBe(true);
 
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
@@ -380,7 +394,7 @@ test('learning summary uses one week/month control for the complete page', async
     }));
   });
   await page.reload();
-  await expect(page.getByRole('heading', { name: '學習總結' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '週／月總結' })).toBeVisible();
   await expect(page.locator('#summaryModeSwitch')).toHaveCount(1);
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(7);
   await expect(page.locator('#calendarTitle')).toHaveText('週曆');

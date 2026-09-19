@@ -3705,19 +3705,18 @@ function syncRoutineDraftToRecord(){
  else if(value){var bedtime=bedtimeRecordForStudyDate(data.date,value);if(bedtime)data.bedtime=bedtime}
  else delete data.bedtime;
 }
-function updateRoutineTimeSummary(){
- var wake=routineDraftTime('wake')||'—',bedtime=routineDraftTime('bedtime')||'—';id('routineTimeSummary').textContent='起床 '+wake+'｜就寢 '+bedtime;
+function updateRoutineTimeHint(){
  var bedtimeValue=routineDraftTime('bedtime'),nextDay=routineTimeMode==='bedtime'&&bedtimeValue&&Number(bedtimeValue.slice(0,2))<6;id('routineNextDayHint').hidden=!nextDay;
 }
 function updateRoutineTimeUI(){
  var switcher=id('routineTimeModeSwitch'),activeIndex=routineTimeMode==='wake'?0:1,draft=routineTimeDrafts[routineTimeMode];switcher.dataset.active=String(activeIndex);
  switcher.querySelectorAll('[data-routine-mode]').forEach(function(button){var selected=button.getAttribute('data-routine-mode')===routineTimeMode;button.setAttribute('aria-selected',String(selected));button.tabIndex=selected?0:-1});
- id('wakeHour').value=draft.hour;id('wakeMinute').value=draft.minute;id('wakeHour').setAttribute('aria-label',(routineTimeMode==='wake'?'起床':'就寢')+'小時');id('wakeMinute').setAttribute('aria-label',(routineTimeMode==='wake'?'起床':'就寢')+'分鐘');updateRoutineTimeSummary();
+ id('wakeHour').value=draft.hour;id('wakeMinute').value=draft.minute;id('wakeHour').setAttribute('aria-label',(routineTimeMode==='wake'?'起床':'就寢')+'小時');id('wakeMinute').setAttribute('aria-label',(routineTimeMode==='wake'?'起床':'就寢')+'分鐘');updateRoutineTimeHint();
 }
 function setRoutineTimeMode(mode){
  if(mode!== 'wake'&&mode!=='bedtime'||mode===routineTimeMode)return;captureRoutineDraft();syncRoutineDraftToRecord();routineTimeMode=mode;var field=id('routineTimeField');if(routineTimeSwitchTimer)clearTimeout(routineTimeSwitchTimer);field.classList.add('is-switching');updateRoutineTimeUI();routineTimeSwitchTimer=setTimeout(function(){field.classList.remove('is-switching');routineTimeSwitchTimer=null},220);
 }
-function readHeader(){data.mood=id('mood').value;captureRoutineDraft();syncRoutineDraftToRecord();data.biggestBlock=id('biggestBlock').value;data.firstThingTomorrow=id('firstThingTomorrow').value;data.notes=id('notes').value;updateRoutineTimeSummary()}
+function readHeader(){data.mood=id('mood').value;captureRoutineDraft();syncRoutineDraftToRecord();data.biggestBlock=id('biggestBlock').value;data.firstThingTomorrow=id('firstThingTomorrow').value;data.notes=id('notes').value;updateRoutineTimeHint()}
 function writeHeader(){id('mood').value=data.mood||'';routineTimeMode='wake';routineTimeDrafts={wake:wakeParts(data.wakeTime),bedtime:wakeParts(data.bedtime&&data.bedtime.time)};updateRoutineTimeUI();id('biggestBlock').value=data.biggestBlock||'';id('firstThingTomorrow').value=data.firstThingTomorrow||'';id('notes').value=data.notes||''}
 function validate(){
  var ok=true,msg='';
