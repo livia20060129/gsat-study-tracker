@@ -132,6 +132,45 @@ test('typed record fields write to storage only after leaving the field', async 
   await expect.poll(() => page.evaluate(() => (window as any).__trackerStorageWrites)).toBeGreaterThan(0);
 });
 
+test('cloud conflict prompt names the card, field, and both values', async ({ page }) => {
+  const date = await page.locator('#studyDate').inputValue();
+  await page.goto('/summary.html');
+  await page.evaluate(({ date }) => {
+    const prefix = 'study-v11:guest:';
+    const local = {
+      date,
+      items: [{
+        id: 'conflict-math', type: 'mathStudy', title: '數學講義：進度',
+        done: false, minutes: '25', required: true, f: { material: '新關鍵', book: '1~2' },
+      }],
+    };
+    const cloud = structuredClone(local);
+    cloud.items[0].minutes = '40';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}${date}`, JSON.stringify({
+      ...local,
+      schemaVersion: 1,
+      localDirty: true,
+      syncConflict: true,
+      syncConflictLocal: local,
+      syncConflictCloud: cloud,
+      syncConflictDetails: [{
+        path: '$.items[id:conflict-math].minutes', kind: 'same-field',
+        baseExists: true, localExists: true, cloudExists: true,
+        base: '15', local: '25', cloud: '40',
+      }],
+    }));
+  }, { date });
+  await page.goto('/');
+  await page.locator('#connectionSettings > summary').click();
+
+  await expect(page.locator('#cloudConflictText')).toContainText('數學講義：進度 › 讀書時間（分鐘）');
+  await expect(page.locator('#cloudConflictDetails')).toContainText('本機：25');
+  await expect(page.locator('#cloudConflictDetails')).toContainText('雲端：40');
+  await expect(page.getByRole('button', { name: '以本機整日紀錄覆蓋雲端' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '以雲端整日紀錄取代本機' })).toBeVisible();
+});
+
 test('timer starts from the closest second represented by manual minutes', async ({ page }) => {
   await page.selectOption('#itemType', 'extra');
   await page.click('#addItemBtn');

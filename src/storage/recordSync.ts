@@ -46,7 +46,14 @@ function isObject(value: MergeValue): value is Record<string, unknown> {
   return value !== ABSENT && Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isClearedValue(value: MergeValue): boolean {
+  return value === ABSENT || value === undefined || (typeof value === 'string' && value.trim() === '');
+}
+
 function sameValue(left: MergeValue, right: MergeValue): boolean {
+  // Optional form fields can be serialized either as an omitted property or an
+  // empty string. Both representations mean "cleared" to the Tracker UI.
+  if (isClearedValue(left) && isClearedValue(right)) return true;
   if (left === ABSENT || right === ABSENT) return left === right;
   return JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right));
 }
@@ -205,6 +212,16 @@ function mergeThreeWayValue(
   if (sameValue(local, base)) return cloud === ABSENT ? ABSENT : cloneValue(cloud);
   if (sameValue(cloud, base)) return local === ABSENT ? ABSENT : cloneValue(local);
 
+  // These flags only remember whether a local completion animation has already
+  // been shown. They are not study data and should never force a user-facing
+  // record conflict when two devices display the animation at different times.
+  if (/^\$\.completionCelebrations\.(half|complete)$/.test(path)) {
+    return local === true || cloud === true;
+  }
+  if (path === '$.completionCelebrations.version') {
+    return Math.max(Number(base === ABSENT ? 0 : base), Number(local === ABSENT ? 0 : local), Number(cloud === ABSENT ? 0 : cloud));
+  }
+
   if (Array.isArray(base) && Array.isArray(local) && Array.isArray(cloud)) {
     const keyed = mergeKeyedArrays(base, local, cloud, path, conflicts);
     if (keyed) return keyed;
@@ -263,6 +280,40 @@ export function markRecordSynced(record: StudyRecord): StudyRecord {
   delete synced.syncConflictLocal;
   delete synced.syncConflictCloud;
   return synced;
+}
+
+/**
+ * Marks a locally edited record without discarding an unresolved conflict.
+ * The latest local draft remains recoverable while cloud upload stays paused
+ * until the user explicitly chooses the local or cloud version.
+ */
+export function markRecordLocallyEdited(
+  record: StudyRecord,
+  previous?: StudyRecord | null,
+): StudyRecord {
+  const edited = normalizedRecord(record);
+  edited.localDirty = true;
+  if (previous) {
+    edited.serverRevision = Number(previous.serverRevision || 0);
+    edited.serverUpdatedAt = previous.serverUpdatedAt || '';
+    if (previous.syncBase) edited.syncBase = cloneValue(previous.syncBase);
+  }
+
+  if (!previous?.syncConflict) {
+    edited.syncConflict = false;
+    delete edited.syncConflictDetails;
+    delete edited.syncConflictLocal;
+    delete edited.syncConflictCloud;
+    return edited;
+  }
+
+  edited.syncConflict = true;
+  edited.syncConflictDetails = cloneValue(previous.syncConflictDetails ?? []);
+  edited.syncConflictCloud = previous.syncConflictCloud
+    ? stripRecordSyncMeta(previous.syncConflictCloud)
+    : undefined;
+  edited.syncConflictLocal = stripRecordSyncMeta(edited);
+  return edited;
 }
 
 export function mergeStudyRecordsThreeWay(

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GSAT 讀書排程管理 Prompt｜2026-09-16 最新版</title>
+  <title>GSAT 讀書排程管理 Prompt｜2026-09-19 最新版</title>
   <style>
     :root{--bg:#f4f7fb;--paper:#fff;--ink:#172033;--muted:#64748b;--line:#dce3ec;--blue:#315efb;--soft:#f8fafc;--warn:#fff7e6;--green:#ecfdf3}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.72 system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif}
@@ -22,7 +22,7 @@
 <header><div class="inner">
   <h1>GSAT 讀書排程與進度管理 Prompt</h1>
   <p>將「可直接使用的 Prompt」貼到新對話，即可延續目前的排程、命名與備註格式。若新指示與本 Prompt 衝突，一律以使用者最新、最明確的指示為準。</p>
-  <p>最新版：2026-09-16（Asia/Taipei）</p>
+  <p>最新版：2026-09-19（Asia/Taipei）</p>
   <p>整合目前教材、教材主識別碼、Calendar 實際識別碼規則，以及所有最新格式修正。</p>
   <div class="toolbar"><button onclick="copyPrompt(this)">複製完整 Prompt</button></div>
 </div></header>
@@ -106,6 +106,9 @@
 【來源日期】2026/8/25
 【重點】基本交互作用與受力模型
 【識別碼】GSAT-SPLIT-NATURAL-2026-08-25-PHYSICS</pre>
+    <h3>自然科《新關鍵》範例</h3><pre>【講義版本】新關鍵
+【頁碼範圍】p.38–41
+【識別碼】GSAT-NEWKEY-BIO-20260919</pre>
     <h3>國文範例</h3><pre>【頁碼範圍】p.2–25
 【識別碼】GSAT-DEEP15-L01</pre>
     <h3>英文主題百匯範例</h3><pre>【單元進度】第2回
@@ -142,6 +145,10 @@
     </tbody></table>
     <h3>自然</h3><table><thead><tr><th>科目／教材</th><th>教材主碼／既有事件規則</th><th>狀態</th></tr></thead><tbody>
       <tr><td>生物／化學／物理／地科《123日的淬鍊》</td><td><code>GSAT-SPLIT-NATURAL-YYYY-MM-DD</code>；必要時加科目尾碼</td><td><span class="tag">Calendar 已有</span></td></tr>
+      <tr><td>生物《新關鍵》</td><td><code>GSAT-NEWKEY-BIO</code></td><td><span class="tag">教材主碼</span></td></tr>
+      <tr><td>化學《新關鍵》</td><td><code>GSAT-NEWKEY-CHEM</code></td><td><span class="tag">教材主碼</span></td></tr>
+      <tr><td>物理《新關鍵》</td><td><code>GSAT-NEWKEY-PHYS</code></td><td><span class="tag">教材主碼</span></td></tr>
+      <tr><td>地科《新關鍵》</td><td><code>GSAT-NEWKEY-EARTH</code></td><td><span class="tag">教材主碼</span></td></tr>
     </tbody></table>
     <h3>英文</h3><table><thead><tr><th>教材</th><th>教材主碼／既有事件規則</th><th>狀態</th></tr></thead><tbody>
       <tr><td>ACE Reading</td><td><code>GSAT-SPLIT-ACE-YYYY-MM-DD</code></td><td><span class="tag">Calendar 已有</span></td></tr>
@@ -187,7 +194,7 @@
 【本次指定限制】</pre></section>
   </div>
 </main>
-<footer>GSAT Schedule Management｜Latest consolidated prompt｜2026-09-16</footer>
+<footer>GSAT Schedule Management｜Latest consolidated prompt｜2026-09-19</footer>
 <script>
 async function copyPrompt(btn){const text=document.getElementById('prompt').innerText.trim();try{await navigator.clipboard.writeText(text);btn.textContent='已複製';setTimeout(()=>btn.textContent='複製完整 Prompt',1600)}catch(e){alert('瀏覽器未允許自動複製，請使用 Ctrl+A / Ctrl+C。')}}
 </script>

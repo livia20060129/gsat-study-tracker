@@ -46,8 +46,30 @@ test('classifies the progress chart by the same material groups as manual entry'
   assert.equal(groupFor('math:教學講義:1'), '分冊講義');
   assert.equal(groupFor('natural:物理:123日的淬鍊'), '物理');
   assert.equal(groupFor('natural:化學:好考點'), '化學');
+  assert.equal(groupFor('natural:化學:新關鍵'), '化學');
   assert.equal(groupFor('natural:生物:123日的淬鍊'), '生物');
+  assert.equal(groupFor('natural:生物:新關鍵'), '生物');
   assert.equal(groupFor('natural:地科:123日的淬鍊'), '地科');
+});
+
+test('Biology New Key uses the photographed topic map and records only completed actual pages', () => {
+  const biologyItem = item({
+    id: 'biology-new-key',
+    type: 'scienceReview',
+    done: true,
+    f: { subject: '生物', material: '新關鍵', start: '38', end: '41', progress: true },
+  });
+  const biology = materialProgressRows([record([biologyItem])])
+    .find(row => row.id === 'natural:生物:新關鍵');
+  assert.ok(biology);
+  assert.equal(biology.segments.length, 26);
+  assert.deepEqual(
+    biology.segments.filter(segment => segment.recorded).map(segment => segment.label),
+    [
+      '單元 1 細胞的構造與功能｜主題 8 人體配子的形成與受精卵的發育（p.38–40）',
+      '單元 1 細胞的構造與功能｜主題 9 單元 1 探討活動（p.41）',
+    ],
+  );
 });
 
 test('reads a recorded math range from a grouped child without filling untouched units', () => {
@@ -293,7 +315,7 @@ test('includes completed Calendar natural integration child ranges', () => {
   assert.match(biology.segments.find(segment => segment.recorded)?.label ?? '', /Chapter 2 遺傳/);
 });
 
-test('records Azar Calendar child sections independently instead of filling the whole page range', () => {
+test('groups Azar sections into chapter-sized progress blocks', () => {
   const first = item({
     id: 'azar-2-1', type: 'extra', done: true,
     f: { title: 'Azar英文文法（中階）', azarSectionCode: '2-1', start: '31', end: '31' },
@@ -305,10 +327,11 @@ test('records Azar Calendar child sections independently instead of filling the 
   const parent = item({ id: 'azar-chapter', f: { groupedWorkEntries: [first, second] } });
   const azar = materialProgressRows([record([parent])]).find(row => row.id === 'english:azar-intermediate');
   assert.ok(azar);
-  assert.equal(azar.total, 149);
+  assert.equal(azar.total, 14);
   assert.equal(azar.recorded, 1);
-  assert.equal(azar.segments.find(segment => segment.key === '2-1')?.recorded, true);
-  assert.equal(azar.segments.find(segment => segment.key === '2-2')?.recorded, false);
+  assert.match(azar.segments.find(segment => segment.key === '2')?.label ?? '', /Ch\.2 過去式/);
+  assert.equal(azar.segments.find(segment => segment.key === '2')?.completionPercent, 11);
+  assert.equal(azar.segments.find(segment => segment.key === '1')?.recorded, false);
 });
 
 test('uses the Tracker active account prefix and ignores other account records', () => {

@@ -12,10 +12,12 @@ import {
 import { LISTENING_TEST_BOOK_TITLE, isListeningTestBookTitle } from '../data/englishBooks.ts';
 import {
   AZAR_GRAMMAR_BOOK_TITLE,
+  AZAR_GRAMMAR_CHAPTERS,
   AZAR_GRAMMAR_SECTIONS,
   isAzarGrammarBookTitle,
 } from '../data/azarGrammar.ts';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from '../data/mathMaterialPageMaps.ts';
+import { BIOLOGY_NEW_KEY_PAGE_MAP, CHEMISTRY_NEW_KEY_PAGE_MAP } from '../data/naturalMaterialPageMaps.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
 import { recordedPageRangeFields } from './recordedPageRange.ts';
@@ -68,6 +70,8 @@ interface SegmentDefinition {
   label: string;
   start: number;
   end: number;
+  /** Smaller exact sections summarized inside one visible chapter block. */
+  memberKeys?: string[];
   topic?: string;
   detail?: string;
 }
@@ -242,12 +246,13 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
     subject: 'english',
     group: '補充',
     title: `英文｜${AZAR_GRAMMAR_BOOK_TITLE}`,
-    unitLabel: '分項',
-    segments: AZAR_GRAMMAR_SECTIONS.map(section => ({
-      key: section.code,
-      label: `${section.code}${section.title}（p.${section.start}${section.start === section.end ? '' : `–${section.end}`}）`,
-      start: section.start,
-      end: section.end,
+    unitLabel: '章',
+    segments: AZAR_GRAMMAR_CHAPTERS.map(chapter => ({
+      key: String(chapter.number),
+      label: `Ch.${chapter.number} ${chapter.title}（p.${chapter.start}–${chapter.end}）`,
+      start: chapter.start,
+      end: chapter.end,
+      memberKeys: chapter.sections.map(section => section.code),
     })),
   },
   bookDefinition(ENGLISH_TOPIC_READING_BOOK),
@@ -267,6 +272,14 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
     id: `natural:${subject}:好考點`, subject: 'natural' as const, group: subject as MaterialProgressGroup,
     title: `自然｜${subject}｜好考點`, unitLabel: '單元', segments: mappedSegments(rows),
   })),
+  {
+    id: 'natural:生物:新關鍵', subject: 'natural', group: '生物',
+    title: '自然｜生物｜新關鍵', unitLabel: '主題', segments: mappedSegments(BIOLOGY_NEW_KEY_PAGE_MAP),
+  },
+  {
+    id: 'natural:化學:新關鍵', subject: 'natural', group: '化學',
+    title: '自然｜化學｜新關鍵', unitLabel: '主題', segments: mappedSegments(CHEMISTRY_NEW_KEY_PAGE_MAP),
+  },
 ];
 
 const definitionById = new Map(MATERIAL_DEFINITIONS.map(definition => [definition.id, definition]));
@@ -353,7 +366,10 @@ function markLinear(recorded: Map<string, MaterialCoverage>, definitionId: strin
 function markExact(recorded: Map<string, MaterialCoverage>, definitionId: string, keyValue: unknown): void {
   const definition = definitionById.get(definitionId);
   const key = String(keyValue ?? '').trim();
-  if (!definition || !key || !definition.segments.some(segment => segment.key === key)) return;
+  const knownKey = definition?.segments.some(segment => (
+    segment.key === key || segment.memberKeys?.includes(key)
+  ));
+  if (!definition || !key || !knownKey) return;
   coverageFor(recorded, definitionId).exactKeys.add(key);
 }
 
@@ -450,12 +466,16 @@ function coveredLength(ranges: readonly [number, number][], start: number, end: 
 
 function segmentCompletionPercent(segment: SegmentDefinition, coverage: MaterialCoverage): number {
   if (coverage.exactKeys.has(segment.key)) return 100;
+  const exactMemberPercent = segment.memberKeys?.length
+    ? Math.round((segment.memberKeys.filter(key => coverage.exactKeys.has(key)).length / segment.memberKeys.length) * 100)
+    : 0;
   const touched = coverage.ranges.some(([low, high]) => high >= segment.start && low <= segment.end);
-  if (!touched) return 0;
+  if (!touched) return exactMemberPercent;
   // A legacy open-ended map has no reliable final page, so it remains an exact recorded unit.
   if (segment.end === Number.MAX_SAFE_INTEGER) return 100;
   const total = segment.end - segment.start + 1;
-  return Math.min(100, Math.round((coveredLength(coverage.ranges, segment.start, segment.end) / total) * 100));
+  const pagePercent = Math.round((coveredLength(coverage.ranges, segment.start, segment.end) / total) * 100);
+  return Math.min(100, Math.max(exactMemberPercent, pagePercent));
 }
 
 export function materialProgressRows(records: readonly StudyRecord[]): MaterialProgressRow[] {

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
+const connectionMotion = readFileSync(new URL('../src/ui/connectionSettingsMotion.ts', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 const workflow = readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
@@ -78,18 +79,16 @@ test('mobile settings use a bottom sheet and CI runs real browser tests', () => 
   assert.match(workflow, /npm run test:e2e/);
 });
 
-test('connection settings keep the details open until the retract animation finishes', () => {
-  assert.match(runtime, /classList\.add\('is-opening'\)/);
-  assert.match(runtime, /requestAnimationFrame\(function\(\)\{requestAnimationFrame/);
-  assert.match(runtime, /event\.propertyName!=='height'/);
-  assert.match(runtime, /--connection-expanded-height/);
-  assert.match(runtime, /event\.target!==connectionSettingsPanel/);
-  assert.match(runtime, /connectionSettingsPanel\.open=false/);
-  assert.match(styles, /\.connection-dock\.is-opening\{height:var\(--connection-summary-height\);transition:height/);
-  assert.match(styles, /@keyframes connection-settings-in\{from\{opacity:0;transform:translate3d/);
-  assert.match(styles, /@keyframes connection-dock-collapse/);
-  assert.match(styles, /\.connection-dock\[open\]\.is-closing\{animation:connection-dock-collapse/);
-  assert.match(styles, /\.connection-dock\[open\]\.is-closing\{animation:connection-sheet-out/);
+test('connection settings share one responsive transition lifecycle', () => {
+  assert.match(runtime, /setupConnectionSettingsMotion\(connectionSettingsPanel,connectionSettingsSummary\)/);
+  assert.match(connectionMotion, /type ConnectionMotionState = 'idle' \| 'opening' \| 'closing'/);
+  assert.match(connectionMotion, /new ResizeObserver\(handleContentResize\)/);
+  assert.match(connectionMotion, /if \(state !== 'closing'\) return;[\s\S]*panel\.open = false/);
+  assert.match(connectionMotion, /const expectedProperty = isMobile\(\) \? 'transform' : 'height'/);
+  assert.match(styles, /\.connection-dock\.is-animating\{overflow:hidden;pointer-events:none/);
+  assert.match(styles, /\.connection-dock\.is-animating:not\(\.is-expanded\) \.connection-settings-content/);
+  assert.match(styles, /\.connection-dock\[open\]\.is-animating:not\(\.is-expanded\)/);
+  assert.doesNotMatch(styles, /@keyframes connection-(settings-in|settings-out|dock-collapse|sheet-in|sheet-out)/);
 });
 
 test('material progress navigation stays in the current browser tab', () => {
