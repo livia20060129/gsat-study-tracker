@@ -201,6 +201,24 @@ function mappedSegments(rows: readonly PageMapRow[]): SegmentDefinition[] {
   }));
 }
 
+function largeTopicSegments(rows: readonly PageMapRow[]): SegmentDefinition[] {
+  const topics: Array<{ label: string; start: number; end: number }> = [];
+  rows.forEach(row => {
+    const previous = topics.at(-1);
+    if (previous?.label === row[2]) {
+      previous.end = Math.max(previous.end, row[1]);
+      return;
+    }
+    topics.push({ label: row[2], start: row[0], end: row[1] });
+  });
+  return topics.map((topic, index) => ({
+    key: String(index + 1),
+    label: `${topic.label}（p.${topic.start}${topic.start === topic.end ? '' : `–${topic.end}`}）`,
+    start: topic.start,
+    end: topic.end,
+  }));
+}
+
 function bookDefinition(book: PageMappedBook): MaterialDefinition {
   const subject = pageMappedBookSubject(book) === '國文' ? 'chinese' : 'english';
   const group = subject === 'chinese' ? '國文教材' : book === UNLOCK_3_BOOK ? '補充' : '學測';
@@ -274,11 +292,11 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
   })),
   {
     id: 'natural:生物:新關鍵', subject: 'natural', group: '生物',
-    title: '自然｜生物｜新關鍵', unitLabel: '主題', segments: mappedSegments(BIOLOGY_NEW_KEY_PAGE_MAP),
+    title: '自然｜生物｜新關鍵', unitLabel: '大主題', segments: largeTopicSegments(BIOLOGY_NEW_KEY_PAGE_MAP),
   },
   {
     id: 'natural:化學:新關鍵', subject: 'natural', group: '化學',
-    title: '自然｜化學｜新關鍵', unitLabel: '主題', segments: mappedSegments(CHEMISTRY_NEW_KEY_PAGE_MAP),
+    title: '自然｜化學｜新關鍵', unitLabel: '大主題', segments: largeTopicSegments(CHEMISTRY_NEW_KEY_PAGE_MAP),
   },
 ];
 

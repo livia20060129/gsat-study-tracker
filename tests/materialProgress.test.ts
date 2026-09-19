@@ -52,7 +52,7 @@ test('classifies the progress chart by the same material groups as manual entry'
   assert.equal(groupFor('natural:地科:123日的淬鍊'), '地科');
 });
 
-test('Biology New Key uses the photographed topic map and records only completed actual pages', () => {
+test('Biology New Key groups its progress bar by large topics and records actual pages', () => {
   const biologyItem = item({
     id: 'biology-new-key',
     type: 'scienceReview',
@@ -62,12 +62,42 @@ test('Biology New Key uses the photographed topic map and records only completed
   const biology = materialProgressRows([record([biologyItem])])
     .find(row => row.id === 'natural:生物:新關鍵');
   assert.ok(biology);
-  assert.equal(biology.segments.length, 26);
+  assert.equal(biology.unitLabel, '大主題');
+  assert.equal(biology.segments.length, 6);
   assert.deepEqual(
-    biology.segments.filter(segment => segment.recorded).map(segment => segment.label),
+    biology.segments.map(segment => segment.label),
     [
-      '單元 1 細胞的構造與功能｜主題 8 人體配子的形成與受精卵的發育（p.38–40）',
-      '單元 1 細胞的構造與功能｜主題 9 單元 1 探討活動（p.41）',
+      '單元 1 細胞的構造與功能（p.4–41）',
+      '單元 1 複習（p.42–71）',
+      '單元 2 生殖與遺傳（p.72–115）',
+      '單元 2 複習（p.116–141）',
+      '單元 3 演化與多樣的生物（p.142–160）',
+      '全範圍複習（p.161–236）',
+    ],
+  );
+  assert.equal(biology.recorded, 1);
+  assert.equal(biology.segments[0].completionPercent, 11);
+});
+
+test('Chemistry New Key groups units and review sections into large-topic progress blocks', () => {
+  const chemistry = materialProgressRows([])
+    .find(row => row.id === 'natural:化學:新關鍵');
+  assert.ok(chemistry);
+  assert.equal(chemistry.unitLabel, '大主題');
+  assert.equal(chemistry.segments.length, 10);
+  assert.deepEqual(
+    chemistry.segments.map(segment => segment.label),
+    [
+      '單元 1 物質的組成（p.2–39）',
+      '單元 2 物質的構造（p.40–85）',
+      '單元 3 化學反應（p.86–119）',
+      '單元 4 溶液（p.120–145）',
+      '單元 5 常見的化學反應（p.146–173）',
+      '單元 6 生活中的化學（p.174–215）',
+      '單元 7 有機化合物基本概念（補充）（p.216–224）',
+      '單元 8 實驗（p.225–252）',
+      '歷屆闖關練功坊（p.253–260）',
+      '科學探究練功坊（p.261–281）',
     ],
   );
 });
