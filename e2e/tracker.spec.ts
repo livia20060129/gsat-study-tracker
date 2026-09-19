@@ -238,8 +238,13 @@ test('timer starts from the closest second represented by manual minutes', async
   const minutes = card.locator('[data-minutes]');
   await minutes.fill('12.5');
   await minutes.blur();
+  const modeSegments = card.locator('.time-mode-segments');
+  await modeSegments.evaluate(node => { node.setAttribute('data-animation-probe', 'original'); });
   await card.locator('[data-action="time-mode-select"][data-time-mode="timer"]').click();
+  await expect(modeSegments).toHaveAttribute('data-active', '1');
+  await expect(modeSegments).toHaveAttribute('data-animation-probe', 'original');
   await expect(card.locator('[data-timer-display]')).toHaveText('12:30');
+  await expect(modeSegments).not.toHaveAttribute('data-animation-probe', 'original');
 });
 
 test('completing deferred work records its date and checks the original day', async ({ page }) => {

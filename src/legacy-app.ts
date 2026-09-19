@@ -2384,7 +2384,7 @@ function ensureMagazineEntries(x){
 function fixedMagazineMinutes(x){return ensureMagazineEntries(x).reduce(function(s,r){return s+Number(r.minutes||0)},0)}
 function hidesTopMinutes(x){return isEnglishReview(x)||isFixedMagazine(x)||isSaturdayMakeup(x)||isInteractiveDaily(x)||isCalendarNaturalIntegration(x)}
 
-var studyTimerTicker=null;
+var studyTimerTicker=null,timerModeRenderTimer=null;
 function timerPointerKey(){return STORE_PREFIX+'active-timer'}
 function readTimerPointer(){
  try{var raw=store.getItem(timerPointerKey()),value=raw?JSON.parse(raw):null;return value&&value.date&&value.itemId?value:null}catch(e){return null}
@@ -3260,6 +3260,14 @@ function refreshAuto(card,x){
 }
 
 function timerTargetFromControl(item,control){return currentTimerTarget(item,control&&control.getAttribute('data-timer-entry'))}
+function animateTimerModeSelection(control,nextMode){
+ var segments=control&&control.closest('.time-mode-segments');
+ if(timerModeRenderTimer){clearTimeout(timerModeRenderTimer);timerModeRenderTimer=null}
+ if(!segments||window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){render();return}
+ segments.dataset.active=nextMode==='manual'?'0':'1';
+ segments.querySelectorAll('[data-time-mode]').forEach(function(button){button.setAttribute('aria-pressed',button.getAttribute('data-time-mode')===nextMode?'true':'false')});
+ timerModeRenderTimer=setTimeout(function(){timerModeRenderTimer=null;render()},270);
+}
 function selectTimerModeFromControl(item,control){
  var target=timerTargetFromControl(item,control);if(!target)return;
  var state=timerStateForTarget(target),pointer=readTimerPointer(),nextMode=control.getAttribute('data-time-mode')==='timer'?'timer':'manual';
@@ -3272,7 +3280,7 @@ function selectTimerModeFromControl(item,control){
   var manualMinutes=target.entry?target.entry.minutes:target.item.minutes;
   state=studyTimerFromManualMinutes(manualMinutes);setTimerStateForTarget(target,state)
  }
- persistTimerTarget(target);render();
+ persistTimerTarget(target);animateTimerModeSelection(control,nextMode);
 }
 function runTimerAction(item,control,action){
  var target=timerTargetFromControl(item,control);if(!target)return;
