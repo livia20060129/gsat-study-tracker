@@ -71,13 +71,31 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
   const page = await context.newPage();
   await page.goto('/');
-  await page.locator('#connectionSettings > summary').click();
+  const openingFrame = await page.evaluate(() => {
+    const settings = document.querySelector<HTMLDetailsElement>('#connectionSettings')!;
+    const nextPanel = document.querySelector<HTMLElement>('.panel')!;
+    const nextPanelTop = nextPanel.getBoundingClientRect().top;
+    settings.querySelector<HTMLElement>(':scope > summary')!.click();
+    const style = getComputedStyle(settings);
+    return {
+      backgroundShift: nextPanel.getBoundingClientRect().top - nextPanelTop,
+      opacity: Number(style.opacity),
+      preparing: settings.classList.contains('is-preparing'),
+      transform: style.transform,
+    };
+  });
+  expect(Math.abs(openingFrame.backgroundShift)).toBeLessThan(1);
+  expect(openingFrame.preparing).toBe(true);
+  expect(openingFrame.opacity).toBe(0);
+  expect(openingFrame.transform).not.toBe('none');
   await expect(page.locator('#connectionSettings')).toHaveAttribute('open', '');
   expect(await page.locator('#connectionSettings').evaluate(node => getComputedStyle(node).position)).toBe('fixed');
+  await expect(page.locator('.connection-dock-placeholder')).toHaveClass(/is-active/);
   await expect(page.locator('body')).toHaveClass(/connection-sheet-open/);
   await page.locator('#connectionSettings > summary').click();
   await expect(page.locator('#connectionSettings')).toHaveClass(/is-closing/);
   await expect(page.locator('#connectionSettings')).not.toHaveAttribute('open', '');
+  await expect(page.locator('.connection-dock-placeholder')).not.toHaveClass(/is-active/);
   await expect(page.locator('body')).not.toHaveClass(/connection-sheet-open/);
   await context.close();
 });

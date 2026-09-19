@@ -1,6 +1,7 @@
 type ConnectionMotionState = 'idle' | 'opening' | 'closing';
 
 const MOTION_FALLBACK_MS = 520;
+const MOBILE_FLOW_MARGIN_PX = 14;
 const MOBILE_QUERY = '(max-width: 720px)';
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
@@ -8,10 +9,6 @@ function limitedExpandedHeight(panel: HTMLDetailsElement): number {
   const naturalHeight = panel.scrollHeight;
   const maxHeight = Number.parseFloat(getComputedStyle(panel).maxHeight);
   return Number.isFinite(maxHeight) ? Math.min(naturalHeight, maxHeight) : naturalHeight;
-}
-
-function nextPaint(callback: () => void): number {
-  return requestAnimationFrame(() => requestAnimationFrame(callback));
 }
 
 /**
@@ -24,10 +21,15 @@ export function setupConnectionSettingsMotion(
   summary: HTMLElement,
 ): () => void {
   const content = panel.querySelector<HTMLElement>('.connection-settings-content');
+  const mobilePlaceholder = document.createElement('div');
+  mobilePlaceholder.className = 'connection-dock-placeholder';
+  mobilePlaceholder.setAttribute('aria-hidden', 'true');
+  panel.before(mobilePlaceholder);
   let state: ConnectionMotionState = 'idle';
   let paintFrame = 0;
   let resizeFrame = 0;
   let fallbackTimer = 0;
+  let mobileReservedHeight = 0;
 
   function isMobile(): boolean {
     return window.matchMedia(MOBILE_QUERY).matches;
@@ -38,7 +40,27 @@ export function setupConnectionSettingsMotion(
   }
 
   function syncBodyLock(): void {
-    document.body.classList.toggle('connection-sheet-open', panel.open && isMobile());
+    const mobileOpen = panel.open && isMobile();
+    document.body.classList.toggle('connection-sheet-open', mobileOpen);
+    if (!mobileOpen) releaseMobileSpace();
+    else if (!mobilePlaceholder.classList.contains('is-active')) reserveMobileSpace();
+  }
+
+  function reserveMobileSpace(collapsedHeight?: number): void {
+    if (!isMobile()) return;
+    if (Number.isFinite(collapsedHeight)) {
+      const marginTop = Number.parseFloat(getComputedStyle(panel).marginTop) || 0;
+      mobileReservedHeight = Math.max(0, Number(collapsedHeight)) + marginTop;
+    } else if (!mobileReservedHeight) {
+      mobileReservedHeight = summary.getBoundingClientRect().height + MOBILE_FLOW_MARGIN_PX;
+    }
+    mobilePlaceholder.style.height = `${mobileReservedHeight}px`;
+    mobilePlaceholder.classList.add('is-active');
+  }
+
+  function releaseMobileSpace(): void {
+    mobilePlaceholder.classList.remove('is-active');
+    mobilePlaceholder.style.removeProperty('height');
   }
 
   function clearScheduledWork(): void {
@@ -48,7 +70,7 @@ export function setupConnectionSettingsMotion(
   }
 
   function clearMotionStyles(): void {
-    panel.classList.remove('is-animating', 'is-opening', 'is-closing', 'is-expanded');
+    panel.classList.remove('is-preparing', 'is-animating', 'is-opening', 'is-closing', 'is-expanded');
     panel.style.removeProperty('height');
     panel.style.removeProperty('--connection-summary-height');
     panel.style.removeProperty('--connection-expanded-height');
@@ -67,6 +89,7 @@ export function setupConnectionSettingsMotion(
     state = 'idle';
     clearScheduledWork();
     panel.open = false;
+    releaseMobileSpace();
     clearMotionStyles();
     syncBodyLock();
   }
@@ -78,6 +101,7 @@ export function setupConnectionSettingsMotion(
   function openImmediately(): void {
     clearScheduledWork();
     state = 'idle';
+    reserveMobileSpace(panel.getBoundingClientRect().height);
     panel.open = true;
     clearMotionStyles();
     syncBodyLock();
@@ -87,6 +111,7 @@ export function setupConnectionSettingsMotion(
     clearScheduledWork();
     state = 'idle';
     panel.open = false;
+    releaseMobileSpace();
     clearMotionStyles();
     syncBodyLock();
   }
@@ -98,8 +123,10 @@ export function setupConnectionSettingsMotion(
     }
     state = 'opening';
     const mobile = isMobile();
+    const collapsedHeight = panel.getBoundingClientRect().height;
     const summaryHeight = summary.getBoundingClientRect().height;
-    panel.classList.add('is-animating', 'is-opening');
+    if (mobile) reserveMobileSpace(collapsedHeight);
+    panel.classList.add('is-preparing', 'is-opening');
     panel.style.setProperty('--connection-summary-height', `${summaryHeight}px`);
     if (!mobile) panel.style.height = `${summaryHeight}px`;
     panel.open = true;
@@ -107,9 +134,11 @@ export function setupConnectionSettingsMotion(
 
     const expandedHeight = limitedExpandedHeight(panel);
     panel.style.setProperty('--connection-expanded-height', `${expandedHeight}px`);
-    paintFrame = nextPaint(() => {
+    panel.getBoundingClientRect();
+    paintFrame = requestAnimationFrame(() => {
       if (state !== 'opening') return;
-      panel.classList.add('is-expanded');
+      panel.classList.remove('is-preparing');
+      panel.classList.add('is-animating', 'is-expanded');
       if (!mobile) panel.style.height = `${limitedExpandedHeight(panel)}px`;
     });
     finishAfterTimeout(finishOpening);
@@ -183,5 +212,6 @@ export function setupConnectionSettingsMotion(
     panel.removeEventListener('transitionend', handleTransitionEnd);
     panel.removeEventListener('toggle', syncBodyLock);
     window.removeEventListener('resize', syncBodyLock);
+    mobilePlaceholder.remove();
   };
 }

@@ -83,9 +83,13 @@ test('connection settings share one responsive transition lifecycle', () => {
   assert.match(runtime, /setupConnectionSettingsMotion\(connectionSettingsPanel,connectionSettingsSummary\)/);
   assert.match(connectionMotion, /type ConnectionMotionState = 'idle' \| 'opening' \| 'closing'/);
   assert.match(connectionMotion, /new ResizeObserver\(handleContentResize\)/);
+  assert.match(connectionMotion, /mobilePlaceholder\.classList\.add\('is-active'\)/);
+  assert.match(connectionMotion, /panel\.classList\.add\('is-preparing', 'is-opening'\)/);
   assert.match(connectionMotion, /if \(state !== 'closing'\) return;[\s\S]*panel\.open = false/);
   assert.match(connectionMotion, /const expectedProperty = isMobile\(\) \? 'transform' : 'height'/);
-  assert.match(styles, /\.connection-dock\.is-animating\{overflow:hidden;pointer-events:none/);
+  assert.match(styles, /\.connection-dock\.is-preparing,\.connection-dock\.is-animating\{overflow:hidden;pointer-events:none/);
+  assert.match(styles, /\.connection-dock\[open\]\.is-preparing\{opacity:0;transform:translate3d\(0,28px,0\);transition:none\}/);
+  assert.match(styles, /\.connection-dock\[open\]\{[^}]*backdrop-filter:none;contain:paint/);
   assert.match(styles, /\.connection-dock\.is-animating:not\(\.is-expanded\) \.connection-settings-content/);
   assert.match(styles, /\.connection-dock\[open\]\.is-animating:not\(\.is-expanded\)/);
   assert.doesNotMatch(styles, /@keyframes connection-(settings-in|settings-out|dock-collapse|sheet-in|sheet-out)/);
