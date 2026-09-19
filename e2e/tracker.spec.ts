@@ -74,6 +74,8 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
   const openingFrame = await page.evaluate(() => {
     const settings = document.querySelector<HTMLDetailsElement>('#connectionSettings')!;
     const nextPanel = document.querySelector<HTMLElement>('.panel')!;
+    window.scrollTo(0, Math.min(520, document.documentElement.scrollHeight - window.innerHeight));
+    const scrollTop = window.scrollY;
     const nextPanelTop = nextPanel.getBoundingClientRect().top;
     settings.querySelector<HTMLElement>(':scope > summary')!.click();
     const style = getComputedStyle(settings);
@@ -81,9 +83,13 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
       backgroundShift: nextPanel.getBoundingClientRect().top - nextPanelTop,
       opacity: Number(style.opacity),
       preparing: settings.classList.contains('is-preparing'),
+      scrollTop,
+      scrollTopAfterOpen: window.scrollY,
       transform: style.transform,
     };
   });
+  expect(openingFrame.scrollTop).toBeGreaterThan(0);
+  expect(openingFrame.scrollTopAfterOpen).toBe(openingFrame.scrollTop);
   expect(Math.abs(openingFrame.backgroundShift)).toBeLessThan(1);
   expect(openingFrame.preparing).toBe(true);
   expect(openingFrame.opacity).toBe(0);
@@ -92,7 +98,9 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
   expect(await page.locator('#connectionSettings').evaluate(node => getComputedStyle(node).position)).toBe('fixed');
   await expect(page.locator('.connection-dock-placeholder')).toHaveClass(/is-active/);
   await expect(page.locator('body')).toHaveClass(/connection-sheet-open/);
+  expect(await page.locator('body').evaluate(node => getComputedStyle(node).overflowY)).not.toBe('hidden');
   await expect(page.locator('#connectionSettings')).not.toHaveClass(/is-opening/);
+  expect(await page.evaluate(() => window.scrollY)).toBe(openingFrame.scrollTop);
   const settledTop = await page.locator('#connectionSettings').evaluate(node => node.getBoundingClientRect().top);
   await page.locator('#cloudMessage').evaluate((node) => {
     node.textContent = '連線狀態更新後顯示的較長說明文字。'.repeat(18);
@@ -100,11 +108,13 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   const updatedTop = await page.locator('#connectionSettings').evaluate(node => node.getBoundingClientRect().top);
   expect(Math.abs(updatedTop - settledTop)).toBeLessThan(1);
+  expect(await page.evaluate(() => window.scrollY)).toBe(openingFrame.scrollTop);
   await page.locator('#connectionSettings > summary').click();
   await expect(page.locator('#connectionSettings')).toHaveClass(/is-closing/);
   await expect(page.locator('#connectionSettings')).not.toHaveAttribute('open', '');
   await expect(page.locator('.connection-dock-placeholder')).not.toHaveClass(/is-active/);
   await expect(page.locator('body')).not.toHaveClass(/connection-sheet-open/);
+  expect(await page.evaluate(() => window.scrollY)).toBe(openingFrame.scrollTop);
   await context.close();
 });
 

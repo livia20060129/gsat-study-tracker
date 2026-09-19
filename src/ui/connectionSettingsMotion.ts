@@ -30,6 +30,8 @@ export function setupConnectionSettingsMotion(
   let resizeFrame = 0;
   let fallbackTimer = 0;
   let mobileReservedHeight = 0;
+  let backgroundScrollGuarded = false;
+  let lastTouchY: number | null = null;
 
   function isMobile(): boolean {
     return window.matchMedia(MOBILE_QUERY).matches;
@@ -39,9 +41,62 @@ export function setupConnectionSettingsMotion(
     return window.matchMedia(REDUCED_MOTION_QUERY).matches;
   }
 
-  function syncBodyLock(): void {
+  function eventTargetsPanel(event: Event): boolean {
+    return event.target instanceof Node && panel.contains(event.target);
+  }
+
+  function handleGuardedTouchStart(event: TouchEvent): void {
+    lastTouchY = event.touches[0]?.clientY ?? null;
+  }
+
+  function handleGuardedTouchMove(event: TouchEvent): void {
+    const touch = event.touches[0];
+    if (!touch || !eventTargetsPanel(event)) {
+      event.preventDefault();
+      return;
+    }
+
+    const deltaY = lastTouchY === null ? 0 : touch.clientY - lastTouchY;
+    lastTouchY = touch.clientY;
+    const atTop = panel.scrollTop <= 0;
+    const atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1;
+    const cannotScroll = panel.scrollHeight <= panel.clientHeight;
+    if (cannotScroll || (deltaY > 0 && atTop) || (deltaY < 0 && atBottom)) {
+      event.preventDefault();
+    }
+  }
+
+  function clearGuardedTouch(): void {
+    lastTouchY = null;
+  }
+
+  function handleGuardedWheel(event: WheelEvent): void {
+    if (!eventTargetsPanel(event)) event.preventDefault();
+  }
+
+  function setBackgroundScrollGuard(active: boolean): void {
+    if (backgroundScrollGuarded === active) return;
+    backgroundScrollGuarded = active;
+    if (active) {
+      document.addEventListener('touchstart', handleGuardedTouchStart, { passive: true });
+      document.addEventListener('touchmove', handleGuardedTouchMove, { passive: false });
+      document.addEventListener('touchend', clearGuardedTouch);
+      document.addEventListener('touchcancel', clearGuardedTouch);
+      document.addEventListener('wheel', handleGuardedWheel, { passive: false });
+      return;
+    }
+    document.removeEventListener('touchstart', handleGuardedTouchStart);
+    document.removeEventListener('touchmove', handleGuardedTouchMove);
+    document.removeEventListener('touchend', clearGuardedTouch);
+    document.removeEventListener('touchcancel', clearGuardedTouch);
+    document.removeEventListener('wheel', handleGuardedWheel);
+    clearGuardedTouch();
+  }
+
+  function syncBackgroundScrollGuard(): void {
     const mobileOpen = panel.open && isMobile();
     document.body.classList.toggle('connection-sheet-open', mobileOpen);
+    setBackgroundScrollGuard(mobileOpen);
     if (!mobileOpen) releaseMobileSpace();
     else if (!mobilePlaceholder.classList.contains('is-active')) reserveMobileSpace();
   }
@@ -81,7 +136,7 @@ export function setupConnectionSettingsMotion(
     state = 'idle';
     clearScheduledWork();
     clearMotionStyles(isMobile());
-    syncBodyLock();
+    syncBackgroundScrollGuard();
   }
 
   function finishClosing(): void {
@@ -91,7 +146,7 @@ export function setupConnectionSettingsMotion(
     panel.open = false;
     releaseMobileSpace();
     clearMotionStyles();
-    syncBodyLock();
+    syncBackgroundScrollGuard();
   }
 
   function finishAfterTimeout(action: () => void): void {
@@ -107,7 +162,7 @@ export function setupConnectionSettingsMotion(
     if (mobile) reserveMobileSpace(collapsedHeight);
     panel.open = true;
     if (mobile) panel.style.height = `${limitedExpandedHeight(panel)}px`;
-    syncBodyLock();
+    syncBackgroundScrollGuard();
   }
 
   function closeImmediately(): void {
@@ -116,7 +171,7 @@ export function setupConnectionSettingsMotion(
     panel.open = false;
     releaseMobileSpace();
     clearMotionStyles();
-    syncBodyLock();
+    syncBackgroundScrollGuard();
   }
 
   function startOpening(): void {
@@ -133,7 +188,7 @@ export function setupConnectionSettingsMotion(
     panel.style.setProperty('--connection-summary-height', `${summaryHeight}px`);
     if (!mobile) panel.style.height = `${summaryHeight}px`;
     panel.open = true;
-    syncBodyLock();
+    syncBackgroundScrollGuard();
 
     const expandedHeight = limitedExpandedHeight(panel);
     panel.style.setProperty('--connection-expanded-height', `${expandedHeight}px`);
@@ -200,7 +255,7 @@ export function setupConnectionSettingsMotion(
   }
 
   function handleViewportResize(): void {
-    syncBodyLock();
+    syncBackgroundScrollGuard();
     if (state !== 'idle' || !panel.open || !isMobile()) return;
     panel.style.height = `${limitedExpandedHeight(panel)}px`;
   }
@@ -211,17 +266,19 @@ export function setupConnectionSettingsMotion(
   resizeObserver?.observe(content as HTMLElement);
   summary.addEventListener('click', handleSummaryClick);
   panel.addEventListener('transitionend', handleTransitionEnd);
-  panel.addEventListener('toggle', syncBodyLock);
+  panel.addEventListener('toggle', syncBackgroundScrollGuard);
   window.addEventListener('resize', handleViewportResize);
-  syncBodyLock();
+  syncBackgroundScrollGuard();
 
   return function disposeConnectionSettingsMotion(): void {
     clearScheduledWork();
     resizeObserver?.disconnect();
     summary.removeEventListener('click', handleSummaryClick);
     panel.removeEventListener('transitionend', handleTransitionEnd);
-    panel.removeEventListener('toggle', syncBodyLock);
+    panel.removeEventListener('toggle', syncBackgroundScrollGuard);
     window.removeEventListener('resize', handleViewportResize);
+    setBackgroundScrollGuard(false);
+    document.body.classList.remove('connection-sheet-open');
     mobilePlaceholder.remove();
   };
 }

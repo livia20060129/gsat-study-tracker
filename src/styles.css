@@ -168,7 +168,7 @@ button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:point
  .connection-dock[open].is-preparing{opacity:0;transform:translate3d(0,28px,0);transition:none}
  .connection-dock[open].is-animating{opacity:1;transform:translate3d(0,0,0);transition:opacity .24s ease,transform .34s cubic-bezier(.2,.78,.2,1)}
  .connection-dock[open].is-animating:not(.is-expanded){opacity:0;transform:translate3d(0,28px,0)}
- body.connection-sheet-open{overflow:hidden}
+ body.connection-sheet-open{overscroll-behavior:none}
  .connection-dock[open] .connection-status-bar{position:sticky;top:0;z-index:2;background:rgba(255,255,255,.98);border-radius:18px 18px 0 0}
  .connection-status-bar{gap:8px;padding:8px 10px}
  .connection-statuses{gap:6px}.connection-divider{display:none}

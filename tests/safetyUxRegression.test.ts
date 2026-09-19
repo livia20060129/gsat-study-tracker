@@ -89,11 +89,15 @@ test('connection settings share one responsive transition lifecycle', () => {
   assert.match(connectionMotion, /clearMotionStyles\(isMobile\(\)\)/);
   assert.match(connectionMotion, /if \(state !== 'closing'\) return;[\s\S]*panel\.open = false/);
   assert.match(connectionMotion, /const expectedProperty = isMobile\(\) \? 'transform' : 'height'/);
+  assert.match(connectionMotion, /document\.addEventListener\('touchmove', handleGuardedTouchMove, \{ passive: false \}\)/);
+  assert.match(connectionMotion, /document\.addEventListener\('wheel', handleGuardedWheel, \{ passive: false \}\)/);
   assert.match(styles, /\.connection-dock\.is-preparing,\.connection-dock\.is-animating\{overflow:hidden;pointer-events:none/);
   assert.match(styles, /\.connection-dock\[open\]\.is-preparing\{opacity:0;transform:translate3d\(0,28px,0\);transition:none\}/);
   assert.match(styles, /\.connection-dock\[open\]\{[^}]*backdrop-filter:none;contain:paint/);
   assert.match(styles, /\.connection-dock\.is-animating:not\(\.is-expanded\) \.connection-settings-content/);
   assert.match(styles, /\.connection-dock\[open\]\.is-animating:not\(\.is-expanded\)/);
+  assert.match(styles, /body\.connection-sheet-open\{overscroll-behavior:none\}/);
+  assert.doesNotMatch(styles, /body\.connection-sheet-open\{overflow:hidden\}/);
   assert.doesNotMatch(styles, /@keyframes connection-(settings-in|settings-out|dock-collapse|sheet-in|sheet-out)/);
 });
 

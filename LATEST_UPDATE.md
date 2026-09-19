@@ -1,19 +1,19 @@
 # 最新更新
 
-版本：v171.6.12
+版本：v171.6.13
 
-## 手機版連線設定完全展開後的位置修正
+## 手機版非頂部開啟連線設定的跳動修正
 
-- 找到第二段移動原因：底部面板雖已完成動畫，但高度仍是自動值；Cloud／Calendar 訊息或登入狀態稍後更新時，底部錨定的面板會因高度改變而再次移動頂端位置。
-- 手機面板現在會在開啟時計算並固定外框高度，動畫完成後不再移除這個高度。
-- 後續狀態或提示文字增加時，改由面板既有的內部捲動承接，不影響外框位置與背景版面。
-- 關閉時會正確清除固定高度；螢幕旋轉或視窗尺寸改變時才依新可用高度重新計算。
+- 找到非頂部才發生的原因：開啟面板時曾對整個 `body` 套用 `overflow: hidden`，部分手機瀏覽器會因此換掉頁面捲動容器，重新計算目前捲動位置並造成整頁跳動。
+- 開啟連線設定時不再改變頁面的 overflow，因此目前的頁面座標、sticky 位置與視覺 viewport 都不會重算。
+- 背景停止捲動改由非被動的觸控／滾輪守衛處理；手勢位於連線設定內時仍可正常捲動，抵達頂端或底端時也不會把手勢傳到背景頁面。
+- 延續上一版的固定面板高度與版面預留，避免開啟後的 Cloud／Calendar 訊息更新造成第二次移動。
 
-更新資料夾：`gsat-study-tracker-v171.6.12-stable-mobile-connection-sheet`
+更新資料夾：`gsat-study-tracker-v171.6.13-preserve-mobile-scroll-position`
 
 ## 驗證
 
-- 新增手機面板完全展開後動態加長 Cloud 訊息的 E2E 測試，面板頂端位移維持 0px。
+- E2E 先將手機頁面捲動至非零位置，再驗證開啟、動態加長 Cloud 訊息及關閉三個階段；頁面捲動座標全程不變，面板頂端位移維持 0px。
 - 385 項單元／回歸測試全部通過。
 - 10 項 Chromium 真實瀏覽器 E2E 全部通過。
 - TypeScript 型別檢查與 Vite 正式建置通過。
@@ -22,4 +22,4 @@
 
 ## Commit 建議
 
-`fix(ui): stabilize mobile connection sheet after opening`
+`fix(ui): preserve mobile scroll position for connection sheet`
