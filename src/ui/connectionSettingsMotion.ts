@@ -69,9 +69,9 @@ export function setupConnectionSettingsMotion(
     window.clearTimeout(fallbackTimer);
   }
 
-  function clearMotionStyles(): void {
+  function clearMotionStyles(preserveHeight = false): void {
     panel.classList.remove('is-preparing', 'is-animating', 'is-opening', 'is-closing', 'is-expanded');
-    panel.style.removeProperty('height');
+    if (!preserveHeight) panel.style.removeProperty('height');
     panel.style.removeProperty('--connection-summary-height');
     panel.style.removeProperty('--connection-expanded-height');
   }
@@ -80,7 +80,7 @@ export function setupConnectionSettingsMotion(
     if (state !== 'opening') return;
     state = 'idle';
     clearScheduledWork();
-    clearMotionStyles();
+    clearMotionStyles(isMobile());
     syncBodyLock();
   }
 
@@ -101,9 +101,12 @@ export function setupConnectionSettingsMotion(
   function openImmediately(): void {
     clearScheduledWork();
     state = 'idle';
-    reserveMobileSpace(panel.getBoundingClientRect().height);
-    panel.open = true;
+    const mobile = isMobile();
+    const collapsedHeight = panel.getBoundingClientRect().height;
     clearMotionStyles();
+    if (mobile) reserveMobileSpace(collapsedHeight);
+    panel.open = true;
+    if (mobile) panel.style.height = `${limitedExpandedHeight(panel)}px`;
     syncBodyLock();
   }
 
@@ -134,6 +137,7 @@ export function setupConnectionSettingsMotion(
 
     const expandedHeight = limitedExpandedHeight(panel);
     panel.style.setProperty('--connection-expanded-height', `${expandedHeight}px`);
+    if (mobile) panel.style.height = `${expandedHeight}px`;
     panel.getBoundingClientRect();
     paintFrame = requestAnimationFrame(() => {
       if (state !== 'opening') return;
@@ -195,6 +199,12 @@ export function setupConnectionSettingsMotion(
     });
   }
 
+  function handleViewportResize(): void {
+    syncBodyLock();
+    if (state !== 'idle' || !panel.open || !isMobile()) return;
+    panel.style.height = `${limitedExpandedHeight(panel)}px`;
+  }
+
   const resizeObserver = content && typeof ResizeObserver !== 'undefined'
     ? new ResizeObserver(handleContentResize)
     : null;
@@ -202,7 +212,7 @@ export function setupConnectionSettingsMotion(
   summary.addEventListener('click', handleSummaryClick);
   panel.addEventListener('transitionend', handleTransitionEnd);
   panel.addEventListener('toggle', syncBodyLock);
-  window.addEventListener('resize', syncBodyLock);
+  window.addEventListener('resize', handleViewportResize);
   syncBodyLock();
 
   return function disposeConnectionSettingsMotion(): void {
@@ -211,7 +221,7 @@ export function setupConnectionSettingsMotion(
     summary.removeEventListener('click', handleSummaryClick);
     panel.removeEventListener('transitionend', handleTransitionEnd);
     panel.removeEventListener('toggle', syncBodyLock);
-    window.removeEventListener('resize', syncBodyLock);
+    window.removeEventListener('resize', handleViewportResize);
     mobilePlaceholder.remove();
   };
 }

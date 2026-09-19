@@ -85,6 +85,8 @@ test('connection settings share one responsive transition lifecycle', () => {
   assert.match(connectionMotion, /new ResizeObserver\(handleContentResize\)/);
   assert.match(connectionMotion, /mobilePlaceholder\.classList\.add\('is-active'\)/);
   assert.match(connectionMotion, /panel\.classList\.add\('is-preparing', 'is-opening'\)/);
+  assert.match(connectionMotion, /if \(mobile\) panel\.style\.height = `\$\{expandedHeight\}px`/);
+  assert.match(connectionMotion, /clearMotionStyles\(isMobile\(\)\)/);
   assert.match(connectionMotion, /if \(state !== 'closing'\) return;[\s\S]*panel\.open = false/);
   assert.match(connectionMotion, /const expectedProperty = isMobile\(\) \? 'transform' : 'height'/);
   assert.match(styles, /\.connection-dock\.is-preparing,\.connection-dock\.is-animating\{overflow:hidden;pointer-events:none/);

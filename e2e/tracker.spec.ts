@@ -92,6 +92,14 @@ test('expanded connection settings become a mobile bottom sheet', async ({ brows
   expect(await page.locator('#connectionSettings').evaluate(node => getComputedStyle(node).position)).toBe('fixed');
   await expect(page.locator('.connection-dock-placeholder')).toHaveClass(/is-active/);
   await expect(page.locator('body')).toHaveClass(/connection-sheet-open/);
+  await expect(page.locator('#connectionSettings')).not.toHaveClass(/is-opening/);
+  const settledTop = await page.locator('#connectionSettings').evaluate(node => node.getBoundingClientRect().top);
+  await page.locator('#cloudMessage').evaluate((node) => {
+    node.textContent = '連線狀態更新後顯示的較長說明文字。'.repeat(18);
+  });
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  const updatedTop = await page.locator('#connectionSettings').evaluate(node => node.getBoundingClientRect().top);
+  expect(Math.abs(updatedTop - settledTop)).toBeLessThan(1);
   await page.locator('#connectionSettings > summary').click();
   await expect(page.locator('#connectionSettings')).toHaveClass(/is-closing/);
   await expect(page.locator('#connectionSettings')).not.toHaveAttribute('open', '');
