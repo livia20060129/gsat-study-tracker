@@ -2288,7 +2288,7 @@ function ensureCalendarNaturalIntegrationEntries(x,date){
 function completionDateMarkup(x,recordDate,attributes){
  var value=completionDateValue(x,recordDate||data.date);
  if(!value||confirmedDeferred(x))return'';
- var label=x.deferredCompletedOn?'延期完成日期':'勾選日期';
+ var label='完成日期';
  return'<label class="completion-date-editor"><span>'+label+'</span><input type="date" data-completion-date value="'+esc(value)+'" aria-label="修改'+label+'"'+(attributes||'')+'></label>'
 }
 function renderCalendarNaturalIntegrationEntry(c){
@@ -2296,7 +2296,7 @@ function renderCalendarNaturalIntegrationEntry(c){
  var single=ranges.length===1&&!c.dynamic&&!c.pageText.match(/ 或 /);
  var h='<div class="item subject-card subject-natural'+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
- h+='<div class="item-title">'+esc(c.subject)+'</div>'+completionDateMarkup(c)+renderTimeControl(c)+'</div>';
+ h+='<div class="completion-title-block"><div class="item-title">'+esc(c.subject)+'</div>'+completionDateMarkup(c)+'</div>'+renderTimeControl(c)+'</div>';
  h+='<div class="inner"><div class="science-main-row">';
  h+='<div class="field"><label>科目</label><div class="fixed-book-value">'+esc(c.subject)+'</div></div>';
  h+='<div class="field"><label>講義版本</label><div class="fixed-book-value">123日的淬鍊</div></div>';
@@ -3022,8 +3022,10 @@ function renderGroupedWorkEntry(entry,index){
  entry.calendarGroupedChild=true;
  var h='<div class="item grouped-work-entry '+studyItemSubjectClass(entry)+(entry.done?' done':'')+(confirmedDeferred(entry)?' deferred':'')+'" data-item="'+esc(entry.id)+'"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(entry.done)+'>';
+ h+='<div class="completion-title-block">';
  if(entry.f&&entry.f.calendarMakeup===true)h+='<div class="small">今日補做｜Google Calendar</div>';
  h+=completionDateMarkup(entry);
+ h+='</div>';
  h+=renderTimeControl(entry)+'</div>';
  var fields=renderItemFields(entry,false);
  if(fields)h+='<div class="inner">'+fields+'</div>';
@@ -3077,8 +3079,7 @@ function renderEnglishReview(x){
 function renderNestedEntry(x,kind){
  var review=kind==='review',h='<div class="item '+(review?'review-entry ':'makeup-entry ')+studyItemSubjectClass(x)+'" data-item="'+esc(x.id)+'"><div class="item-top">';
  if(!review)h+='<input type="checkbox" data-done'+checked(x.done)+'>';
- if(!review)h+=completionDateMarkup(x);
- h+='<div class="field" style="flex:1"><label>項目類型</label><select data-nested-type="'+kind+'">'+(review?reviewTypeOptions(x.type):nestedTypeOptions(x.type))+'</select></div>';
+ h+='<div class="field" style="flex:1"><label>項目類型</label><select data-nested-type="'+kind+'">'+(review?reviewTypeOptions(x.type):nestedTypeOptions(x.type))+'</select>'+(!review?completionDateMarkup(x):'')+'</div>';
  if(!review)h+=renderTimeControl(x);
  h+='</div>';
  if(x.type){var fields=renderItemFields(x,review);if(fields)h+='<div class="inner">'+fields+'</div>'}
@@ -3097,9 +3098,8 @@ function renderGeneralFields(x){
 function renderDailyInteractiveEntry(c){
  var h='<div class="item '+studyItemSubjectClass(c)+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
- h+=completionDateMarkup(c);
- if(c.locked)h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><div class="fixed-book-value">'+esc(itemTitle(c))+'</div>'+(c.description?'<div class="small" style="margin-top:5px">'+esc(c.description)+'</div>':'')+'</div>';
- else h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><select data-interactive-type>'+interactiveDailyTypeOptions(c.type)+'</select></div>';
+ if(c.locked)h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><div class="fixed-book-value">'+esc(itemTitle(c))+'</div>'+completionDateMarkup(c)+(c.description?'<div class="small" style="margin-top:5px">'+esc(c.description)+'</div>':'')+'</div>';
+ else h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><select data-interactive-type>'+interactiveDailyTypeOptions(c.type)+'</select>'+completionDateMarkup(c)+'</div>';
  h+=renderTimeControl(c)+'</div>';
  if(c.type){
   var fields=renderItemFields(c,false);
@@ -3124,7 +3124,7 @@ function renderCard(x,canDelete){
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x)||isGroupedWork(x);
  var h='<div class="item '+studyItemSubjectClass(x)+(x.done?' done':'')+(isDeferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(noTopDone?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
- if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';if(!noTopDone)h+=completionDateMarkup(x);h+='</div>';
+ if(!noTopDone)h+=completionDateMarkup(x);if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
  if(!hidesTopMinutes(x)&&!isGroupedWork(x))h+=renderTimeControl(x);
  h+='</div>';
  var fields=renderItemFields(x,false);

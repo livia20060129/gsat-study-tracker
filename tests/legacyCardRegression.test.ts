@@ -432,6 +432,23 @@ test('interactive child deletion is bottom-left and locked children still cannot
   assert.doesNotMatch(render(item({ locked: true })), /刪除此筆/);
 });
 
+test('interactive and nested completion dates render below their title controls', () => {
+  const dateMarkup = () => '<label class="completion-date-editor">完成日期</label>';
+  const interactive = runtimeFunction<(x: StudyItem) => string>('renderDailyInteractiveEntry', {
+    ...renderingDependencies,
+    completionDateMarkup: dateMarkup,
+  });
+  const interactiveHtml = interactive(item({ done: true }));
+  assert.ok(interactiveHtml.indexOf('data-interactive-type') < interactiveHtml.indexOf('completion-date-editor'));
+
+  const nested = runtimeFunction<(x: StudyItem, kind: string) => string>('renderNestedEntry', {
+    ...renderingDependencies,
+    completionDateMarkup: dateMarkup,
+  });
+  const nestedHtml = nested(item({ done: true }), 'makeup');
+  assert.ok(nestedHtml.indexOf('data-nested-type') < nestedHtml.indexOf('completion-date-editor'));
+});
+
 test('magazine entries keep their delete index in their own footer and retain the last-entry guard', () => {
   const render = runtimeFunction<(x: StudyItem) => string>('renderMagazineFields', renderingDependencies);
   const html = render(item({ f: { entries: [{ unit: '1' }, { unit: '2' }] } }));

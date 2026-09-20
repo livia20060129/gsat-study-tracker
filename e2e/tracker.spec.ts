@@ -362,7 +362,14 @@ test('completing deferred work records its date and checks the original day', as
   const checkbox = deferredCard.locator('[data-done]').first();
   await checkbox.check();
   const completionDate = deferredCard.locator('[data-completion-date]');
+  await expect(completionDate.locator('xpath=..')).toContainText('完成日期');
   await expect(completionDate).toHaveValue('2026-09-17');
+  const completionDatePosition = await deferredCard.evaluate(node => {
+    const title = node.querySelector('.item-title')?.getBoundingClientRect();
+    const editor = node.querySelector('.completion-date-editor')?.getBoundingClientRect();
+    return { titleBottom: title?.bottom ?? 0, editorTop: editor?.top ?? 0 };
+  });
+  expect(completionDatePosition.editorTop).toBeGreaterThanOrEqual(completionDatePosition.titleBottom);
   await completionDate.fill('2026-09-18');
   await completionDate.blur();
   await expect(deferredCard.locator('[data-completion-date]')).toHaveValue('2026-09-18');

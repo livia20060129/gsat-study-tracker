@@ -85,9 +85,7 @@ export function deferredCompletionDate(item: StudyItem | null | undefined): stri
 export function completionDateLabel(item: StudyItem | null | undefined): string {
   if (!item) return '';
   if (validDate(item.checkedOn)) {
-    return item.deferredCompletedOn === item.checkedOn
-      ? `延期完成：${item.checkedOn}`
-      : `${item.checkedOn} 勾選`;
+    return `完成日期：${item.checkedOn}`;
   }
   for (const child of nestedItems(item)) {
     const label = completionDateLabel(child);

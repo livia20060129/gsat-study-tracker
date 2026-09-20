@@ -1,26 +1,25 @@
 # 最新更新
 
-版本：v171.6.22
+版本：v171.6.23
 
-## 可修改勾選日期
+## 完成日期位置與名稱統一
 
-- 項目勾選完成後，卡片會顯示可編輯的「勾選日期」；同日完成也會顯示原排程日期，不再只有跨日勾選才看得到日期。
-- 延期補做完成後顯示「延期完成日期」，修改日期時會同步更新原日期的來源項目。
-- 合併卡片與子項目的完成日期會同步到其隱藏來源，不會只修改畫面上的合併項目。
-- 修改後，首頁各科時間與週／月總結會改以新日期歸屬；改回原排程日會移除多餘日期 metadata，但畫面仍顯示該排程日。
-- 取消勾選仍會清除勾選日期及延期完成日期。
+- 一般、延期、互動題及巢狀子項目的日期欄位一律顯示為「完成日期」。
+- 完成日期統一放在項目標題或類型標題下方，不再與勾選框、時間控制並排。
+- 合併子項目維持既有的無重複標題設計，完成日期放在其既有內容標示下方。
+- 本次只調整顯示名稱與位置；日期修改後的時間歸屬、合併來源同步及延期原日期同步邏輯維持不變。
 
 ## 驗證
 
-- 新增完成日期顯示值單元測試，涵蓋未完成、同日完成、跨日完成與延期完成。
-- 瀏覽器測試會實際勾選延期項目、修改日期、確認原日期同步，再取消勾選並確認日期清除。
-- 399 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 11 項 Chromium E2E 全部通過。
+- 單元／回歸測試涵蓋一般與延期項目顯示文字，以及互動題、巢狀子項目的標題與日期排列順序。
+- 瀏覽器測試會確認延期項目顯示「完成日期」、日期位於標題下方，並驗證修改及取消勾選後的同步結果。
+- 400 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 11 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.22-completion-date-required-files`
-- `gsat-study-tracker-v171.6.22-completion-date-full-project`
+- `gsat-study-tracker-v171.6.23-completion-date-layout-required-files`
+- `gsat-study-tracker-v171.6.23-completion-date-layout-full-project`
 
 ## Commit 建議
 
-`feat(completion): allow editing checked dates`
+`fix(completion): place completion dates below item titles`

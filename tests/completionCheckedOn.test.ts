@@ -54,12 +54,12 @@ test('unchecking clears completion dates and reverses a previously synchronized 
   assert.equal(change.syncDeferredOrigin, true);
 });
 
-test('completion labels distinguish a normal late check from deferred completion', () => {
+test('completion labels use the same wording for normal and deferred completion', () => {
   const normal = item('normal');
   normal.checkedOn = '2026-09-17';
-  assert.equal(completionDateLabel(normal), '2026-09-17 勾選');
+  assert.equal(completionDateLabel(normal), '完成日期：2026-09-17');
   normal.deferredCompletedOn = '2026-09-17';
-  assert.equal(completionDateLabel(normal), '延期完成：2026-09-17');
+  assert.equal(completionDateLabel(normal), '完成日期：2026-09-17');
 });
 
 test('completed items expose an editable date and same-day completion falls back to the record date', () => {
