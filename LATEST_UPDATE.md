@@ -1,27 +1,26 @@
 # 最新更新
 
-版本：v171.6.26
+版本：v171.6.27
 
-## 防止前端環境變數洩漏秘密值
+## 修正 Calendar 合併卡片完成狀態還原
 
-- `VITE_GOOGLE_CLIENT_ID` 是瀏覽器需要使用的公開 OAuth 識別碼，仍由 `src/config/googleCalendar.ts` 集中驗證。
-- 建置程序現在採公開環境變數白名單；只有 `VITE_GOOGLE_CLIENT_ID` 可以使用 `VITE_` 前綴。任何其他有值的 `VITE_` 變數都會使正式建置直接失敗，並列出被拒絕的變數名稱。
-- Client Secret、access／refresh token、密碼、private key、Supabase service-role key 與資料庫連線資訊只能放在 Supabase Edge Function secrets，不會進入前端建置。
-- `.env.example` 固定保留無效的範例 Client ID。自動測試會驗證它沒有被換成真實值；本機設定必須複製到受 `.gitignore` 排除的 `.env.local` 後再填寫。
-- GitHub Actions 僅從 repository **Variable** 讀取 `VITE_GOOGLE_CLIENT_ID`，不再以同名 secret 作為備援，避免公開識別碼與秘密設定混淆。
-- `legacy-app.ts` 不得直接讀取 `import.meta.env`；Calendar 畫面只能使用獨立設定模組輸出的驗證結果，並有架構測試持續約束。
+- Calendar 合併卡片同時保存畫面子項目與重建來源。經過 JSON／Cloud round-trip 後，兩者原本會成為互不相連的副本。
+- 若使用者先修改分鐘數觸發儲存，再勾選某個子項目，畫面副本會顯示完成，但重建來源仍可能保持未完成；切換日期後就會還原。
+- 現在每次從儲存空間讀取、複製或三方合併紀錄後，都會依穩定項目識別碼重新連結子項目與唯一來源。
+- 完成勾選、完成日期與分鐘數會共同保留，不再因切換日期、背景 Cloud 合併或 Calendar 預設重建而消失。
+- 非合併卡片及既有 Cloud 衝突保護流程不受影響。
 
 ## 驗證
 
-- 以 `VITE_GOOGLE_CLIENT_SECRET` 注入測試值執行建置，確認建置會中止並指出瀏覽器暴露風險。
-- 正常無秘密值環境可完成 TypeScript 型別檢查與 Vite 正式建置。
-- 405 項單元／回歸測試及 14 項 Chromium E2E 全部通過。
+- 新增單元測試，確認從 JSON 還原後的合併子項目會重新連到父項目的唯一來源。
+- 新增 Chromium E2E：9/16 Calendar 數學合併卡先填 51.8 分鐘、完成日期改為 9/19，切至 9/19 再返回 9/16，勾選、日期與分鐘數皆保留。
+- 406 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 15 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.26-public-env-security-required-files`
-- `gsat-study-tracker-v171.6.26-public-env-security-full-project`
+- `gsat-study-tracker-v171.6.27-grouped-completion-persistence-required-files`
+- `gsat-study-tracker-v171.6.27-grouped-completion-persistence-full-project`
 
 ## Commit 建議
 
-`security(config): block browser-exposed secrets`
+`fix(storage): preserve grouped completion across date navigation`

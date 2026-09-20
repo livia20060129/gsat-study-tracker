@@ -22,7 +22,7 @@ import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, originalCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
-import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkCompletionDates, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, replaceDailyWorkMinutes, ungroupDailyWorkItems } from './study/dailyWorkGroup';
+import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkCompletionDates, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, relinkDailyWorkSourceItems, replaceDailyWorkMinutes, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
@@ -694,7 +694,7 @@ function setCloudAuthPending(pending){
  updateCloudStatusBadge();
 }
 function cloneRecord(rec){
- try{return JSON.parse(JSON.stringify(rec))}catch(e){return rec}
+ try{var copy=JSON.parse(JSON.stringify(rec));if(copy&&Array.isArray(copy.items))relinkDailyWorkSourceItems(copy.items);return copy}catch(e){return rec}
 }
 function cloudDateLockName(date){
  return 'gsat-study-record:'+(cloudUser&&cloudUser.id?cloudUser.id:'guest')+':'+String(date||'');
@@ -1545,6 +1545,7 @@ function loadData(date){
   var storedCelebrations=o.completionCelebrations&&o.completionCelebrations.version===3?o.completionCelebrations:null;
   b.completionCelebrations={version:3,half:!!(storedCelebrations&&storedCelebrations.half),complete:!!(storedCelebrations&&storedCelebrations.complete)};
   if(Array.isArray(o.items))for(var i=0;i<o.items.length;i++){var it=normalizeItem(o.items[i],date);if(it)b.items.push(it)}
+  relinkDailyWorkSourceItems(b.items);
  }catch(e){}
  return b;
 }
@@ -3773,22 +3774,23 @@ function persist(show,options){
  if(data.storageIssue){updateStorageRecoveryUI();if(show)id('status').textContent=data.date+' 的原始紀錄無法讀取；為避免覆蓋，修復前不會儲存。';return false}
  ensureEnglishReviewWordEntryIds(data);readHeader();
  var previous=readStoredRecord(data.date);
- if(previous&&dataLoadBase&&!sameStudyContent(previous,dataLoadBase)){
+  if(previous&&dataLoadBase&&!sameStudyContent(previous,dataLoadBase)){
   var reconciledDraft=mergeStudyRecordsThreeWay(data,previous,dataLoadBase),draftConflicts=reconciledDraft.conflicts;
   if(draftConflicts.length){
    var conflictRecord=setCloudConflictRecord(data,previous,draftConflicts);
    if(show)id('status').textContent=studyRecordConflictSummary(data.date,draftConflicts,data,previous);
    return !!conflictRecord;
   }
-  data=reconciledDraft.record;
- }
+   data=reconciledDraft.record;
+  }
  var v=validate(options);if(!v.ok){if(show)id('status').textContent=v.msg;return false}
  var changed=!sameStudyContent(previous,data);
  if(changed){
   data=markRecordLocallyEdited(data,previous);
- }else if(previous){
-  data=cloneRecord(previous);
- }
+  }else if(previous){
+   data=cloneRecord(previous);
+  }
+  relinkDailyWorkSourceItems(data.items);
  var ok=false;
  try{ok=writeStoredRecord(data)&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
  if(ok)dataLoadBase=cloneRecord(data);

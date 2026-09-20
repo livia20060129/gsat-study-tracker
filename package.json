@@ -1,7 +1,7 @@
 {
   "name": "gsat-study-tracker-v171",
   "private": true,
-  "version": "171.6.26",
+  "version": "171.6.27",
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",

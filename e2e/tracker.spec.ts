@@ -431,6 +431,60 @@ test('ordinary completion is written immediately and survives reload', async ({ 
   await expect(page.locator(`#dailyItemList [data-item="${itemId}"] [data-completion-date]`)).toHaveValue('2026-09-19');
 });
 
+test('Calendar-backed math completion survives navigating to its completion date and back', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.clock.install({ time: new Date('2026-09-20T12:00:00+08:00') });
+  await page.goto('/');
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-09-16`, JSON.stringify({
+      schemaVersion: 2,
+      date: '2026-09-16',
+      items: [{
+        id: 'calendar-new-key-math',
+        type: 'mathStudy',
+        done: true,
+        checkedOn: '2026-09-18',
+        minutes: '49.3',
+        required: true,
+        source: 'custom',
+        presetKey: 'calendar-new-key-math',
+        title: '數學講義：進度',
+        description: 'Google Calendar API：新關鍵',
+        f: { material: '新關鍵', book: '1~2', start: '10', end: '13' },
+      }],
+    }));
+  });
+  await page.reload();
+
+  const studyDate = page.locator('#studyDate');
+  await studyDate.fill('2026-09-16');
+  await studyDate.dispatchEvent('change');
+  const groupedMathParent = page.locator('#dailyItemList > [data-item]').filter({ hasText: '數學講義：進度' }).first();
+  const groupedMathChildren = groupedMathParent.locator(':scope > .inner > [data-item]');
+  await expect(groupedMathChildren).toHaveCount(2);
+  const mathCard = groupedMathChildren.last();
+  const itemId = await mathCard.getAttribute('data-item');
+  expect(itemId).not.toBeNull();
+  await mathCard.locator('[data-minutes]').fill('51.8');
+  await mathCard.locator('[data-minutes]').blur();
+  await mathCard.locator('[data-done]').first().check();
+  const completionDate = mathCard.locator('[data-completion-date]').first();
+  await completionDate.fill('2026-09-19');
+  await completionDate.blur();
+
+  await studyDate.fill('2026-09-19');
+  await studyDate.dispatchEvent('change');
+  await studyDate.fill('2026-09-16');
+  await studyDate.dispatchEvent('change');
+
+  const restoredCard = page.locator(`#dailyItemsView [data-item="${itemId}"]`).last();
+  await expect(restoredCard.locator('[data-done]').first()).toBeChecked();
+  await expect(restoredCard.locator('[data-completion-date]').first()).toHaveValue('2026-09-19');
+  await expect(restoredCard.locator('[data-minutes]').first()).toHaveValue('51.8');
+});
+
 test('completion on another date survives stale-tab navigation to that date and back', async ({ page, context }) => {
   await page.goto('about:blank');
   await page.clock.install({ time: new Date('2026-08-19T12:00:00+08:00') });

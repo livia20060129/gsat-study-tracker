@@ -63,6 +63,50 @@ function sourceItems(item: StudyItem): StudyItem[] {
   return Array.isArray(sources) && sources.length ? sources : [item];
 }
 
+function itemIdentity(item: StudyItem): string {
+  const id = text(item.id);
+  if (id) return `id:${id}`;
+  const presetKey = text(item.presetKey);
+  return presetKey ? `preset:${presetKey}` : '';
+}
+
+/**
+ * JSON storage duplicates the hidden source objects referenced by a grouped
+ * child. Relink those copies to the canonical sources kept by the parent so a
+ * child edit cannot appear successful in the UI while leaving the persisted
+ * source unchanged.
+ */
+export function relinkDailyWorkSourceItems(items: StudyItem[]): void {
+  for (const root of items) {
+    const rootSources = root.f?.dailyWorkSourceItems;
+    if (!Array.isArray(rootSources) || !rootSources.length) continue;
+
+    const canonicalSources = new Map<string, StudyItem>();
+    const register = (item: StudyItem): void => {
+      const identity = itemIdentity(item);
+      if (identity && !canonicalSources.has(identity)) canonicalSources.set(identity, item);
+      const sources = item.f?.dailyWorkSourceItems;
+      if (Array.isArray(sources)) sources.forEach(register);
+    };
+    rootSources.forEach(register);
+
+    const visited = new Set<StudyItem>();
+    const relink = (item: StudyItem): void => {
+      if (!item || visited.has(item)) return;
+      visited.add(item);
+      const sources = item.f?.dailyWorkSourceItems;
+      if (Array.isArray(sources)) {
+        item.f!.dailyWorkSourceItems = sources.map(source => (
+          canonicalSources.get(itemIdentity(source)) || source
+        ));
+      }
+      const children = item.f?.groupedWorkEntries;
+      if (Array.isArray(children)) children.forEach(relink);
+    };
+    relink(root);
+  }
+}
+
 function uniqueText(values: unknown[]): string[] {
   return [...new Set(values.map(text).filter(Boolean))];
 }
