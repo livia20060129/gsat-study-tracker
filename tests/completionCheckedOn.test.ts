@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   applyCompletionDateChange,
   completionDateLabel,
+  completionDateValue,
   deferredCompletionDate,
   manualCompletionDateChange,
 } from '../src/study/completionCheckedOn.ts';
@@ -59,6 +60,18 @@ test('completion labels distinguish a normal late check from deferred completion
   assert.equal(completionDateLabel(normal), '2026-09-17 勾選');
   normal.deferredCompletedOn = '2026-09-17';
   assert.equal(completionDateLabel(normal), '延期完成：2026-09-17');
+});
+
+test('completed items expose an editable date and same-day completion falls back to the record date', () => {
+  const target = item('editable');
+  assert.equal(completionDateValue(target, '2026-09-17'), '');
+  target.done = true;
+  assert.equal(completionDateValue(target, '2026-09-17'), '2026-09-17');
+  target.checkedOn = '2026-09-18';
+  assert.equal(completionDateValue(target, '2026-09-17'), '2026-09-18');
+  delete target.checkedOn;
+  target.deferredCompletedOn = '2026-09-19';
+  assert.equal(completionDateValue(target, '2026-09-17'), '2026-09-19');
 });
 
 test('hidden grouped sources retain completion-date metadata', () => {

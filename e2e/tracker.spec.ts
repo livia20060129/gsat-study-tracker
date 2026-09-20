@@ -361,12 +361,16 @@ test('completing deferred work records its date and checks the original day', as
   await expect(deferredCard).toHaveCount(1);
   const checkbox = deferredCard.locator('[data-done]').first();
   await checkbox.check();
-  await expect(deferredCard.locator('.completion-checked-on')).toHaveText('延期完成：2026-09-17');
+  const completionDate = deferredCard.locator('[data-completion-date]');
+  await expect(completionDate).toHaveValue('2026-09-17');
+  await completionDate.fill('2026-09-18');
+  await completionDate.blur();
+  await expect(deferredCard.locator('[data-completion-date]')).toHaveValue('2026-09-18');
 
   const completedOrigin = await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-09-16') || '{}').items.find((item: { id: string }) => item.id === 'deferred-origin'));
   expect(completedOrigin.done).toBe(true);
-  expect(completedOrigin.checkedOn).toBe('2026-09-17');
-  expect(completedOrigin.deferredCompletedOn).toBe('2026-09-17');
+  expect(completedOrigin.checkedOn).toBe('2026-09-18');
+  expect(completedOrigin.deferredCompletedOn).toBe('2026-09-18');
 
   await page.reload();
   await expect(page.locator('#dailyItemList [data-item]').filter({ hasText: '延期同步測試' }).locator('[data-done]').first()).toBeChecked();

@@ -95,3 +95,14 @@ export function completionDateLabel(item: StudyItem | null | undefined): string 
   }
   return '';
 }
+
+/** Returns the date shown by the completion-date editor for a completed item. */
+export function completionDateValue(
+  item: StudyItem | null | undefined,
+  recordDate: string,
+): string {
+  if (!item?.done) return '';
+  if (validDate(item.checkedOn)) return item.checkedOn;
+  if (validDate(item.deferredCompletedOn)) return item.deferredCompletedOn;
+  return validDate(recordDate) ? recordDate : '';
+}

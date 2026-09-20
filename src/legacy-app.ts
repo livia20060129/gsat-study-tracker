@@ -32,7 +32,7 @@ import { completedTimeEntriesForOverviewDate } from './application/overview/over
 import { withOperationTimeout } from './application/cloud/operationTimeout.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
-import { completionDateLabel, deferredCompletionDate } from './study/completionCheckedOn';
+import { completionDateValue, deferredCompletionDate } from './study/completionCheckedOn';
 import {
   applyManualCompletionMetadata,
   completionTargetWithinOrigin,
@@ -2285,7 +2285,12 @@ function ensureCalendarNaturalIntegrationEntries(x,date){
  x.done=out.length>0&&out.every(function(c){return !!c.done});
  return out;
 }
-function completionDateMarkup(x){var label=completionDateLabel(x);return label?'<span class="completion-checked-on">'+esc(label)+'</span>':''}
+function completionDateMarkup(x,recordDate,attributes){
+ var value=completionDateValue(x,recordDate||data.date);
+ if(!value||confirmedDeferred(x))return'';
+ var label=x.deferredCompletedOn?'延期完成日期':'勾選日期';
+ return'<label class="completion-date-editor"><span>'+label+'</span><input type="date" data-completion-date value="'+esc(value)+'" aria-label="修改'+label+'"'+(attributes||'')+'></label>'
+}
 function renderCalendarNaturalIntegrationEntry(c){
  var ranges=Array.isArray(c.ranges)?c.ranges:[];
  var single=ranges.length===1&&!c.dynamic&&!c.pageText.match(/ 或 /);
@@ -3164,7 +3169,7 @@ function renderWeeklyItems(){
   total+=items.length;
   html+='<details class="weekly-day" open><summary><span><strong>'+weekdays[dayDate.getDay()]+'</strong><span class="weekly-date">'+esc(ds.slice(5).replace('-','／'))+'</span></span><span class="weekly-day-actions"><span class="small">'+accepted+'／'+items.length+'</span></span></summary>';
   html+='<div class="weekly-day-items">';
-  items.forEach(function(x){var state=weeklyItemState(x),completionLabel=completionDateLabel(x);html+='<div class="weekly-item-row '+studyItemSubjectClass(x)+'"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><label class="weekly-item-check"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span>'+esc(weeklyItemDisplayTitle(x))+(completionLabel?'<small class="completion-checked-on">'+esc(completionLabel)+'</small>':'')+'</span></label></div>'});
+  items.forEach(function(x){var state=weeklyItemState(x),dateEditor=completionDateMarkup(x,ds,' data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"');html+='<div class="weekly-item-row '+studyItemSubjectClass(x)+'"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><div class="weekly-item-check"><label class="weekly-item-toggle"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span>'+esc(weeklyItemDisplayTitle(x))+'</span></label>'+dateEditor+'</div></div>'});
   html+='</div>';
   html+='</details>';
  }
@@ -3376,8 +3381,19 @@ function maybeCelebrateCompletion(previousPercent,completedByUser){
  showCompletionCelebration(kind);
  return true;
 }
+function updateEditableCompletionDate(item,recordDate,value,rootItems){
+ value=String(value||'').trim();
+ if(!item||!item.done||confirmedDeferred(item)||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value))return false;
+ var requests=applyManualCompletionMetadata(item,true,recordDate,value,rootItems);
+ syncDeferredCompletionToOrigins(requests,true,value);
+ return true;
+}
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
+ if(t.matches('[data-completion-date]')&&x){
+  if(!updateEditableCompletionDate(x,data.date,t.value,data.items)){render();return}
+  persist(false);updateSummary();render();return
+ }
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
  if(t.matches('[data-mag-field]')&&x){updateMagazineField(t,x);persist(false);return}
  if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x);persist(false);return}
@@ -3531,7 +3547,17 @@ function handleClick(e){
  else if(action==='interactive-delete'&&x){if(x.locked){render();return}var deletingInteractivePointer=readTimerPointer(),interactiveParent=parentSpecial(x.id,'interactiveEntries');if(deletingInteractivePointer&&deletingInteractivePointer.itemId===x.id)pauseActiveTimer();if(interactiveParent&&removeSmallEntryWithUndo(interactiveParent,'interactiveEntries',interactiveParent.f.interactiveEntries.indexOf(x),'互動題子項目')){render();persist(false)}}
 }
 function handleWeeklyChange(e){
- var t=e.target;if(!t.matches('[data-week-done]'))return;
+ var t=e.target;
+ if(t.matches('[data-completion-date]')){
+  var completionDate=t.getAttribute('data-week-date'),completionItemId=t.getAttribute('data-week-item');if(!completionDate||!completionItemId)return;
+  var completionRecord=completionDate===data.date?data:studyRecordForOverview(completionDate),completionItem=findRecursive(completionRecord.items,completionItemId);
+  if(!completionItem||!updateEditableCompletionDate(completionItem,completionDate,t.value,completionRecord.items)){renderWeeklyItems();return}
+  if(completionDate===data.date){persist(false);render();return}
+  completionRecord=markRecordLocallyEdited(completionRecord,readStoredRecord(completionDate));
+  if(writeStoredRecord(completionRecord))queueCloudSave(completionRecord);
+  updateSummary();renderWeeklyItems();return
+ }
+ if(!t.matches('[data-week-done]'))return;
  var ds=t.getAttribute('data-week-date'),itemId=t.getAttribute('data-week-item');if(!ds||!itemId)return;
  var rec=ds===data.date?data:studyRecordForOverview(ds);
  var item=findRecursive(rec.items,itemId);if(!item){renderWeeklyItems();return}

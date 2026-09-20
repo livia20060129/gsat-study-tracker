@@ -1,24 +1,26 @@
 # 最新更新
 
-版本：v171.6.21
+版本：v171.6.22
 
-## 作息時間底部空白
+## 可修改勾選日期
 
-- 刪除作息卡底部原先供「此時間視為隔日凌晨」使用的獨立版面列。
-- 作息卡固定高度由 156px 縮為 134px，輸入框下方只保留與其他邊緣一致的正常內距。
-- 隔日凌晨提示改為條件式顯示在卡片右上角，不占用下方空間，也不會在起床／就寢切換時改變卡片高度。
-- 小時與分鐘輸入框仍完整顯示，日期及今日狀態欄繼續與作息卡等高並上下置中。
+- 項目勾選完成後，卡片會顯示可編輯的「勾選日期」；同日完成也會顯示原排程日期，不再只有跨日勾選才看得到日期。
+- 延期補做完成後顯示「延期完成日期」，修改日期時會同步更新原日期的來源項目。
+- 合併卡片與子項目的完成日期會同步到其隱藏來源，不會只修改畫面上的合併項目。
+- 修改後，首頁各科時間與週／月總結會改以新日期歸屬；改回原排程日會移除多餘日期 metadata，但畫面仍顯示該排程日。
+- 取消勾選仍會清除勾選日期及延期完成日期。
 
 ## 驗證
 
-- 瀏覽器測試新增底部距離限制，防止提示列或固定高度再次製造不合理空白。
-- 398 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 11 項 Chromium E2E 全部通過。
+- 新增完成日期顯示值單元測試，涵蓋未完成、同日完成、跨日完成與延期完成。
+- 瀏覽器測試會實際勾選延期項目、修改日期、確認原日期同步，再取消勾選並確認日期清除。
+- 399 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 11 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.21-routine-spacing-required-files`
-- `gsat-study-tracker-v171.6.21-routine-spacing-full-project`
+- `gsat-study-tracker-v171.6.22-completion-date-required-files`
+- `gsat-study-tracker-v171.6.22-completion-date-full-project`
 
 ## Commit 建議
 
-`fix(routine): remove reserved space below time inputs`
+`feat(completion): allow editing checked dates`

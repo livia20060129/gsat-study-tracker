@@ -766,5 +766,5 @@ test('manual completion stores late dates and mirrors deferred completion to its
   assert.match(runtime, /syncDeferredCompletionToOrigins\(deferredCompletionRequests,t\.checked,completionActionDate\)/);
   assert.match(runtime, /propagateDailyWorkCompletionDates\(originTarget,checked\?actionDate:undefined,checked\?actionDate:undefined\)/);
   assert.match(runtime, /completedSnapshot=existing\[matchIndex\].*deferredCompletionDate\(existing\[matchIndex\]\)>=date/);
-  assert.match(styles, /\.completion-checked-on\{/);
+  assert.match(styles, /\.completion-date-editor\{/);
 });
