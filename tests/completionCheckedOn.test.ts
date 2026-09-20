@@ -6,6 +6,7 @@ import {
   completionDateLabel,
   completionDateValue,
   deferredCompletionDate,
+  isCompletedByDate,
   manualCompletionDateChange,
 } from '../src/study/completionCheckedOn.ts';
 import { propagateDailyWorkCompletionDates } from '../src/study/dailyWorkGroup.ts';
@@ -72,6 +73,17 @@ test('completed items expose an editable date and same-day completion falls back
   delete target.checkedOn;
   target.deferredCompletedOn = '2026-09-19';
   assert.equal(completionDateValue(target, '2026-09-17'), '2026-09-19');
+});
+
+test('completion snapshots exclude items checked after the cutoff date', () => {
+  const target = item('friday-snapshot');
+  target.done = true;
+  target.checkedOn = '2026-09-19';
+  assert.equal(isCompletedByDate(target, '2026-09-16', '2026-09-18'), false);
+  assert.equal(isCompletedByDate(target, '2026-09-16', '2026-09-20'), true);
+
+  delete target.checkedOn;
+  assert.equal(isCompletedByDate(target, '2026-09-16', '2026-09-18'), true);
 });
 
 test('hidden grouped sources retain completion-date metadata', () => {

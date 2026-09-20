@@ -65,7 +65,7 @@ test('cloud status distinguishes local, pending, synced and failed states', () =
 });
 
 test('Cloud login cannot be blocked indefinitely by record or Calendar bootstrap', () => {
-  assert.match(runtime, /import \{ completionDateValue, deferredCompletionDate \} from '\.\/study\/completionCheckedOn'/);
+  assert.match(runtime, /import \{ completionDateValue, deferredCompletionDate, isCompletedByDate \} from '\.\/study\/completionCheckedOn'/);
   assert.match(runtime, /CLOUD_AUTH_TIMEOUT_MS=15000/);
   assert.match(runtime, /CLOUD_RECORD_BOOTSTRAP_TIMEOUT_MS=20000/);
   assert.match(runtime, /controller\.abort\(\)/);

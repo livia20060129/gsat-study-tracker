@@ -32,7 +32,7 @@ import { completedTimeEntriesForOverviewDate } from './application/overview/over
 import { withOperationTimeout } from './application/cloud/operationTimeout.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
-import { completionDateValue, deferredCompletionDate } from './study/completionCheckedOn';
+import { completionDateValue, deferredCompletionDate, isCompletedByDate } from './study/completionCheckedOn';
 import {
   applyManualCompletionMetadata,
   completionTargetWithinOrigin,
@@ -3577,69 +3577,71 @@ function handleWeeklyChange(e){
  renderWeeklyItems();
 }
 
-function completionUnitsForRecord(rec,date){
+function completionUnitsForRecord(rec,date,cutoffDate){
  var units=[];
+ function completed(item){return isCompletedByDate(item,date,cutoffDate)}
  visibleItems(rec).forEach(function(x){
   if(!x)return;
   if(isWeeklyCalendarItem(x))return;
   if(isGroupedWork(x)){
    groupedWorkEntries(x).forEach(function(child){
     var childDeferred=confirmedDeferred(x)||confirmedDeferred(child);
-    if(x.deferredCarry||child.deferredCarry||child.required===false)units=units.concat(groupedMakeupCompletionUnits([!!child.done],childDeferred));
-    else units=units.concat(groupedOriginalCompletionUnits([!!child.done],childDeferred));
+    if(x.deferredCarry||child.deferredCarry||child.required===false)units=units.concat(groupedMakeupCompletionUnits([completed(child)],childDeferred));
+    else units=units.concat(groupedOriginalCompletionUnits([completed(child)],childDeferred));
    });
    return;
   }
   if(x.deferredCarry){
-   var carryCompleted=!!x.done;
+   var carryCompleted=completed(x);
    if(isInteractiveDaily(x)){
     var carryEntries=(x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[];
-    carryCompleted=carryEntries.length>0&&carryEntries.every(function(c){return !!c.done});
+    carryCompleted=carryEntries.length>0&&carryEntries.every(completed);
    }else if(isCalendarNaturalIntegration(x)){
     var carryChildren=ensureCalendarNaturalIntegrationEntries(x,date);
-    carryCompleted=carryChildren.length>0&&carryChildren.every(function(c){return !!c.done});
+    carryCompleted=carryChildren.length>0&&carryChildren.every(completed);
    }
    units.push(makeupCompletionUnit(carryCompleted,confirmedDeferred(x)));
    return;
   }
   if(!x.required){
-   if(((x.source==='custom'&&!isEnglishReview(x))||isCalendarMakeup(x)||hasMergedCalendarMakeup(x))&&x.type)units.push(makeupCompletionUnit(!!x.done,confirmedDeferred(x)));
+   if(((x.source==='custom'&&!isEnglishReview(x))||isCalendarMakeup(x)||hasMergedCalendarMakeup(x))&&x.type)units.push(makeupCompletionUnit(completed(x),confirmedDeferred(x)));
    return;
   }
   if(isSaturdayMakeup(x)){
-   units.push(originalCompletionUnit(!!x.done,confirmedDeferred(x)));
+   units.push(originalCompletionUnit(completed(x),confirmedDeferred(x)));
    var makeupEntries=x.f&&Array.isArray(x.f.makeupEntries)?x.f.makeupEntries:[];
    makeupEntries.forEach(function(m){
-    if(m&&m.type)units.push(makeupCompletionUnit(!!m.done,confirmedDeferred(x)||confirmedDeferred(m)));
+    if(m&&m.type)units.push(makeupCompletionUnit(completed(m),confirmedDeferred(x)||confirmedDeferred(m)));
    });
    return;
   }
   if(isInteractiveDaily(x)){
    var entries=(rec===data)?ensureInteractiveEntries(x):((x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[]);
-   var completed=entries.length>0&&entries.every(function(c){return !!c.done});
-   units.push(originalCompletionUnit(completed,confirmedDeferred(x)));
-   if(hasMergedCalendarMakeup(x))units.push(makeupCompletionUnit(completed,confirmedDeferred(x)));
+   var entriesCompleted=entries.length>0&&entries.every(completed);
+   units.push(originalCompletionUnit(entriesCompleted,confirmedDeferred(x)));
+   if(hasMergedCalendarMakeup(x))units.push(makeupCompletionUnit(entriesCompleted,confirmedDeferred(x)));
    return;
   }
   if(isCalendarNaturalIntegration(x)){
    var children=ensureCalendarNaturalIntegrationEntries(x,date);
    if(children.length){
-    children.forEach(function(c){units.push({...originalCompletionUnit(!!c.done,confirmedDeferred(x)),workloadIncluded:false})});
-    units.push(makeupCompletionUnit(children.every(function(c){return !!c.done}),confirmedDeferred(x)));
-   }else units.push(originalCompletionUnit(!!x.done,confirmedDeferred(x)));
+    children.forEach(function(c){units.push({...originalCompletionUnit(completed(c),confirmedDeferred(x)),workloadIncluded:false})});
+    units.push(makeupCompletionUnit(children.every(completed),confirmedDeferred(x)));
+   }else units.push(originalCompletionUnit(completed(x),confirmedDeferred(x)));
    return;
   }
-  units.push(originalCompletionUnit(!!x.done,confirmedDeferred(x)));
-  if(hasMergedCalendarMakeup(x))units.push(makeupCompletionUnit(!!x.done,confirmedDeferred(x)));
+  units.push(originalCompletionUnit(completed(x),confirmedDeferred(x)));
+  if(hasMergedCalendarMakeup(x))units.push(makeupCompletionUnit(completed(x),confirmedDeferred(x)));
  });
  return units;
 }
 function completionMetricsForWeek(date,lastDayIndex){
  var mon=mondayOf(parseDate(date)),units=[];
+ var cutoffDay=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+lastDayIndex,12),cutoffDate=dateString(cutoffDay);
  for(var i=0;i<=lastDayIndex;i++){
   var day=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+i,12),ds=dateString(day);
   var rec=studyRecordForOverview(ds);
-  units=units.concat(completionUnitsForRecord(rec,ds));
+  units=units.concat(completionUnitsForRecord(rec,ds,cutoffDate));
  }
  return summarizeCompletionUnits(units);
 }
