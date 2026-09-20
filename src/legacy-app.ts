@@ -3098,7 +3098,7 @@ function renderGeneralFields(x){
 function renderDailyInteractiveEntry(c){
  var h='<div class="item '+studyItemSubjectClass(c)+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
- if(c.locked)h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><div class="fixed-book-value">'+esc(itemTitle(c))+'</div>'+completionDateMarkup(c)+(c.description?'<div class="small" style="margin-top:5px">'+esc(c.description)+'</div>':'')+'</div>';
+ if(c.locked)h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><div class="fixed-book-value">'+esc(itemTitle(c))+'</div>'+(c.description?'<div class="small" style="margin-top:5px">'+esc(c.description)+'</div>':'')+completionDateMarkup(c)+'</div>';
  else h+='<div class="field" style="flex:1;min-width:240px"><label>互動題種類</label><select data-interactive-type>'+interactiveDailyTypeOptions(c.type)+'</select>'+completionDateMarkup(c)+'</div>';
  h+=renderTimeControl(c)+'</div>';
  if(c.type){
@@ -3124,7 +3124,7 @@ function renderCard(x,canDelete){
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x)||isGroupedWork(x);
  var h='<div class="item '+studyItemSubjectClass(x)+(x.done?' done':'')+(isDeferred?' deferred':'')+'" data-item="'+esc(x.id)+'"><div class="item-top">'+(noTopDone?'':'<input type="checkbox" data-done'+checked(x.done)+'>')+'<div><div class="item-title">'+esc(itemTitle(x))+'</div>';
- if(!noTopDone)h+=completionDateMarkup(x);if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';h+='</div>';
+ if(x.description)h+='<div class="item-desc">'+esc(x.description)+'</div>';if(meta)h+='<div class="small">'+meta+'</div>';if(!noTopDone)h+=completionDateMarkup(x);h+='</div>';
  if(!hidesTopMinutes(x)&&!isGroupedWork(x))h+=renderTimeControl(x);
  h+='</div>';
  var fields=renderItemFields(x,false);
@@ -3388,11 +3388,12 @@ function updateEditableCompletionDate(item,recordDate,value,rootItems){
  syncDeferredCompletionToOrigins(requests,true,value);
  return true;
 }
+function persistCompletionChange(){return persist(false,{ignoreRoutineTime:true})}
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-completion-date]')&&x){
   if(!updateEditableCompletionDate(x,data.date,t.value,data.items)){render();return}
-  persist(false);updateSummary();render();return
+   persistCompletionChange();updateSummary();render();return
  }
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
  if(t.matches('[data-mag-field]')&&x){updateMagazineField(t,x);persist(false);return}
@@ -3444,10 +3445,10 @@ function handleChange(e){
   clearDeferredLimitPrompt(x);
     if(x.calendarIntegrationChild||x.calendarGroupedChild){
      if(x.calendarGroupedChild)updateGroupedParentDone(x);
-     persist(false);updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);render();return
+     persistCompletionChange();updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);render();return
    }
-  if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persist(false);rebuildDeferredForWeek(data.date)}
-  persist(false);updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);render();return
+   if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persistCompletionChange();rebuildDeferredForWeek(data.date)}
+   persistCompletionChange();updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);render();return
  }
  if(t.matches('[data-check]')&&x){var k=t.getAttribute('data-check');if(k==='progress'&&x.type==='scienceReview'){markCalendarNaturalProgressByUser(x,t.checked);propagateDailyWorkField(x,'calendarProgressSetByUser',true);propagateDailyWorkField(x,'calendarProgressUserValue',t.checked)}propagateDailyWorkField(x,k,t.checked);if(k==='corrected'&&(x.type==='mathLecture'||x.type==='scienceReview'||x.type==='extra')){render();persist(false);return}updateSummary();persist(false);return}
  if(t.matches('[data-chinese-kind]')&&x&&x.type==='chineseReading'){
@@ -3552,7 +3553,7 @@ function handleWeeklyChange(e){
   var completionDate=t.getAttribute('data-week-date'),completionItemId=t.getAttribute('data-week-item');if(!completionDate||!completionItemId)return;
   var completionRecord=completionDate===data.date?data:studyRecordForOverview(completionDate),completionItem=findRecursive(completionRecord.items,completionItemId);
   if(!completionItem||!updateEditableCompletionDate(completionItem,completionDate,t.value,completionRecord.items)){renderWeeklyItems();return}
-  if(completionDate===data.date){persist(false);render();return}
+   if(completionDate===data.date){persistCompletionChange();render();return}
   completionRecord=markRecordLocallyEdited(completionRecord,readStoredRecord(completionDate));
   if(writeStoredRecord(completionRecord))queueCloudSave(completionRecord);
   updateSummary();renderWeeklyItems();return
@@ -3566,7 +3567,7 @@ function handleWeeklyChange(e){
  propagateDailyWorkDone(item,t.checked);
  syncDeferredCompletionToOrigins(deferredCompletionRequests,t.checked,completionActionDate);
  if(item.done){item.deferred=false;delete item.deferredTargetDay}
- if(ds===data.date){persist(false);render();return}
+ if(ds===data.date){persistCompletionChange();render();return}
  rec=markRecordLocallyEdited(rec,readStoredRecord(ds));
  if(writeStoredRecord(rec))queueCloudSave(rec);
  updateSummary();
@@ -3726,7 +3727,10 @@ function wakeParts(s){var m=String(s||'').match(/^(\d{1,2}):(\d{1,2})$/);return 
 function routineDraftTime(mode){var draft=routineTimeDrafts[mode]||{},h=draft.hour,m=draft.minute;if(h===''||m==='')return'';h=Number(h);m=Number(m);if(!Number.isInteger(h)||!Number.isInteger(m)||h<0||h>23||m<0||m>59)return'';return pad(h)+':'+pad(m)}
 function captureRoutineDraft(){routineTimeDrafts[routineTimeMode]={hour:id('wakeHour').value,minute:id('wakeMinute').value}}
 function syncRoutineDraftToRecord(){
+ var draft=routineTimeDrafts[routineTimeMode]||{},hourBlank=draft.hour==='',minuteBlank=draft.minute==='';
+ if(hourBlank!==minuteBlank)return;
  var value=routineDraftTime(routineTimeMode);
+ if(!hourBlank&&!value)return;
  if(routineTimeMode==='wake')data.wakeTime=value;
  else if(value){var bedtime=bedtimeRecordForStudyDate(data.date,value);if(bedtime)data.bedtime=bedtime}
  else delete data.bedtime;
@@ -3744,12 +3748,13 @@ function setRoutineTimeMode(mode){
 }
 function readHeader(){data.mood=id('mood').value;captureRoutineDraft();syncRoutineDraftToRecord();data.biggestBlock=id('biggestBlock').value;data.firstThingTomorrow=id('firstThingTomorrow').value;data.notes=id('notes').value;updateRoutineTimeHint()}
 function writeHeader(){id('mood').value=data.mood||'';routineTimeMode='wake';routineTimeDrafts={wake:wakeParts(data.wakeTime),bedtime:wakeParts(data.bedtime&&data.bedtime.time)};updateRoutineTimeUI();id('biggestBlock').value=data.biggestBlock||'';id('firstThingTomorrow').value=data.firstThingTomorrow||'';id('notes').value=data.notes||''}
-function validate(){
+function validate(options){
+ var opts=options||{};
  var ok=true,msg='';
  var wakeHour=id('wakeHour'),wakeMinute=id('wakeMinute'),wakeHourValue=wakeHour.value===''?null:Number(wakeHour.value),wakeMinuteValue=wakeMinute.value===''?null:Number(wakeMinute.value);
  function draftValid(draft){var h=draft.hour===''?null:Number(draft.hour),m=draft.minute===''?null:Number(draft.minute);return(h===null)===(m===null)&&(h===null||(Number.isInteger(h)&&h>=0&&h<=23&&Number.isInteger(m)&&m>=0&&m<=59))}
  var wakeHourValid=wakeHourValue===null||(Number.isInteger(wakeHourValue)&&wakeHourValue>=0&&wakeHourValue<=23),wakeMinuteValid=wakeMinuteValue===null||(Number.isInteger(wakeMinuteValue)&&wakeMinuteValue>=0&&wakeMinuteValue<=59),wakePairValid=(wakeHourValue===null)===(wakeMinuteValue===null),wakeDraftValid=draftValid(routineTimeDrafts.wake),bedtimeDraftValid=draftValid(routineTimeDrafts.bedtime),routineLabel=!wakeDraftValid?'起床':(!bedtimeDraftValid?'就寢':(routineTimeMode==='wake'?'起床':'就寢'));
- wakeHour.setCustomValidity(wakeHourValid&&wakeMinuteValid&&wakePairValid?'':'請完整填寫有效時間。');wakeMinute.setCustomValidity(wakeHourValid&&wakeMinuteValid&&wakePairValid?'':'請完整填寫有效時間。');if(!wakeHourValid||!wakeMinuteValid||!wakePairValid||!wakeDraftValid||!bedtimeDraftValid){ok=false;msg=routineLabel+'時間格式不正確；小時請填 00～23，分鐘請填 00～59，或將兩欄都留空。'}
+ wakeHour.setCustomValidity(wakeHourValid&&wakeMinuteValid&&wakePairValid?'':'請完整填寫有效時間。');wakeMinute.setCustomValidity(wakeHourValid&&wakeMinuteValid&&wakePairValid?'':'請完整填寫有效時間。');if(!opts.ignoreRoutineTime&&(!wakeHourValid||!wakeMinuteValid||!wakePairValid||!wakeDraftValid||!bedtimeDraftValid)){ok=false;msg=routineLabel+'時間格式不正確；小時請填 00～23，分鐘請填 00～59，或將兩欄都留空。'}
  document.querySelectorAll('[data-field="essayScore"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=18);el.setCustomValidity(x?'':'作文範圍起點請填 0～18。');if(!x){ok=false;msg='英文作文分數超出範圍。'}});
  document.querySelectorAll('[data-field="mixedScore"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=10);el.setCustomValidity(x?'':'混合題分數請填 0～10。');if(!x){ok=false;msg='英文混合題分數超出範圍。'}});
  document.querySelectorAll('[data-field="score"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=25);el.setCustomValidity(x?'':'國文寫作分數請填 0～25。');if(!x){ok=false;msg='國文寫作分數超出範圍。'}});
@@ -3761,7 +3766,7 @@ function validate(){
  document.querySelectorAll('[data-field="round"][max="100"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=1&&v<=100);el.setCustomValidity(x?'':'古今悅讀一百回數請填 1～100。');if(!x){ok=false;msg='古今悅讀一百回數超出範圍。'}});
  return{ok:ok,msg:msg};
 }
-function persist(show){
+function persist(show,options){
  if(!data)return false;
  if(data.storageIssue){updateStorageRecoveryUI();if(show)id('status').textContent=data.date+' 的原始紀錄無法讀取；為避免覆蓋，修復前不會儲存。';return false}
  ensureEnglishReviewWordEntryIds(data);readHeader();
@@ -3773,7 +3778,7 @@ function persist(show){
    else data=mergedDraft;
   }
  }
- var v=validate();if(!v.ok){if(show)id('status').textContent=v.msg;return false}
+ var v=validate(options);if(!v.ok){if(show)id('status').textContent=v.msg;return false}
  var previous=readStoredRecord(data.date),changed=!sameStudyContent(previous,data);
  if(changed){
   data=markRecordLocallyEdited(data,previous);

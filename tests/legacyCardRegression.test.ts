@@ -440,6 +440,15 @@ test('interactive and nested completion dates render below their title controls'
   });
   const interactiveHtml = interactive(item({ done: true }));
   assert.ok(interactiveHtml.indexOf('data-interactive-type') < interactiveHtml.indexOf('completion-date-editor'));
+  const lockedInteractiveHtml = interactive(item({ done: true, locked: true, description: '標題備註' }));
+  assert.ok(lockedInteractiveHtml.indexOf('標題備註') < lockedInteractiveHtml.indexOf('completion-date-editor'));
+
+  const card = runtimeFunction<(x: StudyItem, deletable: boolean) => string>('renderCard', {
+    ...renderingDependencies,
+    completionDateMarkup: dateMarkup,
+  });
+  const cardHtml = card(item({ done: true, description: '標題備註' }), false);
+  assert.ok(cardHtml.indexOf('標題備註') < cardHtml.indexOf('completion-date-editor'));
 
   const nested = runtimeFunction<(x: StudyItem, kind: string) => string>('renderNestedEntry', {
     ...renderingDependencies,

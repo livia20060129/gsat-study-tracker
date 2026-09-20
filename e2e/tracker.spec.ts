@@ -389,6 +389,89 @@ test('completing deferred work records its date and checks the original day', as
   expect(restoredOrigin.deferredCompletedOn).toBeUndefined();
 });
 
+test('ordinary completion is written immediately and survives reload', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.clock.install({ time: new Date('2026-09-20T12:00:00+08:00') });
+  await page.goto('/summary.html');
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-09-20`, JSON.stringify({ schemaVersion: 2, date: '2026-09-20', wakeTime: '06:30', items: [] }));
+  });
+  await page.goto('/');
+
+  const card = page.locator('#dailyItemList [data-item]').first();
+  const itemId = await card.getAttribute('data-item');
+  const checkbox = card.locator('[data-done]').first();
+  await page.locator('#wakeMinute').fill('');
+  await checkbox.check();
+  await expect(checkbox).toBeChecked();
+  const completionDate = card.locator('[data-completion-date]');
+  await expect(completionDate).toHaveValue('2026-09-20');
+  await completionDate.fill('2026-09-19');
+  await completionDate.blur();
+  const completionDatePosition = await card.evaluate(node => {
+    const title = node.querySelector('.item-title')?.getBoundingClientRect();
+    const note = node.querySelector('.item-desc')?.getBoundingClientRect();
+    const editor = node.querySelector('.completion-date-editor')?.getBoundingClientRect();
+    return { contentBottom: Math.max(title?.bottom ?? 0, note?.bottom ?? 0), editorTop: editor?.top ?? 0 };
+  });
+  expect(completionDatePosition.editorTop).toBeGreaterThanOrEqual(completionDatePosition.contentBottom);
+
+  const stored = await page.evaluate(id => {
+    const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-09-20') || '{}');
+    return { wakeTime: record.wakeTime, item: record.items.find((entry: { id: string }) => entry.id === id) };
+  }, itemId);
+  expect(stored.item.done).toBe(true);
+  expect(stored.item.checkedOn).toBe('2026-09-19');
+  expect(stored.wakeTime).toBe('06:30');
+
+  await page.reload();
+  await expect(page.locator(`#dailyItemList [data-item="${itemId}"] [data-done]`).first()).toBeChecked();
+  await expect(page.locator(`#dailyItemList [data-item="${itemId}"] [data-completion-date]`)).toHaveValue('2026-09-19');
+});
+
+test('interactive child completion is written immediately and survives reload', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.clock.install({ time: new Date('2026-09-21T12:00:00+08:00') });
+  await page.goto('/summary.html');
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-09-21`, JSON.stringify({ schemaVersion: 2, date: '2026-09-21', items: [] }));
+  });
+  await page.goto('/');
+
+  const card = page.locator('#dailyItemList [data-item="monday-vocab-2026-09-21"]');
+  const itemId = await card.getAttribute('data-item');
+  const checkbox = card.locator('[data-done]').first();
+  await checkbox.check();
+  await expect(checkbox).toBeChecked();
+  await expect(card.locator('[data-completion-date]')).toHaveValue('2026-09-21');
+  const completionDatePosition = await card.evaluate(node => {
+    const title = node.querySelector('.fixed-book-value')?.getBoundingClientRect();
+    const note = node.querySelector('.field > .small')?.getBoundingClientRect();
+    const editor = node.querySelector('.completion-date-editor')?.getBoundingClientRect();
+    return { contentBottom: Math.max(title?.bottom ?? 0, note?.bottom ?? 0), editorTop: editor?.top ?? 0 };
+  });
+  expect(completionDatePosition.editorTop).toBeGreaterThanOrEqual(completionDatePosition.contentBottom);
+
+  const stored = await page.evaluate(id => {
+    const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-09-21') || '{}');
+    const stack = [...(record.items || [])];
+    while (stack.length) {
+      const item = stack.shift();
+      if (item?.id === id) return item;
+      for (const value of Object.values(item?.f || {})) if (Array.isArray(value)) stack.push(...value);
+    }
+    return null;
+  }, itemId);
+  expect(stored?.done).toBe(true);
+
+  await page.reload();
+  await expect(page.locator(`#dailyItemList [data-item="${itemId}"] [data-done]`).first()).toBeChecked();
+});
+
 test('learning summary uses one week/month control for the complete page', async ({ page }) => {
   // Leave the record editor first: its pagehide handler deliberately persists
   // the current form and would otherwise overwrite this isolated fixture.

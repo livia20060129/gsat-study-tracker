@@ -1,25 +1,26 @@
 # 最新更新
 
-版本：v171.6.23
+版本：v171.6.24
 
-## 完成日期位置與名稱統一
+## 修正完成勾選無法儲存
 
-- 一般、延期、互動題及巢狀子項目的日期欄位一律顯示為「完成日期」。
-- 完成日期統一放在項目標題或類型標題下方，不再與勾選框、時間控制並排。
-- 合併子項目維持既有的無重複標題設計，完成日期放在其既有內容標示下方。
-- 本次只調整顯示名稱與位置；日期修改後的時間歸屬、合併來源同步及延期原日期同步邏輯維持不變。
+- 原因是作息時間只填小時或分鐘時，整份表單驗證會阻止背景儲存，使畫面雖已勾選，完成狀態與完成日期卻沒有寫入。
+- 完成勾選及完成日期現在會獨立保存，不再被尚未填完整的作息時間草稿攔截。
+- 未填完整的作息草稿不會寫入，也不會清除上一次已保存的有效起床／就寢時間。
+- 完成日期統一放在「項目標題＋標題備註」下方；一般、延期及子項目仍一律顯示為「完成日期」。
 
 ## 驗證
 
-- 單元／回歸測試涵蓋一般與延期項目顯示文字，以及互動題、巢狀子項目的標題與日期排列順序。
-- 瀏覽器測試會確認延期項目顯示「完成日期」、日期位於標題下方，並驗證修改及取消勾選後的同步結果。
-- 400 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 11 項 Chromium E2E 全部通過。
+- 瀏覽器測試會先讓作息時間處於只填一半的狀態，再勾選一般項目、修改完成日期、讀取 LocalStorage 並重新載入頁面。
+- 另以固定的英文互動題子項目驗證勾選後立即寫入並可在重新載入後保留。
+- 版面測試確認完成日期位於標題及標題備註下方。
+- 400 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 13 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.23-completion-date-layout-required-files`
-- `gsat-study-tracker-v171.6.23-completion-date-layout-full-project`
+- `gsat-study-tracker-v171.6.24-completion-save-required-files`
+- `gsat-study-tracker-v171.6.24-completion-save-full-project`
 
 ## Commit 建議
 
-`fix(completion): place completion dates below item titles`
+`fix(completion): persist checked items independently of routine drafts`
