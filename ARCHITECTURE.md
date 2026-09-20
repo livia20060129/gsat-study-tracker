@@ -29,6 +29,8 @@ infrastructure repositories and gateways
 - 週／月學習總結：`src/study/learningSummary.ts`
 - 數學實際完成頁數：`src/study/mathProgress.ts`
 - Local／Supabase 讀寫：`src/infrastructure/storage/`
+- 前端公開環境變數白名單：`src/config/publicEnvironment.ts`
+- Google Calendar 公開 Client ID 解析：`src/config/googleCalendar.ts`
 
 首頁與學習總結必須共用 `completedStudyTime.ts`，不得各自建立另一套時間計算。任何 UI 合併卡都只能代表來源項目，不能成為新的持久化資料真相。
 
@@ -39,6 +41,8 @@ infrastructure repositories and gateways
 3. 儲存格式、Calendar DTO、domain item 與畫面 view model 不互相混用。
 4. 測試應直接匯入模組；只有尚未抽離的舊 DOM 接線才可由 regression test 驗證 `legacy-app.ts`。
 5. `npm test` 會自動執行所有 `tests/*.test.ts`，新增測試不需再手動維護清單。
+6. `legacy-app.ts` 不得直接讀取 `import.meta.env`；畫面只能使用 `src/config/` 輸出的已驗證設定。
+7. 前端目前只允許 `VITE_GOOGLE_CLIENT_ID`。新增任何 `VITE_` 變數前必須先確認它可公開，並明確加入白名單；秘密值只放在 Supabase Edge Function secrets。
 
 ## 本次全專案盤點後的後續順序
 

@@ -98,6 +98,8 @@ VITE_GOOGLE_CLIENT_ID=你的 Google OAuth Web Client ID
 
 Client ID 是公開識別碼，不是密碼；仍不可把個人專案值直接寫死在原始碼。可參考 `.env.example`。
 
+本機開發請先將 `.env.example` **複製**為 `.env.local`，只修改不受 Git 追蹤的 `.env.local`；不要直接改寫 `.env.example`。正式建置會拒絕 `VITE_GOOGLE_CLIENT_ID` 以外的所有 `VITE_` 變數，避免 Client Secret、token、密碼或 service-role key 被打包進瀏覽器。
+
 #### C. Supabase Edge Function secrets
 
 ```text
@@ -171,6 +173,7 @@ VITE_GOOGLE_CLIENT_ID
 
 ## V. 此版本重要更新（v171.x.xx）
 
+- **v171.6.26**：強化前端環境變數與 Google OAuth 設定安全。正式建置只允許經審核的公開變數 `VITE_GOOGLE_CLIENT_ID`，任何其他有值的 `VITE_` 變數都會讓建置直接失敗，避免 Client Secret、token、密碼或 service-role key 被打包到瀏覽器。`.env.example` 必須固定保留無效範例值，真實 Client ID 只能放在未追蹤的 `.env.local` 或 GitHub Actions Variable。舊主程式不得直接讀取 `import.meta.env`，Calendar UI 僅能使用獨立設定模組輸出的驗證結果。
 - **v171.6.25**：修正多頁籤或背景 Cloud 更新後，舊頁籤在切換日期、隱藏或離頁時可能把較新的完成勾選覆寫回未勾選。每個日期現在保留載入基準，儲存前會將本頁修改、載入基準與最新本機紀錄做三方合併；未修改的舊狀態不再被視為新修改，同一欄位真的有兩種修改時則保留衝突而不靜默覆蓋。新增兩頁籤實際操作 8/16、完成日期 8/19、往返日期後仍保留勾選的瀏覽器測試。
 - **v171.6.24**：修正作息時間只填小時或分鐘時，表單驗證連帶阻止完成勾選及完成日期寫入的問題；完成狀態現在獨立保存，未填完整的作息草稿不會覆蓋既有作息紀錄。完成日期也改放在項目標題與標題備註的下方。
 - **v171.6.23**：所有一般、延期及子項目的日期欄位一律改稱「完成日期」，並統一放在項目標題或類型標題下方；修改日期仍會同步合併來源、延期原日期、首頁科目時間及週／月統計。
