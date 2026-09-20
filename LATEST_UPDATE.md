@@ -1,26 +1,24 @@
 # 最新更新
 
-版本：v171.6.24
+版本：v171.6.25
 
-## 修正完成勾選無法儲存
+## 修正跨頁籤將完成勾選還原
 
-- 原因是作息時間只填小時或分鐘時，整份表單驗證會阻止背景儲存，使畫面雖已勾選，完成狀態與完成日期卻沒有寫入。
-- 完成勾選及完成日期現在會獨立保存，不再被尚未填完整的作息時間草稿攔截。
-- 未填完整的作息草稿不會寫入，也不會清除上一次已保存的有效起床／就寢時間。
-- 完成日期統一放在「項目標題＋標題備註」下方；一般、延期及子項目仍一律顯示為「完成日期」。
+- 問題不是單純跳頁太快，而是另一個已開啟頁籤仍保留舊的整日資料；它在切換日期、進入背景或離頁時會把舊的「未勾選」整份寫回。
+- 每個日期現在保留當時的載入基準。儲存前會比對「載入基準、本頁實際修改、最新本機紀錄」，再做欄位級三方合併。
+- 另一頁籤已完成的勾選與完成日期會被保留；舊頁籤沒有修改過的欄位不會再覆蓋新資料。
+- 若兩個頁籤真的同時修改同一欄位為不同值，會保留可辨識欄位的衝突，不再靜默採用其中一邊。
 
 ## 驗證
 
-- 瀏覽器測試會先讓作息時間處於只填一半的狀態，再勾選一般項目、修改完成日期、讀取 LocalStorage 並重新載入頁面。
-- 另以固定的英文互動題子項目驗證勾選後立即寫入並可在重新載入後保留。
-- 版面測試確認完成日期位於標題及標題備註下方。
-- 400 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 13 項 Chromium E2E 全部通過。
+- 新增兩頁籤回歸測試：兩邊先停在 8/16，其中一頁完成項目並將完成日期設為 8/19，再讓仍持有舊資料的另一頁跳轉；回到 8/16 後，完成勾選與 8/19 完成日期皆維持。
+- 401 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置及 14 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.24-completion-save-required-files`
-- `gsat-study-tracker-v171.6.24-completion-save-full-project`
+- `gsat-study-tracker-v171.6.25-stale-tab-completion-required-files`
+- `gsat-study-tracker-v171.6.25-stale-tab-completion-full-project`
 
 ## Commit 建議
 
-`fix(completion): persist checked items independently of routine drafts`
+`fix(storage): merge stale-tab drafts before saving completion`

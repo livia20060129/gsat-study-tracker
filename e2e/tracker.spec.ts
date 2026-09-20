@@ -431,6 +431,57 @@ test('ordinary completion is written immediately and survives reload', async ({ 
   await expect(page.locator(`#dailyItemList [data-item="${itemId}"] [data-completion-date]`)).toHaveValue('2026-09-19');
 });
 
+test('completion on another date survives stale-tab navigation to that date and back', async ({ page, context }) => {
+  await page.goto('about:blank');
+  await page.clock.install({ time: new Date('2026-08-19T12:00:00+08:00') });
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.setItem('study-v11:meta:active-record-prefix', 'study-v11:guest:');
+  });
+  await page.reload();
+
+  const studyDate = page.locator('#studyDate');
+  await studyDate.fill('2026-08-16');
+  await studyDate.dispatchEvent('change');
+  const itemId = await page.locator('#dailyItemsView [data-item] [data-done]').first().evaluate(input => (
+    input.closest('[data-item]')?.getAttribute('data-item') || ''
+  ));
+  expect(itemId).not.toBe('');
+
+  const writer = await context.newPage();
+  await writer.goto('/');
+  const writerDate = writer.locator('#studyDate');
+  await writerDate.fill('2026-08-16');
+  await writerDate.dispatchEvent('change');
+  const writerCard = writer.locator(`#dailyItemsView [data-item="${itemId}"]`);
+  await writerCard.locator('[data-done]').first().check();
+  const completionDate = writerCard.locator('[data-completion-date]').first();
+  await completionDate.fill('2026-08-19');
+  await completionDate.blur();
+  await expect(writerCard.locator('[data-done]').first()).toBeChecked();
+
+  // The first page still holds the old unchecked snapshot. Navigating it must
+  // merge the newer stored completion instead of writing that snapshot back.
+  await studyDate.fill('2026-08-19');
+  await studyDate.dispatchEvent('change');
+  await expect(studyDate).toHaveValue('2026-08-19');
+
+  await writerDate.fill('2026-08-19');
+  await writerDate.dispatchEvent('change');
+  await writerDate.fill('2026-08-16');
+  await writerDate.dispatchEvent('change');
+
+  await expect(writer.locator(`#dailyItemsView [data-item="${itemId}"] [data-done]`).first()).toBeChecked();
+  await expect(writer.locator(`#dailyItemsView [data-item="${itemId}"] [data-completion-date]`).first()).toHaveValue('2026-08-19');
+  const stored = await writer.evaluate(id => {
+    const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-08-16') || '{}');
+    return record.items.find((entry: { id: string }) => entry.id === id);
+  }, itemId);
+  expect(stored.done).toBe(true);
+  expect(stored.checkedOn).toBe('2026-08-19');
+  await writer.close();
+});
+
 test('interactive child completion is written immediately and survives reload', async ({ page }) => {
   await page.goto('about:blank');
   await page.clock.install({ time: new Date('2026-09-21T12:00:00+08:00') });

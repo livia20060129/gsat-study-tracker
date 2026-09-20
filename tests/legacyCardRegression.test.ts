@@ -81,6 +81,7 @@ test('cloud bootstrap renders the saved day without replacing it with fallback p
     {
       id: (name: keyof typeof nodes) => nodes[name],
       loadData: (date: string) => ({ date, items: [{ id: 'saved-calendar-item' }] }),
+      cloneRecord: (record: StudyRecord) => structuredClone(record),
       updateCloudConflictUI: () => {},
       updateStorageRecoveryUI: () => {},
       weekdays: ['日', '一', '二', '三', '四', '五', '六'],

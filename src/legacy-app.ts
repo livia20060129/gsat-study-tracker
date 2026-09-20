@@ -11,7 +11,7 @@
  */
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
-import { decideRevisionSync, markRecordLocallyEdited, mergeStudyRecordsForUpload, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
+import { decideRevisionSync, markRecordLocallyEdited, mergeStudyRecordsForUpload, mergeStudyRecordsThreeWay, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { studyRecordConflictDetailsText, studyRecordConflictSummary } from './storage/conflictPresentation';
 import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
@@ -589,6 +589,7 @@ var SUPPLEMENT_ENGLISH_TITLES=[
 ];
 
 var data=null;
+var dataLoadBase=null;
 var routineTimeMode='wake';
 var routineTimeDrafts={wake:{hour:'',minute:''},bedtime:{hour:'',minute:''}};
 var routineTimeSwitchTimer=null;
@@ -643,6 +644,7 @@ function setStorageScope(userId){
  try{store.setItem(ACTIVE_RECORD_PREFIX_KEY,STORE_PREFIX)}catch(e){}
  mathProgressIndex.replaceAll([]);
  data=null;
+ dataLoadBase=null;
  updateImportBackupButton();
 }
 function currentStorageIsUserScoped(){return !!cloudUser&&STORE_PREFIX===storagePrefixForUser(cloudUser.id)}
@@ -749,7 +751,7 @@ function setCloudConflictRecord(local,cloud,details){
  next.syncConflictLocal=stripRecordSyncMeta(local);
  next.syncConflictCloud=cloud?stripRecordSyncMeta(cloud):undefined;
  writeStoredRecord(next);
- if(data&&data.date===next.date){data=cloneRecord(next)}
+ if(data&&data.date===next.date){data=cloneRecord(next);dataLoadBase=cloneRecord(next)}
  updateCloudConflictUI(next.date);return next;
 }
 async function runCloudManualSync(label,task){
@@ -983,7 +985,7 @@ async function cloudPullDateLocked(date,force){
  if(localToPush)await cloudSaveRecord(localToPush);
  if(force||id('studyDate').value===date){
   if(isEditingRecordControl())setCloudVisibleRefreshPending(true);
-  else{setCloudVisibleRefreshPending(false);data=loadData(date);var changed=ensureDailyPresets(data,date);writeHeader();render();if(changed)persist(false)}
+   else{setCloudVisibleRefreshPending(false);data=loadData(date);dataLoadBase=cloneRecord(data);var changed=ensureDailyPresets(data,date);writeHeader();render();if(changed)persist(false)}
  }
  if(conflict){
   updateCloudConflictUI(date);
@@ -1128,7 +1130,7 @@ async function repairStorageIssueFromCloud(){
    var snapshot=await cloudRecordRepository.loadDate(selectedDate);
    if(!snapshot||!snapshot.record){cloudSetMessage('雲端沒有 '+selectedDate+' 的紀錄；原始本機備份仍完整保留。',false);return false}
    if(!writeStoredRecord(snapshot.record)){cloudSetMessage('無法寫入修復後的本機紀錄；原始備份未變更。',false);return false}
-   data=loadData(selectedDate);updateStorageRecoveryUI();writeHeader();render();
+   data=loadData(selectedDate);dataLoadBase=cloneRecord(data);updateStorageRecoveryUI();writeHeader();render();
    cloudSetMessage('已用雲端版本修復 '+selectedDate+'；原始損壞內容仍保留在復原備份中。',true);return true;
   }catch(e){cloudSetMessage('修復失敗：'+(e&&e.message?e.message:String(e)),false);return false}
  });
@@ -3770,16 +3772,18 @@ function persist(show,options){
  if(!data)return false;
  if(data.storageIssue){updateStorageRecoveryUI();if(show)id('status').textContent=data.date+' 的原始紀錄無法讀取；為避免覆蓋，修復前不會儲存。';return false}
  ensureEnglishReviewWordEntryIds(data);readHeader();
- if(cloudVisibleRefreshPending){
-  var newerStored=readStoredRecord(data.date);
-  if(newerStored&&!sameStudyContent(data,newerStored)){
-   var mergedDraft=mergeStudyRecordsForUpload(data,newerStored),draftConflicts=recordSyncConflicts(mergedDraft);
-   if(draftConflicts.length)setCloudConflictRecord(mergedDraft.syncConflictLocal||data,newerStored,draftConflicts);
-   else data=mergedDraft;
+ var previous=readStoredRecord(data.date);
+ if(previous&&dataLoadBase&&!sameStudyContent(previous,dataLoadBase)){
+  var reconciledDraft=mergeStudyRecordsThreeWay(data,previous,dataLoadBase),draftConflicts=reconciledDraft.conflicts;
+  if(draftConflicts.length){
+   var conflictRecord=setCloudConflictRecord(data,previous,draftConflicts);
+   if(show)id('status').textContent=studyRecordConflictSummary(data.date,draftConflicts,data,previous);
+   return !!conflictRecord;
   }
+  data=reconciledDraft.record;
  }
  var v=validate(options);if(!v.ok){if(show)id('status').textContent=v.msg;return false}
- var previous=readStoredRecord(data.date),changed=!sameStudyContent(previous,data);
+ var changed=!sameStudyContent(previous,data);
  if(changed){
   data=markRecordLocallyEdited(data,previous);
  }else if(previous){
@@ -3787,12 +3791,13 @@ function persist(show,options){
  }
  var ok=false;
  try{ok=writeStoredRecord(data)&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
+ if(ok)dataLoadBase=cloneRecord(data);
  if(ok&&(changed||data.localDirty)&&!data.syncConflict)queueCloudSave(data);
  if(ok)updateCloudStatusBadge();
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
 function load(options){
- var opts=options||{},d=id('studyDate').value;pendingDeferredTargets={};deferredLimitPrompt=null;data=loadData(d);updateCloudConflictUI(data.syncConflict?d:'');updateStorageRecoveryUI();id('weekdayText').textContent=weekdays[parseDate(d).getDay()];
+ var opts=options||{},d=id('studyDate').value;pendingDeferredTargets={};deferredLimitPrompt=null;data=loadData(d);dataLoadBase=cloneRecord(data);updateCloudConflictUI(data.syncConflict?d:'');updateStorageRecoveryUI();id('weekdayText').textContent=weekdays[parseDate(d).getDay()];
  if(data.storageIssue){writeHeader();render();id('status').textContent=d+' 的本機紀錄無法讀取；原始內容已保留，修復前不會覆蓋。';return}
  var changed=false;if(!opts.skipPresetReconcile)changed=ensureDailyPresets(data,d);if(ensureEnglishReviewWordEntryIds(data))changed=true;writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
  if(cloudUser&&!cloudBootstrapPending&&!opts.skipCloudRead)cloudPullDate(d,false);
