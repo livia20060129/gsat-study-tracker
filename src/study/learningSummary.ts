@@ -7,6 +7,7 @@ import {
   summarizeCompletionUnits,
 } from './completionMetrics.ts';
 import { isConfirmedDeferred } from './deferDays.ts';
+import { activeEnglishTaskItems } from './englishTaskChoice.ts';
 import { effectiveTemplatePresetKey, specialItemTemplate } from './makeup.ts';
 import { summarizeSubjectTime, type SubjectTimeSummary } from './subjectTime.ts';
 import {
@@ -158,7 +159,7 @@ function isWeeklyCalendarItem(item: StudyItem): boolean {
 
 function visibleItems(record: StudyRecord): StudyItem[] {
   const items = Array.isArray(record.items) ? record.items : [];
-  return items.filter(item => !(record.mood === '外出' && item?.source === 'preset'));
+  return activeEnglishTaskItems(record, items.filter(item => !(record.mood === '外出' && item?.source === 'preset')));
 }
 
 /** These statuses keep their daily progress display but do not affect period completion. */

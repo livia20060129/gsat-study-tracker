@@ -33,6 +33,7 @@ import { withOperationTimeout } from './application/cloud/operationTimeout.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { completionDateValue, deferredCompletionDate, isCompletedByDate } from './study/completionCheckedOn';
+import { activeEnglishTaskItems, hasEnglishTaskCollision, resolvedEnglishTaskChoice } from './study/englishTaskChoice';
 import {
   applyManualCompletionMetadata,
   completionTargetWithinOrigin,
@@ -1541,7 +1542,7 @@ function loadData(date){
   if(Array.isArray(o.syncConflictDetails))b.syncConflictDetails=cloneObj(o.syncConflictDetails);
   if(o.syncConflictLocal)b.syncConflictLocal=cloneObj(o.syncConflictLocal);
   if(o.syncConflictCloud)b.syncConflictCloud=cloneObj(o.syncConflictCloud);
-  b.mood=o.mood||'';b.wakeTime=o.wakeTime||'';if(o.bedtime&&typeof o.bedtime==='object')b.bedtime=cloneObj(o.bedtime);b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
+  b.mood=o.mood||'';b.englishTaskChoice=o.englishTaskChoice==='mixed'||o.englishTaskChoice==='mock'?o.englishTaskChoice:undefined;b.wakeTime=o.wakeTime||'';if(o.bedtime&&typeof o.bedtime==='object')b.bedtime=cloneObj(o.bedtime);b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
   var storedCelebrations=o.completionCelebrations&&o.completionCelebrations.version===3?o.completionCelebrations:null;
   b.completionCelebrations={version:3,half:!!(storedCelebrations&&storedCelebrations.half),complete:!!(storedCelebrations&&storedCelebrations.complete)};
   if(Array.isArray(o.items))for(var i=0;i<o.items.length;i++){var it=normalizeItem(o.items[i],date);if(it)b.items.push(it)}
@@ -1858,7 +1859,13 @@ function mixedWritingDay(date){
  return diff%3===0;
 }
 function previousDateString(date){var d=parseDate(date);d.setDate(d.getDate()-1);return dateString(d)}
-function fridayMockExistsForSaturday(date){return parseDate(date).getDay()!==6||!mixedWritingDay(previousDateString(date))}
+function fridayMockExistsForSaturday(date){
+ if(parseDate(date).getDay()!==6)return true;
+ var friday=previousDateString(date);
+ if(!mixedWritingDay(friday))return true;
+ var record=readStoredRecord(friday);
+ return !!record&&resolvedEnglishTaskChoice(record)==='mock';
+}
 function weekdayPresets(day){
  if(day>=1&&day<=4){
   var a=[presetDef('weekday_math_study','mathStudy','數學講義：進度','完成講義頁數，並理解該範圍的新觀念、定義、公式與主要例題。',true)];
@@ -1893,7 +1900,6 @@ function presetsForDate(date){
   for(i=0;i<defs.length;i++)if(defs[i].key!=='sat_mock_correction')a.push(defs[i]);defs=a;
  }
  if(mixedWritingDay(date)){
-  a=[];for(i=0;i<defs.length;i++)if(defs[i].key!=='fri_mock_timed')a.push(defs[i]);defs=a;
   defs.push(presetDef('english_mixed_writing','englishMixedWriting','英文：混合題與作文練習','每三天一次；先處理優先修改錯誤，再記錄作文與混合題分數。',true));
  }
  /* 星期五英文雜誌為固定必做，避免任何條件排程或舊版本資料造成遺失。 */
@@ -2100,7 +2106,14 @@ function ensureDailyPresets(rec,date){
    oldEventKeys.forEach(function(oldEventKey){if(!legacyCalendarByEventKey[oldEventKey]||x.done)legacyCalendarByEventKey[oldEventKey]=x});
    changed=true;continue
   }
-  if(x&&x.source==='preset'&&managed[x.presetKey]&&!allowed[x.presetKey]){changed=true;continue}
+  if(x&&x.source==='preset'&&managed[x.presetKey]&&!allowed[x.presetKey]){
+   if(x.presetKey==='sat_mock_correction'){
+    if(!x.f)x.f={};
+    if(x.f.englishMockCorrectionInactive!==true){x.f.englishMockCorrectionInactive=true;changed=true}
+    clean.push(x);continue;
+   }
+   changed=true;continue
+  }
   clean.push(x);
  }
  rec.items=clean;
@@ -2117,6 +2130,7 @@ function ensureDailyPresets(rec,date){
   if(x.templatePresetKey!==d.key){x.templatePresetKey=d.key;changed=true}
   x.source='preset';
   if(!x.f)x.f={};
+  if(d.key==='sat_mock_correction'&&x.f.englishMockCorrectionInactive){delete x.f.englishMockCorrectionInactive;changed=true}
    if(x.f.calendarGroupedWork&&!(d.f&&d.f.calendarGroupedWork)){
     var remainingGrouped=groupedWorkEntries(x),remainingMatch=null;
     for(var rgi=0;rgi<remainingGrouped.length&&!remainingMatch;rgi++)if(groupedEntryMatch({type:d.type,presetKey:d.key,f:d.f||{}},remainingGrouped[rgi]))remainingMatch=remainingGrouped[rgi];
@@ -2217,7 +2231,7 @@ function ensureDailyPresets(rec,date){
 
 function dailyMessageForDate(date){
  var day=parseDate(date).getDay();
- if(day===5&&mixedWritingDay(date))return '星期五：今日以英文混合題與作文練習取代英文歷屆／模考限時作答。';
+ if(day===5&&mixedWritingDay(date))return '星期五：英文混合題與模考同日，可在下方選擇或改選今日要完成的項目。';
  if(day===6&&!fridayMockExistsForSaturday(date))return '星期六：因昨天沒有英文歷屆／模考限時作答，今日不安排英文歷屆／模考批改與訂正。';
  var base=['星期日：保留數學講義題目檢查與英文輕量閱讀。','星期一：保留原有固定項目。','星期二：保留原有固定項目。','星期三：保留原有固定項目。','星期四：保留原有固定項目。','星期五：保留原有固定項目。','星期六：保留原有固定項目與週整理。'][day];
  return base+(calendarDefsForDate(date).length||activeCalendarMathPlan(date)?'｜已加入 Google Calendar 當日讀書排程。':'');
@@ -2226,7 +2240,7 @@ function dailyMessageForDate(date){
 
 function newItem(type,source){return{id:uid('i'),type:type||'',done:false,minutes:'',required:false,source:source||'custom',title:'',description:'',f:{}}}
 function isAway(rec){return rec&&rec.mood==='外出'}
-function visibleItems(rec){if(!rec||!Array.isArray(rec.items))return[];return rec.items.filter(function(x){return !(isAway(rec)&&x&&x.source==='preset')})}
+function visibleItems(rec){if(!rec||!Array.isArray(rec.items))return[];return activeEnglishTaskItems(rec,rec.items.filter(function(x){return !(isAway(rec)&&x&&x.source==='preset')}))}
 function itemTitle(x){return x&&x.title?x.title:(labels[x.type]||x.type||'未選擇')}
 function isEnglishReview(x){return specialItemTemplate(x)==='englishReview'}
 function isFixedMagazine(x){return specialItemTemplate(x)==='fixedMagazine'}
@@ -3197,6 +3211,9 @@ function updateOverviewMetricView(focusSelected){
 }
 function render(){
  deferredCapacityCache=null;
+ var choicePanel=id('englishTaskChoice'),hasChoice=!isAway(data)&&hasEnglishTaskCollision(data.items),selectedChoice=resolvedEnglishTaskChoice(data);
+ choicePanel.hidden=!hasChoice;
+ if(hasChoice)choicePanel.innerHTML='<strong>英文混合題與模考同一天，選擇一項：</strong><div class="english-task-choice-actions"><button type="button" data-english-task-choice="mixed" aria-pressed="'+(selectedChoice==='mixed')+'">混合題與作文</button><button type="button" data-english-task-choice="mock" aria-pressed="'+(selectedChoice==='mock')+'">歷屆／模考限時作答</button></div><div class="small">'+(selectedChoice?'目前只顯示並統計所選項目；可隨時改選，另一項已填內容會保留。':'選擇後才會顯示並計入今日項目，另一項不計入完成率。')+'</div>';
  var active=groupStudyItemsBySubject(visibleItems(data)),daily='',englishReview='',other='',dc=0,erc=0,oc=0;
  active.forEach(function(x){
   if(isWeeklyCalendarItem(x))return;
@@ -3896,6 +3913,7 @@ function mergedImportedProgressRecord(current,incoming){
  var next=cloneObj(current),d=incoming.date;
  next.date=d;
  next.mood=mergeImportedProgressValue(next.mood,incoming.mood)||'';
+ next.englishTaskChoice=mergeImportedProgressValue(next.englishTaskChoice,incoming.englishTaskChoice);
  next.wakeTime=mergeImportedProgressValue(next.wakeTime,incoming.wakeTime)||'';
  next.bedtime=mergeImportedProgressValue(next.bedtime,incoming.bedtime);
  if(!next.bedtime)delete next.bedtime;
@@ -4101,6 +4119,14 @@ function headerInput(){readHeader()}
 function headerChange(){readHeader();persist(false)}
 function notesInput(){data.notes=id('notes').value}
 id('dailyItemList').addEventListener('input',handleInput);id('dailyItemList').addEventListener('change',handleChange);id('dailyItemList').addEventListener('click',handleClick);
+id('englishTaskChoice').addEventListener('click',function(e){
+ var button=e.target.closest('[data-english-task-choice]');if(!button||!hasEnglishTaskCollision(data.items))return;
+ var choice=button.getAttribute('data-english-task-choice');if(choice!=='mixed'&&choice!=='mock')return;
+ var previousChoice=data.englishTaskChoice;
+ data.englishTaskChoice=choice;
+ if(!persist(false)){data.englishTaskChoice=previousChoice;id('status').textContent='選擇尚未儲存，請先修正欄位或儲存問題後再試。';return}
+ render();
+});
 id('studyItemsViewTabs').addEventListener('click',function(e){var button=e.target.closest('[data-study-items-view]');if(!button)return;studyItemsView=button.getAttribute('data-study-items-view');updateStudyItemsView(false)});
 id('studyItemsViewTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')studyItemsView='today';else if(e.key==='End')studyItemsView='week';else studyItemsView=adjacentStudyItemsView(studyItemsView,e.key==='ArrowRight'?1:-1);updateStudyItemsView(true)});
 id('overviewMetricTabs').addEventListener('click',function(e){var button=e.target.closest('[data-overview-metric]');if(!button)return;overviewMetricView=button.getAttribute('data-overview-metric');updateOverviewMetricView(false)});

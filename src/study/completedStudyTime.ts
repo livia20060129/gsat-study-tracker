@@ -1,5 +1,6 @@
 import type { StudyItem, StudyRecord } from '../types.ts';
 import { isConfirmedDeferred } from './deferDays.ts';
+import { activeEnglishTaskItems } from './englishTaskChoice.ts';
 import { effectiveTemplatePresetKey, specialItemTemplate } from './makeup.ts';
 import { studyItemSubject } from './subjectOrder.ts';
 import {
@@ -43,9 +44,9 @@ function isWeeklyCalendarItem(item: StudyItem): boolean {
 
 function visibleItems(record: StudyRecord): StudyItem[] {
   const items = Array.isArray(record.items) ? record.items : [];
-  return items.filter(function isVisible(item): boolean {
+  return activeEnglishTaskItems(record, items.filter(function isVisible(item): boolean {
     return !(record.mood === '外出' && item?.source === 'preset');
-  });
+  }));
 }
 
 function isSaturdayMakeup(item: StudyItem): boolean {

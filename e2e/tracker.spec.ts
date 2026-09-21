@@ -14,6 +14,50 @@ test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
+test('mixed writing and timed mock on one date require a persisted exclusive choice', async ({ page }) => {
+  await page.locator('#studyDate').fill('2026-09-25');
+  await page.locator('#studyDate').dispatchEvent('change');
+  const choice = page.locator('#englishTaskChoice');
+  await expect(choice).toBeVisible();
+  await expect(page.locator('#dailyItemList .item-title', { hasText: '英文：混合題與作文練習' })).toHaveCount(0);
+  await expect(page.locator('#dailyItemList .item-title', { hasText: '英文歷屆／模考：限時作答' })).toHaveCount(0);
+
+  await choice.locator('[data-english-task-choice="mock"]').click();
+  await expect(page.locator('#dailyItemList .item-title', { hasText: '英文歷屆／模考：限時作答' })).toHaveCount(1);
+  await expect(page.locator('#dailyItemList .item-title', { hasText: '英文：混合題與作文練習' })).toHaveCount(0);
+  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-09-25') || '{}').englishTaskChoice)).toBe('mock');
+
+  await page.reload();
+  await page.locator('#studyDate').fill('2026-09-25');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(choice.locator('[data-english-task-choice="mock"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#studyDate').fill('2026-09-26');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(page.locator('#dailyItemList .item-title', { hasText: '英文歷屆／模考：批改與訂正' })).toHaveCount(1);
+  const correction = page.locator('#dailyItemList [data-item="preset-2026-09-26-sat_mock_correction"]');
+  await correction.locator('[data-minutes]').fill('25');
+  await correction.locator('[data-minutes]').blur();
+
+  await page.locator('#studyDate').fill('2026-09-25');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await choice.locator('[data-english-task-choice="mixed"]').click();
+  await expect(page.locator('#dailyItemList .item-title', { hasText: '英文：混合題與作文練習' })).toHaveCount(1);
+  await expect(page.locator('#dailyItemList .item-title', { hasText: '英文歷屆／模考：限時作答' })).toHaveCount(0);
+  await page.locator('#studyDate').fill('2026-09-26');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(page.locator('#dailyItemList .item-title', { hasText: '英文歷屆／模考：批改與訂正' })).toHaveCount(0);
+  const retained = await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-09-26') || '{}').items.find((item: { presetKey: string }) => item.presetKey === 'sat_mock_correction'));
+  expect(retained.minutes).toBe('25');
+  expect(retained.f.englishMockCorrectionInactive).toBe(true);
+
+  await page.locator('#studyDate').fill('2026-09-25');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await choice.locator('[data-english-task-choice="mock"]').click();
+  await page.locator('#studyDate').fill('2026-09-26');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(correction.locator('[data-minutes]')).toHaveValue('25');
+});
+
 test('both math page panels stay vertically centered and left aligned with settlement metrics', async ({ page }) => {
   await page.setViewportSize({ width: 760, height: 900 });
   await page.locator('#studyDate').fill('2026-09-20');
@@ -276,7 +320,7 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
 });
 
 test('cloud conflict prompt names the card, field, and both values', async ({ page }) => {
-  const date = await page.locator('#studyDate').inputValue();
+  const date = '2026-09-20';
   await page.goto('/summary.html');
   await page.evaluate(({ date }) => {
     const prefix = 'study-v11:guest:';
@@ -305,6 +349,8 @@ test('cloud conflict prompt names the card, field, and both values', async ({ pa
     }));
   }, { date });
   await page.goto('/');
+  await page.locator('#studyDate').fill(date);
+  await page.locator('#studyDate').dispatchEvent('change');
   await page.locator('#connectionSettings > summary').click();
 
   await expect(page.locator('#cloudConflictText')).toContainText('數學講義：進度 › 讀書時間（分鐘）');

@@ -13,6 +13,7 @@ interface ResolvedConflictPath {
 const FIELD_LABELS: Record<string, string> = {
   date: '日期',
   mood: '今日狀態',
+  englishTaskChoice: '混合題／模考選擇',
   wakeTime: '起床時間',
   bedtime: '就寢時間',
   time: '時間',

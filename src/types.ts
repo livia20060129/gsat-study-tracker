@@ -129,6 +129,8 @@ export interface StudyRecord {
   /** A local payload failed decoding. Saving and cloud sync stay blocked until recovery. */
   storageIssue?: StudyRecordStorageIssue;
   mood?: string;
+  /** Which English task is active when mixed writing and a timed mock share a date. */
+  englishTaskChoice?: 'mixed' | 'mock';
   wakeTime?: string;
   /** Bedtime for this study date's evening, with its resolved calendar date. */
   bedtime?: BedtimeRecord;
