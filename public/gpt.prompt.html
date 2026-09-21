@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GSAT 讀書排程管理 Prompt｜2026-09-19 最新版</title>
+  <title>GSAT 讀書排程管理 Prompt｜2026-09-21 最新版</title>
   <style>
     :root{--bg:#f4f7fb;--paper:#fff;--ink:#172033;--muted:#64748b;--line:#dce3ec;--blue:#315efb;--soft:#f8fafc;--warn:#fff7e6;--green:#ecfdf3}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.72 system-ui,-apple-system,"Segoe UI","Noto Sans TC",sans-serif}
@@ -75,7 +75,7 @@
       <tr><td>國文深耕十五</td><td><code>國文｜深耕十五｜第 n 課 課名</code></td></tr>
       <tr><td>英文主題百匯</td><td><code>英文｜主題百匯 教材名稱｜主題 n 主題名稱（第 n 回）</code>；主題寫在標題。</td></tr>
       <tr><td>英文文法講義</td><td><code>英文文法｜Ch.x 單元名稱（分段）</code></td></tr>
-      <tr><td>Azar 英文文法</td><td><code>本週項目｜Azar英文文法（中階）｜Wn｜Ch.x 範圍</code></td></tr>
+      <tr><td>Azar 英文文法</td><td><code>本週項目｜Azar英文文法（中階）｜Wn｜Ch.x 範圍</code>；備註依自然科的印刷頁碼範圍格式，但不加講義版本。</td></tr>
       <tr><td>英文寫作測驗</td><td><code>英文寫作測驗｜第 n 回：主題</code></td></tr>
       <tr><td>大考英聽 A 攻略</td><td><code>大考英聽A攻略｜Test n＋訂正</code></td></tr>
       <tr><td>互動題</td><td><code>互動題</code></td></tr>
@@ -88,7 +88,7 @@
   <section id="notes"><h2>5. Calendar 備註固定格式</h2>
     <p class="important"><strong>換行規則：</strong>每個欄位各占一行；欄位之間不得多空一行；第一行之前與最後一行之後也不得留空白行。必須以 Calendar 實際畫面回讀驗證。</p>
     <p>備註只能使用下列欄位，欄位名稱用全形括號 <code>【 】</code>，固定順序如下：</p><ol>
-      <li><code>【講義版本】</code>：僅自然科與數學使用，並放在最前面。</li>
+      <li><code>【講義版本】</code>：僅自然科與數學使用，並放在最前面；Azar 不使用。</li>
       <li><code>【冊別】</code>：僅數學使用，必須是真正冊別；內容如 <code>1–2</code>、<code>3A–4A</code>，不加「冊」。</li>
       <li><code>【頁碼範圍】</code> 或 <code>【單元進度】</code>：二擇一。</li>
       <li><code>【來源日期】</code>：只有延期、補做或承接任務才顯示。</li>
@@ -109,6 +109,8 @@
     <h3>自然科《新關鍵》範例</h3><pre>【講義版本】新關鍵
 【頁碼範圍】p.38–41
 【識別碼】GSAT-NEWKEY-BIO-20260919</pre>
+    <h3>Azar 英文文法（中階）範例</h3><pre>【頁碼範圍】p.18–29
+【識別碼】GSAT-AZAR-2026-W03</pre>
     <h3>國文範例</h3><pre>【頁碼範圍】p.2–25
 【識別碼】GSAT-DEEP15-L01</pre>
     <h3>英文主題百匯範例</h3><pre>【單元進度】第2回
@@ -128,8 +130,8 @@
   </ol></section>
 
   <section id="science"><h2>8. 自然科教材與頁碼</h2>
-    <p>自然科基礎排程直接對照生物、化學、物理、地球科學四本《123日的淬鍊》。</p><ol>
-      <li>生物、化學、物理、地科及自然整合行程一律使用 <code>【頁碼範圍】</code>，不得使用 <code>【單元進度】</code>。</li><li>必須核對教材目錄與實際印刷頁碼，不得依單元名稱猜頁碼。</li><li>跨科自然整合逐科列出頁碼，例如：<code>生物 p.14–15；化學 p.45–83；物理 p.20–55</code>。</li><li>診斷題或錯題回查若無法事先確定單一小節，可列各科允許回查的完整範圍。</li><li>錯題跨兩個主題時，同時列出兩段頁碼。</li><li>教材版本不同時，先找同名單元並核對印刷頁碼；不能確認時停止相關寫入並說明，不得猜測。</li><li>延期後的物理單項「基本交互作用與受力模型」從 p.34 開始；自然整合中的物理範圍仍維持原定 p.20–55，不可混用。</li>
+    <p>自然科基礎排程直接對照生物、化學、物理、地球科學四本《123日的淬鍊》。Azar 英文文法也遵守下列印刷頁碼讀取規則，但不需要 <code>【講義版本】</code>。</p><ol>
+      <li>生物、化學、物理、地科、自然整合及 Azar 英文文法行程一律使用 <code>【頁碼範圍】</code>，不得使用 <code>【單元進度】</code>；Azar 不加 <code>【講義版本】</code>。</li><li>必須核對教材目錄與實際印刷頁碼，不得依單元名稱猜頁碼。</li><li>跨科自然整合逐科列出頁碼，例如：<code>生物 p.14–15；化學 p.45–83；物理 p.20–55</code>。</li><li>診斷題或錯題回查若無法事先確定單一小節，可列各科允許回查的完整範圍。</li><li>錯題跨兩個主題時，同時列出兩段頁碼。</li><li>教材版本不同時，先找同名單元並核對印刷頁碼；不能確認時停止相關寫入並說明，不得猜測。</li><li>延期後的物理單項「基本交互作用與受力模型」從 p.34 開始；自然整合中的物理範圍仍維持原定 p.20–55，不可混用。</li>
     </ol>
   </section>
 
@@ -177,7 +179,7 @@
   </ol></section>
 
   <section id="verify"><h2>13. 完成驗證</h2><ul>
-    <li>統計預期、成功、失敗與剩餘筆數，並檢查是否漏掉既有行程。</li><li>重複完整識別碼為 0；<code>今日項目｜</code> 為 0。</li><li>週行程均以 <code>本週項目｜</code> 開頭；每日行程不得誤用此前綴。</li><li>延期來源只使用 <code>【來源日期】</code>。</li><li>備註只含允許欄位；每筆只有頁碼或單元進度其中之一。</li><li>數學與自然皆有 <code>【講義版本】</code>，且位於備註第一行；其他科目不得出現此欄。</li><li>數學的 <code>【冊別】</code> 不含「冊」字；自然科不得出現 <code>【冊別】</code>。</li><li>自然科完全沒有 <code>【單元進度】</code>；國文教材以印刷頁碼為主。</li><li>英文主題百匯的備註回次不重複教材名或主題名。</li><li><code>【重點】</code> 不含作答、批改、訂正、重做等流程文字。</li><li><code>第 x 回</code> 不含總回數或分數。</li><li>備註實際畫面為逐欄換行、欄位間無空白行、結尾無多餘空白行。</li><li>所有讀書行程皆為全天、顯示有空且完全不提醒。</li><li>私人與非讀書行程完全未修改。</li>
+    <li>統計預期、成功、失敗與剩餘筆數，並檢查是否漏掉既有行程。</li><li>重複完整識別碼為 0；<code>今日項目｜</code> 為 0。</li><li>週行程均以 <code>本週項目｜</code> 開頭；每日行程不得誤用此前綴。</li><li>延期來源只使用 <code>【來源日期】</code>。</li><li>備註只含允許欄位；每筆只有頁碼或單元進度其中之一。</li><li>數學與自然皆有 <code>【講義版本】</code>，且位於備註第一行；Azar 與其他科目不得出現此欄。</li><li>數學的 <code>【冊別】</code> 不含「冊」字；自然科與 Azar 不得出現 <code>【冊別】</code>。</li><li>自然科與 Azar 完全沒有 <code>【單元進度】</code>，必須使用印刷頁碼；國文教材也以印刷頁碼為主。</li><li>英文主題百匯的備註回次不重複教材名或主題名。</li><li><code>【重點】</code> 不含作答、批改、訂正、重做等流程文字。</li><li><code>第 x 回</code> 不含總回數或分數。</li><li>備註實際畫面為逐欄換行、欄位間無空白行、結尾無多餘空白行。</li><li>所有讀書行程皆為全天、顯示有空且完全不提醒。</li><li>私人與非讀書行程完全未修改。</li>
   </ul><p>只有實際回讀驗證成功後才能說「已完成」。若 Google 在長識別碼中自動插入換行或空格，先正規化顯示空白再比對，不可誤判。</p></section>
 
   <section id="reply"><h2>14. 回覆方式</h2><ol>

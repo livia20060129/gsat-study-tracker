@@ -1749,7 +1749,8 @@ function calendarFixedTemplateDef(p,token){
 function calendarAzarSectionDef(p,token,chapter,section){
  var key='cal_azar_'+token+'_ch'+chapter.number+'_'+String(section.code||'section').replace(/[^A-Za-z0-9_-]/g,'_');
  var title=AZAR_GRAMMAR_BOOK_TITLE+'｜Ch.'+chapter.number+' '+chapter.title+'｜'+section.code+section.title;
- return presetDef(key,'extra',title,'Google Calendar API：'+p.title+'｜'+(section.start===section.end?'p.'+section.start:'p.'+section.start+'–'+section.end),true,{title:AZAR_GRAMMAR_BOOK_TITLE,azarChapterNumber:chapter.number,azarChapterTitle:chapter.title,azarChapterLabel:chapter.label,azarSectionCode:section.code,azarSectionTitle:section.title,start:String(section.start),end:String(section.end),round:String(section.code),calendarBookRangeLocked:true,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey});
+ var start=Math.max(section.start,Number(p.startPage)||section.start),end=Math.min(section.end,Number(p.endPage)||section.end);
+ return presetDef(key,'extra',title,'Google Calendar API：'+p.title+'｜'+(start===end?'p.'+start:'p.'+start+'–'+end),true,{title:AZAR_GRAMMAR_BOOK_TITLE,azarChapterNumber:chapter.number,azarChapterTitle:chapter.title,azarChapterLabel:chapter.label,azarSectionCode:section.code,azarSectionTitle:section.title,start:String(start),end:String(end),round:String(section.code),calendarTopic:p.title,calendarBookRangeLocked:false,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey});
 }
 function calendarMathStudyDef(p,token,preserveSeparate){
  var mp=resolveCloudMathPlan(p)||null,ms=Number(p.startPage||(mp&&mp.start)||0),me=Number(p.endPage||(mp&&mp.end)||ms||0),mm=String(p.material||(mp&&mp.material)||'教學講義'),mb=String(p.book||(mp&&mp.book)||''),fields={material:mm,book:mb,start:ms?String(ms):'',end:me?String(me):'',calendarPlanTitle:p.title,calendarDailyPages:ms&&me?me-ms+1:0,calendarSuggestedStart:ms||'',calendarSuggestedEnd:me||'',calendarSuggestedMaterial:mm,calendarSuggestedBook:mb,calendarRangeSource:mp&&mp.calendarRangeSource||'',calendarMaterialSource:mp&&mp.calendarMaterialSource||'',calendarMathMaterialLocked:true,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
@@ -1786,7 +1787,7 @@ function cloudCalendarDefsForDate(date){
     });
    }
    if(out.length===outStart){
-    out.push(presetDef('cal_azar_'+token,'extra','英文｜'+AZAR_GRAMMAR_BOOK_TITLE,'Google Calendar API：'+p.title+'｜Calendar 未提供可辨識的第 1～428 頁頁碼。',true,{title:AZAR_GRAMMAR_BOOK_TITLE,start:p.startPage==null?'':String(p.startPage),end:p.endPage==null?'':String(p.endPage),calendarBookRangeLocked:true,calendarAzarParseError:'Calendar 未提供可辨識的第 1～428 頁頁碼。',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+    out.push(presetDef('cal_azar_'+token,'extra','英文｜'+AZAR_GRAMMAR_BOOK_TITLE,'Google Calendar API：'+p.title+'｜Calendar 未提供可辨識的第 1～428 頁頁碼。',true,{title:AZAR_GRAMMAR_BOOK_TITLE,start:p.startPage==null?'':String(p.startPage),end:p.endPage==null?'':String(p.endPage),calendarTopic:p.title,calendarBookRangeLocked:false,calendarAzarParseError:'Calendar 未提供可辨識的第 1～428 頁頁碼。',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
    }
   }else if(p.kind==='writing'&&p.round){
    out.push(presetDef('cal_writing_'+p.round+'_'+token,'extra','英文｜英文寫作測驗 第 '+p.round+' 回','Google Calendar API：'+p.title,true,{title:'英文寫作測驗',round:String(p.round),calendarFocus:p.focus||'',calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
@@ -2010,7 +2011,8 @@ function mergeGroupedEntry(template,existing){
  next.deferred=!!old.deferred;
  if(old.deferredTargetDay!==undefined)next.deferredTargetDay=old.deferredTargetDay;else delete next.deferredTargetDay;
  next.f=Object.assign({},cloneValue(template.f||{}),cloneValue(old.f||{}));
- ['title','book','topic','start','end','round','azarChapterNumber','azarChapterTitle','azarChapterLabel','azarSectionCode','azarSectionTitle','calendarBookRangeLocked','calendarMathMaterialLocked','calendarScopeParseError','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarSourceDate','calendarSourceDates'].forEach(function(k){if(template.f&&template.f[k]!==undefined)next.f[k]=cloneValue(template.f[k])});
+ ['title','book','topic','start','end','round','azarChapterNumber','azarChapterTitle','azarChapterLabel','azarSectionCode','azarSectionTitle','calendarTopic','calendarBookRangeLocked','calendarMathMaterialLocked','calendarScopeParseError','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarSourceDate','calendarSourceDates'].forEach(function(k){if(template.f&&template.f[k]!==undefined)next.f[k]=cloneValue(template.f[k])});
+ if(/^cal_azar_/.test(String(template.presetKey||'')))applyDailyWorkRangeOverrides(next);
  return next;
 }
 function reconcileGroupedWorkEntries(templateEntries,existingEntries,legacyParent){
@@ -2142,10 +2144,10 @@ function ensureDailyPresets(rec,date){
   }
   if(/^cal_(ace|azar|book|listening_a|writing|grammar|gujin|natural|essential_grammar|math|english_review|interactive|magazine|fixed|item)_/.test(d.key||'')||(d.f&&d.f.calendarMerged)){
    var df=d.f||{};
-   if(/^cal_grammar_/.test(d.key||'')){
+   if(/^cal_(grammar|azar)_/.test(d.key||'')){
     var grammarPagesBlank=!x.f.start&&!x.f.end;
     var grammarUserFields=x.f.dailyWorkUserFields&&typeof x.f.dailyWorkUserFields==='object'?x.f.dailyWorkUserFields:{};
-    var grammarExplicitCalendar=df.calendarRangeSource==='calendar';
+    var grammarExplicitCalendar=/^cal_azar_/.test(d.key||'')||df.calendarRangeSource==='calendar';
      for(var dk in df)if(Object.prototype.hasOwnProperty.call(df,dk)){
       if(dk==='groupedWorkEntries'){
        var grammarGrouped=reconcileGroupedWorkEntries(df[dk],x.f[dk],x);
@@ -2870,9 +2872,10 @@ function renderExtraFields(x,reviewMode){
   if(reviewMode||f.corrected)h+=reasonField(f);
  }else if(isAzarGrammar(t)){
   if(isCalendarAzarGrammar(x)){
-   var azarPageStart=Number(f.start),azarPageEnd=Number(f.end),azarPageText=Number.isFinite(azarPageStart)&&azarPageStart>0?(azarPageStart===azarPageEnd?'p.'+azarPageStart:'p.'+azarPageStart+'–'+azarPageEnd):'—';
-   h+='<div class="grid-2"><div class="field"><label>書名</label><div class="fixed-book-value">'+esc(AZAR_GRAMMAR_BOOK_TITLE)+'</div></div><div class="field"><label>頁碼對照</label><div class="fixed-book-value">'+esc(azarPageText)+'</div></div></div>';
-   if(f.calendarAzarParseError)h+='<div class="small calendar-scope-error" role="alert">'+esc(f.calendarAzarParseError)+'</div>';
+   h+='<div class="english-book-page-row"><div class="field"><label>書名</label><div class="fixed-book-value">'+esc(AZAR_GRAMMAR_BOOK_TITLE)+'</div></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" max="428" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" max="428" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
+   h+=calendarTopicSourceRow(x);
+   h+='<div class="field" style="margin-top:10px"><label>頁碼對應章節</label><div class="small" data-azar-auto>'+esc(azarGrammarPageSummary(f.start,f.end))+'</div></div>';
+   if(f.calendarAzarParseError&&!f.start)h+='<div class="small calendar-scope-error" role="alert">'+esc(f.calendarAzarParseError)+'</div>';
   }else{
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" max="428" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" max="428" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
    h+='<div class="field" style="margin-top:10px"><label>對應章節與分項</label><div class="small" data-azar-auto>'+esc(azarGrammarPageSummary(f.start,f.end))+'</div></div>';

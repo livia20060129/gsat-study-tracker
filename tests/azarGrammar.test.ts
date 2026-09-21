@@ -9,8 +9,12 @@ import {
   AZAR_GRAMMAR_CHAPTERS,
   AZAR_GRAMMAR_SECTIONS,
   azarGrammarChaptersForPages,
+  azarGrammarPageSummary,
   isAzarGrammarIdentifier,
+  isAzarGrammarBookTitle,
 } from '../src/data/azarGrammar.ts';
+import { applyDailyWorkRangeOverrides, propagateDailyWorkRangeField } from '../src/study/dailyWorkGroup.ts';
+import type { StudyItem } from '../src/types.ts';
 
 function row(title: string, description: string, category = 'other'): CalendarTaskRow {
   return {
@@ -47,10 +51,36 @@ test('keeps same-page Azar subsections separate and rejects pages outside the ph
   assert.deepEqual(azarGrammarChaptersForPages(429, 430), []);
 });
 
-test('recognizes the exact GAST-AZAR-2026 identifier family', () => {
+test('recognizes current GSAT and legacy GAST Azar event identifiers', () => {
   assert.equal(isAzarGrammarIdentifier('GAST-AZAR-2026-001'), true);
   assert.equal(isAzarGrammarIdentifier(' GAST-AZAR-2026-XXX '), true);
-  assert.equal(isAzarGrammarIdentifier('GSAT-AZAR-2026-001'), false);
+  assert.equal(isAzarGrammarIdentifier('GSAT-AZAR-2026-001'), true);
+  assert.equal(isAzarGrammarIdentifier('GSAT-AZAR-2026-W07'), true);
+  assert.equal(isAzarGrammarIdentifier('GSAT-OTHER-2026-W07'), false);
+});
+
+test('Azar reads printed-page notes without a material-version field', () => {
+  const parsed = parseCalendarTask(row(
+    '本週項目｜英文｜本週文法',
+    `【頁碼範圍】p.18–29
+【重點】自由文字 p.300 不得干擾
+【識別碼】GSAT-AZAR-2026-W03`,
+  ));
+  assert.equal(parsed.kind, 'azarGrammar');
+  if (parsed.kind !== 'azarGrammar') throw new Error('Expected Azar grammar');
+  assert.equal(parsed.route, 'week');
+  assert.deepEqual([parsed.startPage, parsed.endPage], [18, 29]);
+  assert.deepEqual(parsed.chapters[0].sections.map(section => section.code), ['1-6', '1-7']);
+});
+
+test('Azar legacy page labels use the same natural-science page range fallback', () => {
+  const parsed = parseCalendarTask(row(
+    '英文｜Azar英文文法（中階）',
+    '頁碼範圍：18–29 頁\n識別碼：GAST-AZAR-2026-003',
+  ));
+  assert.equal(parsed.kind, 'azarGrammar');
+  if (parsed.kind !== 'azarGrammar') throw new Error('Expected Azar grammar');
+  assert.deepEqual([parsed.startPage, parsed.endPage], [18, 29]);
 });
 
 test('Calendar parser gives Azar its own kind before the generic grammar parser', () => {
@@ -118,4 +148,75 @@ test('identifier alone still selects Azar and builds a separate Tracker row for 
     ],
   );
   assert.ok(definitions.every((definition: { f: { groupedWorkEntries?: unknown } }) => !definition.f.groupedWorkEntries));
+  assert.ok(definitions.every((definition: { f: { calendarTopic: string; calendarBookRangeLocked: boolean } }) =>
+    definition.f.calendarTopic === parsed.title && definition.f.calendarBookRangeLocked === false));
+  assert.deepEqual(Array.from(definitions, (definition: { f: { start: string; end: string } }) =>
+    [definition.f.start, definition.f.end]), [['31', '31'], ['32', '32'], ['33', '39']]);
+});
+
+test('Calendar Azar card shows natural-style pages, topic, and page-to-chapter mapping', () => {
+  const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
+  const start = runtime.indexOf('function renderExtraFields(');
+  const end = runtime.indexOf('\nfunction renderChineseFields(', start);
+  assert.ok(start >= 0 && end > start);
+  const context = createContext({
+    AZAR_GRAMMAR_BOOK_TITLE,
+    azarGrammarPageSummary,
+    isAzarGrammar: isAzarGrammarBookTitle,
+    isCalendarAzarGrammar: () => true,
+    isPrism: () => false,
+    isAce: () => false,
+    isEnglishPageMappedBook: () => false,
+    isListeningTestBook: () => false,
+    isWritingTest: () => false,
+    isGrammarReview: () => false,
+    readingOptions: () => '',
+    calendarTopicSourceRow: (item: StudyItem) => `<label>Google Calendar 當日主題</label>${item.f.calendarTopic}`,
+    checked: () => '',
+    reasonField: () => '',
+    esc: (value: unknown) => String(value ?? ''),
+  });
+  runInContext(runtime.slice(start, end), context);
+  const item = {
+    id: 'azar-section', type: 'extra', title: AZAR_GRAMMAR_BOOK_TITLE,
+    done: false, minutes: '', required: true, source: 'preset', presetKey: 'cal_azar_test_ch1_1-6',
+    f: { title: AZAR_GRAMMAR_BOOK_TITLE, start: '18', end: '27', calendarTopic: 'Azar｜Ch.1 現在式' },
+  } as StudyItem;
+  const html = context.renderExtraFields(item, false) as string;
+  for (const label of ['書名', '起始頁', '結束頁', 'Google Calendar 當日主題', '頁碼對應章節']) {
+    assert.match(html, new RegExp(label));
+  }
+  assert.match(html, /data-field="start" value="18"/);
+  assert.match(html, /data-field="end" value="27"/);
+  assert.match(html, /1-6通常不用於進行式的動詞/);
+  assert.doesNotMatch(html, /講義版本|頁碼對照/);
+
+  propagateDailyWorkRangeField(item, 'end', '25');
+  item.f.end = '27'; // Simulate the next Calendar refresh supplying the suggested range.
+  applyDailyWorkRangeOverrides(item);
+  assert.equal(item.f.end, '25');
+});
+
+test('regrouping a Calendar Azar section keeps its manually recorded page range', () => {
+  const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
+  const start = runtime.indexOf('function mergeGroupedEntry(');
+  const end = runtime.indexOf('\nfunction reconcileGroupedWorkEntries(', start);
+  assert.ok(start >= 0 && end > start);
+  const context = createContext({
+    cloneValue: (value: unknown) => structuredClone(value),
+    applyDailyWorkRangeOverrides,
+  });
+  runInContext(runtime.slice(start, end), context);
+  const template = {
+    presetKey: 'cal_azar_test_ch1_1-6', type: 'extra', done: false, minutes: '',
+    f: { title: AZAR_GRAMMAR_BOOK_TITLE, start: '18', end: '27', calendarTopic: '新的當日主題' },
+  };
+  const old = {
+    ...template,
+    f: { ...template.f, end: '25', calendarTopic: '舊主題', dailyWorkUserFields: { end: '25' } },
+  };
+  const merged = context.mergeGroupedEntry(template, old) as StudyItem;
+  assert.equal(merged.f.start, '18');
+  assert.equal(merged.f.end, '25');
+  assert.equal(merged.f.calendarTopic, '新的當日主題');
 });

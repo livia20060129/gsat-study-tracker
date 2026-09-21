@@ -1,26 +1,24 @@
 # 最新更新
 
-版本：v171.6.29
+版本：v171.6.30
 
-## 混合題與模考同日二選一
+## Azar 文法書 Calendar 讀取與卡片
 
-- 原本週五遇到混合題時會直接移除歷屆／模考限時作答，使用者無法自行決定。現在兩份原項目都保留，今日項目上方提供「混合題與作文／歷屆／模考限時作答」選擇。
-- 未選擇前，兩項都不計入完成率；選擇後只顯示並統計所選項目，另一項仍保存在紀錄中，可隨時改選。
-- 首頁學習時間、今日與週五結算完成率、週／月總結統一排除未選中的項目。
-- 週五選模考時，週六安排批改與訂正；改選混合題後已填的週六訂正暫時隱藏但不刪除，改回模考即可恢復。
-- 舊紀錄若已有一項完成或填寫資料，會沿用該項作為起始選擇。每日選擇沿用既有 JSON 紀錄與雲端合併，不新增資料表或 migration。
+- Azar 與自然教材同樣以書本印刷頁碼的起訖範圍讀取，不要求「講義版本」或「冊別」；Calendar Prompt 增加沒有講義版本的 Azar 範例。
+- `GSAT-AZAR-YYYY-...` 與舊 `GAST-AZAR-YYYY-...` 識別碼均可辨識；舊式「頁碼範圍：18–29 頁」備註也可讀取。標準欄位只讀 `【頁碼範圍】`，不會被自由文字中的其他頁碼干擾。
+- Calendar Azar 卡片顯示書名、可填寫的起始頁與結束頁、Google Calendar 當日主題及即時的頁碼對應章節。修改實際頁碼後重新整理或重新讀取 Calendar 仍保留使用者填寫值。
+- 原本依章節小節分開的項目維持分項，來源建議頁碼只取 Calendar 指定範圍與小節的交集；不改變既有勾選與分鐘資料。
 
 ## 驗證
 
-- 新增二選一、舊資料相容、完成率與時間排除，以及本機／Cloud payload 往返單元測試。
-- 新增 Chromium E2E，涵蓋選擇、重新載入、週六訂正、改選後隱藏與恢復已填內容。
-- 414 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置與 16 項 Chromium E2E 全部通過。
+- 新增 Azar 新舊識別碼、標準及舊備註、卡片欄位、頁碼覆寫與重新分組，以及 Prompt 範例測試。
+- 419 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置與 16 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.29-english-task-choice-required-files`
-- `gsat-study-tracker-v171.6.29-english-task-choice-full-project`
+- `gsat-study-tracker-v171.6.30-azar-natural-template-required-files`
+- `gsat-study-tracker-v171.6.30-azar-natural-template-full-project`
 
 ## Commit 建議
 
-`feat(schedule): choose between mixed writing and mock on collision days`
+`feat(calendar): align Azar page entry with natural materials`

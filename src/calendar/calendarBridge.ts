@@ -527,7 +527,7 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   if (isAzarGrammarBookTitle(azarSource) || isAzarGrammarIdentifier(note.identifier)) {
     const [startPage, endPage] = note.hasStandardFields
       ? structuredPageRange(note.pageRange)
-      : pageRange(`${title}\n${description}`);
+      : naturalPageRange(`${title}\n${description}`);
     return {
       ...base,
       title: withoutOriginalDate(title),
