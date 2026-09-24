@@ -1,12 +1,12 @@
 # 最新更新
 
-版本：v171.6.33
+版本：v171.6.34
 
-## GitHub CI 測試同步
+## 補齊 Azar 合併模組
 
-- GitHub 上的主程式已使用 Azar 同章合併，但舊測試仍尋找已移除的 `calendarAzarSectionDef`，造成 CI 與實際功能版本不一致。
-- Azar 測試已改驗證每章一張卡、相鄰頁碼合併及舊分項進度搬移，並補入 `azarGrammarChapterSummary` 測試相依。
-- 同步外出日完成率與 Calendar 隔離 VM 測試，確保 GitHub 執行的測試集合與本機 v171.6.33 完全一致；使用者功能維持 v171.6.32 行為。
+- v171.6.33 已更新 Azar 測試，但 GitHub 尚缺少測試與 runtime 共同依賴的 `src/study/azarChapterCards.ts`，因此出現 `ERR_MODULE_NOT_FOUND`。
+- 必要覆蓋包現在同時包含 Azar 合併來源模組、相關測試、外出日回歸測試及版本檔，不再只更新呼叫端。
+- 模組負責將舊 Azar 小節進度安全搬入章節卡；本次只補齊 GitHub 檔案集合，不改變 Tracker 使用者行為。
 
 ## 驗證
 
@@ -14,9 +14,9 @@
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.33-ci-test-sync-required-files`
-- `gsat-study-tracker-v171.6.33-ci-test-sync-full-project`
+- `gsat-study-tracker-v171.6.34-ci-dependency-required-files`
+- `gsat-study-tracker-v171.6.34-ci-dependency-full-project`
 
 ## Commit 建議
 
-`test(ci): sync release regression tests with current runtime`
+`fix(ci): include Azar chapter migration module`
