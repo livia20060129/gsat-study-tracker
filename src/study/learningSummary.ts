@@ -159,7 +159,7 @@ function isWeeklyCalendarItem(item: StudyItem): boolean {
 
 function visibleItems(record: StudyRecord): StudyItem[] {
   const items = Array.isArray(record.items) ? record.items : [];
-  return activeEnglishTaskItems(record, items.filter(item => !(record.mood === '外出' && item?.source === 'preset')));
+  return activeEnglishTaskItems(record, items);
 }
 
 /** These statuses keep their daily progress display but do not affect period completion. */

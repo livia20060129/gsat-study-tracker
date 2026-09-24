@@ -178,8 +178,8 @@ test('outside and unwell days keep daily progress but do not affect week or mont
   ]);
   unwell.mood = '身體不適';
   const outside = record('2026-09-16', [
-    item('outside-custom-done', true, '15', '國文', false),
-    item('outside-custom-open', false, '', '國文', false),
+    item('outside-preset-done', true, '15', '國文'),
+    item('outside-preset-open', false, '', '國文'),
   ]);
   outside.mood = '外出';
 
@@ -192,8 +192,11 @@ test('outside and unwell days keep daily progress but do not affect week or mont
   assert.equal(summary.days[1].completionPercent, unwellDailyCompletion);
   assert.equal(summary.days[1].completionIncludedInPeriod, false);
   assert.equal(summary.days[2].completionPercent, outsideDailyCompletion);
+  assert.equal(outsideDailyCompletion, 50);
   assert.equal(summary.days[2].completionIncludedInPeriod, false);
   assert.equal(summary.completion.settlementPercent, 100);
+  assert.equal(summary.subjectTime.totalMinutes, 45);
+  assert.equal(completedStudyTimeEntries([outside]).some(entry => entry.key.includes('outside-preset-done')), true);
   assert.equal(completionIncludedInPeriod(normal), true);
   assert.equal(completionIncludedInPeriod(unwell), false);
   assert.equal(completionIncludedInPeriod(outside), false);

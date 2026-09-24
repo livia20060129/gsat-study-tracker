@@ -44,9 +44,7 @@ function isWeeklyCalendarItem(item: StudyItem): boolean {
 
 function visibleItems(record: StudyRecord): StudyItem[] {
   const items = Array.isArray(record.items) ? record.items : [];
-  return activeEnglishTaskItems(record, items.filter(function isVisible(item): boolean {
-    return !(record.mood === '外出' && item?.source === 'preset');
-  }));
+  return activeEnglishTaskItems(record, items);
 }
 
 function isSaturdayMakeup(item: StudyItem): boolean {

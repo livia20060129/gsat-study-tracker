@@ -88,6 +88,19 @@ test('both math page panels stay vertically centered and left aligned with settl
   }
 });
 
+test('outside status keeps the daily schedule visible', async ({ page }) => {
+  await page.locator('#studyDate').fill('2026-09-16');
+  await page.locator('#studyDate').dispatchEvent('change');
+  const scheduledCards = page.locator('#dailyItemList .item');
+  const countBefore = await scheduledCards.count();
+  expect(countBefore).toBeGreaterThan(0);
+
+  await page.locator('#mood').selectOption({ label: '外出' });
+  await expect(scheduledCards).toHaveCount(countBefore);
+  await expect(page.locator('#dailyNotice')).toContainText('原有排程仍保留');
+  await expect(page.locator('#dailyNotice')).toContainText('不列入週／月完成率');
+});
+
 test('whole-card deletion requires confirmation and small-row deletion can be undone', async ({ page }) => {
   await page.selectOption('#itemType', 'extra');
   await page.click('#addItemBtn');

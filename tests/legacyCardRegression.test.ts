@@ -97,6 +97,7 @@ test('weekly completion metrics pass Friday and Sunday as separate snapshot cuto
         cutoffs.push(cutoffDate);
         return [];
       },
+      completionIncludedInPeriod: () => true,
       summarizeCompletionUnits: completion.summarizeCompletionUnits,
     },
   );
@@ -106,6 +107,33 @@ test('weekly completion metrics pass Friday and Sunday as separate snapshot cuto
   cutoffs.length = 0;
   weekMetrics('2026-09-14', 6);
   assert.deepEqual(cutoffs, Array(7).fill('2026-09-20'));
+});
+
+test('main-page weekly completion skips outside days without hiding their schedule', () => {
+  const awayRecord: StudyRecord = {
+    date: '2026-09-14', mood: '外出',
+    items: [item({ id: 'away-preset', source: 'preset', done: false })],
+  };
+  const visible = runtimeFunction<(record: StudyRecord) => StudyItem[]>('visibleItems', {
+    activeEnglishTaskItems: (_record: StudyRecord, items: StudyItem[]) => items,
+  });
+  assert.deepEqual(visible(awayRecord).map(entry => entry.id), ['away-preset']);
+
+  const weekMetrics = runtimeFunction<(date: string, lastDayIndex: number) => completion.CompletionMetrics>(
+    'completionMetricsForWeek',
+    {
+      mondayOf: (date: Date) => date,
+      parseDate: (date: string) => new Date(`${date}T12:00:00`),
+      dateString: (date: Date) => date.toISOString().slice(0, 10),
+      studyRecordForOverview: (date: string) => date === awayRecord.date ? awayRecord : { date, items: [] },
+      completionIncludedInPeriod: (record: StudyRecord) => record.mood !== '外出' && record.mood !== '身體不適',
+      completionUnitsForRecord: () => [completion.originalCompletionUnit(false)],
+      summarizeCompletionUnits: completion.summarizeCompletionUnits,
+    },
+  );
+  assert.equal(weekMetrics('2026-09-14', 0).itemTotal, 0);
+  assert.doesNotMatch(runtime, /固定排程已全部取消|固定排程全部取消|因外出取消/);
+  assert.match(runtime, /原有排程仍保留.*不列入週／月完成率/);
 });
 
 test('cloud bootstrap renders the saved day without replacing it with fallback presets', () => {
