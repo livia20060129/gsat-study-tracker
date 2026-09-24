@@ -364,6 +364,34 @@ test('groups Azar sections into chapter-sized progress blocks', () => {
   assert.equal(azar.segments.find(segment => segment.key === '1')?.recorded, false);
 });
 
+test('one completed Azar chapter card counts its actual page range only once', () => {
+  const chapter = item({
+    id: 'azar-chapter-range', type: 'extra', done: true,
+    f: { title: 'Azar英文文法（中階）', start: '18', end: '21', azarChapterNumber: 1,
+      azarLegacySections: [item({ id: 'archived-1', type: 'extra', done: true,
+        f: { title: 'Azar英文文法（中階）', start: '18', end: '20', azarSectionCode: '1-6' } })] },
+  });
+  const azar = materialProgressRows([record([chapter])]).find(row => row.id === 'english:azar-intermediate');
+  assert.ok(azar);
+  assert.equal(azar.recorded, 1);
+  assert.equal(azar.segments.find(segment => segment.key === '1')?.recorded, true);
+});
+
+test('unfinished merged Azar chapter keeps only completed legacy subsection coverage', () => {
+  const chapter = item({
+    id: 'azar-partial-chapter', type: 'extra', done: false, minutes: '20',
+    f: { title: 'Azar英文文法（中階）', start: '18', end: '21', azarChapterNumber: 1,
+      azarLegacySections: [
+        item({ id: 'old-1', type: 'extra', done: true, f: { start: '18', end: '20' } }),
+        item({ id: 'old-2', type: 'extra', done: false, f: { start: '21', end: '21' } }),
+      ] },
+  });
+  const azar = materialProgressRows([record([chapter])]).find(row => row.id === 'english:azar-intermediate');
+  assert.ok(azar);
+  assert.equal(azar.recorded, 1);
+  assert.equal(azar.segments.find(segment => segment.key === '1')?.completionPercent, 10);
+});
+
 test('uses the Tracker active account prefix and ignores other account records', () => {
   const values = new Map<string, string>([
     [ACTIVE_RECORD_PREFIX_KEY, 'study-v11:user:user-a:'],

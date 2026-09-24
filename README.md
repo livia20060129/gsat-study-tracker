@@ -1,6 +1,6 @@
 # GSAT Study Tracker
 
-目前版本：**v171.6.34**
+目前版本：**v171.6.35**
 
 個人版學測讀書追蹤器，整合每日／每週項目、Google Calendar 唯讀排程、Supabase 跨裝置同步、計時、完成率、教材進度與週／月總結。
 
@@ -177,6 +177,7 @@ VITE_GOOGLE_CLIENT_ID
 
 ## V. 此版本重要更新（v171.x.xx）
 
+- **v171.6.35**：直接比對 GitHub `main` 與本機最新版後，補齊唯一仍落後的三個有效檔案：Azar 資料模組的章節摘要、教材進度對章節合併卡的完成頁面判斷，以及對應回歸測試。修正 CI 顯示 `azarGrammarChapterSummary` 未匯出的版本錯置，並讓 Prompt 測試同時接受 Windows CRLF 與 Linux LF 換行；Tracker 使用者行為維持不變。
 - **v171.6.34**：補齊 GitHub 缺少的 `src/study/azarChapterCards.ts`，讓 Azar 同章合併、舊小節進度搬移與對應測試使用同一模組；必要覆蓋包改為同時包含測試及其新增來源相依，修正 CI 的 `ERR_MODULE_NOT_FOUND`。使用者功能維持不變。
 - **v171.6.33**：同步 GitHub CI 的 Azar、外出日完成率與 Calendar VM 回歸測試，使測試規格與目前的同章合併 runtime 一致；不再呼叫已移除的 `calendarAzarSectionDef`，並向隔離測試環境提供 `azarGrammarChapterSummary` 與 `completionIncludedInPeriod`。本版不改變 v171.6.32 的使用者功能。
 - **v171.6.32**：外出日不再取消或隱藏固定排程，所有項目仍可照常完成、計時並顯示當日進度；整個外出日只從週／月完成率、上期比較與固定小結排除，實際完成時間仍正常計入學習統計。首頁本週完成率與週／月總結套用相同排除規則。

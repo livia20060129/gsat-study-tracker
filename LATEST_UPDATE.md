@@ -1,12 +1,13 @@
 # 最新更新
 
-版本：v171.6.34
+版本：v171.6.35
 
-## 補齊 Azar 合併模組
+## GitHub 完整內容校準
 
-- v171.6.33 已更新 Azar 測試，但 GitHub 尚缺少測試與 runtime 共同依賴的 `src/study/azarChapterCards.ts`，因此出現 `ERR_MODULE_NOT_FOUND`。
-- 必要覆蓋包現在同時包含 Azar 合併來源模組、相關測試、外出日回歸測試及版本檔，不再只更新呼叫端。
-- 模組負責將舊 Azar 小節進度安全搬入章節卡；本次只補齊 GitHub 檔案集合，不改變 Tracker 使用者行為。
+- 已直接下載 GitHub `main`，逐檔比較所有來源、測試、公開資源、Supabase 與設定檔，並忽略 Windows／Linux 換行差異。
+- GitHub 唯一仍落後的有效內容是 `src/data/azarGrammar.ts`、`src/study/materialProgress.ts` 與 `tests/materialProgress.test.ts`；其餘目前使用中的檔案與本機一致。
+- 補入 `azarGrammarChapterSummary` 匯出，並同步章節合併卡的教材進度判斷與測試。本次修正版本錯置，不改變 v171.6.32 的外出日行為。
+- Prompt 回歸測試改為同時接受 Windows CRLF 與 Linux LF，確保從 GitHub 新下載後也能得到相同結果。
 
 ## 驗證
 
@@ -14,9 +15,9 @@
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.34-ci-dependency-required-files`
-- `gsat-study-tracker-v171.6.34-ci-dependency-full-project`
+- `gsat-study-tracker-v171.6.35-github-alignment-required-files`
+- `gsat-study-tracker-v171.6.35-github-alignment-full-project`
 
 ## Commit 建議
 
-`fix(ci): include Azar chapter migration module`
+`fix(ci): align Azar data and progress modules with tests`

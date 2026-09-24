@@ -405,7 +405,9 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
     const definitionId = material === '複習週記' ? 'math:複習週記' : `math:${material}:${book}`;
     markRange(recorded, definitionId, actualMathFields.start, actualMathFields.end);
   }
-  if (hasRecordedActivity(item) && !delegatesRangeToChildren) {
+  const hasCompletedAzarSection = Array.isArray(fields.azarLegacySections)
+    && (fields.azarLegacySections as StudyItem[]).some(section => section?.done === true);
+  if ((hasRecordedActivity(item) || hasCompletedAzarSection) && !delegatesRangeToChildren) {
     const title = String(fields.title ?? item.title ?? '');
     const mappedBook = canonicalPageMappedBook(fields.book ?? fields.title ?? item.title);
 
@@ -424,6 +426,14 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
       else if (/英文寫作測驗/.test(title)) markLinear(recorded, 'english:writing', fields.round);
       else if (isAzarGrammarBookTitle(title)) {
         if (fields.azarSectionCode) markExact(recorded, 'english:azar-intermediate', fields.azarSectionCode);
+        else if (fields.azarChapterNumber) {
+          if (item.done) markRange(recorded, 'english:azar-intermediate', fields.start, fields.end);
+          else if (Array.isArray(fields.azarLegacySections)) {
+            (fields.azarLegacySections as StudyItem[])
+              .filter(section => section?.done === true && !!section.f)
+              .forEach(section => markRange(recorded, 'english:azar-intermediate', section.f.start, section.f.end));
+          }
+        }
         else markRange(recorded, 'english:azar-intermediate', fields.start, fields.end);
       }
       else if (/英文文法總複習講義/.test(title)) markRange(recorded, 'english:grammar', fields.start, fields.end);

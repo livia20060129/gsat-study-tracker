@@ -23,6 +23,6 @@ test('Calendar prompt keeps per-event identifiers unique', () => {
 });
 
 test('Azar prompt uses printed pages without a material-version field', () => {
-  assert.match(promptHtml, /Azar 英文文法（中階）範例<\/h3><pre>【頁碼範圍】p\.18–29\n【識別碼】GSAT-AZAR-2026-W03<\/pre>/);
+  assert.match(promptHtml, /Azar 英文文法（中階）範例<\/h3><pre>【頁碼範圍】p\.18–29\r?\n【識別碼】GSAT-AZAR-2026-W03<\/pre>/);
   assert.match(promptHtml, /Azar 不加 <code>【講義版本】<\/code>/);
 });
