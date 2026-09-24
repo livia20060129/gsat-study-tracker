@@ -1,12 +1,12 @@
 # 最新更新
 
-版本：v171.6.32
+版本：v171.6.33
 
-## 外出日保留排程
+## GitHub CI 測試同步
 
-- 選擇「外出」後不再取消或隱藏原有排程；每日卡片仍可照常勾選、填寫時間及查看進度。
-- 外出日的已完成時間仍計入學習時間與科目分配，但該日完成率不納入週／月完成率、上期比較及固定小結。
-- 首頁本週完成率與週／月總結共用相同排除規則，避免兩個頁面的統計結果不一致。
+- GitHub 上的主程式已使用 Azar 同章合併，但舊測試仍尋找已移除的 `calendarAzarSectionDef`，造成 CI 與實際功能版本不一致。
+- Azar 測試已改驗證每章一張卡、相鄰頁碼合併及舊分項進度搬移，並補入 `azarGrammarChapterSummary` 測試相依。
+- 同步外出日完成率與 Calendar 隔離 VM 測試，確保 GitHub 執行的測試集合與本機 v171.6.33 完全一致；使用者功能維持 v171.6.32 行為。
 
 ## 驗證
 
@@ -14,9 +14,9 @@
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.32-away-schedule-required-files`
-- `gsat-study-tracker-v171.6.32-away-schedule-full-project`
+- `gsat-study-tracker-v171.6.33-ci-test-sync-required-files`
+- `gsat-study-tracker-v171.6.33-ci-test-sync-full-project`
 
 ## Commit 建議
 
-`fix(summary): keep away-day schedules and exclude period completion`
+`test(ci): sync release regression tests with current runtime`
