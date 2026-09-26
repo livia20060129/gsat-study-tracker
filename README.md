@@ -1,6 +1,6 @@
 # GSAT Study Tracker
 
-目前版本：**v171.6.36**
+目前版本：**v171.6.37**
 
 個人版學測讀書追蹤器，整合每日／每週項目、Google Calendar 唯讀排程、Supabase 跨裝置同步、計時、完成率、教材進度與週／月總結。
 
@@ -177,6 +177,7 @@ VITE_GOOGLE_CLIENT_ID
 
 ## V. 此版本重要更新（v171.x.xx）
 
+- **v171.6.37**：針對 iOS 26 WebKit 原生日期欄的已知寬度計算錯誤，主日期欄不再使用會把水平 padding 算到容器外的 `width: 100%`，改由 flex stretch 依卡片內容寬度配置完整外框；保留原生日期選擇器與欄內留白。
 - **v171.6.36**：修正 iPhone／手機瀏覽器的原生日期輸入元件會撐出「日期」卡片框線；日期欄現在可依容器縮小，手機單欄 Grid 也改用可收縮軌道，維持完整框線與既有日期選擇功能。
 - **v171.6.35**：直接比對 GitHub `main` 與本機最新版後，補齊唯一仍落後的三個有效檔案：Azar 資料模組的章節摘要、教材進度對章節合併卡的完成頁面判斷，以及對應回歸測試。修正 CI 顯示 `azarGrammarChapterSummary` 未匯出的版本錯置，並讓 Prompt 測試同時接受 Windows CRLF 與 Linux LF 換行；Tracker 使用者行為維持不變。
 - **v171.6.34**：補齊 GitHub 缺少的 `src/study/azarChapterCards.ts`，讓 Azar 同章合併、舊小節進度搬移與對應測試使用同一模組；必要覆蓋包改為同時包含測試及其新增來源相依，修正 CI 的 `ERR_MODULE_NOT_FOUND`。使用者功能維持不變。

@@ -82,6 +82,7 @@ test('mobile settings use a bottom sheet and CI runs real browser tests', () => 
 
 test('mobile date input can shrink without escaping its card', () => {
   assert.match(styles, /input\[type=date\]\{[^}]*min-inline-size:0;max-inline-size:100%/);
+  assert.match(styles, /#studyDate\{width:auto;max-width:none;inline-size:auto;max-inline-size:none;align-self:stretch\}/);
   assert.match(styles, /@media\(max-width:720px\)[\s\S]*?\.grid-2,\.grid-3,[^}]*grid-template-columns:minmax\(0,1fr\)/);
 });
 
