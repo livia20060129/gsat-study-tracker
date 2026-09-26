@@ -330,6 +330,19 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
   await page.waitForTimeout(280);
   const afterHeight = await page.locator('#routineTimeField').evaluate(node => node.getBoundingClientRect().height);
   expect(Math.abs(afterHeight - beforeHeight)).toBeLessThan(1);
+
+  const dateContainment = await page.locator('#studyDate').evaluate(node => {
+    const input = node.getBoundingClientRect();
+    const field = node.closest('.today-info-centered-field')?.getBoundingClientRect();
+    return {
+      inputLeft: input.left,
+      inputRight: input.right,
+      fieldLeft: field?.left ?? 0,
+      fieldRight: field?.right ?? 0,
+    };
+  });
+  expect(dateContainment.inputLeft).toBeGreaterThanOrEqual(dateContainment.fieldLeft);
+  expect(dateContainment.inputRight).toBeLessThanOrEqual(dateContainment.fieldRight);
 });
 
 test('cloud conflict prompt names the card, field, and both values', async ({ page }) => {
