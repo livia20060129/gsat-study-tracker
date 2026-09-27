@@ -1,23 +1,25 @@
 # 最新更新
 
-版本：v171.6.37
+版本：v171.6.38
 
-## iOS 日期欄寬度修正
+## 隱私權、條款與支援頁面中英文切換
 
-- 確認根因是 iOS 26 WebKit 的原生日期控制項已知問題：`width: 100%` 搭配 padding 時，水平 padding 會被錯誤加到容器寬度之外。
-- 主日期欄改為 `width: auto` 並由 flex stretch 計算完整外框寬度，不再走 Safari 有問題的百分比寬度路徑。
-- 保留原生日期選擇器、原有水平留白、欄位置中方式與桌面版三欄配置，不以裁切或縮減 padding 掩蓋問題。
-- 手機版單欄 Grid 仍使用 `minmax(0, 1fr)`，並由 CSS 回歸測試與 390px viewport 邊界檢查共同保護。
+- 隱私權政策、服務條款及使用者支援三個頁面都新增同頁「中文／English」切換，不需要另開一份英文頁面。
+- 語言選擇會跨頁保存，並同步更新網址參數、頁面語言、瀏覽器分頁標題及頁面說明；英文瀏覽器首次開啟時會直接顯示英文。
+- 隱私權政策加入完整英文資料處理說明，明確揭露網站未整合第三方 AI／ML API、不會自動把 Google Workspace API 資料傳送給 AI 服務，也不會用於訓練或改善通用 AI／ML 模型。
+- 中英文隱私權政策都加入 Google API Services User Data Policy 的 Limited Use 遵循聲明。
+- 本次只更新公開說明頁面，不變更 Google OAuth 權限範圍、Calendar 讀取流程或既有 Tracker 資料。
 
 ## 驗證
 
-- 425 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置與 17 項 Chromium E2E 全部通過。
+- 新增公開頁面結構、AI／ML 揭露及跨頁語言保存測試。
+- 427 項單元／回歸測試、TypeScript 型別檢查、Vite 正式建置與 18 項 Chromium E2E 全部通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.37-ios-date-width-required-files`
-- `gsat-study-tracker-v171.6.37-ios-date-width-full-project`
+- `gsat-study-tracker-v171.6.38-bilingual-legal-pages-required-files`
+- `gsat-study-tracker-v171.6.38-bilingual-legal-pages-full-project`
 
 ## Commit 建議
 
-`fix(ui): avoid iOS date input width overflow`
+`feat(legal): add bilingual privacy terms and support pages`

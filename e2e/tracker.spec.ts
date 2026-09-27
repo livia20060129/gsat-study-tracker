@@ -1,5 +1,36 @@
 import { expect, test } from '@playwright/test';
 
+test('legal pages switch languages and preserve the choice across navigation', async ({ page }) => {
+  await page.goto('/privacy.html?lang=zh');
+  await expect(page.locator('[data-legal-panel="zh-Hant"]')).toBeVisible();
+  await expect(page.locator('[data-legal-panel="en"]')).toBeHidden();
+
+  await page.locator('[data-legal-language="en"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
+  await expect(page).toHaveTitle('Privacy Policy | GSAT Study Tracker');
+  await expect(page).toHaveURL(/lang=en/);
+
+  await page.goto('/terms.html');
+  await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
+  await expect(page).toHaveTitle('Terms of Service | GSAT Study Tracker');
+
+  await page.goto('/support.html');
+  await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
+  await expect(page).toHaveTitle('User Support | GSAT Study Tracker');
+  await page.locator('[data-legal-language="zh-Hant"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hant');
+  await expect(page.locator('[data-legal-panel="zh-Hant"]')).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileBounds = await page.locator('.document, .language-switch').evaluateAll(elements => elements.map(element => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, right: rect.right };
+  }));
+  expect(mobileBounds[1].left).toBeGreaterThanOrEqual(mobileBounds[0].left);
+  expect(mobileBounds[1].right).toBeLessThanOrEqual(mobileBounds[0].right);
+});
+
 const pageErrors = new WeakMap<object, string[]>();
 
 test.beforeEach(async ({ page }) => {
