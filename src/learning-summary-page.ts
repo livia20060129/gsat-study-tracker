@@ -21,6 +21,7 @@ import {
   summarizeSleepPeriod,
   type SleepPeriodSummary,
 } from './study/sleep.ts';
+import { sameHueDetailColor } from './study/detailColors.ts';
 import {
   SUBJECT_TIME_COLORS,
   SUBJECT_TIME_SHORT_LABELS,
@@ -86,13 +87,6 @@ function comparisonClass(value: number, lowerIsBetter = false): string {
 function formatDateLabel(value: string): string {
   const [year, month, day] = value.split('-').map(Number);
   return `${year} 年 ${month} 月 ${day} 日`;
-}
-
-function tintHex(hex: string, ratio: number): string {
-  const value = hex.replace('#', '');
-  const channels = [0, 2, 4].map(index => Number.parseInt(value.slice(index, index + 2), 16));
-  const tinted = channels.map(channel => Math.round(channel + (255 - channel) * ratio));
-  return `#${tinted.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function opaqueStudyTimeColor(intensity: number): string {
@@ -207,24 +201,29 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
     const detail = naturalDetail ?? summarizeStudyItemTime(summary.timeEntries, selectedSubject);
     title.textContent = `科目分配｜${selectedSubject}`;
     const baseColor = SUBJECT_TIME_COLORS[selectedSubject];
-    const maxPercent = Math.max(1, ...detail.slices.map(slice => slice.percent));
-    const naturalSubjectMax = new Map<SubjectTimeSubject, number>();
+    const naturalSubjectCounts = new Map<SubjectTimeSubject, number>();
     if (naturalDetail) {
       naturalDetail.slices.forEach(slice => {
-        naturalSubjectMax.set(slice.subject, Math.max(naturalSubjectMax.get(slice.subject) ?? 0, slice.percent));
+        naturalSubjectCounts.set(slice.subject, (naturalSubjectCounts.get(slice.subject) ?? 0) + 1);
       });
     }
+    const naturalSubjectIndexes = new Map<SubjectTimeSubject, number>();
     const slices = naturalDetail
-      ? naturalDetail.slices.map(slice => ({
+      ? naturalDetail.slices.map(slice => {
+        const index = naturalSubjectIndexes.get(slice.subject) ?? 0;
+        naturalSubjectIndexes.set(slice.subject, index + 1);
+        return {
+          ...slice,
+          color: sameHueDetailColor(
+            SUBJECT_TIME_COLORS[slice.subject],
+            index,
+            naturalSubjectCounts.get(slice.subject) ?? 1,
+          ),
+        };
+      })
+      : detail.slices.map((slice, index) => ({
         ...slice,
-        color: tintHex(
-          SUBJECT_TIME_COLORS[slice.subject],
-          0.42 * (1 - slice.percent / Math.max(1, naturalSubjectMax.get(slice.subject) ?? 1)),
-        ),
-      }))
-      : detail.slices.map(slice => ({
-        ...slice,
-        color: tintHex(baseColor, 0.58 * (1 - slice.percent / maxPercent)),
+        color: sameHueDetailColor(baseColor, index, detail.slices.length),
       }));
     const detailRows = Math.max(1, Math.min(4, slices.length));
     const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${formatHours(slice.minutes)} hr</span></li>`).join('');

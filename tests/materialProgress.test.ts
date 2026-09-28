@@ -45,11 +45,13 @@ test('classifies the progress chart by the same material groups as manual entry'
   assert.equal(groupFor('math:新關鍵:1~2'), '複習講義');
   assert.equal(groupFor('math:教學講義:1'), '分冊講義');
   assert.equal(groupFor('natural:物理:123日的淬鍊'), '物理');
+  assert.equal(groupFor('natural:物理:新關鍵'), '物理');
   assert.equal(groupFor('natural:化學:好考點'), '化學');
   assert.equal(groupFor('natural:化學:新關鍵'), '化學');
   assert.equal(groupFor('natural:生物:123日的淬鍊'), '生物');
   assert.equal(groupFor('natural:生物:新關鍵'), '生物');
   assert.equal(groupFor('natural:地科:123日的淬鍊'), '地科');
+  assert.equal(groupFor('natural:地科:新關鍵'), '地科');
 });
 
 test('Biology New Key groups its progress bar by large topics and records actual pages', () => {
@@ -98,6 +100,49 @@ test('Chemistry New Key groups units and review sections into large-topic progre
       '單元 8 實驗（p.225–252）',
       '歷屆闖關練功坊（p.253–260）',
       '科學探究練功坊（p.261–281）',
+    ],
+  );
+});
+
+test('Physics New Key groups units and final practice sections into large-topic progress blocks', () => {
+  const physics = materialProgressRows([])
+    .find(row => row.id === 'natural:物理:新關鍵');
+  assert.ok(physics);
+  assert.equal(physics.unitLabel, '大主題');
+  assert.equal(physics.segments.length, 9);
+  assert.deepEqual(
+    physics.segments.map(segment => segment.label),
+    [
+      '單元 1 緒論（p.2–17）',
+      '單元 2 物體的運動（p.18–60）',
+      '單元 3 物質的組成與交互作用（p.61–98）',
+      '單元 4 電與磁的統一（p.99–161）',
+      '單元 5 能量（p.162–192）',
+      '單元 6 量子現象（p.193–222）',
+      '單元 7 現象背後的物理密碼（p.223–240）',
+      '諾貝爾獎練功坊（p.241–251）',
+      '科學探究練功坊（p.252–270）',
+    ],
+  );
+});
+
+test('Earth Science New Key groups its progress bar into eight large topics', () => {
+  const earthScience = materialProgressRows([])
+    .find(row => row.id === 'natural:地科:新關鍵');
+  assert.ok(earthScience);
+  assert.equal(earthScience.unitLabel, '大主題');
+  assert.equal(earthScience.segments.length, 8);
+  assert.deepEqual(
+    earthScience.segments.map(segment => segment.label),
+    [
+      '單元 01 地球的歷史（p.2–19）',
+      '單元 02 天文（p.20–73）',
+      '單元 03 地質（p.74–103）',
+      '單元 04 大氣（p.104–137）',
+      '單元 05 海洋（p.138–177）',
+      '單元 06 天然災害（p.178–205）',
+      '單元 07 全球氣候變遷與資源永續發展（p.206–233）',
+      '單元 08 進階探究題（p.234–260）',
     ],
   );
 });

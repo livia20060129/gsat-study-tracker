@@ -734,6 +734,14 @@ test('learning summary uses one week/month control for the complete page', async
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜英文');
   await expect(page.locator('#summarySubjectDistribution .summary-subject-detail-name')).toHaveCount(5);
+  const englishDetailColors = await page.locator('#summarySubjectDistribution .summary-subject-detail-list i')
+    .evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
+  expect(new Set(englishDetailColors).size).toBe(5);
+  const englishBrightness = englishDetailColors.map(color => {
+    const channels = color.match(/\d+/g)?.slice(0, 3).map(Number) ?? [0, 0, 0];
+    return channels.reduce((sum, channel) => sum + channel, 0) / 3;
+  });
+  expect(Math.max(...englishBrightness) - Math.min(...englishBrightness)).toBeGreaterThan(80);
   const detailPositions = await page.locator('#summarySubjectDistribution .summary-subject-detail-name').evaluateAll(nodes => nodes.map(node => {
     const rect = node.closest('li')?.getBoundingClientRect();
     return { left: rect?.left ?? 0, top: rect?.top ?? 0 };

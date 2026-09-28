@@ -17,7 +17,12 @@ import {
   isAzarGrammarBookTitle,
 } from '../data/azarGrammar.ts';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from '../data/mathMaterialPageMaps.ts';
-import { BIOLOGY_NEW_KEY_PAGE_MAP, CHEMISTRY_NEW_KEY_PAGE_MAP } from '../data/naturalMaterialPageMaps.ts';
+import {
+  BIOLOGY_NEW_KEY_PAGE_MAP,
+  CHEMISTRY_NEW_KEY_PAGE_MAP,
+  EARTH_SCIENCE_NEW_KEY_PAGE_MAP,
+  PHYSICS_NEW_KEY_PAGE_MAP,
+} from '../data/naturalMaterialPageMaps.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
 import { recordedPageRangeFields } from './recordedPageRange.ts';
@@ -297,6 +302,14 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
   {
     id: 'natural:化學:新關鍵', subject: 'natural', group: '化學',
     title: '自然｜化學｜新關鍵', unitLabel: '大主題', segments: largeTopicSegments(CHEMISTRY_NEW_KEY_PAGE_MAP),
+  },
+  {
+    id: 'natural:物理:新關鍵', subject: 'natural', group: '物理',
+    title: '自然｜物理｜新關鍵', unitLabel: '大主題', segments: largeTopicSegments(PHYSICS_NEW_KEY_PAGE_MAP),
+  },
+  {
+    id: 'natural:地科:新關鍵', subject: 'natural', group: '地科',
+    title: '自然｜地科｜新關鍵', unitLabel: '大主題', segments: largeTopicSegments(EARTH_SCIENCE_NEW_KEY_PAGE_MAP),
   },
 ];
 
