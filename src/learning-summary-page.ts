@@ -21,7 +21,7 @@ import {
   summarizeSleepPeriod,
   type SleepPeriodSummary,
 } from './study/sleep.ts';
-import { sameHueDetailColor } from './study/detailColors.ts';
+import { subjectFamilyDetailColor } from './study/detailColors.ts';
 import {
   SUBJECT_TIME_COLORS,
   SUBJECT_TIME_SHORT_LABELS,
@@ -214,7 +214,7 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
         naturalSubjectIndexes.set(slice.subject, index + 1);
         return {
           ...slice,
-          color: sameHueDetailColor(
+          color: subjectFamilyDetailColor(
             SUBJECT_TIME_COLORS[slice.subject],
             index,
             naturalSubjectCounts.get(slice.subject) ?? 1,
@@ -223,7 +223,7 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
       })
       : detail.slices.map((slice, index) => ({
         ...slice,
-        color: sameHueDetailColor(baseColor, index, detail.slices.length),
+        color: subjectFamilyDetailColor(baseColor, index, detail.slices.length),
       }));
     const detailRows = Math.max(1, Math.min(4, slices.length));
     const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${formatHours(slice.minutes)} hr</span></li>`).join('');
