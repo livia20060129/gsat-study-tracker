@@ -5,6 +5,7 @@ import {
   updateVocabularyWordEntries,
   VOCABULARY_CONTENT_KINDS,
   VOCABULARY_PARTS_OF_SPEECH,
+  vocabularyEntryKey,
   vocabularyReviewEntries,
   type VocabularyContentKind,
   type VocabularyPartOfSpeechField,
@@ -76,7 +77,7 @@ function createWordLink(entry: VocabularyReviewEntry): HTMLElement {
   return link;
 }
 
-function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits): void {
+function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits): boolean {
   let changed = false;
   try {
     loadedRecords = loadedRecords.map(record => {
@@ -87,14 +88,16 @@ function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits
       changed = true;
       return edited;
     });
-    if (!changed) return;
+    if (!changed) return false;
     allEntries = vocabularyReviewEntries(loadedRecords);
     const status = element<HTMLParagraphElement>('vocabularySaveStatus');
-    status.textContent = `已儲存「${entry.text}」的整理資料，回到 Tracker 後會接續雲端同步。`;
+    status.textContent = `已儲存「${edits.text ?? entry.text}」的整理資料，回到 Tracker 後會接續雲端同步。`;
+    return true;
   } catch {
     const error = element<HTMLParagraphElement>('vocabularyError');
     error.textContent = `無法儲存「${entry.text}」的修改，請確認瀏覽器儲存權限後再試一次。`;
     error.hidden = false;
+    return false;
   }
 }
 
@@ -162,6 +165,21 @@ function createTranslationEditor(entry: VocabularyReviewEntry): HTMLLabelElement
   return label;
 }
 
+function createTextEditor(entry: VocabularyReviewEntry): HTMLLabelElement {
+  const label = document.createElement('label');
+  label.className = 'vocabulary-text-editor';
+  const title = document.createElement('span');
+  title.textContent = '英文內容';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = entry.text;
+  input.placeholder = '輸入英文單字、組合或句子';
+  input.autocomplete = 'off';
+  input.dataset.vocabularyText = entry.key;
+  label.append(title, input);
+  return label;
+}
+
 function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   const article = document.createElement('article');
   article.className = 'vocabulary-row';
@@ -199,6 +217,7 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   if (editingEntryKeys.has(entry.key)) {
     const editors = document.createElement('div');
     editors.className = 'vocabulary-editors';
+    editors.append(createTextEditor(entry));
     editors.append(createContentKindEditor(entry));
     if (activeContentKind === '單字') editors.append(createPartsOfSpeechEditor(entry));
     else editors.classList.add('is-translation-only');
@@ -378,6 +397,26 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
     groupingMode = 'alphabetical';
     activePartOfSpeech = '全部';
     render();
+    return;
+  }
+  if (target.matches('[data-vocabulary-text]')) {
+    const nextText = target.value.normalize('NFKC').trim().replace(/\s+/g, ' ');
+    if (!nextText) {
+      target.value = entry.text;
+      const error = element<HTMLParagraphElement>('vocabularyError');
+      error.textContent = '英文內容不能留白。';
+      error.hidden = false;
+      return;
+    }
+    if (nextText === entry.text) return;
+    if (!saveEntryEdits(entry, { text: nextText })) {
+      target.value = entry.text;
+      return;
+    }
+    element<HTMLParagraphElement>('vocabularyError').hidden = true;
+    editingEntryKeys.delete(entry.key);
+    editingEntryKeys.add(vocabularyEntryKey(nextText));
+    renderEntries();
     return;
   }
   if (target.matches('[data-vocabulary-pos]')) {

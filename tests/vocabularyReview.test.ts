@@ -70,7 +70,7 @@ test('keeps combinations and sentences separate from parts of speech', () => {
   assert.deepEqual(entries[1].tags, []);
 });
 
-test('updates every matching word occurrence with editable parts of speech and translation', () => {
+test('updates every matching word occurrence with editable English text, parts of speech, and translation', () => {
   const records = [
     record('2026-09-19', [item('one', [{ text: 'Leverage', noun: true }])]),
     record('2026-09-20', [item('two', [{ text: ' leverage ', verb: true }])]),
@@ -78,18 +78,22 @@ test('updates every matching word occurrence with editable parts of speech and t
   const partsOfSpeech = new Set<'adjective' | 'verb'>(['verb', 'adjective']);
 
   assert.equal(updateVocabularyWordEntries(records[0], 'leverage', {
+    text: 'Applied leverage',
     partsOfSpeech,
     translation: '運用；影響力',
   }), true);
   assert.equal(updateVocabularyWordEntries(records[1], 'leverage', {
+    text: 'Applied leverage',
     partsOfSpeech,
     translation: '運用；影響力',
   }), true);
 
   const entries = vocabularyReviewEntries(records);
+  assert.equal(entries[0].text, 'Applied leverage');
   assert.deepEqual(entries[0].tags, ['Verb', 'Adjective']);
   assert.equal(entries[0].translation, '運用；影響力');
   assert.equal((records[0].items[0].f.words?.[0] as Record<string, unknown>).noun, false);
+  assert.equal((records[1].items[0].f.words?.[0] as Record<string, unknown>).text, 'Applied leverage');
 });
 
 test('changes every matching occurrence between word, combination, and sentence content kinds', () => {

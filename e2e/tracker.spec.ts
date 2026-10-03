@@ -118,6 +118,17 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(leverageRow.locator('[data-vocabulary-pos], [data-vocabulary-translation]')).toHaveCount(0);
   await expect(leverageRow.locator('.vocabulary-readonly-details')).toContainText('Noun、Verb');
   await leverageRow.getByRole('button', { name: '編輯「Leverage」' }).click();
+  await expect(leverageRow.getByLabel('英文內容')).toHaveValue('Leverage');
+  await leverageRow.getByLabel('英文內容').fill('Applied leverage');
+  await leverageRow.getByLabel('英文內容').press('Tab');
+  await expect(page.getByText('已儲存「Applied leverage」的整理資料')).toBeVisible();
+  const renamedRow = page.locator('.vocabulary-row[data-entry-key="applied leverage"]');
+  await expect(renamedRow.getByRole('link')).toHaveText('Applied leverage');
+  await page.reload();
+  await renamedRow.getByRole('button', { name: '編輯「Applied leverage」' }).click();
+  await renamedRow.getByLabel('英文內容').fill('Leverage');
+  await renamedRow.getByLabel('英文內容').press('Tab');
+  await expect(page.getByText('已儲存「Leverage」的整理資料')).toBeVisible();
   await expect(leverageRow.getByLabel('Noun', { exact: true })).toBeChecked();
   await expect(leverageRow.getByLabel('Verb', { exact: true })).toBeChecked();
   await leverageRow.getByLabel('Adjective', { exact: true }).check();
@@ -136,7 +147,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   }));
   expect(storedWords).toEqual([
     { word: expect.objectContaining({ text: 'Leverage', noun: true, verb: true, adjective: true, translation: '運用；影響力' }), localDirty: true },
-    { word: expect.objectContaining({ text: ' leverage ', noun: true, verb: true, adjective: true, translation: '運用；影響力' }), localDirty: true },
+    { word: expect.objectContaining({ text: 'Leverage', noun: true, verb: true, adjective: true, translation: '運用；影響力' }), localDirty: true },
   ]);
 
   await page.getByRole('button', { name: '詞性', exact: true }).click();

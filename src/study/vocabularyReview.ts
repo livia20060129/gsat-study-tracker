@@ -27,6 +27,7 @@ export type VocabularyContentKind = (typeof VOCABULARY_CONTENT_KINDS)[number];
 export interface VocabularyWordEdits {
   contentKind?: VocabularyContentKind;
   partsOfSpeech?: ReadonlySet<VocabularyPartOfSpeechField>;
+  text?: string;
   translation?: string;
 }
 
@@ -195,6 +196,13 @@ function updateItemWords(
       if (vocabularyEntryKey(text) !== key) continue;
       const word = typeof rawWord === 'string' ? { text: rawWord } : rawWord;
       if (typeof rawWord === 'string') item.f.words[index] = word;
+      if (edits.text !== undefined) {
+        const nextText = normalizedWordText(edits.text);
+        if (nextText && word.text !== nextText) {
+          word.text = nextText;
+          changed = true;
+        }
+      }
       if (edits.contentKind) {
         const fixedCombination = edits.contentKind === '組合';
         const beautifulSentences = edits.contentKind === '句子';
