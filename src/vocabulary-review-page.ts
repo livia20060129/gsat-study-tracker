@@ -3,8 +3,10 @@ import { markRecordLocallyEdited } from './storage/recordSync.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   updateVocabularyWordEntries,
+  VOCABULARY_CONTENT_KINDS,
   VOCABULARY_PARTS_OF_SPEECH,
   vocabularyReviewEntries,
+  type VocabularyContentKind,
   type VocabularyPartOfSpeechField,
   type VocabularyReviewEntry,
   type VocabularyWordEdits,
@@ -12,7 +14,6 @@ import {
 import type { StudyRecord } from './types.ts';
 
 type VocabularyGroupingMode = 'alphabetical' | 'partOfSpeech';
-type VocabularyContentKind = '單字' | '組合' | '句子';
 
 let allEntries: VocabularyReviewEntry[] = [];
 let loadedRecords: StudyRecord[] = [];
@@ -125,6 +126,27 @@ function createPartsOfSpeechEditor(entry: VocabularyReviewEntry): HTMLFieldSetEl
   return fieldset;
 }
 
+function createContentKindEditor(entry: VocabularyReviewEntry): HTMLFieldSetElement {
+  const fieldset = document.createElement('fieldset');
+  fieldset.className = 'vocabulary-kind-editor';
+  const legend = document.createElement('legend');
+  legend.textContent = '內容類型';
+  fieldset.append(legend);
+
+  for (const kind of VOCABULARY_CONTENT_KINDS) {
+    const option = document.createElement('label');
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = `vocabulary-kind-${entry.key}`;
+    radio.value = kind;
+    radio.dataset.vocabularyContentKind = kind;
+    radio.checked = kind === activeContentKind;
+    option.append(radio, document.createTextNode(kind));
+    fieldset.append(option);
+  }
+  return fieldset;
+}
+
 function createTranslationEditor(entry: VocabularyReviewEntry): HTMLLabelElement {
   const label = document.createElement('label');
   label.className = 'vocabulary-translation-editor';
@@ -177,6 +199,7 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   if (editingEntryKeys.has(entry.key)) {
     const editors = document.createElement('div');
     editors.className = 'vocabulary-editors';
+    editors.append(createContentKindEditor(entry));
     if (activeContentKind === '單字') editors.append(createPartsOfSpeechEditor(entry));
     else editors.classList.add('is-translation-only');
     editors.append(createTranslationEditor(entry));
@@ -263,8 +286,7 @@ function renderGroupingSwitch(): void {
 
 function renderContentKindSwitch(): void {
   const switcher = element<HTMLDivElement>('vocabularyContentKind');
-  const kinds: VocabularyContentKind[] = ['單字', '組合', '句子'];
-  switcher.dataset.active = String(kinds.indexOf(activeContentKind));
+  switcher.dataset.active = String(VOCABULARY_CONTENT_KINDS.indexOf(activeContentKind));
   for (const button of switcher.querySelectorAll<HTMLButtonElement>('[data-content-kind]')) {
     button.setAttribute('aria-pressed', String(button.dataset.contentKind === activeContentKind));
   }
@@ -348,6 +370,16 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
   const row = target.closest<HTMLElement>('[data-entry-key]');
   const entry = allEntries.find(candidate => candidate.key === row?.dataset.entryKey);
   if (!entry) return;
+  if (target.matches('[data-vocabulary-content-kind]')) {
+    const kind = target.dataset.vocabularyContentKind as VocabularyContentKind;
+    if (!VOCABULARY_CONTENT_KINDS.includes(kind)) return;
+    saveEntryEdits(entry, { contentKind: kind });
+    activeContentKind = kind;
+    groupingMode = 'alphabetical';
+    activePartOfSpeech = '全部';
+    render();
+    return;
+  }
   if (target.matches('[data-vocabulary-pos]')) {
     const fieldset = target.closest<HTMLElement>('.vocabulary-pos-editor');
     if (fieldset) saveEntryEdits(entry, { partsOfSpeech: selectedPartsOfSpeech(fieldset) });
@@ -367,7 +399,7 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
   renderEntries();
   if (editingEntryKeys.has(key)) {
     element<HTMLDivElement>('vocabularyList')
-      .querySelector<HTMLInputElement>(`[data-entry-key="${CSS.escape(key)}"] [data-vocabulary-translation]`)
+      .querySelector<HTMLInputElement>(`[data-entry-key="${CSS.escape(key)}"] [data-vocabulary-content-kind]:checked`)
       ?.focus();
   }
 });

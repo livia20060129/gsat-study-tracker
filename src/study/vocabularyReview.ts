@@ -20,7 +20,12 @@ export const VOCABULARY_PARTS_OF_SPEECH = [
 
 export type VocabularyPartOfSpeechField = (typeof VOCABULARY_PARTS_OF_SPEECH)[number][0];
 
+export const VOCABULARY_CONTENT_KINDS = ['單字', '組合', '句子'] as const;
+
+export type VocabularyContentKind = (typeof VOCABULARY_CONTENT_KINDS)[number];
+
 export interface VocabularyWordEdits {
+  contentKind?: VocabularyContentKind;
   partsOfSpeech?: ReadonlySet<VocabularyPartOfSpeechField>;
   translation?: string;
 }
@@ -32,7 +37,7 @@ export interface VocabularyReviewEntry {
   lookupUrl: string;
   letter: string;
   tags: string[];
-  contentKinds: string[];
+  contentKinds: VocabularyContentKind[];
   translation: string;
   sourceDates: string[];
   occurrenceCount: number;
@@ -40,7 +45,7 @@ export interface VocabularyReviewEntry {
 
 interface MutableVocabularyReviewEntry extends Omit<VocabularyReviewEntry, 'tags' | 'contentKinds' | 'sourceDates'> {
   tags: Set<string>;
-  contentKinds: Set<string>;
+  contentKinds: Set<VocabularyContentKind>;
   sourceDates: Set<string>;
 }
 
@@ -121,7 +126,7 @@ function collectItemWords(
           lookupUrl: oxfordSearchUrl(text),
           letter: vocabularyLetter(lookupQuery),
           tags: new Set<string>(),
-          contentKinds: new Set<string>(),
+          contentKinds: new Set<VocabularyContentKind>(),
           translation: '',
           sourceDates: new Set<string>(),
           occurrenceCount: 0,
@@ -190,6 +195,18 @@ function updateItemWords(
       if (vocabularyEntryKey(text) !== key) continue;
       const word = typeof rawWord === 'string' ? { text: rawWord } : rawWord;
       if (typeof rawWord === 'string') item.f.words[index] = word;
+      if (edits.contentKind) {
+        const fixedCombination = edits.contentKind === '組合';
+        const beautifulSentences = edits.contentKind === '句子';
+        if (word.fixedCombination !== fixedCombination) {
+          word.fixedCombination = fixedCombination;
+          changed = true;
+        }
+        if (word.beautifulSentences !== beautifulSentences) {
+          word.beautifulSentences = beautifulSentences;
+          changed = true;
+        }
+      }
       if (edits.partsOfSpeech) {
         for (const [field] of VOCABULARY_PARTS_OF_SPEECH) {
           const enabled = edits.partsOfSpeech.has(field);

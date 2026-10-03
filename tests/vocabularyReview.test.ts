@@ -92,6 +92,30 @@ test('updates every matching word occurrence with editable parts of speech and t
   assert.equal((records[0].items[0].f.words?.[0] as Record<string, unknown>).noun, false);
 });
 
+test('changes every matching occurrence between word, combination, and sentence content kinds', () => {
+  const records = [
+    record('2026-09-19', [item('one', [{ text: 'well-off', noun: true }])]),
+    record('2026-09-20', [item('two', [{ text: ' well-off ', fixedCombination: true }])]),
+  ];
+
+  for (const recordEntry of records) {
+    assert.equal(updateVocabularyWordEntries(recordEntry, 'well-off', { contentKind: '句子' }), true);
+  }
+  assert.deepEqual(vocabularyReviewEntries(records)[0].contentKinds, ['句子']);
+  for (const recordEntry of records) {
+    const word = recordEntry.items[0].f.words?.[0] as Record<string, unknown>;
+    assert.equal(word.fixedCombination, false);
+    assert.equal(word.beautifulSentences, true);
+    assert.equal(updateVocabularyWordEntries(recordEntry, 'well-off', { contentKind: '組合' }), true);
+    assert.equal(word.fixedCombination, true);
+    assert.equal(word.beautifulSentences, false);
+    assert.equal(updateVocabularyWordEntries(recordEntry, 'well-off', { contentKind: '單字' }), true);
+    assert.equal(word.fixedCombination, false);
+    assert.equal(word.beautifulSentences, false);
+  }
+  assert.deepEqual(vocabularyReviewEntries(records)[0].contentKinds, ['單字']);
+});
+
 test('uses the longest useful English run for an Oxford search link', () => {
   assert.equal(oxfordLookupQuery('leverage + 資源 + to V'), 'leverage');
   assert.equal(oxfordLookupQuery('pay an insurance premium'), 'pay an insurance premium');

@@ -87,8 +87,25 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   const combinationRow = page.locator('.vocabulary-row[data-entry-key="pay an insurance premium"]');
   await expect(combinationRow.locator('.vocabulary-readonly-details')).not.toContainText('詞性');
   await combinationRow.getByRole('button', { name: '編輯「pay an insurance premium」' }).click();
+  await expect(combinationRow.getByRole('group', { name: '內容類型' })).toBeVisible();
+  await expect(combinationRow.getByLabel('組合', { exact: true })).toBeChecked();
   await expect(combinationRow.locator('[data-vocabulary-pos]')).toHaveCount(0);
   await expect(combinationRow.locator('[data-vocabulary-translation]')).toHaveCount(1);
+  await combinationRow.getByLabel('句子', { exact: true }).check();
+  await expect(page.getByRole('group', { name: '複習內容類型' }).getByRole('button', { name: '句子' }))
+    .toHaveAttribute('aria-pressed', 'true');
+  await expect(combinationRow.getByLabel('句子', { exact: true })).toBeChecked();
+  await expect.poll(async () => page.evaluate(() => {
+    const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-09-20') ?? '{}');
+    return record.items?.[0]?.f?.words?.find((word: { text?: string }) => word.text === 'pay an insurance premium');
+  })).toEqual(expect.objectContaining({ fixedCombination: false, beautifulSentences: true }));
+  await page.reload();
+  await page.getByRole('button', { name: '句子', exact: true }).click();
+  await expect(combinationRow).toContainText('pay an insurance premium');
+  await combinationRow.getByRole('button', { name: '編輯「pay an insurance premium」' }).click();
+  await combinationRow.getByLabel('組合', { exact: true }).check();
+  await expect(page.getByRole('group', { name: '複習內容類型' }).getByRole('button', { name: '組合' }))
+    .toHaveAttribute('aria-pressed', 'true');
   await combinationRow.getByRole('button', { name: '完成「pay an insurance premium」' }).click();
   await page.getByRole('button', { name: '句子', exact: true }).click();
   await expect(links).toHaveText(['Practice makes perfect.']);
