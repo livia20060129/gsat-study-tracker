@@ -19,6 +19,7 @@ let activeRecordPrefix = '';
 let activeLetter = '全部';
 let groupingMode: VocabularyGroupingMode = 'alphabetical';
 let searchText = '';
+const editingEntryKeys = new Set<string>();
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -82,7 +83,6 @@ function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits
     allEntries = vocabularyReviewEntries(loadedRecords);
     const status = element<HTMLParagraphElement>('vocabularySaveStatus');
     status.textContent = `已儲存「${entry.text}」的整理資料，回到 Tracker 後會接續雲端同步。`;
-    render();
   } catch {
     const error = element<HTMLParagraphElement>('vocabularyError');
     error.textContent = `無法儲存「${entry.text}」的修改，請確認瀏覽器儲存權限後再試一次。`;
@@ -140,7 +140,18 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
 
   const identity = document.createElement('div');
   identity.className = 'vocabulary-identity';
-  identity.append(createWordLink(entry));
+  const identityHead = document.createElement('div');
+  identityHead.className = 'vocabulary-identity-head';
+  identityHead.append(createWordLink(entry));
+  const editButton = document.createElement('button');
+  editButton.type = 'button';
+  editButton.className = 'vocabulary-edit-button';
+  editButton.dataset.editEntry = entry.key;
+  editButton.textContent = editingEntryKeys.has(entry.key) ? '完成' : '編輯';
+  editButton.setAttribute('aria-expanded', String(editingEntryKeys.has(entry.key)));
+  editButton.setAttribute('aria-label', `${editButton.textContent}「${entry.text}」`);
+  identityHead.append(editButton);
+  identity.append(identityHead);
   const kinds = document.createElement('div');
   kinds.className = 'vocabulary-kinds';
   for (const kind of entry.contentKinds) {
@@ -156,10 +167,25 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     identity.append(occurrence);
   }
 
-  const editors = document.createElement('div');
-  editors.className = 'vocabulary-editors';
-  editors.append(createPartsOfSpeechEditor(entry), createTranslationEditor(entry));
-  article.append(identity, editors);
+  if (editingEntryKeys.has(entry.key)) {
+    const editors = document.createElement('div');
+    editors.className = 'vocabulary-editors';
+    editors.append(createPartsOfSpeechEditor(entry), createTranslationEditor(entry));
+    article.append(identity, editors);
+  } else {
+    const details = document.createElement('dl');
+    details.className = 'vocabulary-readonly-details';
+    const partOfSpeechLabel = document.createElement('dt');
+    partOfSpeechLabel.textContent = '詞性';
+    const partOfSpeechValue = document.createElement('dd');
+    partOfSpeechValue.textContent = entry.tags.join('、') || '未標註';
+    const translationLabel = document.createElement('dt');
+    translationLabel.textContent = '中文翻譯';
+    const translationValue = document.createElement('dd');
+    translationValue.textContent = entry.translation || '—';
+    details.append(partOfSpeechLabel, partOfSpeechValue, translationLabel, translationValue);
+    article.append(identity, details);
+  }
   return article;
 }
 
@@ -304,6 +330,20 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
   }
   if (target.matches('[data-vocabulary-translation]')) {
     saveEntryEdits(entry, { translation: target.value.trim() });
+  }
+});
+element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-edit-entry]');
+  if (!button) return;
+  const key = button.dataset.editEntry;
+  if (!key) return;
+  if (editingEntryKeys.has(key)) editingEntryKeys.delete(key);
+  else editingEntryKeys.add(key);
+  renderEntries();
+  if (editingEntryKeys.has(key)) {
+    element<HTMLDivElement>('vocabularyList')
+      .querySelector<HTMLInputElement>(`[data-entry-key="${CSS.escape(key)}"] [data-vocabulary-translation]`)
+      ?.focus();
   }
 });
 element<HTMLButtonElement>('refreshVocabulary').addEventListener('click', load);

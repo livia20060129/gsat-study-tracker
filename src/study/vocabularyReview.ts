@@ -160,7 +160,9 @@ export function vocabularyReviewEntries(records: StudyRecord[]): VocabularyRevie
   return [...entries.values()]
     .map(entry => ({
       ...entry,
-      tags: [...entry.tags],
+      tags: VOCABULARY_PARTS_OF_SPEECH
+        .filter(([, label]) => entry.tags.has(label))
+        .map(([, label]) => label),
       contentKinds: [...entry.contentKinds],
       sourceDates: [...entry.sourceDates].sort(),
     }))

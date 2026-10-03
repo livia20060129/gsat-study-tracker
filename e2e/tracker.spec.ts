@@ -78,12 +78,18 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(page.getByText('已整理 2 次')).toBeVisible();
   await expect(page.getByText('最近紀錄')).toHaveCount(0);
   const leverageRow = page.locator('.vocabulary-row[data-entry-key="leverage"]');
+  await expect(leverageRow.locator('[data-vocabulary-pos], [data-vocabulary-translation]')).toHaveCount(0);
+  await expect(leverageRow.locator('.vocabulary-readonly-details')).toContainText('Noun、Verb');
+  await leverageRow.getByRole('button', { name: '編輯「Leverage」' }).click();
   await expect(leverageRow.getByLabel('Noun', { exact: true })).toBeChecked();
   await expect(leverageRow.getByLabel('Verb', { exact: true })).toBeChecked();
   await leverageRow.getByLabel('Adjective', { exact: true }).check();
   await leverageRow.getByLabel('中文翻譯').fill('運用；影響力');
   await leverageRow.getByLabel('中文翻譯').press('Tab');
   await expect(page.getByText('已儲存「Leverage」的整理資料')).toBeVisible();
+  await leverageRow.getByRole('button', { name: '完成「Leverage」' }).click();
+  await expect(leverageRow.locator('[data-vocabulary-pos], [data-vocabulary-translation]')).toHaveCount(0);
+  await expect(leverageRow.locator('.vocabulary-readonly-details')).toContainText('運用；影響力');
   const storedWords = await page.evaluate(() => ['2026-09-19', '2026-09-20'].map(date => {
     const record = JSON.parse(localStorage.getItem(`study-v11:guest:${date}`) ?? '{}');
     const word = record.items?.[0]?.f?.words?.find((candidate: { text?: string }) => (
