@@ -17,8 +17,8 @@ type VocabularyContentKind = '單字' | '組合' | '句子';
 let allEntries: VocabularyReviewEntry[] = [];
 let loadedRecords: StudyRecord[] = [];
 let activeRecordPrefix = '';
-let activeLetter = '全部';
 let activeContentKind: VocabularyContentKind = '單字';
+let activePartOfSpeech = '全部';
 let groupingMode: VocabularyGroupingMode = 'alphabetical';
 let searchText = '';
 const editingEntryKeys = new Set<string>();
@@ -39,7 +39,7 @@ function entryMatchesSearch(entry: VocabularyReviewEntry): boolean {
     entry.text,
     entry.lookupQuery,
     entry.translation,
-    ...entry.tags,
+    ...(activeContentKind === '單字' ? entry.tags : []),
     ...entry.contentKinds,
   ].join(' ').toLocaleLowerCase('en-US');
   return searchable.includes(searchText.toLocaleLowerCase('en-US'));
@@ -48,7 +48,11 @@ function entryMatchesSearch(entry: VocabularyReviewEntry): boolean {
 function filteredEntries(): VocabularyReviewEntry[] {
   return allEntries.filter(entry => (
     entry.contentKinds.includes(activeContentKind)
-    && (groupingMode !== 'alphabetical' || activeLetter === '全部' || entry.letter === activeLetter)
+    && (
+      groupingMode !== 'partOfSpeech'
+      || activePartOfSpeech === '全部'
+      || (activePartOfSpeech === '未標註' ? entry.tags.length === 0 : entry.tags.includes(activePartOfSpeech))
+    )
     && entryMatchesSearch(entry)
   ));
 }
@@ -173,20 +177,27 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   if (editingEntryKeys.has(entry.key)) {
     const editors = document.createElement('div');
     editors.className = 'vocabulary-editors';
-    editors.append(createPartsOfSpeechEditor(entry), createTranslationEditor(entry));
+    if (activeContentKind === '單字') editors.append(createPartsOfSpeechEditor(entry));
+    else editors.classList.add('is-translation-only');
+    editors.append(createTranslationEditor(entry));
     article.append(identity, editors);
   } else {
     const details = document.createElement('dl');
     details.className = 'vocabulary-readonly-details';
-    const partOfSpeechLabel = document.createElement('dt');
-    partOfSpeechLabel.textContent = '詞性';
-    const partOfSpeechValue = document.createElement('dd');
-    partOfSpeechValue.textContent = entry.tags.join('、') || '未標註';
     const translationLabel = document.createElement('dt');
     translationLabel.textContent = '中文翻譯';
     const translationValue = document.createElement('dd');
     translationValue.textContent = entry.translation || '—';
-    details.append(partOfSpeechLabel, partOfSpeechValue, translationLabel, translationValue);
+    if (activeContentKind === '單字') {
+      const partOfSpeechLabel = document.createElement('dt');
+      partOfSpeechLabel.textContent = '詞性';
+      const partOfSpeechValue = document.createElement('dd');
+      partOfSpeechValue.textContent = entry.tags.join('、') || '未標註';
+      details.append(partOfSpeechLabel, partOfSpeechValue);
+    } else {
+      details.classList.add('is-translation-only');
+    }
+    details.append(translationLabel, translationValue);
     article.append(identity, details);
   }
   return article;
@@ -209,44 +220,33 @@ function createVocabularyGroup(
   return section;
 }
 
-function renderLetters(): void {
-  const availableLetters = new Set(allEntries.map(entry => entry.letter));
-  const letters = ['全部', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'];
-  const navigation = element<HTMLDivElement>('vocabularyLetters');
-  navigation.hidden = groupingMode !== 'alphabetical';
-  navigation.replaceChildren(...letters.map(letter => {
+function renderPartOfSpeechIndex(): void {
+  const singleWords = allEntries.filter(entry => entry.contentKinds.includes('單字'));
+  const labels = ['全部', ...VOCABULARY_PARTS_OF_SPEECH.map(([, label]) => label), '未標註'];
+  const navigation = element<HTMLDivElement>('vocabularyPartOfSpeechIndex');
+  navigation.hidden = activeContentKind !== '單字' || groupingMode !== 'partOfSpeech';
+  navigation.replaceChildren(...labels.map(label => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.dataset.letter = letter;
-    button.textContent = letter;
-    button.disabled = letter !== '全部' && !availableLetters.has(letter);
-    button.setAttribute('aria-pressed', String(letter === activeLetter));
+    button.dataset.partOfSpeech = label;
+    button.textContent = label;
+    button.disabled = label !== '全部' && !singleWords.some(entry => (
+      label === '未標註' ? entry.tags.length === 0 : entry.tags.includes(label)
+    ));
+    button.setAttribute('aria-pressed', String(label === activePartOfSpeech));
     return button;
   }));
-}
-
-function alphabeticalGroups(entries: VocabularyReviewEntry[]): HTMLElement[] {
-  const groups = new Map<string, VocabularyReviewEntry[]>();
-  for (const entry of entries) {
-    const group = groups.get(entry.letter) ?? [];
-    group.push(entry);
-    groups.set(entry.letter, group);
-  }
-  return [...groups].map(([letter, group]) => createVocabularyGroup(
-    letter === '#' ? 'other' : letter,
-    letter,
-    group,
-  ));
 }
 
 function partsOfSpeechGroups(entries: VocabularyReviewEntry[]): HTMLElement[] {
   const groups: HTMLElement[] = [];
   for (const [, label] of VOCABULARY_PARTS_OF_SPEECH) {
+    if (activePartOfSpeech !== '全部' && activePartOfSpeech !== label) continue;
     const group = entries.filter(entry => entry.tags.includes(label));
     if (group.length > 0) groups.push(createVocabularyGroup(label.toLowerCase(), label, group));
   }
   const unclassified = entries.filter(entry => entry.tags.length === 0);
-  if (unclassified.length > 0) {
+  if ((activePartOfSpeech === '全部' || activePartOfSpeech === '未標註') && unclassified.length > 0) {
     groups.push(createVocabularyGroup('unclassified', '未標註', unclassified));
   }
   return groups;
@@ -274,10 +274,12 @@ function renderEntries(): void {
   const entries = filteredEntries();
   const list = element<HTMLDivElement>('vocabularyList');
   const empty = element<HTMLParagraphElement>('vocabularyEmpty');
-  const groups = groupingMode === 'alphabetical'
-    ? alphabeticalGroups(entries)
-    : partsOfSpeechGroups(entries);
-  list.replaceChildren(...groups);
+  list.classList.toggle('is-flat', groupingMode === 'alphabetical');
+  list.replaceChildren(...(
+    groupingMode === 'alphabetical'
+      ? entries.map(createVocabularyRow)
+      : partsOfSpeechGroups(entries)
+  ));
   empty.hidden = entries.length > 0;
   empty.textContent = allEntries.length === 0
     ? '目前尚未在 Tracker 新增英文單字。'
@@ -288,7 +290,7 @@ function renderEntries(): void {
 function render(): void {
   renderContentKindSwitch();
   renderGroupingSwitch();
-  renderLetters();
+  renderPartOfSpeechIndex();
   renderEntries();
   element<HTMLElement>('totalVocabularyCount').textContent = `${allEntries.length} 個不重複單字／片語`;
 }
@@ -324,21 +326,21 @@ element<HTMLDivElement>('vocabularyContentKind').addEventListener('click', event
   if (kind !== '單字' && kind !== '組合' && kind !== '句子') return;
   activeContentKind = kind;
   groupingMode = 'alphabetical';
-  activeLetter = '全部';
+  activePartOfSpeech = '全部';
   render();
 });
 element<HTMLDivElement>('vocabularyGrouping').addEventListener('click', event => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-grouping-mode]');
   if (!button) return;
   groupingMode = button.dataset.groupingMode === 'partOfSpeech' ? 'partOfSpeech' : 'alphabetical';
-  activeLetter = '全部';
+  activePartOfSpeech = '全部';
   render();
 });
-element<HTMLDivElement>('vocabularyLetters').addEventListener('click', event => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-letter]');
+element<HTMLDivElement>('vocabularyPartOfSpeechIndex').addEventListener('click', event => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-part-of-speech]');
   if (!button || button.disabled) return;
-  activeLetter = button.dataset.letter ?? '全部';
-  renderLetters();
+  activePartOfSpeech = button.dataset.partOfSpeech ?? '全部';
+  renderPartOfSpeechIndex();
   renderEntries();
 });
 element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {

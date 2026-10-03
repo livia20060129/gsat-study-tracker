@@ -74,6 +74,8 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   const links = page.locator('.vocabulary-word-link');
   await expect(links).toHaveCount(2);
   await expect(links).toHaveText(['Leverage', 'novelty']);
+  await expect(page.locator('.vocabulary-letter-group')).toHaveCount(0);
+  await expect(page.getByLabel('按詞性篩選單字')).toBeHidden();
   await expect(links.first()).toHaveAttribute(
     'href',
     'https://www.oxfordlearnersdictionaries.com/search/english/?q=Leverage',
@@ -82,8 +84,15 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await page.getByRole('button', { name: '組合', exact: true }).click();
   await expect(links).toHaveText(['pay an insurance premium']);
   await expect(page.getByRole('group', { name: '單字排列方式' })).toBeHidden();
+  const combinationRow = page.locator('.vocabulary-row[data-entry-key="pay an insurance premium"]');
+  await expect(combinationRow.locator('.vocabulary-readonly-details')).not.toContainText('詞性');
+  await combinationRow.getByRole('button', { name: '編輯「pay an insurance premium」' }).click();
+  await expect(combinationRow.locator('[data-vocabulary-pos]')).toHaveCount(0);
+  await expect(combinationRow.locator('[data-vocabulary-translation]')).toHaveCount(1);
+  await combinationRow.getByRole('button', { name: '完成「pay an insurance premium」' }).click();
   await page.getByRole('button', { name: '句子', exact: true }).click();
   await expect(links).toHaveText(['Practice makes perfect.']);
+  await expect(page.locator('.vocabulary-row [data-vocabulary-pos]')).toHaveCount(0);
   await page.getByRole('button', { name: '單字', exact: true }).click();
   await expect(links).toHaveText(['Leverage', 'novelty']);
   await expect(page.getByText('已整理 2 次')).toBeVisible();
@@ -114,12 +123,18 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   ]);
 
   await page.getByRole('button', { name: '詞性', exact: true }).click();
+  await expect(page.getByLabel('按詞性篩選單字')).toBeVisible();
+  await page.getByRole('button', { name: 'Noun', exact: true }).click();
   await expect(page.locator('#vocabulary-group-noun .vocabulary-word-link')).toHaveText(['Leverage', 'novelty']);
+  await expect(page.locator('#vocabulary-group-verb')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Verb', exact: true }).click();
   await expect(page.locator('#vocabulary-group-verb .vocabulary-word-link')).toHaveText(['Leverage']);
+  await expect(page.locator('#vocabulary-group-noun')).toHaveCount(0);
+  await page.getByRole('button', { name: '全部', exact: true }).click();
   await page.getByRole('button', { name: '字母排序', exact: true }).click();
+  await expect(page.getByLabel('按詞性篩選單字')).toBeHidden();
 
   await page.getByRole('button', { name: '組合', exact: true }).click();
-  await page.getByRole('button', { name: 'P', exact: true }).click();
   await expect(page.locator('.vocabulary-word-link')).toHaveText(['pay an insurance premium']);
   await page.getByLabel('搜尋單字或詞性').fill('verb');
   await expect(page.locator('.vocabulary-word-link')).toHaveCount(0);

@@ -1,26 +1,27 @@
 # 最新更新
 
-版本：v171.6.44
+版本：v171.6.45
 
-## 單字、組合與句子分開顯示
+## 排序索引重新分配
 
-- 英文單字複習頁新增第一層「單字／組合／句子」滑塊，三種內容各自顯示，不再混在同一份清單。
-- 預設進入「單字」；切換分類時會重設字母篩選，避免沿用前一分類的隱藏條件。
-- 「字母排序／詞性」只在單字分類顯示；組合與句子各自維持 A～Z 排列。
-- 同一文字若曾以不同內容類型記錄，會分別出現在對應分類，不會遺失既有資料。
-- 每列仍維持預設唯讀，按「編輯」後才可修改詞性與中文翻譯，按「完成」後恢復唯讀。
+- 「字母排序」不再顯示 A～Z 按鈕，也不再用 A、B、C 等標題切割清單；畫面直接呈現完整的 A～Z 排序結果。
+- 「詞性」模式新增詞性索引：全部、Noun、Verb、Adjective、Adverb、Preposition、Conjunction、未標註。
+- 點選詞性索引後只顯示該詞性群組；群組內仍以英文字母排序。
+- 沒有資料的詞性索引會停用，避免切換到無內容畫面。
+- 組合與句子維持各自的純字母排序清單，不顯示額外索引。
+- 組合與句子不顯示詞性摘要，進入編輯模式時也不建立詞性核取欄，只保留中文翻譯欄位。
 
 ## 驗證
 
 - 443 項單元／回歸測試全部通過。
 - TypeScript 型別檢查與 Vite 正式建置通過。
-- Chromium E2E 驗證單字、組合、句子三份清單確實分離，且既有編輯、排序、搜尋與資料回寫流程維持正常。
+- Chromium E2E 驗證字母模式沒有索引、詞性模式具有可切換索引，以及單字／組合／句子分流、編輯與資料回寫維持正常。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.44-vocabulary-kind-tabs-necessary-files`
-- `gsat-study-tracker-v171.6.44-vocabulary-kind-tabs-full-project`
+- `gsat-study-tracker-v171.6.45-vocabulary-pos-index-necessary-files`
+- `gsat-study-tracker-v171.6.45-vocabulary-pos-index-full-project`
 
 ## Commit 建議
 
-`fix(vocabulary): separate words phrases and sentences`
+`refactor(vocabulary): move index navigation to POS view`
