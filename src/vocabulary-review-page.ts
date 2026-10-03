@@ -12,11 +12,13 @@ import {
 import type { StudyRecord } from './types.ts';
 
 type VocabularyGroupingMode = 'alphabetical' | 'partOfSpeech';
+type VocabularyContentKind = '單字' | '組合' | '句子';
 
 let allEntries: VocabularyReviewEntry[] = [];
 let loadedRecords: StudyRecord[] = [];
 let activeRecordPrefix = '';
 let activeLetter = '全部';
+let activeContentKind: VocabularyContentKind = '單字';
 let groupingMode: VocabularyGroupingMode = 'alphabetical';
 let searchText = '';
 const editingEntryKeys = new Set<string>();
@@ -45,7 +47,8 @@ function entryMatchesSearch(entry: VocabularyReviewEntry): boolean {
 
 function filteredEntries(): VocabularyReviewEntry[] {
   return allEntries.filter(entry => (
-    (groupingMode !== 'alphabetical' || activeLetter === '全部' || entry.letter === activeLetter)
+    entry.contentKinds.includes(activeContentKind)
+    && (groupingMode !== 'alphabetical' || activeLetter === '全部' || entry.letter === activeLetter)
     && entryMatchesSearch(entry)
   ));
 }
@@ -251,9 +254,19 @@ function partsOfSpeechGroups(entries: VocabularyReviewEntry[]): HTMLElement[] {
 
 function renderGroupingSwitch(): void {
   const switcher = element<HTMLDivElement>('vocabularyGrouping');
+  switcher.hidden = activeContentKind !== '單字';
   switcher.dataset.active = groupingMode === 'alphabetical' ? '0' : '1';
   for (const button of switcher.querySelectorAll<HTMLButtonElement>('[data-grouping-mode]')) {
     button.setAttribute('aria-pressed', String(button.dataset.groupingMode === groupingMode));
+  }
+}
+
+function renderContentKindSwitch(): void {
+  const switcher = element<HTMLDivElement>('vocabularyContentKind');
+  const kinds: VocabularyContentKind[] = ['單字', '組合', '句子'];
+  switcher.dataset.active = String(kinds.indexOf(activeContentKind));
+  for (const button of switcher.querySelectorAll<HTMLButtonElement>('[data-content-kind]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.contentKind === activeContentKind));
   }
 }
 
@@ -273,6 +286,7 @@ function renderEntries(): void {
 }
 
 function render(): void {
+  renderContentKindSwitch();
   renderGroupingSwitch();
   renderLetters();
   renderEntries();
@@ -303,6 +317,15 @@ function load(): void {
 element<HTMLInputElement>('vocabularySearch').addEventListener('input', event => {
   searchText = (event.target as HTMLInputElement).value.trim();
   renderEntries();
+});
+element<HTMLDivElement>('vocabularyContentKind').addEventListener('click', event => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-content-kind]');
+  const kind = button?.dataset.contentKind;
+  if (kind !== '單字' && kind !== '組合' && kind !== '句子') return;
+  activeContentKind = kind;
+  groupingMode = 'alphabetical';
+  activeLetter = '全部';
+  render();
 });
 element<HTMLDivElement>('vocabularyGrouping').addEventListener('click', event => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-grouping-mode]');

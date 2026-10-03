@@ -60,7 +60,11 @@ test('English vocabulary review sorts entries and persists editable parts of spe
       date: '2026-09-20',
       items: [{
         id: 'words-two', type: 'general', done: false, minutes: '', required: false,
-        f: { words: [{ text: ' leverage ', noun: true }, { text: 'pay an insurance premium', fixedCombination: true }] },
+        f: { words: [
+          { text: ' leverage ', noun: true },
+          { text: 'pay an insurance premium', fixedCombination: true },
+          { text: 'Practice makes perfect.', beautifulSentences: true },
+        ] },
       }],
     }));
   });
@@ -68,13 +72,20 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await page.getByRole('link', { name: '英文單字複習' }).click();
   await expect(page.getByRole('heading', { name: '英文單字複習' })).toBeVisible();
   const links = page.locator('.vocabulary-word-link');
-  await expect(links).toHaveCount(3);
-  await expect(links).toHaveText(['Leverage', 'novelty', 'pay an insurance premium']);
+  await expect(links).toHaveCount(2);
+  await expect(links).toHaveText(['Leverage', 'novelty']);
   await expect(links.first()).toHaveAttribute(
     'href',
     'https://www.oxfordlearnersdictionaries.com/search/english/?q=Leverage',
   );
   await expect(links.first()).toHaveAttribute('target', '_blank');
+  await page.getByRole('button', { name: '組合', exact: true }).click();
+  await expect(links).toHaveText(['pay an insurance premium']);
+  await expect(page.getByRole('group', { name: '單字排列方式' })).toBeHidden();
+  await page.getByRole('button', { name: '句子', exact: true }).click();
+  await expect(links).toHaveText(['Practice makes perfect.']);
+  await page.getByRole('button', { name: '單字', exact: true }).click();
+  await expect(links).toHaveText(['Leverage', 'novelty']);
   await expect(page.getByText('已整理 2 次')).toBeVisible();
   await expect(page.getByText('最近紀錄')).toHaveCount(0);
   const leverageRow = page.locator('.vocabulary-row[data-entry-key="leverage"]');
@@ -107,11 +118,12 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(page.locator('#vocabulary-group-verb .vocabulary-word-link')).toHaveText(['Leverage']);
   await page.getByRole('button', { name: '字母排序', exact: true }).click();
 
+  await page.getByRole('button', { name: '組合', exact: true }).click();
   await page.getByRole('button', { name: 'P', exact: true }).click();
   await expect(page.locator('.vocabulary-word-link')).toHaveText(['pay an insurance premium']);
   await page.getByLabel('搜尋單字或詞性').fill('verb');
   await expect(page.locator('.vocabulary-word-link')).toHaveCount(0);
-  await page.getByRole('button', { name: '全部', exact: true }).click();
+  await page.getByRole('button', { name: '單字', exact: true }).click();
   await expect(page.locator('.vocabulary-word-link')).toHaveText(['Leverage']);
 
   await page.setViewportSize({ width: 390, height: 844 });
