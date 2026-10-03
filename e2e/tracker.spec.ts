@@ -45,7 +45,7 @@ test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
-test('English vocabulary review uses each word as its Oxford link and sorts imported entries', async ({ page }) => {
+test('English vocabulary review sorts entries and persists editable parts of speech and translations', async ({ page }) => {
   await page.evaluate(() => {
     const prefix = 'study-v11:guest:';
     localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
@@ -76,8 +76,30 @@ test('English vocabulary review uses each word as its Oxford link and sorts impo
   );
   await expect(links.first()).toHaveAttribute('target', '_blank');
   await expect(page.getByText('已整理 2 次')).toBeVisible();
-  await expect(page.locator('#letter-L .vocabulary-tags').getByText('Noun', { exact: true })).toBeVisible();
-  await expect(page.locator('#letter-L .vocabulary-tags').getByText('Verb', { exact: true })).toBeVisible();
+  await expect(page.getByText('最近紀錄')).toHaveCount(0);
+  const leverageRow = page.locator('.vocabulary-row[data-entry-key="leverage"]');
+  await expect(leverageRow.getByLabel('Noun', { exact: true })).toBeChecked();
+  await expect(leverageRow.getByLabel('Verb', { exact: true })).toBeChecked();
+  await leverageRow.getByLabel('Adjective', { exact: true }).check();
+  await leverageRow.getByLabel('中文翻譯').fill('運用；影響力');
+  await leverageRow.getByLabel('中文翻譯').press('Tab');
+  await expect(page.getByText('已儲存「Leverage」的整理資料')).toBeVisible();
+  const storedWords = await page.evaluate(() => ['2026-09-19', '2026-09-20'].map(date => {
+    const record = JSON.parse(localStorage.getItem(`study-v11:guest:${date}`) ?? '{}');
+    const word = record.items?.[0]?.f?.words?.find((candidate: { text?: string }) => (
+      candidate.text?.trim().toLowerCase() === 'leverage'
+    ));
+    return { word, localDirty: record.localDirty };
+  }));
+  expect(storedWords).toEqual([
+    { word: expect.objectContaining({ text: 'Leverage', noun: true, verb: true, adjective: true, translation: '運用；影響力' }), localDirty: true },
+    { word: expect.objectContaining({ text: ' leverage ', noun: true, verb: true, adjective: true, translation: '運用；影響力' }), localDirty: true },
+  ]);
+
+  await page.getByRole('button', { name: '詞性', exact: true }).click();
+  await expect(page.locator('#vocabulary-group-noun .vocabulary-word-link')).toHaveText(['Leverage', 'novelty']);
+  await expect(page.locator('#vocabulary-group-verb .vocabulary-word-link')).toHaveText(['Leverage']);
+  await page.getByRole('button', { name: '字母排序', exact: true }).click();
 
   await page.getByRole('button', { name: 'P', exact: true }).click();
   await expect(page.locator('.vocabulary-word-link')).toHaveText(['pay an insurance premium']);

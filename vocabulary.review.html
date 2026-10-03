@@ -13,7 +13,7 @@
     <header class="vocabulary-page-header">
       <div>
         <h1>英文單字複習</h1>
-        <p>彙整 Tracker 中自行新增的單字與片語，並依英文字母排序。</p>
+        <p>彙整 Tracker 中自行新增的單字、組合與句子，可依字母或詞性檢視。</p>
       </div>
       <a class="vocabulary-back header-action-link" href="./index.html">回到 Tracker</a>
     </header>
@@ -39,11 +39,17 @@
           </div>
         </div>
 
-        <p class="vocabulary-help">點選單字文字會在新分頁開啟 Oxford Learner's Dictionaries 查詢結果。</p>
+        <div id="vocabularyGrouping" class="vocabulary-grouping-switch" data-active="0" role="group" aria-label="單字排列方式">
+          <span class="vocabulary-grouping-indicator" aria-hidden="true"></span>
+          <button type="button" data-grouping-mode="alphabetical" aria-pressed="true">字母排序</button>
+          <button type="button" data-grouping-mode="partOfSpeech" aria-pressed="false">詞性</button>
+        </div>
+        <p class="vocabulary-help">點選單字文字可開啟 Oxford 查詢；詞性與中文翻譯可直接編輯，離開欄位後儲存。</p>
         <div id="vocabularyLetters" class="vocabulary-letters" aria-label="按字母篩選單字"></div>
         <div id="vocabularyList" class="vocabulary-list"></div>
         <p id="vocabularyEmpty" class="vocabulary-empty" hidden></p>
         <p id="vocabularyError" class="vocabulary-error" role="alert" hidden></p>
+        <p id="vocabularySaveStatus" class="vocabulary-save-status" aria-live="polite"></p>
       </div>
     </section>
   </main>

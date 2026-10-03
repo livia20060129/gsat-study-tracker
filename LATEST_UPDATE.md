@@ -1,27 +1,26 @@
 # 最新更新
 
-版本：v171.6.41
+版本：v171.6.42
 
-## 新增英文單字複習頁面
+## 英文整理類型與單字複習編輯
 
-- 首頁新增「英文單字複習」入口，直接讀取 Tracker 目前帳號／訪客範圍的既有每日紀錄，不建立第二份單字資料。
-- 彙整所有自行新增的單字與片語，空白內容不顯示；大小寫及首尾空白不同的相同內容會合併，並保留整理次數、最近紀錄日期與全部詞性標註。
-- 清單依 A～Z 排序，支援字母與文字／詞性搜尋；非英文字首內容集中在 `#`。
-- 每個單字的文字本身就是 Oxford Learner's Dictionaries 查詢連結，於新分頁開啟，不再增加「Oxford 查看」按鈕。
-- 含中文備註或符號的內容會擷取最合適的英文單字／片語作為 Oxford 查詢值；完全沒有英文的內容仍保留，但不建立無效連結。
-- 新頁面已加入手機版單欄配置與寬度防溢出處理。
+- Tracker 的英文單字整理列保留 Noun、Verb 等詞性核取欄，並將原本的 `Fixed combination`、`Beautiful sentences` 改成獨立的「單字／組合／句子」動畫滑塊。
+- 英文單字複習頁面不再顯示個別來源日期，只保留重複整理次數。
+- 新增「字母排序／詞性」切換；詞性模式仍在每一組內依 A～Z 排列，相同單字可同時出現在多個已勾選詞性中。
+- 每個單字旁新增可複選的詞性欄位與中文翻譯欄位。離開欄位後，修改會回寫相同單字的全部原始 Tracker 紀錄並標記為待同步，避免複習頁與每日紀錄形成兩份資料。
+- 單字、組合與句子仍以文字本身連到 Oxford Learner's Dictionaries，不新增額外外部連結按鈕。
 
 ## 驗證
 
-- 新增彙整、巢狀項目、重複合併、排序、Oxford 查詢值及無英文內容測試。
-- 新增瀏覽器測試，驗證首頁入口、單字文字連結、A～Z 排序、篩選、詞性合併與手機版寬度。
-- 完整單元／回歸測試、TypeScript 型別檢查、Vite 正式建置與 Chromium E2E 均已執行。
+- 443 項單元／回歸測試全部通過。
+- TypeScript 型別檢查與 Vite 正式建置通過。
+- 19 項 Chromium E2E 全部通過，包含詞性／翻譯回寫、重複單字同步更新、詞性模式排序、手機寬度及既有 Tracker 流程。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.41-vocabulary-review-required-files`
-- `gsat-study-tracker-v171.6.41-vocabulary-review-full-project`
+- `gsat-study-tracker-v171.6.42-vocabulary-editing-necessary-files`
+- `gsat-study-tracker-v171.6.42-vocabulary-editing-full-project`
 
 ## Commit 建議
 
-`feat(vocabulary): add alphabetical English review page`
+`feat(vocabulary): add editable meanings and POS grouping`

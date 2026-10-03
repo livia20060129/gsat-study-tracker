@@ -9,16 +9,21 @@ const NESTED_ITEM_FIELDS = [
   'dailyWorkSourceItems',
 ] as const;
 
-export const VOCABULARY_TAGS = [
+export const VOCABULARY_PARTS_OF_SPEECH = [
   ['noun', 'Noun'],
   ['verb', 'Verb'],
   ['adjective', 'Adjective'],
   ['adverb', 'Adverb'],
   ['preposition', 'Preposition'],
   ['conjunction', 'Conjunction'],
-  ['fixedCombination', 'Fixed combination'],
-  ['beautifulSentences', 'Beautiful sentences'],
 ] as const;
+
+export type VocabularyPartOfSpeechField = (typeof VOCABULARY_PARTS_OF_SPEECH)[number][0];
+
+export interface VocabularyWordEdits {
+  partsOfSpeech?: ReadonlySet<VocabularyPartOfSpeechField>;
+  translation?: string;
+}
 
 export interface VocabularyReviewEntry {
   key: string;
@@ -27,12 +32,15 @@ export interface VocabularyReviewEntry {
   lookupUrl: string;
   letter: string;
   tags: string[];
+  contentKinds: string[];
+  translation: string;
   sourceDates: string[];
   occurrenceCount: number;
 }
 
-interface MutableVocabularyReviewEntry extends Omit<VocabularyReviewEntry, 'tags' | 'sourceDates'> {
+interface MutableVocabularyReviewEntry extends Omit<VocabularyReviewEntry, 'tags' | 'contentKinds' | 'sourceDates'> {
   tags: Set<string>;
+  contentKinds: Set<string>;
   sourceDates: Set<string>;
 }
 
@@ -40,8 +48,16 @@ function normalizedWordText(value: unknown): string {
   return String(value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ');
 }
 
+function normalizedTranslation(value: unknown): string {
+  return String(value ?? '').trim().replace(/\s+/g, ' ');
+}
+
 function vocabularyKey(value: string): string {
   return value.toLocaleLowerCase('en-US');
+}
+
+export function vocabularyEntryKey(value: unknown): string {
+  return vocabularyKey(normalizedWordText(value));
 }
 
 function englishRuns(value: string): string[] {
@@ -105,6 +121,8 @@ function collectItemWords(
           lookupUrl: oxfordSearchUrl(text),
           letter: vocabularyLetter(lookupQuery),
           tags: new Set<string>(),
+          contentKinds: new Set<string>(),
+          translation: '',
           sourceDates: new Set<string>(),
           occurrenceCount: 0,
         };
@@ -112,9 +130,14 @@ function collectItemWords(
       }
       entry.occurrenceCount += 1;
       if (date) entry.sourceDates.add(date);
-      for (const [field, label] of VOCABULARY_TAGS) {
+      const translation = normalizedTranslation(word.translation);
+      if (translation) entry.translation = translation;
+      for (const [field, label] of VOCABULARY_PARTS_OF_SPEECH) {
         if (word[field] === true) entry.tags.add(label);
       }
+      if (word.beautifulSentences === true) entry.contentKinds.add('句子');
+      else if (word.fixedCombination === true) entry.contentKinds.add('組合');
+      else entry.contentKinds.add('單字');
     }
   }
 
@@ -138,6 +161,7 @@ export function vocabularyReviewEntries(records: StudyRecord[]): VocabularyRevie
     .map(entry => ({
       ...entry,
       tags: [...entry.tags],
+      contentKinds: [...entry.contentKinds],
       sourceDates: [...entry.sourceDates].sort(),
     }))
     .sort((left, right) => {
@@ -145,4 +169,61 @@ export function vocabularyReviewEntries(records: StudyRecord[]): VocabularyRevie
       if (left.letter !== '#' && right.letter === '#') return -1;
       return collator.compare(left.lookupQuery || left.text, right.lookupQuery || right.text);
     });
+}
+
+function updateItemWords(
+  item: StudyItem,
+  key: string,
+  edits: VocabularyWordEdits,
+  visited: Set<object>,
+): boolean {
+  if (!item || typeof item !== 'object' || visited.has(item)) return false;
+  visited.add(item);
+  let changed = false;
+
+  if (Array.isArray(item.f?.words)) {
+    for (let index = 0; index < item.f.words.length; index += 1) {
+      const rawWord = item.f.words[index];
+      const text = typeof rawWord === 'string' ? rawWord : rawWord.text;
+      if (vocabularyEntryKey(text) !== key) continue;
+      const word = typeof rawWord === 'string' ? { text: rawWord } : rawWord;
+      if (typeof rawWord === 'string') item.f.words[index] = word;
+      if (edits.partsOfSpeech) {
+        for (const [field] of VOCABULARY_PARTS_OF_SPEECH) {
+          const enabled = edits.partsOfSpeech.has(field);
+          if (word[field] !== enabled) {
+            word[field] = enabled;
+            changed = true;
+          }
+        }
+      }
+      if (edits.translation !== undefined && word.translation !== edits.translation) {
+        word.translation = edits.translation;
+        changed = true;
+      }
+    }
+  }
+
+  for (const field of NESTED_ITEM_FIELDS) {
+    const nested = item.f?.[field];
+    if (!Array.isArray(nested)) continue;
+    for (const child of nested) {
+      if (updateItemWords(child as StudyItem, key, edits, visited)) changed = true;
+    }
+  }
+  return changed;
+}
+
+/** Updates every occurrence of one imported word so duplicate rows stay consistent. */
+export function updateVocabularyWordEntries(
+  record: StudyRecord,
+  key: string,
+  edits: VocabularyWordEdits,
+): boolean {
+  const visited = new Set<object>();
+  let changed = false;
+  for (const item of record.items ?? []) {
+    if (updateItemWords(item, key, edits, visited)) changed = true;
+  }
+  return changed;
 }

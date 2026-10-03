@@ -43,6 +43,7 @@ export interface StudyItemFields {
 export interface EnglishReviewWordEntry extends Record<string, unknown> {
   id?: string;
   text?: string;
+  translation?: string;
 }
 
 export type StudyTimeMode = 'manual' | 'timer';
