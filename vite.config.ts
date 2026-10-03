@@ -12,6 +12,7 @@ function createViteConfig({ mode }: ConfigEnv): UserConfig {
           tracker: './index.html',
           learningSummary: './summary.html',
           materialProgress: './material.progress.html',
+          vocabularyReview: './vocabulary.review.html',
         },
       },
     },

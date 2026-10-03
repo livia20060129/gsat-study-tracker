@@ -45,6 +45,55 @@ test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
+test('English vocabulary review uses each word as its Oxford link and sorts imported entries', async ({ page }) => {
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-09-19`, JSON.stringify({
+      date: '2026-09-19',
+      items: [{
+        id: 'words-one', type: 'englishVocabInteractive', done: false, minutes: '', required: false,
+        f: { words: [{ text: 'novelty', noun: true }, { text: 'Leverage', verb: true }] },
+      }],
+    }));
+    localStorage.setItem(`${prefix}2026-09-20`, JSON.stringify({
+      date: '2026-09-20',
+      items: [{
+        id: 'words-two', type: 'general', done: false, minutes: '', required: false,
+        f: { words: [{ text: ' leverage ', noun: true }, { text: 'pay an insurance premium', fixedCombination: true }] },
+      }],
+    }));
+  });
+
+  await page.getByRole('link', { name: '英文單字複習' }).click();
+  await expect(page.getByRole('heading', { name: '英文單字複習' })).toBeVisible();
+  const links = page.locator('.vocabulary-word-link');
+  await expect(links).toHaveCount(3);
+  await expect(links).toHaveText(['Leverage', 'novelty', 'pay an insurance premium']);
+  await expect(links.first()).toHaveAttribute(
+    'href',
+    'https://www.oxfordlearnersdictionaries.com/search/english/?q=Leverage',
+  );
+  await expect(links.first()).toHaveAttribute('target', '_blank');
+  await expect(page.getByText('已整理 2 次')).toBeVisible();
+  await expect(page.locator('#letter-L .vocabulary-tags').getByText('Noun', { exact: true })).toBeVisible();
+  await expect(page.locator('#letter-L .vocabulary-tags').getByText('Verb', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'P', exact: true }).click();
+  await expect(page.locator('.vocabulary-word-link')).toHaveText(['pay an insurance premium']);
+  await page.getByLabel('搜尋單字或詞性').fill('verb');
+  await expect(page.locator('.vocabulary-word-link')).toHaveCount(0);
+  await page.getByRole('button', { name: '全部', exact: true }).click();
+  await expect(page.locator('.vocabulary-word-link')).toHaveText(['Leverage']);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const bounds = await page.locator('.vocabulary-panel, .vocabulary-page-header').evaluateAll(nodes => nodes.map(node => {
+    const rect = node.getBoundingClientRect();
+    return { left: rect.left, right: rect.right };
+  }));
+  expect(bounds.every(rect => rect.left >= 0 && rect.right <= 390)).toBe(true);
+});
+
 test('mixed writing and timed mock on one date require a persisted exclusive choice', async ({ page }) => {
   await page.locator('#studyDate').fill('2026-09-25');
   await page.locator('#studyDate').dispatchEvent('change');
