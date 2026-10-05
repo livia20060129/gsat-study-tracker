@@ -227,7 +227,7 @@ function editingApp(day: string, separated: boolean | 'biology', deferred = fals
   loadRuntime(ctx, ['pad', 'dateString', 'parseDate', 'mondayOf', 'findRecursive', 'findItem',
     'isWeeklyCalendarItem', 'studyRecordForOverview', 'completionMetricsForWeek', 'renderWeeklyItems',
     'day123PageMap', 'day123Matches', 'day123Text', 'normalizeScience', 'reasonField',
-    'renderScienceFields', 'refreshAuto', 'handleInput', 'handleChange']);
+    'refreshCorrectionReasonField', 'renderScienceFields', 'refreshAuto', 'handleInput', 'handleChange']);
   ctx.ensureDailyPresets(ctx.data, day);
   if (deferred) {
     const carried = cloneOriginalItemForMakeup(ctx.data.items[0], { id: 'carried-chemistry', presetKey: 'deferred_chemistry', originDate: '2026-08-31' });
@@ -248,7 +248,11 @@ function editingApp(day: string, separated: boolean | 'biology', deferred = fals
     .find((x: any) => x.f.calendarEventKey === current.event_key && !x.deferredCarry);
   ctx.targetId = target.id;
   const chapter = { textContent: '' };
-  const card = { getAttribute: () => ctx.targetId, querySelector: () => chapter };
+  const card: any = {
+    children: [],
+    getAttribute: () => ctx.targetId,
+    querySelector: (selector: string) => selector === '[data-science-auto]' ? chapter : null,
+  };
   const control = (kind: 'field' | 'check', key: string, value: string | boolean) => ({
     target: {
       closest: () => card,
@@ -257,7 +261,7 @@ function editingApp(day: string, separated: boolean | 'biology', deferred = fals
       value: String(value), checked: value === true,
     },
   });
-  return { ctx, target, chapter, control };
+  return { ctx, target, chapter, card, control };
 }
 
 test('chemistry 109–114 maps only to Chapter 3; page boundaries are unchanged', () => {
@@ -330,6 +334,44 @@ test('typing pages then checking correction preserves the card target and reveal
     assert.equal(reloaded.f.reason, '反應熱的正負號');
     assert.match(ctx.renderScienceFields(reloaded, false), /反應熱的正負號/);
   }
+});
+
+test('checking correction saves first and patches only its card without refreshing siblings', () => {
+  const { ctx, target, card, control } = editingApp('2026-09-04', 'biology');
+  const sibling = ctx.data.items.flatMap((item: any) => item.f.groupedWorkEntries || [item])
+    .find((item: any) => item.id !== target.id);
+  sibling.f.reason = '另一項已填內容';
+  sibling.minutes = '35';
+  const siblingBefore = JSON.stringify(sibling);
+  const events: string[] = [];
+  let correctionReason: { remove: () => void } | null = null;
+  const inner = {
+    classList: { contains: (name: string) => name === 'inner' },
+    insertAdjacentHTML: (_position: string, html: string) => {
+      events.push('patch');
+      assert.match(html, /data-correction-reason/);
+      correctionReason = { remove: () => { events.push('remove'); correctionReason = null; } };
+    },
+  };
+  card.children = [inner];
+  card.querySelector = (selector: string) => {
+    if (selector === '[data-correction-reason]') return correctionReason;
+    return null;
+  };
+  ctx.render = () => { events.push('render'); };
+  ctx.persist = () => { events.push('persist'); ctx.saved = clone(ctx.data); return true; };
+  ctx.updateSummary = () => { events.push('summary'); };
+
+  ctx.handleChange(control('check', 'corrected', true));
+  assert.deepEqual(events, ['persist', 'patch', 'summary']);
+  assert.equal(ctx.saved.items.flatMap((item: any) => item.f.groupedWorkEntries || [item])
+    .find((item: any) => item.id === target.id).f.corrected, true);
+  assert.equal(JSON.stringify(sibling), siblingBefore);
+
+  events.length = 0;
+  ctx.handleChange(control('check', 'corrected', false));
+  assert.deepEqual(events, ['persist', 'remove', 'summary']);
+  assert.equal(JSON.stringify(sibling), siblingBefore);
 });
 
 test('overview prepares other days but reads today as an isolated snapshot of unsaved edits', () => {

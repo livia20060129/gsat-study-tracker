@@ -45,6 +45,57 @@ test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
+test('checking correction preserves every other card and saves before revealing the reason field', async ({ page }) => {
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-10-02`, JSON.stringify({
+      date: '2026-10-02',
+      items: [
+        {
+          id: 'correction-target', type: 'extra', title: '訂正測試', done: false, minutes: '', required: false, source: 'custom',
+          f: { title: 'ACE Reading', round: '3', progress: true, graded: true, corrected: false, reason: '' },
+        },
+        {
+          id: 'correction-sibling', type: 'general', title: '其他項目', done: false, minutes: '18', required: false, source: 'custom',
+          f: { progress: '必須保留' },
+        },
+      ],
+    }));
+  });
+  await page.locator('#studyDate').fill('2026-10-02');
+  await page.locator('#studyDate').dispatchEvent('change');
+
+  const target = page.locator('#itemList [data-item="correction-target"]');
+  const sibling = page.locator('#itemList [data-item="correction-sibling"]');
+  await expect(target).toBeVisible();
+  await expect(sibling.locator('[data-field="progress"]')).toHaveValue('必須保留');
+  await sibling.evaluate(node => { node.setAttribute('data-render-sentinel', 'preserved'); });
+
+  await target.locator('[data-check="corrected"]').check();
+  await expect(target.locator('[data-correction-reason]')).toBeVisible();
+  await expect(sibling).toHaveAttribute('data-render-sentinel', 'preserved');
+  await expect(sibling.locator('[data-field="progress"]')).toHaveValue('必須保留');
+  await expect.poll(async () => page.evaluate(() => {
+    const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-10-02') ?? '{}');
+    return record.items?.filter((item: { id: string }) => item.id.startsWith('correction-'))
+      .map((item: { id: string; f: { corrected?: boolean; progress?: string | boolean } }) => ({
+      id: item.id,
+      corrected: item.f.corrected,
+      progress: item.f.progress,
+      }));
+  })).toEqual([
+    { id: 'correction-target', corrected: true, progress: true },
+    { id: 'correction-sibling', corrected: undefined, progress: '必須保留' },
+  ]);
+
+  await page.reload();
+  await page.locator('#studyDate').fill('2026-10-02');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(target.locator('[data-check="corrected"]')).toBeChecked();
+  await expect(sibling.locator('[data-field="progress"]')).toHaveValue('必須保留');
+});
+
 test('English vocabulary review sorts entries and persists editable parts of speech and translations', async ({ page }) => {
   await page.evaluate(() => {
     const prefix = 'study-v11:guest:';
