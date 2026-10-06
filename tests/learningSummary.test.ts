@@ -200,6 +200,15 @@ test('outside and unwell days keep daily progress but do not affect week or mont
   assert.equal(completionIncludedInPeriod(normal), true);
   assert.equal(completionIncludedInPeriod(unwell), false);
   assert.equal(completionIncludedInPeriod(outside), false);
+
+  const summaryWithStatusDays = summarizeLearningPeriod(
+    [normal, unwell, outside],
+    summaryPeriod('2026-09-14', 'week'),
+    { includeStatusDaysInCompletion: true },
+  );
+  assert.equal(summaryWithStatusDays.completion.settlementPercent, 60);
+  assert.equal(summaryWithStatusDays.days[1].completionIncludedInPeriod, true);
+  assert.equal(summaryWithStatusDays.days[2].completionIncludedInPeriod, true);
 });
 
 test('completed time deduplicates deferred copies and item drilldown totals', () => {
@@ -297,6 +306,8 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.equal((html.match(/id="summaryModeSwitch"/g) || []).length, 1);
   assert.equal((html.match(/data-summary-mode=/g) || []).length, 2);
   assert.match(html, /id="summaryTotalCompletion"/);
+  assert.match(html, /id="includeStatusDaysCompletion"[^>]*role="switch"/);
+  assert.match(html, /id="statusDaysCompletionState">不列入/);
   assert.doesNotMatch(html, /summary-heading-icon/);
   assert.doesNotMatch(html, /總時數/);
   assert.match(html, /圓內深淺＝當日學習時數/);
@@ -309,6 +320,8 @@ test('summary page has one global week/month switch and no separate total-hours 
   const runtime = readFileSync(new URL('../src/learning-summary-page.ts', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/learning-summary.css', import.meta.url), 'utf8');
   assert.match(runtime, /summaryTotalCompletion'\)\.textContent = `\$\{current\.completion\.settlementPercent\}%`/);
+  assert.match(runtime, /STATUS_DAY_COMPLETION_STORAGE_KEY/);
+  assert.match(runtime, /summarizeLearningPeriod\(records, period, completionOptions\)/);
   assert.doesNotMatch(runtime, /fetch\(|openai|anthropic|gemini/i);
   assert.match(runtime, /data-summary-back/);
   assert.match(runtime, /function returnToSubjectOverview\(\)/);

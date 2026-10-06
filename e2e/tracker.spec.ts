@@ -872,17 +872,31 @@ test('learning summary uses one week/month control for the complete page', async
     const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const previous = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12);
     const previousDate = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}-${String(previous.getDate()).padStart(2, '0')}`;
+    const normalDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (now.getDay() === 1 ? 1 : -1), 12);
+    const normalDate = `${normalDay.getFullYear()}-${String(normalDay.getMonth() + 1).padStart(2, '0')}-${String(normalDay.getDate()).padStart(2, '0')}`;
     const prefix = 'study-v11:guest:';
+    const normalCompletionItem = {
+      id: 'summary-normal-completion', type: 'general', title: '一般完成項目', done: true,
+      minutes: '', required: true, source: 'preset', f: { subject: '數學' },
+    };
     localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
     localStorage.setItem(`${prefix}${previousDate}`, JSON.stringify({
       schemaVersion: 2,
       date: previousDate,
       bedtime: { time: '23:45', dateTime: `${previousDate}T23:45`, nextDay: false },
-      items: [],
+      items: normalDate === previousDate ? [normalCompletionItem] : [],
     }));
+    if (normalDate !== previousDate) {
+      localStorage.setItem(`${prefix}${normalDate}`, JSON.stringify({
+        schemaVersion: 2,
+        date: normalDate,
+        items: [normalCompletionItem],
+      }));
+    }
     localStorage.setItem(`${prefix}${date}`, JSON.stringify({
       schemaVersion: 2,
       date,
+      mood: '身體不適',
       wakeTime: '06:30',
       items: [
         { id: 'summary-math', type: 'mathStudy', done: true, minutes: '45', required: true, source: 'preset', f: { subject: '數學' } },
@@ -896,6 +910,7 @@ test('learning summary uses one week/month control for the complete page', async
         { id: 'summary-chemistry', type: 'scienceReview', title: '化學｜反應', done: true, minutes: '20', required: true, source: 'preset', f: { subject: '化學' } },
         { id: 'summary-biology', type: 'biologyInteractive', title: '生物｜細胞', done: true, minutes: '30', required: true, source: 'preset', f: { subject: '生物' } },
         { id: 'summary-earth', type: 'scienceReview', title: '地科｜地質', done: true, minutes: '40', required: true, source: 'preset', f: { subject: '地科' } },
+        { id: 'summary-unwell-open', type: 'general', title: '尚未完成項目', done: false, minutes: '', required: true, source: 'preset', f: { subject: '數學' } },
       ],
     }));
   });
@@ -911,9 +926,19 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#summaryTotalCompletion')).toHaveText('100%');
   await expect(page.locator('#summarySubjectDistribution .summary-donut-center strong')).toHaveText('3.8');
   await expect(page.locator('#summarySubjectDistribution .summary-donut-center span')).toHaveText('hr');
-  await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').last().click();
+  const includeStatusDays = page.locator('#includeStatusDaysCompletion');
+  await expect(includeStatusDays).not.toBeChecked();
+  await expect(page.locator('#statusDaysCompletionState')).toHaveText('不列入');
+  await includeStatusDays.check();
+  await expect(page.locator('#summaryTotalCompletion')).toHaveText('92%');
+  await expect(page.locator('#statusDaysCompletionState')).toHaveText('列入');
+  await page.reload();
+  await expect(page.locator('#includeStatusDaysCompletion')).toBeChecked();
+  await expect(page.locator('#summaryTotalCompletion')).toHaveText('92%');
+  await page.locator('#summaryCalendar .summary-day.is-mood-unwell [data-summary-day]').click();
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('學習時間');
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('完成率');
+  await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('列入週／月完成率');
   await expect.poll(() => page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip').evaluate(node => getComputedStyle(node).opacity)).toBe('1');
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#subjectTitle')).toHaveText('科目分配｜英文');

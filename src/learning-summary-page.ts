@@ -32,10 +32,28 @@ import {
 import type { StudyRecord } from './types.ts';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
+const STATUS_DAY_COMPLETION_STORAGE_KEY = 'study-summary:include-status-days-in-completion';
+
+function storedStatusDayCompletionPreference(): boolean {
+  try {
+    return localStorage.getItem(STATUS_DAY_COMPLETION_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function storeStatusDayCompletionPreference(include: boolean): void {
+  try {
+    localStorage.setItem(STATUS_DAY_COMPLETION_STORAGE_KEY, String(include));
+  } catch {
+    // The summary still works when storage is unavailable; only the preference is temporary.
+  }
+}
 
 let activeMode: SummaryMode = location.hash === '#month' ? 'month' : 'week';
 let activeAnchor = dateKey(new Date());
 let records: StudyRecord[] = [];
+let includeStatusDaysInCompletion = storedStatusDayCompletionPreference();
 let selectedSubject: SubjectTimeSubject | null = null;
 let pendingSubjectEntryOrigin: DOMRect | null = null;
 let summaryModeAnimation: Animation | null = null;
@@ -167,7 +185,12 @@ function renderCalendar(summary: LearningPeriodSummary): void {
     const moodOpacity = summaryMoodOpacity(day.totalMinutes, maxMinutes);
     const coreColor = summaryMoodColor(day.mood, moodOpacity) || timeColor;
     const moodText = day.mood ? `，狀態 ${day.mood}` : '';
-    const periodCompletionText = day.hasRecord && !day.completionIncludedInPeriod ? '，不列入週／月完成率' : '';
+    const isStatusCompletionDay = day.mood === '外出' || day.mood === '身體不適';
+    let periodCompletionLabel = '';
+    if (day.hasRecord && isStatusCompletionDay) {
+      periodCompletionLabel = day.completionIncludedInPeriod ? '列入週／月完成率' : '不列入週／月完成率';
+    }
+    const periodCompletionText = periodCompletionLabel ? `，${periodCompletionLabel}` : '';
     return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}${moodClass}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-time-color:${timeColor};--day-core-color:${coreColor}">
       <button class="summary-day-button" type="button" data-summary-day aria-expanded="false" aria-label="${escapeHtml(formatDateLabel(day.date))}，${escapeHtml(timeText)}，完成率 ${day.completionPercent}%${escapeHtml(moodText)}${escapeHtml(periodCompletionText)}">
         <span class="summary-day-week">${activeMode === 'week' ? `週${day.weekday}` : ''}</span>
@@ -177,7 +200,7 @@ function renderCalendar(summary: LearningPeriodSummary): void {
         <strong>${escapeHtml(formatDateLabel(day.date))}</strong>
         <span>學習時間：${escapeHtml(timeText)}</span>
         <span>完成率：${day.completionPercent}%</span>
-        ${periodCompletionText ? '<span>不列入週／月完成率</span>' : ''}
+        ${periodCompletionLabel ? `<span>${periodCompletionLabel}</span>` : ''}
         ${day.mood ? `<span>狀態：${escapeHtml(day.mood)}</span>` : ''}
       </span>
     </article>`;
@@ -426,8 +449,9 @@ function renderConclusion(current: LearningPeriodSummary, previous: LearningPeri
 function renderAll(): void {
   const period = summaryPeriod(activeAnchor, activeMode);
   const previousPeriod = summaryPeriod(shiftSummaryAnchor(activeAnchor, activeMode, -1), activeMode);
-  const current = summarizeLearningPeriod(records, period);
-  const previous = summarizeLearningPeriod(records, previousPeriod);
+  const completionOptions = { includeStatusDaysInCompletion };
+  const current = summarizeLearningPeriod(records, period, completionOptions);
+  const previous = summarizeLearningPeriod(records, previousPeriod, completionOptions);
   const currentSleep = summarizeSleepPeriod(records, period.dates);
   const previousSleep = summarizeSleepPeriod(records, previousPeriod.dates);
   const switcher = element<HTMLDivElement>('summaryModeSwitch');
@@ -441,6 +465,8 @@ function renderAll(): void {
   element<HTMLButtonElement>('previousPeriod').ariaLabel = activeMode === 'week' ? '上一週' : '上一月';
   element<HTMLButtonElement>('nextPeriod').ariaLabel = activeMode === 'week' ? '下一週' : '下一月';
   element<HTMLHeadingElement>('conclusionTitle').textContent = activeMode === 'week' ? '本週小結' : '本月小結';
+  element<HTMLInputElement>('includeStatusDaysCompletion').checked = includeStatusDaysInCompletion;
+  element<HTMLElement>('statusDaysCompletionState').textContent = includeStatusDaysInCompletion ? '列入' : '不列入';
   renderCalendar(current);
   renderSubjectDistribution(current);
   renderTrend(current);
@@ -522,6 +548,11 @@ element<HTMLButtonElement>('previousPeriod').addEventListener('click', () => {
 });
 element<HTMLButtonElement>('nextPeriod').addEventListener('click', () => {
   activeAnchor = shiftSummaryAnchor(activeAnchor, activeMode, 1);
+  renderAll();
+});
+element<HTMLInputElement>('includeStatusDaysCompletion').addEventListener('change', event => {
+  includeStatusDaysInCompletion = (event.currentTarget as HTMLInputElement).checked;
+  storeStatusDayCompletionPreference(includeStatusDaysInCompletion);
   renderAll();
 });
 element<HTMLDivElement>('summarySubjectDistribution').addEventListener('click', event => {

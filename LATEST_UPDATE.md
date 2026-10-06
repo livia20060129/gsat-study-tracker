@@ -1,26 +1,26 @@
 # 最新更新
 
-版本：v171.6.49
+版本：v171.6.50
 
-## 週／月總結補上總完成率
+## 狀態日完成率改為可切換
 
-- 「本週小結／本月小結」原本只顯示完成率相較上期的增減，沒有顯示目前期間本身的完成率。
-- 現在於「與上期比較」區塊右上方補上醒目的「總完成率」。
-- 總完成率直接使用該週／月既有的結算完成率，不另建第二套算法。
-- 切換週／月、上一期／下一期或資料更新時，總完成率會與全頁同步更新。
-- 外出與身體不適日仍顯示當日進度，但依既有規則不列入週／月總完成率。
+- 「本週小結／本月小結」新增「外出／身體不適日列入期間總完成率」切換。
+- 預設維持「不列入」，避免既有統計結果在更新後自行改變。
+- 切換為「列入」後，本期總完成率、與上期完成率比較及固定小結會使用相同規則重新計算。
+- 日期圓環仍顯示該日完成率；切換只影響期間統計，不影響每日進度、學習時間或科目分配。
+- 選擇保存在目前瀏覽器，重新整理、切換週／月或移動期間後仍會保留。
 
 ## 驗證
 
-- 單元測試確認總結頁存在唯一的總完成率欄位，且直接取用目前期間的 `settlementPercent`。
-- Chromium E2E 以完整完成的本週資料驗證總完成率顯示為 100%。
-- 完整單元測試、TypeScript 型別檢查、Vite 正式建置與瀏覽器 E2E 測試通過。
+- 單元測試確認預設排除時維持原統計，切換列入後會納入外出與身體不適日的完成項目。
+- Chromium E2E 驗證開關可操作、總完成率由 100% 重算為 92%，並在重新整理後維持「列入」。
+- TypeScript 型別檢查、Vite 正式建置與總結頁瀏覽器測試通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.49-summary-total-completion-necessary-files`
-- `gsat-study-tracker-v171.6.49-summary-total-completion-full-project`
+- `gsat-study-tracker-v171.6.50-status-day-completion-toggle-necessary-files`
+- `gsat-study-tracker-v171.6.50-status-day-completion-toggle-full-project`
 
 ## Commit 建議
 
-`feat(summary): show the current period total completion rate`
+`feat(summary): make status-day completion inclusion configurable`

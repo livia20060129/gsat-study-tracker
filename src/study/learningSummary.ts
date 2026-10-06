@@ -65,6 +65,10 @@ export interface LearningPeriodSummary {
   recordedDayCount: number;
 }
 
+export interface LearningPeriodOptions {
+  includeStatusDaysInCompletion?: boolean;
+}
+
 export type PeriodChangeState = 'increase' | 'stable' | 'decrease';
 
 export interface FixedPeriodRemarks {
@@ -297,11 +301,18 @@ export function fixedPeriodRemarks(
   };
 }
 
-export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryPeriod): LearningPeriodSummary {
+export function summarizeLearningPeriod(
+  records: StudyRecord[],
+  period: SummaryPeriod,
+  options: LearningPeriodOptions = {},
+): LearningPeriodSummary {
   const byDate = new Map(records.map(record => [record.date, record]));
   const periodRecords = period.dates.map(date => byDate.get(date)).filter(Boolean) as StudyRecord[];
+  const includeRecordInCompletion = (record: StudyRecord): boolean => (
+    options.includeStatusDaysInCompletion === true || completionIncludedInPeriod(record)
+  );
   const allUnits = periodRecords
-    .filter(completionIncludedInPeriod)
+    .filter(includeRecordInCompletion)
     .flatMap(summaryCompletionUnitsForRecord);
   // A task can be checked from another date's card. Its minutes belong to the
   // actual check date, so source records outside this period must also be read.
@@ -324,7 +335,7 @@ export function summarizeLearningPeriod(records: StudyRecord[], period: SummaryP
       date, dayNumber: parseDate(date).getDate(), weekday: ['日', '一', '二', '三', '四', '五', '六'][parseDate(date).getDay()],
       hasRecord: true, mood: String(record.mood ?? '').trim(), totalMinutes: subjectTime.totalMinutes,
       completionPercent: completion.settlementPercent,
-      completionIncludedInPeriod: completionIncludedInPeriod(record),
+      completionIncludedInPeriod: includeRecordInCompletion(record),
     };
   });
   return {
