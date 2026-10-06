@@ -1,26 +1,26 @@
 # 最新更新
 
-版本：v171.6.48
+版本：v171.6.49
 
-## 訂正勾選不再刷新其他項目
+## 週／月總結補上總完成率
 
-- 原本只有「訂正」勾選會先重畫整個項目區，再執行儲存；合併卡或同日多項資料可能在這個空檔被舊結構刷新。
-- 現在勾選或取消「訂正」時，會先把目前完整紀錄寫入儲存空間。
-- 儲存完成後只在目前卡片加入或移除「錯因／不熟觀念」欄位，不再重建同日其他卡片。
-- 其他項目的分鐘、進度、文字、完成狀態與畫面節點都保持不變。
-- 重新整理後，訂正狀態及同日其他項目內容都會完整保留。
+- 「本週小結／本月小結」原本只顯示完成率相較上期的增減，沒有顯示目前期間本身的完成率。
+- 現在於「與上期比較」區塊右上方補上醒目的「總完成率」。
+- 總完成率直接使用該週／月既有的結算完成率，不另建第二套算法。
+- 切換週／月、上一期／下一期或資料更新時，總完成率會與全頁同步更新。
+- 外出與身體不適日仍顯示當日進度，但依既有規則不列入週／月總完成率。
 
 ## 驗證
 
-- 單元測試驗證訂正操作的順序為「儲存 → 更新目前卡片」，且不會呼叫整頁重畫或改動其他子項目。
-- Chromium E2E 以兩張同日卡片重現最後勾選訂正，確認另一張卡片沒有被替換、內容仍保留，重新整理後資料一致。
+- 單元測試確認總結頁存在唯一的總完成率欄位，且直接取用目前期間的 `settlementPercent`。
+- Chromium E2E 以完整完成的本週資料驗證總完成率顯示為 100%。
 - 完整單元測試、TypeScript 型別檢查、Vite 正式建置與瀏覽器 E2E 測試通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.48-correction-save-isolation-necessary-files`
-- `gsat-study-tracker-v171.6.48-correction-save-isolation-full-project`
+- `gsat-study-tracker-v171.6.49-summary-total-completion-necessary-files`
+- `gsat-study-tracker-v171.6.49-summary-total-completion-full-project`
 
 ## Commit 建議
 
-`fix(tracker): preserve sibling items when checking correction`
+`feat(summary): show the current period total completion rate`

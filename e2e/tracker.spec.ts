@@ -908,6 +908,7 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(page.locator('#averageWakeTime')).toHaveText('06:30');
   await expect(page.locator('#validSleepCount')).toContainText('1／7 晚');
   await expect(page.locator('#sleepTrend')).toBeVisible();
+  await expect(page.locator('#summaryTotalCompletion')).toHaveText('100%');
   await expect(page.locator('#summarySubjectDistribution .summary-donut-center strong')).toHaveText('3.8');
   await expect(page.locator('#summarySubjectDistribution .summary-donut-center span')).toHaveText('hr');
   await page.locator('#summaryCalendar .summary-day.has-record [data-summary-day]').last().click();

@@ -346,6 +346,7 @@ function renderTrend(summary: LearningPeriodSummary): void {
 function renderComparison(current: LearningPeriodSummary, previous: LearningPeriodSummary): void {
   const timeDelta = current.subjectTime.totalMinutes - previous.subjectTime.totalMinutes;
   const completionDelta = current.completion.settlementPercent - previous.completion.settlementPercent;
+  element<HTMLElement>('summaryTotalCompletion').textContent = `${current.completion.settlementPercent}%`;
   element<HTMLDListElement>('summaryComparison').innerHTML = `
     <div><dt>學習時間</dt><dd class="${comparisonClass(timeDelta)}">${signed(timeDelta / 60, ' hr')}</dd></div>
     <div><dt>完成率</dt><dd class="${comparisonClass(completionDelta)}">${signed(completionDelta, '%')}</dd></div>`;
