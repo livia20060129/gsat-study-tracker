@@ -26,6 +26,8 @@ export interface PageRange {
 
 export interface StudyItemFields {
   [key: string]: unknown;
+  /** Local date when an overdue reminder was intentionally skipped. */
+  overdueSkippedOn?: string;
   /** Legacy strings are migrated to entries with a stable ID before saving. */
   words?: Array<string | EnglishReviewWordEntry>;
   interactiveEntries?: StudyItem[];

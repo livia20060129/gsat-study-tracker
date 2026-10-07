@@ -45,6 +45,81 @@ test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
+test('overdue task page filters subjects and persists skip without marking completion', async ({ page }) => {
+  await page.goto('/summary.html');
+  await page.evaluate(() => {
+    const now = new Date();
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12);
+    const date = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}${date}`, JSON.stringify({
+      date,
+      items: [
+        {
+          id: 'todo-english', type: 'englishPractice', title: '英文閱讀', done: false,
+          minutes: '', required: true, source: 'preset', f: { subject: '英文' },
+        },
+        {
+          id: 'todo-math', type: 'mathStudy', title: '數學講義', done: false,
+          minutes: '', required: true, source: 'preset', f: { subject: '數學A' },
+        },
+        {
+          id: 'todo-done', type: 'scienceReview', title: '已完成自然', done: true,
+          minutes: '', required: true, source: 'preset', f: { subject: '物理' },
+        },
+        {
+          id: 'todo-deferred', type: 'chineseReading', title: '已延期國文', done: false,
+          minutes: '', required: true, source: 'preset', deferred: true, deferredTargetDay: 5,
+          f: { subject: '國文' },
+        },
+      ],
+    }));
+  });
+
+  await page.goto('/');
+  await page.getByRole('link', { name: '待辦事項' }).click();
+  await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await expect(page.locator('#todoSummary')).toHaveText('共有 2 項待辦');
+
+  await page.getByRole('tab', { name: '英文' }).click();
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+  await expect(page.locator('.todo-card')).toContainText('英文閱讀');
+  await page.getByRole('button', { name: '跳過 英文閱讀' }).click();
+  await expect(page.locator('#todoEmpty')).toBeVisible();
+  await expect(page.locator('#todoFeedback')).toContainText('原排程日期仍保留未完成紀錄');
+
+  await expect.poll(async () => page.evaluate(() => {
+    for (const key of Object.keys(localStorage).filter(value => value.startsWith('study-v11:guest:2026-'))) {
+      const record = JSON.parse(localStorage.getItem(key) ?? '{}');
+      const item = record.items?.find((entry: { id: string }) => entry.id === 'todo-english');
+      if (item) return { skipped: Boolean(item.f?.overdueSkippedOn), done: item.done, localDirty: record.localDirty };
+    }
+    return null;
+  })).toEqual({ skipped: true, done: false, localDirty: true });
+
+  await page.getByRole('button', { name: '復原' }).click();
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+  await page.getByRole('button', { name: '跳過 英文閱讀' }).click();
+  await page.reload();
+  await expect(page.getByRole('tab', { name: '英文' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#todoEmpty')).toBeVisible();
+
+  await page.getByRole('tab', { name: '數學' }).click();
+  await expect(page.locator('.todo-card')).toContainText('數學講義');
+  await page.getByRole('tab', { name: '自然' }).click();
+  await expect(page.locator('#todoEmpty')).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const switchBounds = await page.locator('#subjectSwitch').evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, viewport: document.documentElement.clientWidth };
+  });
+  expect(switchBounds.left).toBeGreaterThanOrEqual(0);
+  expect(switchBounds.right).toBeLessThanOrEqual(switchBounds.viewport);
+});
+
 test('checking correction preserves every other card and saves before revealing the reason field', async ({ page }) => {
   await page.evaluate(() => {
     const prefix = 'study-v11:guest:';

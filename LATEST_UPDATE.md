@@ -1,26 +1,26 @@
 # 最新更新
 
-版本：v171.6.50
+版本：v171.6.51
 
-## 狀態日完成率改為可切換
+## 新增逾期待辦頁面
 
-- 「本週小結／本月小結」新增「外出／身體不適日列入期間總完成率」切換。
-- 預設維持「不列入」，避免既有統計結果在更新後自行改變。
-- 切換為「列入」後，本期總完成率、與上期完成率比較及固定小結會使用相同規則重新計算。
-- 日期圓環仍顯示該日完成率；切換只影響期間統計，不影響每日進度、學習時間或科目分配。
-- 選擇保存在目前瀏覽器，重新整理、切換週／月或移動期間後仍會保留。
+- 主頁標題列新增「待辦事項」，可集中查看日期早於今天、已排程但尚未完成的項目。
+- 頁面使用滑塊區分全部、國文、英文、數學、自然及其他科目；桌機與手機共用相同分類。
+- 已完成、已確認延期、已跳過、今天與未來的項目不會列入待辦。
+- 待辦只有「跳過」一種處理操作，不提供「放棄」。跳過不會將項目標記為完成，也不會把原項目或時間移到今天；原排程日期仍維持未完成。
+- 跳過狀態會保存到原紀錄並標記待 Cloud 同步，重新整理後不會再次出現；當次操作提供「復原」，避免誤觸。
 
 ## 驗證
 
-- 單元測試確認預設排除時維持原統計，切換列入後會納入外出與身體不適日的完成項目。
-- Chromium E2E 驗證開關可操作、總完成率由 100% 重算為 92%，並在重新整理後維持「列入」。
-- TypeScript 型別檢查、Vite 正式建置與總結頁瀏覽器測試通過。
+- 單元測試覆蓋日期篩選、完成／延期／跳過排除、合併卡片子項目、科目分類及跳過復原。
+- Chromium E2E 驗證主頁入口、科目滑塊、跳過保存、重新整理、復原及手機版滑塊不超出畫面。
+- TypeScript 型別檢查與 Vite 正式建置通過。
 
 更新資料夾：
 
-- `gsat-study-tracker-v171.6.50-status-day-completion-toggle-necessary-files`
-- `gsat-study-tracker-v171.6.50-status-day-completion-toggle-full-project`
+- `gsat-study-tracker-v171.6.51-overdue-tasks-necessary-files`
+- `gsat-study-tracker-v171.6.51-overdue-tasks-full-project`
 
 ## Commit 建議
 
-`feat(summary): make status-day completion inclusion configurable`
+`feat(todo): add subject-filtered overdue task page`
