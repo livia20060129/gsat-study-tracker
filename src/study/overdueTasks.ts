@@ -1,9 +1,19 @@
-import type { StudyItem, StudyRecord } from '../types.ts';
-import { applyManualCompletionMetadata, findCompletionItem, refreshCompletionTree } from './completionTree.ts';
-import { propagateDailyWorkDone, propagateDailyWorkMinutes } from './dailyWorkGroup.ts';
+import type { StudyItem, StudyRecord, StudyTimerState } from '../types.ts';
+import {
+  applyManualCompletionMetadata,
+  completionChildItems,
+  findCompletionItem,
+  refreshCompletionTree,
+} from './completionTree.ts';
+import {
+  propagateDailyWorkDone,
+  propagateDailyWorkField,
+  propagateDailyWorkMinutes,
+} from './dailyWorkGroup.ts';
 import { deferredCapacityCandidates, isConfirmedDeferred, isDeferrableStudyItem } from './deferDays.ts';
 import { activeEnglishTaskItems } from './englishTaskChoice.ts';
 import { studyItemSubject } from './subjectOrder.ts';
+import { normalizeStudyTimerState } from './studyTimer.ts';
 
 export const OVERDUE_TASK_SUBJECTS = ['all', 'chinese', 'english', 'math', 'natural', 'other'] as const;
 export type OverdueTaskSubject = typeof OVERDUE_TASK_SUBJECTS[number];
@@ -12,6 +22,12 @@ export type OverdueItemSubject = Exclude<OverdueTaskSubject, 'all'>;
 export interface OverdueTaskDetail {
   label: string;
   value: string;
+}
+
+export interface OverdueTaskProgress {
+  key: string;
+  label: string;
+  checked: boolean;
 }
 
 export interface OverdueTaskEntry {
@@ -23,9 +39,25 @@ export interface OverdueTaskEntry {
   title: string;
   description: string;
   minutes: string;
+  timer: StudyTimerState;
   details: OverdueTaskDetail[];
+  progress: OverdueTaskProgress[];
   daysOverdue: number;
 }
+
+export interface OverdueHandledEntry {
+  key: string;
+  recordDate: string;
+  itemId: string;
+  subject: OverdueItemSubject;
+  subjectLabel: string;
+  title: string;
+  kind: 'complete' | 'skip';
+  handledAt: string;
+  expiresAt: string;
+}
+
+export const OVERDUE_UNDO_WINDOW_MS = 72 * 60 * 60 * 1000;
 
 const SUBJECT_LABELS: Record<OverdueItemSubject, string> = {
   chinese: '國文',
@@ -70,6 +102,12 @@ const DETAIL_FIELDS: Array<[string, string]> = [
   ['reason', '錯因／不熟觀念'], ['progress', '進度'], ['graded', '批改'],
   ['corrected', '訂正'], ['review', '需要再複習'], ['listening', '英聽'], ['vocab', '單字'],
   ['translation', '中譯英'], ['gsatPart1', 'GSAT 第壹部分'],
+];
+
+const PROGRESS_FIELDS: Array<[string, string]> = [
+  ['progress', '進度'], ['graded', '批改'], ['corrected', '訂正'], ['review', '需要再複習'],
+  ['listening', '英聽'], ['vocab', '單字'], ['translation', '中譯英'],
+  ['gsatPart1', 'GSAT 第壹部分'],
 ];
 
 function dateNumber(value: string): number | null {
@@ -138,6 +176,7 @@ function taskDetails(item: StudyItem): OverdueTaskDetail[] {
   const fields = item.f ?? {};
   for (const [key, label] of DETAIL_FIELDS) {
     if (!(key in fields)) continue;
+    if (PROGRESS_FIELDS.some(([progressKey]) => progressKey === key) && typeof fields[key] === 'boolean') continue;
     const value = detailValue(fields[key]);
     if (value) details.push({ label, value });
   }
@@ -146,6 +185,15 @@ function taskDetails(item: StudyItem): OverdueTaskDetail[] {
   const entries = magazineDetails(fields.entries);
   if (entries) details.push({ label: '雜誌紀錄', value: entries });
   return details;
+}
+
+function taskProgress(item: StudyItem): OverdueTaskProgress[] {
+  const fields = item.f ?? {};
+  return PROGRESS_FIELDS.filter(([key]) => typeof fields[key] === 'boolean').map(([key, label]) => ({
+    key,
+    label,
+    checked: fields[key] === true,
+  }));
 }
 
 function overdueCandidates(record: StudyRecord): StudyItem[] {
@@ -182,7 +230,9 @@ export function overdueTasks(records: StudyRecord[], today: string): OverdueTask
         title: taskTitle(item),
         description: taskDescription(item),
         minutes: String(item.minutes ?? ''),
+        timer: normalizeStudyTimerState(item.f?.timeTracking),
         details: taskDetails(item),
+        progress: taskProgress(item),
         daysOverdue,
       });
     }
@@ -199,13 +249,19 @@ export function updateOverdueTaskSkip(
   record: StudyRecord,
   itemId: string,
   skippedOn: string | null,
+  handledAt = new Date().toISOString(),
 ): StudyRecord | null {
   const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
   const item = findCompletionItem(updated.items, itemId);
   if (!item) return null;
   item.f = item.f || {};
-  if (skippedOn) item.f.overdueSkippedOn = skippedOn;
-  else delete item.f.overdueSkippedOn;
+  if (skippedOn) {
+    item.f.overdueSkippedOn = skippedOn;
+    item.f.overdueTodoAction = { kind: 'skip', handledAt };
+  } else {
+    delete item.f.overdueSkippedOn;
+    delete item.f.overdueTodoAction;
+  }
   return updated;
 }
 
@@ -223,11 +279,45 @@ export function updateOverdueTaskMinutes(
   return updated;
 }
 
+export function updateOverdueTaskTimer(
+  record: StudyRecord,
+  itemId: string,
+  timer: StudyTimerState,
+  minutes?: string,
+): StudyRecord | null {
+  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
+  const item = findCompletionItem(updated.items, itemId);
+  if (!item) return null;
+  propagateDailyWorkField(item, 'timeTracking', normalizeStudyTimerState(timer));
+  if (minutes !== undefined) propagateDailyWorkMinutes(item, minutes);
+  return updated;
+}
+
+export function overdueTaskTimer(record: StudyRecord, itemId: string): StudyTimerState | null {
+  const item = findCompletionItem(record.items, itemId);
+  return item ? normalizeStudyTimerState(item.f?.timeTracking) : null;
+}
+
+export function updateOverdueTaskProgress(
+  record: StudyRecord,
+  itemId: string,
+  field: string,
+  checked: boolean,
+): StudyRecord | null {
+  if (!PROGRESS_FIELDS.some(([key]) => key === field)) return null;
+  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
+  const item = findCompletionItem(updated.items, itemId);
+  if (!item) return null;
+  propagateDailyWorkField(item, field, checked);
+  return updated;
+}
+
 export function updateOverdueTaskCompletion(
   record: StudyRecord,
   itemId: string,
   completed: boolean,
   completionDate: string,
+  handledAt = new Date().toISOString(),
 ): StudyRecord | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(completionDate)) return null;
   const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
@@ -235,10 +325,69 @@ export function updateOverdueTaskCompletion(
   if (!item) return null;
   applyManualCompletionMetadata(item, completed, record.date, completionDate, updated.items);
   propagateDailyWorkDone(item, completed);
+  item.f ||= {};
+  if (completed) item.f.overdueTodoAction = { kind: 'complete', handledAt };
+  else delete item.f.overdueTodoAction;
   updated.items.forEach(function refreshItem(root): void {
     refreshCompletionTree(root);
   });
   return updated;
+}
+
+function allRecordItems(record: StudyRecord): StudyItem[] {
+  const output: StudyItem[] = [];
+  const visited = new Set<StudyItem>();
+  function visit(items: StudyItem[]): void {
+    for (const item of items) {
+      if (!item || visited.has(item)) continue;
+      visited.add(item);
+      output.push(item);
+      visit(completionChildItems(item, true));
+    }
+  }
+  visit(record.items);
+  return output;
+}
+
+export function overdueHandledTasks(
+  records: StudyRecord[],
+  now = Date.now(),
+): OverdueHandledEntry[] {
+  const entries: OverdueHandledEntry[] = [];
+  for (const record of records) {
+    for (const item of allRecordItems(record)) {
+      const action = item.f?.overdueTodoAction;
+      if (!action || (action.kind === 'complete' ? !item.done : !item.f?.overdueSkippedOn)) continue;
+      const handledAt = Date.parse(action.handledAt);
+      const age = now - handledAt;
+      if (!Number.isFinite(handledAt) || age < 0 || age >= OVERDUE_UNDO_WINDOW_MS) continue;
+      const subject = taskSubject(item);
+      entries.push({
+        key: `${record.date}:${item.id}:${action.kind}`,
+        recordDate: record.date,
+        itemId: item.id,
+        subject,
+        subjectLabel: SUBJECT_LABELS[subject],
+        title: taskTitle(item),
+        kind: action.kind,
+        handledAt: action.handledAt,
+        expiresAt: new Date(handledAt + OVERDUE_UNDO_WINDOW_MS).toISOString(),
+      });
+    }
+  }
+  return entries.sort((left, right) => right.handledAt.localeCompare(left.handledAt));
+}
+
+export function undoOverdueTaskAction(
+  record: StudyRecord,
+  itemId: string,
+  actionDate: string,
+): StudyRecord | null {
+  const item = findCompletionItem(record.items, itemId);
+  const kind = item?.f?.overdueTodoAction?.kind;
+  if (kind === 'skip') return updateOverdueTaskSkip(record, itemId, null);
+  if (kind === 'complete') return updateOverdueTaskCompletion(record, itemId, false, actionDate);
+  return null;
 }
 
 export function normalizedOverdueSubject(value: unknown): OverdueTaskSubject {

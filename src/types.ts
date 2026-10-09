@@ -28,6 +28,11 @@ export interface StudyItemFields {
   [key: string]: unknown;
   /** Local date when an overdue reminder was intentionally skipped. */
   overdueSkippedOn?: string;
+  /** Recent action shown in the overdue-task undo list for at most 72 hours. */
+  overdueTodoAction?: {
+    kind: 'complete' | 'skip';
+    handledAt: string;
+  };
   /** Legacy strings are migrated to entries with a stable ID before saving. */
   words?: Array<string | EnglishReviewWordEntry>;
   interactiveEntries?: StudyItem[];
