@@ -9,6 +9,7 @@ import {
   propagateDailyWorkDone,
   propagateDailyWorkField,
   propagateDailyWorkMinutes,
+  propagateDailyWorkRangeField,
 } from './dailyWorkGroup.ts';
 import { deferredCapacityCandidates, isConfirmedDeferred, isDeferrableStudyItem } from './deferDays.ts';
 import { activeEnglishTaskItems } from './englishTaskChoice.ts';
@@ -22,6 +23,7 @@ export type OverdueItemSubject = Exclude<OverdueTaskSubject, 'all'>;
 export interface OverdueTaskDetail {
   label: string;
   value: string;
+  editableRange?: 'start' | 'end';
 }
 
 export interface OverdueTaskProgress {
@@ -133,7 +135,8 @@ function taskDescription(item: StudyItem): string {
   const description = String(item.description ?? '').trim();
   if (description && description !== taskTitle(item)) return description;
   const material = String(item.f?.material || item.f?.book || '').trim();
-  const pages = [item.f?.start, item.f?.end].map(value => String(value ?? '').trim()).filter(Boolean);
+  const range = taskPageRange(item);
+  const pages = [range.start, range.end].filter(Boolean);
   if (material && pages.length) return `${material}｜p.${pages.join('–')}`;
   return material;
 }
@@ -168,13 +171,58 @@ function magazineDetails(value: unknown): string {
   }).filter(Boolean).join('；');
 }
 
+function hasOwn(object: unknown, key: string): boolean {
+  return Boolean(object && typeof object === 'object' && !Array.isArray(object)
+    && Object.prototype.hasOwnProperty.call(object, key));
+}
+
+function pageRangeFromText(item: StudyItem): { start: string; end: string } {
+  const fields = item.f ?? {};
+  const candidates = [fields.calendarRangeText, item.description, item.title];
+  for (const candidate of candidates) {
+    const text = String(candidate ?? '');
+    const match = text.match(/(?:p\.?\s*|頁碼(?:範圍)?[^\d]{0,12})(\d+)\s*(?:[–—~\-至到]\s*(?:p\.?\s*)?(\d+))?/i);
+    if (match) return { start: match[1], end: match[2] || match[1] };
+  }
+  return { start: '', end: '' };
+}
+
+function taskPageRange(item: StudyItem): { start: string; end: string; editable: boolean } {
+  const fields = item.f ?? {};
+  const userFields = fields.dailyWorkUserFields;
+  const textRange = pageRangeFromText(item);
+  const value = (field: 'start' | 'end'): string => {
+    const explicit = detailValue(fields[field]);
+    if (explicit || hasOwn(userFields, field)) return explicit;
+    const suggestedKey = field === 'start' ? 'calendarSuggestedStart' : 'calendarSuggestedEnd';
+    return detailValue(fields[suggestedKey]) || textRange[field];
+  };
+  const start = value('start');
+  const end = value('end') || start;
+  const mathRange = item.type === 'mathStudy' || item.type === 'mathLecture' || item.type === 'mathPractice';
+  const editable = mathRange || Boolean(start || end)
+    || hasOwn(fields, 'start') || hasOwn(fields, 'end')
+    || hasOwn(fields, 'calendarSuggestedStart') || hasOwn(fields, 'calendarSuggestedEnd');
+  return { start, end, editable };
+}
+
 function taskDetails(item: StudyItem): OverdueTaskDetail[] {
   const details: OverdueTaskDetail[] = [{
     label: '項目類型',
     value: ITEM_TYPE_LABELS[item.type] ?? item.type,
   }];
   const fields = item.f ?? {};
+  const pageRange = taskPageRange(item);
   for (const [key, label] of DETAIL_FIELDS) {
+    if (key === 'start' || key === 'end') {
+      if (!pageRange.editable) continue;
+      details.push({
+        label,
+        value: key === 'start' ? pageRange.start : pageRange.end,
+        editableRange: key,
+      });
+      continue;
+    }
     if (!(key in fields)) continue;
     if (PROGRESS_FIELDS.some(([progressKey]) => progressKey === key) && typeof fields[key] === 'boolean') continue;
     const value = detailValue(fields[key]);
@@ -309,6 +357,21 @@ export function updateOverdueTaskProgress(
   const item = findCompletionItem(updated.items, itemId);
   if (!item) return null;
   propagateDailyWorkField(item, field, checked);
+  return updated;
+}
+
+export function updateOverdueTaskRange(
+  record: StudyRecord,
+  itemId: string,
+  field: 'start' | 'end',
+  value: string,
+): StudyRecord | null {
+  const normalized = String(value ?? '').trim();
+  if (normalized && (!/^\d+$/.test(normalized) || Number(normalized) < 1)) return null;
+  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
+  const item = findCompletionItem(updated.items, itemId);
+  if (!item) return null;
+  propagateDailyWorkRangeField(item, field, normalized ? String(Number(normalized)) : '');
   return updated;
 }
 

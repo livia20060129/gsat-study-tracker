@@ -14,6 +14,7 @@ import {
   updateOverdueTaskCompletion,
   updateOverdueTaskMinutes,
   updateOverdueTaskProgress,
+  updateOverdueTaskRange,
   updateOverdueTaskSkip,
   updateOverdueTaskTimer,
   type OverdueHandledEntry,
@@ -226,7 +227,21 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
     const label = document.createElement('dt');
     label.textContent = detail.label;
     const value = document.createElement('dd');
-    value.textContent = detail.value;
+    if (detail.editableRange) {
+      const input = document.createElement('input');
+      input.className = 'todo-range-input';
+      input.type = 'number';
+      input.min = '1';
+      input.step = '1';
+      input.inputMode = 'numeric';
+      input.value = detail.value;
+      input.dataset.todoRange = detail.editableRange;
+      input.setAttribute('aria-label', `${entry.title}的${detail.label}`);
+      applyActionData(input, entry);
+      value.append(input);
+    } else {
+      value.textContent = detail.value;
+    }
     details.append(label, value);
   }
   main.append(details);
@@ -445,6 +460,19 @@ function saveProgress(action: TodoActionTarget, field: string, checked: boolean)
   }
 }
 
+function saveRange(action: TodoActionTarget, field: 'start' | 'end', value: string): void {
+  try {
+    const saved = saveRecordChange(action, record => (
+      updateOverdueTaskRange(record, action.itemId, field, value)
+    ));
+    if (!saved) return setError('頁碼必須是 1 以上的整數，或留空。');
+    setError('');
+    setFeedback(`已同步「${action.title}」的${field === 'start' ? '起始頁' : '結束頁'}。`);
+  } catch {
+    setError('無法保存頁碼範圍，請確認瀏覽器儲存權限。');
+  }
+}
+
 function switchTimeMode(action: TodoActionTarget, mode: StudyTimeMode, manualMinutes: string): void {
   const current = currentTimer(action);
   if (!current || current.mode === mode) return;
@@ -571,6 +599,13 @@ element<HTMLDivElement>('todoList').addEventListener('click', function handleTod
 });
 
 element<HTMLDivElement>('todoList').addEventListener('change', function handleTodoChange(event): void {
+  const range = (event.target as HTMLElement).closest<HTMLInputElement>('[data-todo-range]');
+  if (range) {
+    const action = actionFromElement(range);
+    const field = range.dataset.todoRange;
+    if (action && (field === 'start' || field === 'end')) saveRange(action, field, range.value);
+    return;
+  }
   const input = (event.target as HTMLElement).closest<HTMLInputElement>('[data-todo-minutes]');
   if (input) {
     const action = actionFromElement(input);

@@ -12,6 +12,7 @@ import {
   updateOverdueTaskCompletion,
   updateOverdueTaskMinutes,
   updateOverdueTaskProgress,
+  updateOverdueTaskRange,
   updateOverdueTaskSkip,
   updateOverdueTaskTimer,
 } from '../src/study/overdueTasks.ts';
@@ -77,8 +78,8 @@ test('待辦帶出原紀錄卡的學習時間與已填欄位', () => {
     { label: '項目類型', value: '自然複習' },
     { label: '科目', value: '化學' },
     { label: '講義', value: '新關鍵' },
-    { label: '起始頁', value: '40' },
-    { label: '結束頁', value: '52' },
+    { label: '起始頁', value: '40', editableRange: 'start' },
+    { label: '結束頁', value: '52', editableRange: 'end' },
     { label: 'Google Calendar 當日主題', value: '物質的構造' },
   ]);
   assert.deepEqual(results[0].progress, [
@@ -94,6 +95,30 @@ test('文字型進度保留原內容，不會被誤改成核取方塊', () => {
   })])], '2026-10-07');
   assert.deepEqual(results[0].progress, []);
   assert.deepEqual(results[0].details.at(-1), { label: '進度', value: '完成第一章' });
+});
+
+test('待辦數學會讀取 Calendar 建議範圍且所有頁碼範圍可修改', () => {
+  const original = record('2026-10-04', [item({
+    id: 'math-range',
+    type: 'mathStudy',
+    title: '數學講義',
+    f: { calendarSuggestedStart: 31, calendarSuggestedEnd: 57 },
+  })]);
+  const [entry] = overdueTasks([original], '2026-10-07');
+  assert.deepEqual(entry.details.filter(detail => detail.editableRange), [
+    { label: '起始頁', value: '31', editableRange: 'start' },
+    { label: '結束頁', value: '57', editableRange: 'end' },
+  ]);
+
+  const startUpdated = updateOverdueTaskRange(original, 'math-range', 'start', '33');
+  assert.ok(startUpdated);
+  const endUpdated = updateOverdueTaskRange(startUpdated, 'math-range', 'end', '60');
+  assert.ok(endUpdated);
+  assert.equal(endUpdated.items[0].f.start, '33');
+  assert.equal(endUpdated.items[0].f.end, '60');
+  assert.deepEqual(endUpdated.items[0].f.dailyWorkUserFields, { start: '33', end: '60' });
+  assert.equal(updateOverdueTaskRange(original, 'math-range', 'start', '0'), null);
+  assert.equal(updateOverdueTaskRange(original, 'math-range', 'end', '1.5'), null);
 });
 
 test('合併卡片中的真實排程子項目各自出現在待辦且依科目分類', () => {

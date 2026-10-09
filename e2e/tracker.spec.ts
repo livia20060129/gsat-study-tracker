@@ -63,7 +63,8 @@ test('overdue task page filters subjects and persists skip without marking compl
         },
         {
           id: 'todo-math', type: 'mathStudy', title: '數學講義', done: false,
-          minutes: '', required: true, source: 'preset', f: { subject: '數學A' },
+          minutes: '', required: true, source: 'preset',
+          f: { subject: '數學A', calendarSuggestedStart: 31, calendarSuggestedEnd: 57 },
         },
         {
           id: 'todo-done', type: 'scienceReview', title: '已完成自然', done: true,
@@ -152,6 +153,17 @@ test('overdue task page filters subjects and persists skip without marking compl
 
   await page.getByRole('tab', { name: '數學' }).click();
   await expect(page.locator('.todo-card')).toContainText('數學講義');
+  const mathStart = page.getByLabel('數學講義的起始頁');
+  const mathEnd = page.getByLabel('數學講義的結束頁');
+  await expect(mathStart).toHaveValue('31');
+  await expect(mathEnd).toHaveValue('57');
+  await mathStart.fill('33');
+  await mathStart.dispatchEvent('change');
+  await mathEnd.fill('60');
+  await mathEnd.dispatchEvent('change');
+  await page.reload();
+  await expect(page.getByLabel('數學講義的起始頁')).toHaveValue('33');
+  await expect(page.getByLabel('數學講義的結束頁')).toHaveValue('60');
   await page.getByRole('tab', { name: '自然' }).click();
   await expect(page.locator('#todoEmpty')).toBeVisible();
 
