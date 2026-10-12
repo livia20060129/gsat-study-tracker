@@ -44,6 +44,8 @@ test('待辦只列出今天以前尚未完成、未延期且未跳過的正式�
       item({ id: 'deferred', title: '已延期', deferred: true, deferredTargetDay: 5 }),
       item({ id: 'deferred-carry', title: '延期補做', deferredCarry: true }),
       item({ id: 'skipped', title: '已跳過', f: { overdueSkippedOn: '2026-10-06' } }),
+      item({ id: 'english-review', presetKey: 'weekday_english_review', title: '英文訂正與搭配詞整理' }),
+      item({ id: 'legacy-english-review', title: '英文訂正與搭配詞整理' }),
       item({ id: 'custom', title: '自行新增', source: 'custom' }),
     ]),
     record('2026-10-07', [item({ id: 'today', title: '今日項目' })]),

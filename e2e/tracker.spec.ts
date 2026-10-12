@@ -75,6 +75,10 @@ test('overdue task page filters subjects and persists skip without marking compl
           minutes: '', required: true, source: 'preset', deferred: true, deferredTargetDay: 5,
           f: { subject: '國文' },
         },
+        {
+          id: 'todo-english-review', type: 'general', presetKey: 'weekday_english_review',
+          title: '英文訂正與搭配詞整理', done: false, minutes: '', required: true, source: 'preset', f: {},
+        },
       ],
     }));
   });
@@ -83,6 +87,7 @@ test('overdue task page filters subjects and persists skip without marking compl
   await page.getByRole('link', { name: '待辦事項' }).click();
   await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
   await expect(page.locator('.todo-card')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: '英文訂正與搭配詞整理' })).toHaveCount(0);
   await expect(page.locator('#todoSummary')).toHaveText('共有 2 項待辦');
 
   await page.getByRole('tab', { name: '英文' }).click();

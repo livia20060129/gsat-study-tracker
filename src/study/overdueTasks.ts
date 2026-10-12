@@ -251,6 +251,8 @@ function overdueCandidates(record: StudyRecord): StudyItem[] {
 
 function isPendingOverdueTask(item: StudyItem): boolean {
   return isDeferrableStudyItem(item)
+    && item.presetKey !== 'weekday_english_review'
+    && String(item.title ?? '').trim() !== '英文訂正與搭配詞整理'
     && !item.done
     && !isConfirmedDeferred(item)
     && !item.deferredCarry
