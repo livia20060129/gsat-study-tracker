@@ -752,6 +752,26 @@ test('timer starts from the closest second represented by manual minutes', async
   await expect(modeSegments).not.toHaveAttribute('data-animation-probe', 'original');
 });
 
+test('pausing from the floating timer changes the original card action to resume', async ({ page }) => {
+  await page.selectOption('#itemType', 'extra');
+  await page.click('#addItemBtn');
+  const card = page.locator('#itemList [data-item]').filter({ has: page.locator('[data-action="delete-item"]') }).last();
+  await card.locator('[data-action="time-mode-select"][data-time-mode="timer"]').click();
+  const cardToggle = card.locator('[data-action="timer-toggle"]');
+  await cardToggle.click();
+  await expect(cardToggle).toHaveText('暫停');
+  await expect(page.locator('#activeTimerSummary')).toBeVisible();
+  await page.waitForTimeout(1_100);
+
+  await page.locator('#activeTimerSummary [data-action="timer-pause-active"]').click();
+
+  await expect(page.locator('#activeTimerSummary')).toBeHidden();
+  await expect(card.locator('[data-action="timer-toggle"]')).toHaveText('繼續');
+  const pausedTime = await card.locator('[data-timer-display]').textContent();
+  await page.waitForTimeout(1_100);
+  await expect(card.locator('[data-timer-display]')).toHaveText(pausedTime ?? '');
+});
+
 test('completing deferred work records its date and checks the original day', async ({ page }) => {
   await page.goto('about:blank');
   await page.clock.install({ time: new Date('2026-09-17T12:00:00+08:00') });

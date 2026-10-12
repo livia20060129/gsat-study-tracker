@@ -2484,6 +2484,7 @@ function ensureTimerTicker(){
  if(pointer&&!studyTimerTicker)studyTimerTicker=setInterval(refreshTimerUI,1000);
  if(!pointer&&studyTimerTicker){clearInterval(studyTimerTicker);studyTimerTicker=null}
 }
+function timerToggleLabel(state){return state.startedAt!==null?'暫停':(state.accumulatedSeconds?'繼續':'開始')}
 function renderTimeControl(x,entry){
  var target={item:x,entry:entry||null},holder=entry||x.f||(x.f={}),state=normalizeStudyTimerState(holder.timeTracking),entryAttr=entry?' data-timer-entry="'+esc(entry.id)+'"':'',mode=state.mode;
  holder.timeTracking=state;
@@ -2493,7 +2494,7 @@ function renderTimeControl(x,entry){
   else h+='<span class="minutes-badge"><input type="number" min="0" step="0.1" inputmode="decimal" data-minutes value="'+esc(x.minutes||'')+'" aria-label="完成分鐘"> 分</span>';
  }else{
   h+='<strong class="timer-display" data-timer-display'+entryAttr+'>'+formatStudyTimer(state)+'</strong>';
-  h+='<button class="secondary timer-button" type="button" data-action="timer-toggle"'+entryAttr+'>'+(state.startedAt!==null?'暫停':(state.accumulatedSeconds?'繼續':'開始'))+'</button>';
+  h+='<button class="secondary timer-button" type="button" data-action="timer-toggle"'+entryAttr+'>'+timerToggleLabel(state)+'</button>';
   h+='<button class="primary timer-button" type="button" data-action="timer-finish"'+entryAttr+'>完成並填入</button>';
   h+='<button class="timer-reset" type="button" data-action="timer-reset"'+entryAttr+'>重設</button>';
   if((entry?entry.minutes:x.minutes)!=='')h+='<span class="timer-filled">已填 '+esc(entry?entry.minutes:x.minutes)+' 分</span>';
@@ -2506,6 +2507,10 @@ function refreshTimerUI(){
  document.querySelectorAll('[data-timer-display]').forEach(function(display){
   var card=display.closest('[data-item]'),item=card?findItem(card.getAttribute('data-item')):null,entryId=display.getAttribute('data-timer-entry'),target=currentTimerTarget(item,entryId);
   if(target)display.textContent=formatStudyTimer(timerStateForTarget(target),now);
+ });
+ document.querySelectorAll('[data-action="timer-toggle"]').forEach(function(button){
+  var card=button.closest('[data-item]'),item=card?findItem(card.getAttribute('data-item')):null,entryId=button.getAttribute('data-timer-entry'),target=currentTimerTarget(item,entryId);
+  if(target)button.textContent=timerToggleLabel(timerStateForTarget(target));
  });
  var summary=id('activeTimerSummary'),display=id('activeTimerDisplay'),title=id('activeTimerTitle'),target=activeTimerTarget();
  if(summary&&target){summary.hidden=false;if(display)display.textContent=formatStudyTimer(timerStateForTarget(target),now);if(title)title.textContent=timerTargetTitle(target)}
