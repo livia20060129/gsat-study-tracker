@@ -95,6 +95,24 @@ test('overdue task page filters subjects and persists skip without marking compl
   await expect(page.locator('.todo-card')).toContainText('英文閱讀');
   await expect(page.locator('.todo-record-grid')).toContainText('ACE Reading');
   await expect(page.locator('.todo-record-grid')).toContainText('閱讀測驗');
+  await page.setViewportSize({ width: 393, height: 852 });
+  const mobileControlBounds = await page.locator('.todo-card').evaluate(node => {
+    const date = node.querySelector<HTMLInputElement>('[data-todo-completion-date]')?.getBoundingClientRect();
+    const actions = node.querySelector<HTMLElement>('.todo-actions')?.getBoundingClientRect();
+    const controls = node.querySelector<HTMLElement>('.todo-card-controls')?.getBoundingClientRect();
+    return {
+      dateBottom: date?.bottom ?? 0,
+      actionsTop: actions?.top ?? 0,
+      actionsRight: actions?.right ?? 0,
+      controlsRight: controls?.right ?? 0,
+      cardClientWidth: node.clientWidth,
+      cardScrollWidth: node.scrollWidth,
+    };
+  });
+  expect(mobileControlBounds.actionsTop).toBeGreaterThanOrEqual(mobileControlBounds.dateBottom);
+  expect(mobileControlBounds.actionsRight).toBeLessThanOrEqual(mobileControlBounds.controlsRight + 1);
+  expect(mobileControlBounds.cardScrollWidth).toBeLessThanOrEqual(mobileControlBounds.cardClientWidth);
+  await page.setViewportSize({ width: 1280, height: 720 });
   const progress = page.locator('[data-todo-progress="progress"]');
   await expect(progress).toBeChecked();
   await progress.uncheck();
