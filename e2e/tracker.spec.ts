@@ -469,6 +469,63 @@ test('outside status keeps the daily schedule visible', async ({ page }) => {
   await expect(page.locator('#dailyNotice')).toContainText('不列入週／月完成率');
 });
 
+test('mobile nested natural timer stays inside its card', async ({ page }) => {
+  const date = '2026-10-15';
+  await page.evaluate(({ date }) => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}${date}`, JSON.stringify({
+      date,
+      items: [{
+        id: 'mobile-natural-parent', type: 'scienceReview', title: '自然', done: false,
+        minutes: '', required: true, source: 'preset', presetKey: 'cal_natural_mobile_layout',
+        f: {
+          subject: '混合', calendarNaturalIntegration: true,
+          calendarIntegrationEntries: [{
+            id: 'natural-integration-2026-10-15-生物', type: 'scienceReview', title: '生物',
+            subject: '生物', done: false, minutes: '', required: true,
+            source: 'calendarNaturalIntegration', calendarIntegrationChild: true,
+            ranges: [[4, 135]], pageText: 'p.4–135', chapterText: 'Chapter 1 細胞的構造與功能',
+            f: { subject: '生物', material: '123日的淬鍊' },
+          }],
+        },
+      }],
+    }));
+  }, { date });
+  await page.locator('#studyDate').fill(date);
+  await page.locator('#studyDate').dispatchEvent('change');
+  await page.setViewportSize({ width: 393, height: 852 });
+
+  const child = page.locator('[data-item="natural-integration-2026-10-15-生物"]');
+  await expect(child).toBeVisible();
+  const bounds = await child.evaluate(node => {
+    const card = node.getBoundingClientRect();
+    const title = node.querySelector<HTMLElement>('.completion-title-block')?.getBoundingClientRect();
+    const control = node.querySelector<HTMLElement>('.time-control')?.getBoundingClientRect();
+    const minutes = node.querySelector<HTMLInputElement>('[data-minutes]')?.getBoundingClientRect();
+    const modes = node.querySelector<HTMLElement>('.time-mode-segments')?.getBoundingClientRect();
+    return {
+      cardLeft: card.left,
+      cardRight: card.right,
+      titleBottom: title?.bottom ?? 0,
+      controlTop: control?.top ?? 0,
+      controlLeft: control?.left ?? 0,
+      controlRight: control?.right ?? 0,
+      minutesLeft: minutes?.left ?? 0,
+      minutesRight: minutes?.right ?? 0,
+      modesLeft: modes?.left ?? 0,
+      cardClientWidth: node.clientWidth,
+      cardScrollWidth: node.scrollWidth,
+    };
+  });
+  expect(bounds.controlTop).toBeGreaterThanOrEqual(bounds.titleBottom);
+  expect(bounds.controlLeft).toBeGreaterThanOrEqual(bounds.cardLeft);
+  expect(bounds.controlRight).toBeLessThanOrEqual(bounds.cardRight);
+  expect(bounds.minutesLeft).toBeGreaterThanOrEqual(bounds.controlLeft);
+  expect(bounds.minutesRight).toBeLessThan(bounds.modesLeft);
+  expect(bounds.cardScrollWidth).toBeLessThanOrEqual(bounds.cardClientWidth);
+});
+
 test('whole-card deletion requires confirmation and small-row deletion can be undone', async ({ page }) => {
   await page.selectOption('#itemType', 'extra');
   await page.click('#addItemBtn');
