@@ -627,6 +627,9 @@ element<HTMLDivElement>('todoHistoryList').addEventListener('click', function ha
 
 element<HTMLButtonElement>('refreshTodo').addEventListener('click', load);
 window.addEventListener('storage', load);
+window.addEventListener('pageshow', function refreshRestoredTodoPage(event): void {
+  if (event.persisted) load();
+});
 window.addEventListener('hashchange', function syncHash(): void {
   activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
   render();

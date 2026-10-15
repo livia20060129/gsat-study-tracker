@@ -199,6 +199,44 @@ test('overdue task page filters subjects and persists skip without marking compl
   expect(switchBounds.right).toBeLessThanOrEqual(switchBounds.viewport);
 });
 
+test('todo page re-reads an original-date completion when restored from browser history', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.clock.install({ time: new Date('2026-08-10T12:00:00+08:00') });
+  await page.goto('/summary.html');
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-08-09`, JSON.stringify({
+      schemaVersion: 2,
+      date: '2026-08-09',
+      items: [{
+        id: 'todo-origin-completion',
+        type: 'englishPractice',
+        title: '原日期完成同步測試',
+        done: false,
+        minutes: '',
+        required: true,
+        source: 'preset',
+        f: { subject: '英文', book: 'ACE Reading', topic: '閱讀測驗' },
+      }],
+    }));
+  });
+
+  await page.goto('/');
+  await page.getByRole('link', { name: '待辦事項' }).click();
+  await expect(page.locator('.todo-card').filter({ hasText: '原日期完成同步測試' })).toHaveCount(1);
+  await page.evaluate(() => {
+    const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-08-09') || '{}');
+    const item = record.items?.find((entry: { id: string }) => entry.id === 'todo-origin-completion');
+    item.done = true;
+    item.checkedOn = '2026-08-10';
+    localStorage.setItem('study-v11:guest:2026-08-09', JSON.stringify(record));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+  });
+  await expect(page.locator('.todo-card').filter({ hasText: '原日期完成同步測試' })).toHaveCount(0);
+  await expect(page.locator('#todoSummary')).toHaveText('共有 0 項待辦');
+});
+
 test('checking correction preserves every other card and saves before revealing the reason field', async ({ page }) => {
   await page.evaluate(() => {
     const prefix = 'study-v11:guest:';
