@@ -11,6 +11,7 @@ import {
   undoOverdueTaskAction,
   updateOverdueTaskCompletion,
   updateOverdueTaskMinutes,
+  updateOverdueTaskPageRange,
   updateOverdueTaskProgress,
   updateOverdueTaskRange,
   updateOverdueTaskSkip,
@@ -121,6 +122,18 @@ test('待辦數學會讀取 Calendar 建議範圍且所有頁碼範圍可修改'
   assert.deepEqual(endUpdated.items[0].f.dailyWorkUserFields, { start: '33', end: '60' });
   assert.equal(updateOverdueTaskRange(original, 'math-range', 'start', '0'), null);
   assert.equal(updateOverdueTaskRange(original, 'math-range', 'end', '1.5'), null);
+  assert.equal(updateOverdueTaskRange(original, 'math-range', 'start', '58'), null);
+  assert.equal(updateOverdueTaskRange(original, 'math-range', 'end', '30'), null);
+
+  const samePage = updateOverdueTaskPageRange(original, 'math-range', '31', '31');
+  assert.ok(samePage);
+  assert.equal(samePage.items[0].f.end, '31');
+
+  const editedInEitherOrder = updateOverdueTaskPageRange(original, 'math-range', '60', '70');
+  assert.ok(editedInEitherOrder);
+  assert.equal(editedInEitherOrder.items[0].f.start, '60');
+  assert.equal(editedInEitherOrder.items[0].f.end, '70');
+  assert.equal(updateOverdueTaskPageRange(original, 'math-range', '70', '60'), null);
 });
 
 test('合併卡片中的真實排程子項目各自出現在待辦且依科目分類', () => {

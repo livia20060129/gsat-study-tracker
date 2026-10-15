@@ -88,6 +88,7 @@ import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudy
 import { createClient } from '@supabase/supabase-js';
 import { parseProgressImportText, progressImportBackupPayload, progressImportResultText } from './application/progressImport';
 import { bedtimeRecordForStudyDate } from './study/sleep';
+import { validatePageRange } from './study/pageRangeValidation';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -3330,6 +3331,20 @@ function refreshAuto(card,x){
  }
 }
 
+function cardPageRangeInputs(card){
+ if(!card)return null;
+ var starts=Array.from(card.querySelectorAll('[data-field="start"]')).filter(function(input){return input.closest('[data-item]')===card});
+ var ends=Array.from(card.querySelectorAll('[data-field="end"]')).filter(function(input){return input.closest('[data-item]')===card});
+ return starts.length&&ends.length?{start:starts[0],end:ends[0]}:null;
+}
+function validateCardPageRange(card,report){
+ var inputs=cardPageRangeInputs(card);if(!inputs)return{valid:true,message:''};
+ var validation=validatePageRange(inputs.start.value,inputs.end.value);
+ inputs.start.setCustomValidity('');inputs.end.setCustomValidity(validation.valid?'':validation.message);
+ if(!validation.valid&&report)inputs.end.reportValidity();
+ return validation;
+}
+
 function timerTargetFromControl(item,control){return currentTimerTarget(item,control&&control.getAttribute('data-timer-entry'))}
 function animateTimerModeSelection(control,nextMode){
  var segments=control&&control.closest('.time-mode-segments');
@@ -3405,7 +3420,7 @@ function updateMagazineField(target,item){
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();return}
- if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end')refreshAuto(card,x);if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}updateSummary();return}
+ if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end'){validateCardPageRange(card,false);refreshAuto(card,x)}if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}updateSummary();return}
  if(t.matches('[data-mag-field]')&&x){updateMagazineField(t,x);return}
  if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x);return}
 }
@@ -3534,7 +3549,7 @@ function handleChange(e){
   applyEnglishPageBookSelection(x,t.matches('[data-book-topic]')?'topic':'round',t.value);render();persist(false);return
  }
  if(t.matches('[data-field]')&&x){
-  var f=t.getAttribute('data-field');if(f==='material'&&isCalendarMathMaterialLocked(x)){render();return}if(isCalendarPageMappedBook(x)&&(f==='start'||f==='end'||f==='topic'||f==='round'||f==='title')){render();return}var changedFields=[f];if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else propagateDailyWorkField(x,f,t.value);
+  var f=t.getAttribute('data-field');if(f==='material'&&isCalendarMathMaterialLocked(x)){render();return}if(isCalendarPageMappedBook(x)&&(f==='start'||f==='end'||f==='topic'||f==='round'||f==='title')){render();return}if(f==='start'||f==='end'){var rangeValidation=validateCardPageRange(card,true);if(!rangeValidation.valid){id('status').textContent=rangeValidation.message;return}}var changedFields=[f];if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else propagateDailyWorkField(x,f,t.value);
  if((x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice')&&(f==='material'||f==='book')){if(f==='material'){x.f.book='';changedFields.push('book')}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter')}
   if(x.type==='scienceReview'&&(f==='subject'||f==='material')){if(f==='subject'&&isCalendarNatural(x)){x.f.subject=calendarNaturalSubject(x.f.calendarTopic||x.description);propagateDailyWorkField(x,'subject',x.f.subject);render();persist(false);return}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter');normalizeScience(x.f);changedFields.push('material','subject')}
   if(x.type==='extra'&&f==='title'){x.f.level='';x.f.start='';x.f.end='';x.f.unitStart='';x.f.unitEnd='';x.f.unit='';x.f.round='';x.f.topic='';x.f.book='';x.f.warriorsBook='';x.f.chapter='';x.f.progress=false;x.f.graded=false;x.f.corrected=false;x.f.reason='';var selectedEnglishTopicBook=canonicalPageMappedBook(x.f.title);if(selectedEnglishTopicBook&&pageMappedBookSubject(selectedEnglishTopicBook)==='英文')x.f.book=selectedEnglishTopicBook;changedFields.push('level','start','end','unitStart','unitEnd','unit','round','topic','book','warriorsBook','chapter','progress','graded','corrected','reason');x.required=customCountsOriginal(x)}
@@ -3833,6 +3848,7 @@ function validate(options){
  function draftValid(draft){var h=draft.hour===''?null:Number(draft.hour),m=draft.minute===''?null:Number(draft.minute);return(h===null)===(m===null)&&(h===null||(Number.isInteger(h)&&h>=0&&h<=23&&Number.isInteger(m)&&m>=0&&m<=59))}
  var wakeHourValid=wakeHourValue===null||(Number.isInteger(wakeHourValue)&&wakeHourValue>=0&&wakeHourValue<=23),wakeMinuteValid=wakeMinuteValue===null||(Number.isInteger(wakeMinuteValue)&&wakeMinuteValue>=0&&wakeMinuteValue<=59),wakePairValid=(wakeHourValue===null)===(wakeMinuteValue===null),wakeDraftValid=draftValid(routineTimeDrafts.wake),bedtimeDraftValid=draftValid(routineTimeDrafts.bedtime),routineLabel=!wakeDraftValid?'起床':(!bedtimeDraftValid?'就寢':(routineTimeMode==='wake'?'起床':'就寢'));
  wakeHour.setCustomValidity(wakeHourValid&&wakeMinuteValid&&wakePairValid?'':'請完整填寫有效時間。');wakeMinute.setCustomValidity(wakeHourValid&&wakeMinuteValid&&wakePairValid?'':'請完整填寫有效時間。');if(!opts.ignoreRoutineTime&&(!wakeHourValid||!wakeMinuteValid||!wakePairValid||!wakeDraftValid||!bedtimeDraftValid)){ok=false;msg=routineLabel+'時間格式不正確；小時請填 00～23，分鐘請填 00～59，或將兩欄都留空。'}
+ document.querySelectorAll('[data-item]').forEach(function(card){var rangeValidation=validateCardPageRange(card,false);if(!rangeValidation.valid){ok=false;msg=rangeValidation.message}});
  document.querySelectorAll('[data-field="essayScore"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=18);el.setCustomValidity(x?'':'作文範圍起點請填 0～18。');if(!x){ok=false;msg='英文作文分數超出範圍。'}});
  document.querySelectorAll('[data-field="mixedScore"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=10);el.setCustomValidity(x?'':'混合題分數請填 0～10。');if(!x){ok=false;msg='英文混合題分數超出範圍。'}});
  document.querySelectorAll('[data-field="score"]').forEach(function(el){var v=el.value===''?null:Number(el.value),x=v===null||(Number.isInteger(v)&&v>=0&&v<=25);el.setCustomValidity(x?'':'國文寫作分數請填 0～25。');if(!x){ok=false;msg='國文寫作分數超出範圍。'}});

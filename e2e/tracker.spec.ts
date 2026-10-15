@@ -180,6 +180,17 @@ test('overdue task page filters subjects and persists skip without marking compl
   const mathEnd = page.getByLabel('數學講義的結束頁');
   await expect(mathStart).toHaveValue('31');
   await expect(mathEnd).toHaveValue('57');
+  await mathEnd.fill('30');
+  await mathEnd.dispatchEvent('change');
+  await expect(page.locator('#todoError')).toHaveText('結束頁必須大於或等於起始頁。');
+  await expect.poll(async () => page.evaluate(() => {
+    for (const key of Object.keys(localStorage).filter(value => value.startsWith('study-v11:guest:2026-'))) {
+      const record = JSON.parse(localStorage.getItem(key) ?? '{}');
+      const item = record.items?.find((entry: { id: string }) => entry.id === 'todo-math');
+      if (item) return item.f?.end ?? item.f?.calendarSuggestedEnd;
+    }
+    return null;
+  })).toBe(57);
   await mathStart.fill('33');
   await mathStart.dispatchEvent('change');
   await mathEnd.fill('60');
@@ -273,6 +284,49 @@ test('todo page preserves a focused manual-minute draft when leaving the origina
   await page.goForward();
   await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
   await expect(page.getByLabel('原日期時間同步測試的學習時間')).toHaveValue('37.5');
+});
+
+test('original card accepts the same page and rejects a reversed page range', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-10-14`, JSON.stringify({
+      schemaVersion: 2,
+      date: '2026-10-14',
+      items: [{
+        id: 'ordered-page-range',
+        type: 'mathStudy',
+        title: '頁碼範圍驗證',
+        done: false,
+        minutes: '',
+        required: true,
+        source: 'custom',
+        f: { material: '新關鍵', book: '1~2', start: '10', end: '20' },
+      }],
+    }));
+  });
+  await page.reload();
+  await page.locator('#studyDate').fill('2026-10-14');
+  await page.locator('#studyDate').dispatchEvent('change');
+
+  const card = page.locator('[data-item="ordered-page-range"]').last();
+  const end = card.locator('[data-field="end"]');
+  await end.fill('9');
+  await end.blur();
+  await expect(page.locator('#status')).toHaveText('結束頁必須大於或等於起始頁。');
+  await expect.poll(() => page.evaluate(() => {
+    const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-10-14') || '{}');
+    return record.items?.find((item: { id: string }) => item.id === 'ordered-page-range')?.f?.end;
+  })).toBe('20');
+
+  await end.fill('10');
+  await end.blur();
+  await expect.poll(() => page.evaluate(() => {
+    const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-10-14') || '{}');
+    const item = record.items?.find((candidate: { id: string }) => candidate.id === 'ordered-page-range');
+    return [item?.f?.start, item?.f?.end];
+  })).toEqual(['10', '10']);
 });
 
 test('checking correction preserves every other card and saves before revealing the reason field', async ({ page }) => {

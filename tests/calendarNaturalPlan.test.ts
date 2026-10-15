@@ -219,6 +219,7 @@ function editingApp(day: string, separated: boolean | 'biology', deferred = fals
     selected: (a: unknown, b: unknown) => a === b ? ' selected' : '',
     checked: (value: unknown) => value ? ' checked' : '',
     isCalendarPageMappedBook: () => false,
+    validateCardPageRange: () => ({ valid: true, message: '' }),
     scienceMaterialOptions: () => '<option>123日的淬鍊</option>',
     calendarTopicSourceRow: () => '',
   });

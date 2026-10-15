@@ -15,6 +15,7 @@ import { deferredCapacityCandidates, isConfirmedDeferred, isDeferrableStudyItem 
 import { activeEnglishTaskItems } from './englishTaskChoice.ts';
 import { studyItemSubject } from './subjectOrder.ts';
 import { normalizeStudyTimerState } from './studyTimer.ts';
+import { validatePageRange } from './pageRangeValidation.ts';
 
 export const OVERDUE_TASK_SUBJECTS = ['all', 'chinese', 'english', 'math', 'natural', 'other'] as const;
 export type OverdueTaskSubject = typeof OVERDUE_TASK_SUBJECTS[number];
@@ -368,12 +369,31 @@ export function updateOverdueTaskRange(
   field: 'start' | 'end',
   value: string,
 ): StudyRecord | null {
-  const normalized = String(value ?? '').trim();
-  if (normalized && (!/^\d+$/.test(normalized) || Number(normalized) < 1)) return null;
+  const item = findCompletionItem(record.items, itemId);
+  if (!item) return null;
+  const current = taskPageRange(item);
+  return updateOverdueTaskPageRange(
+    record,
+    itemId,
+    field === 'start' ? value : current.start,
+    field === 'end' ? value : current.end,
+  );
+}
+
+export function updateOverdueTaskPageRange(
+  record: StudyRecord,
+  itemId: string,
+  start: string,
+  end: string,
+): StudyRecord | null {
+  const normalizedStart = String(start ?? '').trim();
+  const normalizedEnd = String(end ?? '').trim();
+  if (!validatePageRange(normalizedStart, normalizedEnd).valid) return null;
   const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
   const item = findCompletionItem(updated.items, itemId);
   if (!item) return null;
-  propagateDailyWorkRangeField(item, field, normalized ? String(Number(normalized)) : '');
+  propagateDailyWorkRangeField(item, 'start', normalizedStart ? String(Number(normalizedStart)) : '');
+  propagateDailyWorkRangeField(item, 'end', normalizedEnd ? String(Number(normalizedEnd)) : '');
   return updated;
 }
 
