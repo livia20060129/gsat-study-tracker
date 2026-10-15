@@ -237,6 +237,44 @@ test('todo page re-reads an original-date completion when restored from browser 
   await expect(page.locator('#todoSummary')).toHaveText('共有 0 項待辦');
 });
 
+test('todo page preserves a focused manual-minute draft when leaving the original card', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.clock.install({ time: new Date('2026-08-10T12:00:00+08:00') });
+  await page.goto('/summary.html');
+  await page.evaluate(() => {
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}2026-08-09`, JSON.stringify({
+      schemaVersion: 2,
+      date: '2026-08-09',
+      items: [{
+        id: 'todo-origin-minutes',
+        type: 'englishPractice',
+        title: '原日期時間同步測試',
+        done: false,
+        minutes: '',
+        required: true,
+        source: 'preset',
+        f: { subject: '英文', book: 'ACE Reading', topic: '閱讀測驗' },
+      }],
+    }));
+  });
+  await page.goto('/');
+  await page.getByRole('link', { name: '待辦事項' }).click();
+  await expect(page.getByLabel('原日期時間同步測試的學習時間')).toHaveValue('');
+
+  await page.goBack();
+  const studyDate = page.locator('#studyDate');
+  await studyDate.fill('2026-08-09');
+  await studyDate.dispatchEvent('change');
+  const minutes = page.locator('[data-item="todo-origin-minutes"] [data-minutes]').first();
+  await minutes.fill('37.5');
+
+  await page.goForward();
+  await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
+  await expect(page.getByLabel('原日期時間同步測試的學習時間')).toHaveValue('37.5');
+});
+
 test('checking correction preserves every other card and saves before revealing the reason field', async ({ page }) => {
   await page.evaluate(() => {
     const prefix = 'study-v11:guest:';
