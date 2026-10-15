@@ -21,7 +21,7 @@ import {
   type OverdueTaskEntry,
   type OverdueTaskSubject,
 } from './study/overdueTasks.ts';
-import { validatePageRange } from './study/pageRangeValidation.ts';
+import { orderedEndPage, validatePageRange } from './study/pageRangeValidation.ts';
 import {
   finishStudyTimer,
   formatStudyTimer,
@@ -245,6 +245,9 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
     }
     details.append(label, value);
   }
+  const rangeStart = details.querySelector<HTMLInputElement>('[data-todo-range="start"]');
+  const rangeEnd = details.querySelector<HTMLInputElement>('[data-todo-range="end"]');
+  if (rangeStart?.value && rangeEnd) rangeEnd.min = rangeStart.value;
   main.append(details);
   const progress = createProgressEditor(entry);
   if (progress) main.append(progress);
@@ -467,6 +470,10 @@ function saveRange(action: TodoActionTarget, input: HTMLInputElement): void {
     const start = card?.querySelector<HTMLInputElement>('[data-todo-range="start"]');
     const end = card?.querySelector<HTMLInputElement>('[data-todo-range="end"]');
     if (!start || !end) return setError('找不到完整的頁碼範圍，請重新讀取後再試。');
+    const orderedEnd = orderedEndPage(start.value, end.value);
+    if (orderedEnd !== end.value) end.value = orderedEnd;
+    if (start.value) end.min = start.value;
+    else end.min = '1';
     const validation = validatePageRange(start.value, end.value);
     start.setCustomValidity('');
     end.setCustomValidity(validation.valid ? '' : validation.message);
@@ -629,6 +636,18 @@ element<HTMLDivElement>('todoList').addEventListener('change', function handleTo
     const action = actionFromElement(progress);
     if (action) saveProgress(action, progress.dataset.todoProgress || '', progress.checked);
   }
+});
+
+element<HTMLDivElement>('todoList').addEventListener('input', function constrainTodoRange(event): void {
+  const input = (event.target as HTMLElement).closest<HTMLInputElement>('[data-todo-range]');
+  const card = input?.closest<HTMLElement>('.todo-card');
+  const start = card?.querySelector<HTMLInputElement>('[data-todo-range="start"]');
+  const end = card?.querySelector<HTMLInputElement>('[data-todo-range="end"]');
+  if (!start || !end) return;
+  end.min = start.value || '1';
+  start.setCustomValidity('');
+  end.setCustomValidity('');
+  setError('');
 });
 
 element<HTMLDivElement>('todoHistoryList').addEventListener('click', function handleUndo(event): void {

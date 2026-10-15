@@ -182,7 +182,7 @@ test('overdue task page filters subjects and persists skip without marking compl
   await expect(mathEnd).toHaveValue('57');
   await mathEnd.fill('30');
   await mathEnd.dispatchEvent('change');
-  await expect(page.locator('#todoError')).toHaveText('結束頁必須大於或等於起始頁。');
+  await expect(mathEnd).toHaveValue('31');
   await expect.poll(async () => page.evaluate(() => {
     for (const key of Object.keys(localStorage).filter(value => value.startsWith('study-v11:guest:2026-'))) {
       const record = JSON.parse(localStorage.getItem(key) ?? '{}');
@@ -190,7 +190,7 @@ test('overdue task page filters subjects and persists skip without marking compl
       if (item) return item.f?.end ?? item.f?.calendarSuggestedEnd;
     }
     return null;
-  })).toBe(57);
+  })).toBe('31');
   await mathStart.fill('33');
   await mathStart.dispatchEvent('change');
   await mathEnd.fill('60');
@@ -314,11 +314,11 @@ test('original card accepts the same page and rejects a reversed page range', as
   const end = card.locator('[data-field="end"]');
   await end.fill('9');
   await end.blur();
-  await expect(page.locator('#status')).toHaveText('結束頁必須大於或等於起始頁。');
+  await expect(end).toHaveValue('10');
   await expect.poll(() => page.evaluate(() => {
     const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-10-14') || '{}');
     return record.items?.find((item: { id: string }) => item.id === 'ordered-page-range')?.f?.end;
-  })).toBe('20');
+  })).toBe('10');
 
   await end.fill('10');
   await end.blur();

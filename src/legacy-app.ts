@@ -88,7 +88,7 @@ import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudy
 import { createClient } from '@supabase/supabase-js';
 import { parseProgressImportText, progressImportBackupPayload, progressImportResultText } from './application/progressImport';
 import { bedtimeRecordForStudyDate } from './study/sleep';
-import { validatePageRange } from './study/pageRangeValidation';
+import { orderedEndPage, validatePageRange } from './study/pageRangeValidation';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -3272,6 +3272,7 @@ function render(){
  id('englishReviewBadge').textContent=erc+' 項';
  id('itemCountBadge').textContent=oc+' 項';
  id('dailyNotice').textContent=isAway(data)?'今日外出：原有排程仍保留，可照常勾選與記錄；本日完成率不列入週／月完成率。':(data.date>=DAILY_PRESET_START?dailyMessageForDate(data.date):'歷史日期：不自動改寫原有紀錄。');
+ document.querySelectorAll('[data-item]').forEach(syncCardPageRangeConstraint);
  updateSummary();
  renderWeeklyItems();
  updateStudyItemsView();updateOverviewMetricView(false);
@@ -3337,8 +3338,19 @@ function cardPageRangeInputs(card){
  var ends=Array.from(card.querySelectorAll('[data-field="end"]')).filter(function(input){return input.closest('[data-item]')===card});
  return starts.length&&ends.length?{start:starts[0],end:ends[0]}:null;
 }
+function syncCardPageRangeConstraint(card){
+ var inputs=cardPageRangeInputs(card);if(!inputs)return null;
+ inputs.end.min=inputs.start.value||'1';
+ return inputs;
+}
+function orderCardPageRange(card){
+ var inputs=syncCardPageRangeConstraint(card);if(!inputs)return{endAdjusted:false,end:''};
+ var orderedEnd=orderedEndPage(inputs.start.value,inputs.end.value),endAdjusted=orderedEnd!==inputs.end.value;
+ if(endAdjusted)inputs.end.value=orderedEnd;
+ return{endAdjusted:endAdjusted,end:orderedEnd};
+}
 function validateCardPageRange(card,report){
- var inputs=cardPageRangeInputs(card);if(!inputs)return{valid:true,message:''};
+ var inputs=syncCardPageRangeConstraint(card);if(!inputs)return{valid:true,message:''};
  var validation=validatePageRange(inputs.start.value,inputs.end.value);
  inputs.start.setCustomValidity('');inputs.end.setCustomValidity(validation.valid?'':validation.message);
  if(!validation.valid&&report)inputs.end.reportValidity();
@@ -3420,7 +3432,7 @@ function updateMagazineField(target,item){
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();return}
- if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end'){validateCardPageRange(card,false);refreshAuto(card,x)}if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}updateSummary();return}
+ if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end'){syncCardPageRangeConstraint(card);validateCardPageRange(card,false);refreshAuto(card,x)}if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}updateSummary();return}
  if(t.matches('[data-mag-field]')&&x){updateMagazineField(t,x);return}
  if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x);return}
 }
@@ -3549,7 +3561,7 @@ function handleChange(e){
   applyEnglishPageBookSelection(x,t.matches('[data-book-topic]')?'topic':'round',t.value);render();persist(false);return
  }
  if(t.matches('[data-field]')&&x){
-  var f=t.getAttribute('data-field');if(f==='material'&&isCalendarMathMaterialLocked(x)){render();return}if(isCalendarPageMappedBook(x)&&(f==='start'||f==='end'||f==='topic'||f==='round'||f==='title')){render();return}if(f==='start'||f==='end'){var rangeValidation=validateCardPageRange(card,true);if(!rangeValidation.valid){id('status').textContent=rangeValidation.message;return}}var changedFields=[f];if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else propagateDailyWorkField(x,f,t.value);
+  var f=t.getAttribute('data-field');if(f==='material'&&isCalendarMathMaterialLocked(x)){render();return}if(isCalendarPageMappedBook(x)&&(f==='start'||f==='end'||f==='topic'||f==='round'||f==='title')){render();return}if(f==='start'||f==='end'){var orderedRange=orderCardPageRange(card);if(orderedRange.endAdjusted)propagateDailyWorkRangeField(x,'end',orderedRange.end);var rangeValidation=validateCardPageRange(card,true);if(!rangeValidation.valid){id('status').textContent=rangeValidation.message;return}}var changedFields=[f];if(f==='start'||f==='end')propagateDailyWorkRangeField(x,f,t.value);else propagateDailyWorkField(x,f,t.value);
  if((x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice')&&(f==='material'||f==='book')){if(f==='material'){x.f.book='';changedFields.push('book')}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter')}
   if(x.type==='scienceReview'&&(f==='subject'||f==='material')){if(f==='subject'&&isCalendarNatural(x)){x.f.subject=calendarNaturalSubject(x.f.calendarTopic||x.description);propagateDailyWorkField(x,'subject',x.f.subject);render();persist(false);return}x.f.unit='';x.f.chapter='';changedFields.push('unit','chapter');normalizeScience(x.f);changedFields.push('material','subject')}
   if(x.type==='extra'&&f==='title'){x.f.level='';x.f.start='';x.f.end='';x.f.unitStart='';x.f.unitEnd='';x.f.unit='';x.f.round='';x.f.topic='';x.f.book='';x.f.warriorsBook='';x.f.chapter='';x.f.progress=false;x.f.graded=false;x.f.corrected=false;x.f.reason='';var selectedEnglishTopicBook=canonicalPageMappedBook(x.f.title);if(selectedEnglishTopicBook&&pageMappedBookSubject(selectedEnglishTopicBook)==='英文')x.f.book=selectedEnglishTopicBook;changedFields.push('level','start','end','unitStart','unitEnd','unit','round','topic','book','warriorsBook','chapter','progress','graded','corrected','reason');x.required=customCountsOriginal(x)}
