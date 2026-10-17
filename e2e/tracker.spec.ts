@@ -79,6 +79,11 @@ test('overdue task page filters subjects and persists skip without marking compl
           id: 'todo-english-review', type: 'general', presetKey: 'weekday_english_review',
           title: '英文訂正與搭配詞整理', done: false, minutes: '', required: true, source: 'preset', f: {},
         },
+        {
+          id: 'todo-math-practice', type: 'mathPractice', presetKey: 'sat_math_practice',
+          title: '數學講義題目：理解檢查＋錯題標記＋訂正', done: false, minutes: '12', required: true, source: 'preset',
+          f: { material: '新關鍵', book: '1~2', start: '10', end: '12', corrected: false },
+        },
       ],
     }));
   });
@@ -88,6 +93,14 @@ test('overdue task page filters subjects and persists skip without marking compl
   await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
   await expect(page.locator('.todo-card')).toHaveCount(2);
   await expect(page.getByRole('heading', { name: '英文訂正與搭配詞整理' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '數學講義題目：理解檢查＋錯題標記＋訂正' })).toHaveCount(0);
+  expect(await page.evaluate(() => {
+    const key = Object.keys(localStorage).find(key => {
+      if (!/^study-v11:guest:\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+      return JSON.parse(localStorage.getItem(key)!).items?.some((item: { id: string }) => item.id === 'todo-math-practice');
+    });
+    return key ? JSON.parse(localStorage.getItem(key)!).items.find((item: { id: string }) => item.id === 'todo-math-practice') : null;
+  })).toMatchObject({ done: false, minutes: '12', f: { corrected: false } });
   await expect(page.locator('#todoSummary')).toHaveText('共有 2 項待辦');
 
   await page.getByRole('tab', { name: '英文' }).click();

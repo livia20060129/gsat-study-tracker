@@ -47,6 +47,13 @@ test('待辦只列出今天以前尚未完成、未延期且未跳過的正式�
       item({ id: 'skipped', title: '已跳過', f: { overdueSkippedOn: '2026-10-06' } }),
       item({ id: 'english-review', presetKey: 'weekday_english_review', title: '英文訂正與搭配詞整理' }),
       item({ id: 'legacy-english-review', title: '英文訂正與搭配詞整理' }),
+      item({ id: 'math-practice', type: 'mathPractice', title: '數學講義題目：理解檢查＋錯題標記＋訂正' }),
+      ...['weekday_math_practice', 'fri_math_practice', 'sat_math_practice', 'sun_math_practice'].map(presetKey => (
+        item({ id: presetKey, presetKey })
+      )),
+      item({ id: 'legacy-math-practice', title: '數學講義題目：理解檢查＋錯題標記＋訂正' }),
+      item({ id: 'calendar-math-practice', f: { calendarFixedTemplate: 'mathPractice' } }),
+      item({ id: 'template-math-practice', templatePresetKey: 'sat_math_practice' }),
       item({ id: 'custom', title: '自行新增', source: 'custom' }),
     ]),
     record('2026-10-07', [item({ id: 'today', title: '今日項目' })]),
@@ -145,6 +152,7 @@ test('合併卡片中的真實排程子項目各自出現在待辦且依科目�
       dailyWorkSourceItems: [
         item({ id: 'math-child', title: '數學講義', type: 'mathStudy', f: { subject: '數學A' } }),
         item({ id: 'science-child', title: '物理複習', type: 'scienceReview', f: { subject: '物理' } }),
+        item({ id: 'math-practice-child', type: 'mathPractice', title: '數學講義題目：理解檢查＋錯題標記＋訂正' }),
       ],
     },
   });

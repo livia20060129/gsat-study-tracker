@@ -267,10 +267,23 @@ function editableOverdueRecord(record: StudyRecord): StudyRecord {
   return updated;
 }
 
+const MATH_PRACTICE_PRESET_KEYS = new Set([
+  'weekday_math_practice', 'fri_math_practice', 'sat_math_practice', 'sun_math_practice',
+]);
+
+function isMathPracticeReminder(item: StudyItem): boolean {
+  if (item.type === 'mathPractice' || item.f?.calendarFixedTemplate === 'mathPractice') return true;
+  if (MATH_PRACTICE_PRESET_KEYS.has(String(item.presetKey ?? ''))
+    || MATH_PRACTICE_PRESET_KEYS.has(String(item.templatePresetKey ?? ''))) return true;
+  const title = String(item.title ?? '').replace(/\s+/g, '');
+  return /^數學講義題目[｜:：]理解檢查[＋+]錯題標記[＋+]訂正(?:$|｜)/.test(title);
+}
+
 function isPendingOverdueTask(item: StudyItem): boolean {
   return isDeferrableStudyItem(item)
     && item.presetKey !== 'weekday_english_review'
     && String(item.title ?? '').trim() !== '英文訂正與搭配詞整理'
+    && !isMathPracticeReminder(item)
     && !item.done
     && !isConfirmedDeferred(item)
     && !item.deferredCarry
