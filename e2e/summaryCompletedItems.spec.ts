@@ -152,3 +152,82 @@ test('todo completions appear in the selected summary period, with skip excluded
   await expect(list).not.toContainText('只跳過的項目');
   expect(errors).toEqual([]);
 });
+
+test('completed items keep subject colors and follow donut selection, period changes and both reset controls', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.clock.install({ time: new Date('2026-10-17T12:00:00+08:00') });
+  await page.goto('/summary.html');
+  await page.evaluate(() => {
+    localStorage.clear();
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    const subjects = ['數學', '國文', '英文', '物理', '化學', '生物', '地科', '自然', '社會', '其他'];
+    localStorage.setItem(`${prefix}2026-10-17`, JSON.stringify({ date: '2026-10-17',
+      items: subjects.map(subject => ({ id: `color-${subject}`, type: 'general', title: `${subject}完成項目`,
+        done: true, minutes: '10', source: 'preset', required: true, f: { subject } })),
+    }));
+    localStorage.setItem(`${prefix}2026-09-30`, JSON.stringify({ date: '2026-09-30', items: [
+      { id: 'zero-minute-todo', type: 'englishPractice', title: '英文待辦完成但未填分鐘',
+        done: true, minutes: '', checkedOn: '2026-10-17', source: 'preset', required: true,
+        f: { overdueTodoAction: { kind: 'complete', handledAt: '2026-10-17T04:00:00Z' } } },
+    ] }));
+    localStorage.setItem(`${prefix}2026-10-02`, JSON.stringify({ date: '2026-10-02', items: [
+      { id: 'monthly-english', type: 'englishPractice', title: '月初英文完成項目',
+        done: true, minutes: '5', source: 'preset', required: true, f: {} },
+    ] }));
+  });
+  await page.reload();
+  const list = page.locator('#summaryCompletedItems');
+  await expect(list.locator('li')).toHaveCount(11);
+  await expect(page.locator('#clearCompletedSubjectFilter')).toBeHidden();
+  const palette: Record<string, string> = {
+    數學: '#cfb273', 國文: '#b9958b', 英文: '#a898bd', 物理: '#8faec5',
+    化學: '#91b6a2', 生物: '#a8b78e', 地科: '#b8a58d', 自然: '#8eaea1',
+    社會: '#aab3bd', 其他: '#aab3bd',
+  };
+  const colors = await list.locator('li').evaluateAll(nodes => nodes.map(node => ({
+    subject: (node as HTMLElement).dataset.completedSubject!,
+    accent: (node as HTMLElement).style.getPropertyValue('--completed-accent'),
+    border: getComputedStyle(node).borderLeftColor,
+    badge: getComputedStyle(node.querySelector('.summary-completed-subject')!).backgroundColor,
+  })));
+  for (const color of colors) expect(color.accent).toBe(palette[color.subject]);
+  expect(new Set(colors.map(color => color.border)).size).toBe(9);
+  expect(new Set(colors.map(color => color.badge)).size).toBe(9);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('.summary-completed-card').screenshot({ path: testInfo.outputPath('completed-subject-colors-mobile.png') });
+  const expectedSubjects: Record<string, string[]> = {
+    國文: ['國文'], 英文: ['英文', '英文'], 數學: ['數學'],
+    自然: ['物理', '化學', '生物', '地科', '自然'], 其他: ['社會', '其他'],
+  };
+  for (const [subject, expected] of Object.entries(expectedSubjects)) {
+    await page.getByRole('button', { name: `查看${subject}項目`, exact: true }).click();
+    await expect(page.locator('#completedItemsTitle')).toHaveText(`本週完成項目｜${subject}`);
+    await expect(list.locator('li')).toHaveCount(expected.length);
+    const visibleSubjects = await list.locator('li').evaluateAll(nodes => nodes.map(node => (
+      (node as HTMLElement).dataset.completedSubject!
+    )));
+    expect(visibleSubjects.sort()).toEqual([...expected].sort());
+    await expect(page.locator('#completedItemsCount')).toHaveText(`共 ${expected.length} 項`);
+    if (subject === '英文') await expect(list).toContainText('英文待辦完成但未填分鐘');
+    await page.locator('#summarySubjectDistribution [data-summary-back]').press('Enter');
+    await expect(list.locator('li')).toHaveCount(11);
+    await expect(page.locator('#completedItemsTitle')).toHaveText('本週完成項目');
+  }
+
+  await page.getByRole('button', { name: '查看英文項目', exact: true }).click();
+  await page.getByRole('tab', { name: '月', exact: true }).click();
+  await expect(page.locator('#completedItemsTitle')).toHaveText('本月完成項目｜英文');
+  await expect(list.locator('li')).toHaveCount(3);
+  await page.getByRole('button', { name: '上一月', exact: true }).click();
+  await expect(list).toContainText('本月尚無英文的完成項目。');
+  await expect(page.locator('#completedItemsCount')).toHaveText('共 0 項');
+  await page.getByRole('button', { name: '顯示全部科目', exact: true }).click();
+  await expect(page.locator('#completedItemsTitle')).toHaveText('本月完成項目');
+  await expect(page.locator('#clearCompletedSubjectFilter')).toBeHidden();
+  await page.getByRole('button', { name: '下一月', exact: true }).click();
+  await expect(list.locator('li')).toHaveCount(12);
+  expect(errors).toEqual([]);
+});

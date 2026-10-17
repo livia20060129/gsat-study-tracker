@@ -1,8 +1,10 @@
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
 import { completionDateValue } from './completionCheckedOn.ts';
+import { NATURAL_SCIENCE_SUBJECTS } from './completedStudyTime.ts';
 import { activeEnglishTaskItems } from './englishTaskChoice.ts';
 import type { SummaryPeriod } from './learningSummary.ts';
 import { studyItemSubject } from './subjectOrder.ts';
+import { SUBJECT_TIME_SUBJECTS, type SubjectTimeSubject } from './subjectTime.ts';
 
 export interface CompletedItemEntry {
   key: string;
@@ -11,6 +13,29 @@ export interface CompletedItemEntry {
   subject: string;
   title: string;
   detail: string;
+}
+
+/** Keeps the list palette and the donut's subject families aligned, including social/other work. */
+export function completedItemSummarySubject(subject: string): SubjectTimeSubject {
+  return SUBJECT_TIME_SUBJECTS.find(function matchesSubject(candidate): boolean {
+    return candidate === subject;
+  }) ?? '其他';
+}
+
+export function completedItemsForSubject(
+  entries: CompletedItemEntry[],
+  subject: SubjectTimeSubject | null,
+): CompletedItemEntry[] {
+  if (!subject) return entries;
+  return entries.filter(function matchesSelection(entry): boolean {
+    const itemSubject = completedItemSummarySubject(entry.subject);
+    if (subject === '自然') {
+      return itemSubject === '自然' || NATURAL_SCIENCE_SUBJECTS.some(function isScience(science): boolean {
+        return science === itemSubject;
+      });
+    }
+    return itemSubject === subject;
+  });
 }
 
 const TYPE_TITLES: Record<string, string> = {

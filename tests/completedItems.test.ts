@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
-import { completedItemsForPeriod } from '../src/study/completedItems.ts';
+import {
+  completedItemSummarySubject, completedItemsForPeriod, completedItemsForSubject,
+} from '../src/study/completedItems.ts';
 import { summarizeLearningPeriod, summaryPeriod } from '../src/study/learningSummary.ts';
 import {
   overdueHandledTasks, undoOverdueTaskAction, updateOverdueTaskCompletion, updateOverdueTaskSkip,
@@ -195,4 +197,34 @@ test('an inactive grouped option includes only its explicitly completed todo chi
     item('mock-option', { type: 'mock', presetKey: 'fri_mock_timed', done: false }),
   ] }];
   assert.deepEqual(completedItemsForPeriod(records, week).map(row => row.title), ['todo-child']);
+});
+
+test('subject filtering follows donut families without dropping zero-minute completions or changing order', () => {
+  const subjects = ['國文', '英文', '數學', '物理', '化學', '生物', '地科', '自然', '社會', '其他'];
+  const records: StudyRecord[] = [{ date: '2026-10-17', items: subjects.map(subject => item(subject, {
+    type: 'general', f: { subject },
+  })) }];
+  const entries = completedItemsForPeriod(records, week);
+  const before = JSON.stringify(entries);
+  assert.equal(completedItemsForSubject(entries, null).length, 10);
+  assert.deepEqual(completedItemsForSubject(entries, '英文').map(entry => entry.subject), ['英文']);
+  assert.deepEqual(completedItemsForSubject(entries, '數學').map(entry => entry.subject), ['數學']);
+  assert.deepEqual(completedItemsForSubject(entries, '國文').map(entry => entry.subject), ['國文']);
+  assert.deepEqual(completedItemsForSubject(entries, '自然'), entries.filter(entry => (
+    ['自然', '物理', '化學', '生物', '地科'].includes(entry.subject)
+  )));
+  assert.equal(completedItemsForSubject(entries, '自然').length, 5);
+  assert.deepEqual(completedItemsForSubject(entries, '物理').map(entry => entry.subject), ['物理']);
+  assert.deepEqual(new Set(completedItemsForSubject(entries, '其他').map(entry => entry.subject)),
+    new Set(['社會', '其他']));
+  assert.equal(JSON.stringify(entries), before);
+});
+
+test('completed list colors use existing donut subject keys, with a safe other-subject fallback', () => {
+  for (const subject of ['數學', '國文', '英文', '物理', '化學', '生物', '地科', '自然', '其他']) {
+    assert.equal(completedItemSummarySubject(subject), subject);
+  }
+  assert.equal(completedItemSummarySubject('社會'), '其他');
+  assert.equal(completedItemSummarySubject('未知科目'), '其他');
+  assert.deepEqual(completedItemsForSubject([], '英文'), []);
 });

@@ -106,7 +106,10 @@
     <section class="summary-card summary-completed-card" aria-labelledby="completedItemsTitle">
       <div class="summary-section-head">
         <div><h2 id="completedItemsTitle">本週完成項目</h2><p>依完成日期列出，包含待辦事項與未記錄分鐘的項目。</p></div>
-        <span id="completedItemsCount" class="summary-completed-count"></span>
+        <div class="summary-completed-controls">
+          <span id="completedItemsCount" class="summary-completed-count" aria-live="polite"></span>
+          <button id="clearCompletedSubjectFilter" class="summary-subject-back" type="button" hidden>顯示全部科目</button>
+        </div>
       </div>
       <div id="summaryCompletedItems"></div>
     </section>

@@ -1,5 +1,7 @@
 import './learning-summary.css';
-import { completedItemsForPeriod } from './study/completedItems.ts';
+import {
+  completedItemSummarySubject, completedItemsForPeriod, completedItemsForSubject,
+} from './study/completedItems.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   SUMMARY_MODES,
@@ -449,13 +451,15 @@ function renderConclusion(current: LearningPeriodSummary, previous: LearningPeri
 }
 
 function renderCompletedItems(period: SummaryPeriod): void {
-  const entries = completedItemsForPeriod(records, period);
+  const entries = completedItemsForSubject(completedItemsForPeriod(records, period), selectedSubject);
   const title = activeMode === 'week' ? '本週完成項目' : '本月完成項目';
-  element<HTMLElement>('completedItemsTitle').textContent = title;
+  element<HTMLElement>('completedItemsTitle').textContent = selectedSubject ? `${title}｜${selectedSubject}` : title;
   element<HTMLElement>('completedItemsCount').textContent = `共 ${entries.length} 項`;
+  element<HTMLButtonElement>('clearCompletedSubjectFilter').hidden = !selectedSubject;
   const container = element<HTMLElement>('summaryCompletedItems');
   if (!entries.length) {
-    container.innerHTML = `<p class="summary-completed-empty">${activeMode === 'week' ? '本週' : '本月'}尚無完成項目。</p>`;
+    const subjectLabel = selectedSubject ? `${selectedSubject}的` : '';
+    container.innerHTML = `<p class="summary-completed-empty">${activeMode === 'week' ? '本週' : '本月'}尚無${subjectLabel}完成項目。</p>`;
     return;
   }
   const dates = [...new Set(entries.map(function completionDate(entry): string { return entry.date; }))];
@@ -467,7 +471,8 @@ function renderCompletedItems(period: SummaryPeriod): void {
         const originalDate = entry.recordDate !== entry.date
           ? `<small>原排程 ${escapeHtml(entry.recordDate)}</small>` : '';
         const detail = entry.detail ? `<p>${escapeHtml(entry.detail)}</p>` : '';
-        return `<li><span class="summary-completed-subject">${escapeHtml(entry.subject)}</span>
+        const color = SUBJECT_TIME_COLORS[completedItemSummarySubject(entry.subject)];
+        return `<li data-completed-subject="${escapeHtml(entry.subject)}" style="--completed-accent:${color}"><span class="summary-completed-subject">${escapeHtml(entry.subject)}</span>
           <div><strong>${escapeHtml(entry.title)}</strong>${detail}${originalDate}</div></li>`;
       }).join('')}</ul>
     </section>`;
@@ -584,6 +589,7 @@ element<HTMLInputElement>('includeStatusDaysCompletion').addEventListener('chang
   storeStatusDayCompletionPreference(includeStatusDaysInCompletion);
   renderAll();
 });
+element<HTMLButtonElement>('clearCompletedSubjectFilter').addEventListener('click', returnToSubjectOverview);
 element<HTMLDivElement>('summarySubjectDistribution').addEventListener('click', event => {
   const detailBack = (event.target as HTMLElement).closest<HTMLElement>('[data-summary-back]');
   if (detailBack) {

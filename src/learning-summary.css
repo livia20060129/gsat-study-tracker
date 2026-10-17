@@ -43,12 +43,13 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(142,174,161,.3);outl
 
 .summary-completed-card { margin-top: 12px; padding: 15px 17px; }
 .summary-completed-count { flex: 0 0 auto; color: #526174; font-size: 13px; }
+.summary-completed-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .summary-completed-day + .summary-completed-day { margin-top: 20px; }
 .summary-completed-day h3 { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 8px; color: #496481; font-size: 14px; }
 .summary-completed-day h3 span { color: #718096; font-size: 12px; font-weight: 400; }
 .summary-completed-day ul { margin: 0; padding: 0; list-style: none; }
-.summary-completed-day li { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: start; gap: 10px; padding: 11px 0; border-top: 1px solid #edf1f5; }
-.summary-completed-subject { padding: 3px 5px; border-radius: 7px; background: #eef3f9; color: #496481; text-align: center; font-size: 12px; }
+.summary-completed-day li { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: start; gap: 10px; margin-top: 7px; padding: 11px 10px; border: 1px solid #edf1f5; border-left: 4px solid var(--completed-accent, #aab3bd); border-radius: 10px; background: color-mix(in srgb, var(--completed-accent, #aab3bd) 12%, white); }
+.summary-completed-subject { padding: 3px 5px; border-radius: 7px; background: color-mix(in srgb, var(--completed-accent, #aab3bd) 35%, white); color: #263449; text-align: center; font-size: 12px; }
 .summary-completed-day li > div { min-width: 0; overflow-wrap: anywhere; }
 .summary-completed-day strong { color: #263449; font-size: 14px; line-height: 1.6; }
 .summary-completed-day p { margin: 3px 0 0; color: #526174; font-size: 13px; line-height: 1.6; }
