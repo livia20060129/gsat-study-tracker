@@ -87,3 +87,68 @@ test('completed list refreshes after another tab saves, without modifying the sa
   expect(await page.evaluate(() => localStorage.getItem('study-v11:guest:2026-10-01'))).toBe(stored);
   await writer.close();
 });
+
+test('todo completions appear in the selected summary period, with skip excluded and undo respected', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.clock.install({ time: new Date('2026-10-17T12:00:00+08:00') });
+  await page.goto('/todo.html');
+  await page.evaluate(() => {
+    localStorage.clear();
+    const prefix = 'study-v11:guest:';
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    const english = { id: 'todo-summary-english', type: 'englishPractice', title: '待辦英文閱讀',
+      source: 'preset', required: true, done: false, minutes: '',
+      f: { book: 'ACE Reading', start: '18', end: '21' } };
+    localStorage.setItem(`${prefix}2026-09-30`, JSON.stringify({ date: '2026-09-30', items: [
+      { ...english, id: 'merged-parent', f: { dailyWorkGroup: true,
+        dailyWorkSourceItems: [english], groupedWorkEntries: [
+          { ...english, id: 'visible-child', calendarGroupedChild: true,
+            f: { ...english.f, dailyWorkSourceItems: [structuredClone(english)] } },
+        ] } },
+      { id: 'todo-summary-math', type: 'mathLecture', title: '待辦數學講義',
+        source: 'preset', required: true, done: false, minutes: '',
+        f: { material: '新大滿貫', start: '6', end: '19' } },
+      { id: 'todo-summary-skip', type: 'general', title: '只跳過的項目',
+        source: 'preset', required: true, done: false, minutes: '', f: {} },
+    ] }));
+  });
+  await page.reload();
+  await expect(page.locator('.todo-card')).toHaveCount(3);
+  await page.getByLabel('待辦英文閱讀的完成日期', { exact: true }).fill('2026-10-16');
+  await page.getByRole('button', { name: '標記完成 待辦英文閱讀', exact: true }).click();
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await page.getByLabel('待辦數學講義的完成日期', { exact: true }).fill('2026-10-02');
+  await page.getByRole('button', { name: '標記完成 待辦數學講義', exact: true }).click();
+  await page.getByRole('button', { name: '跳過 只跳過的項目', exact: true }).click();
+  await expect(page.locator('.todo-card')).toHaveCount(0);
+  await expect(page.locator('.todo-history-item')).toHaveCount(3);
+
+  await page.goto('/summary.html#week');
+  const list = page.locator('#summaryCompletedItems');
+  await expect(list.locator('li')).toHaveCount(1);
+  await expect(list).toContainText('待辦英文閱讀');
+  await expect(list).toContainText('ACE Reading｜p.18–21');
+  await expect(list).toContainText('原排程 2026-09-30');
+  await expect(list.locator('time')).toHaveAttribute('datetime', '2026-10-16');
+  await expect(list).not.toContainText('只跳過的項目');
+  await page.getByRole('tab', { name: '月', exact: true }).click();
+  await expect(list.locator('li')).toHaveCount(2);
+  await expect(list).toContainText('待辦數學講義');
+  expect(await list.locator('time').evaluateAll(nodes => nodes.map(node => node.getAttribute('datetime'))))
+    .toEqual(['2026-10-16', '2026-10-02']);
+  await page.reload();
+  await expect(list.locator('li')).toHaveCount(2);
+
+  await page.goto('/todo.html');
+  await page.getByRole('button', { name: '復原 待辦英文閱讀', exact: true }).click();
+  await expect(page.getByRole('button', { name: '標記完成 待辦英文閱讀', exact: true })).toBeVisible();
+  await page.goto('/summary.html#week');
+  await expect(list).toContainText('本週尚無完成項目。');
+  await page.getByRole('tab', { name: '月', exact: true }).click();
+  await expect(list.locator('li')).toHaveCount(1);
+  await expect(list).toContainText('待辦數學講義');
+  await expect(list).not.toContainText('待辦英文閱讀');
+  await expect(list).not.toContainText('只跳過的項目');
+  expect(errors).toEqual([]);
+});

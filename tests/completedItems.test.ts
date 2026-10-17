@@ -3,6 +3,9 @@ import test from 'node:test';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
 import { completedItemsForPeriod } from '../src/study/completedItems.ts';
 import { summarizeLearningPeriod, summaryPeriod } from '../src/study/learningSummary.ts';
+import {
+  overdueHandledTasks, undoOverdueTaskAction, updateOverdueTaskCompletion, updateOverdueTaskSkip,
+} from '../src/study/overdueTasks.ts';
 
 const week = summaryPeriod('2026-10-17', 'week');
 
@@ -122,4 +125,74 @@ test('listing does not mutate saved data or change time/completion metrics', () 
   assert.equal(completedItemsForPeriod(records, week).length, 1);
   assert.equal(JSON.stringify(records), before);
   assert.deepEqual(summarizeLearningPeriod(records, week), metrics);
+});
+
+test('todo completion uses the selected date outside the scheduled month and outlives the undo window', () => {
+  const original: StudyRecord = { date: '2026-09-30', items: [item('todo', { done: false })] };
+  const completed = updateOverdueTaskCompletion(original, 'todo', true, '2026-10-16', '2026-10-17T04:00:00Z');
+  assert.ok(completed);
+  const stored = JSON.parse(JSON.stringify(completed)) as StudyRecord;
+  assert.equal(overdueHandledTasks([stored], Date.parse('2026-10-22T04:00:00Z')).length, 0);
+  const rows = completedItemsForPeriod([stored], week);
+  assert.deepEqual(rows.map(row => [row.title, row.date, row.recordDate]), [
+    ['todo', '2026-10-16', '2026-09-30'],
+  ]);
+  assert.equal(completedItemsForPeriod([stored], summaryPeriod('2026-09-30', 'month')).length, 0);
+  assert.equal(completedItemsForPeriod([stored], summaryPeriod('2026-10-17', 'month')).length, 1);
+
+  const restored = undoOverdueTaskAction(stored, 'todo', '2026-10-17');
+  assert.ok(restored);
+  assert.deepEqual(completedItemsForPeriod([restored], week), []);
+  const skipped = updateOverdueTaskSkip(original, 'todo', '2026-10-17');
+  assert.ok(skipped);
+  assert.deepEqual(completedItemsForPeriod([skipped], week), []);
+});
+
+test('canonical todo sources remain visible when older grouped display copies are stale', () => {
+  const pendingSource = item('canonical-todo', { done: false,
+    f: { material: '新關鍵', start: '10', end: '12' } });
+  const completed = updateOverdueTaskCompletion({ date: '2026-09-30', items: [pendingSource] },
+    pendingSource.id, true, '2026-10-16');
+  assert.ok(completed);
+  const staleDisplay = item('display-copy', { done: false, f: {
+    dailyWorkSourceItems: [structuredClone(pendingSource)],
+  } });
+  const stored: StudyRecord = { date: '2026-09-30', items: [item('merged-parent', { f: {
+    dailyWorkSourceItems: completed.items, groupedWorkEntries: [staleDisplay],
+  } })] };
+  const before = JSON.stringify(stored);
+  const rows = completedItemsForPeriod([stored], week);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].title, 'canonical-todo');
+  assert.equal(rows[0].date, '2026-10-16');
+  assert.equal(rows[0].detail, '新關鍵｜p.10–12');
+  assert.equal(JSON.stringify(stored), before);
+});
+
+test('explicit todo accomplishments survive a later change of the active English option', () => {
+  const original: StudyRecord = { date: '2026-09-30', englishTaskChoice: 'mixed', items: [
+    item('todo-mixed', { type: 'englishMixedWriting', done: false }),
+    item('mock-option', { type: 'mock', presetKey: 'fri_mock_timed', done: false }),
+    item('inactive-correction', { done: true, f: { englishMockCorrectionInactive: true } }),
+  ] };
+  const completed = updateOverdueTaskCompletion(original, 'todo-mixed', true, '2026-10-16');
+  assert.ok(completed);
+  completed.englishTaskChoice = 'mock';
+  assert.deepEqual(completedItemsForPeriod([completed], week).map(row => row.title), ['todo-mixed']);
+  const restored = undoOverdueTaskAction(completed, 'todo-mixed', '2026-10-17');
+  assert.ok(restored);
+  assert.deepEqual(completedItemsForPeriod([restored], week), []);
+});
+
+test('an inactive grouped option includes only its explicitly completed todo children', () => {
+  const todoChild = item('todo-child', { checkedOn: '2026-10-16', f: {
+    overdueTodoAction: { kind: 'complete', handledAt: '2026-10-17T04:00:00Z' },
+  } });
+  const records: StudyRecord[] = [{ date: '2026-09-30', englishTaskChoice: 'mock', items: [
+    item('inactive-mixed', { type: 'englishMixedWriting', done: false, f: {
+      groupedWorkEntries: [todoChild, item('other-inactive-child', { checkedOn: '2026-10-16' })],
+    } }),
+    item('mock-option', { type: 'mock', presetKey: 'fri_mock_timed', done: false }),
+  ] }];
+  assert.deepEqual(completedItemsForPeriod(records, week).map(row => row.title), ['todo-child']);
 });

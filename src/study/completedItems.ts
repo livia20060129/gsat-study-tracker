@@ -31,9 +31,9 @@ function validDate(value: string): boolean {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-/** Visit one representation only: merged sources and visible children may duplicate each other. */
+/** Canonical sources take precedence over possibly stale grouped display copies. */
 function children(item: StudyItem): StudyItem[] {
-  for (const field of ['groupedWorkEntries', 'dailyWorkSourceItems', 'interactiveEntries',
+  for (const field of ['dailyWorkSourceItems', 'groupedWorkEntries', 'interactiveEntries',
     'calendarIntegrationEntries', 'makeupEntries', 'reviewEntries']) {
     const entries = item.f?.[field];
     if (!Array.isArray(entries) || !entries.length) continue;
@@ -99,9 +99,10 @@ export function completedItemsForPeriod(
   for (const record of records) {
     if (!validDate(record.date)) continue;
     const visited = new Set<StudyItem>();
+    const activeItems = new Set(activeEnglishTaskItems(record, record.items ?? []));
     function collect(
       item: StudyItem, path: string, inheritedDate: string, inheritedOrigin: string,
-      fallbackTitle = '', fallbackSubject = '其他',
+      fallbackTitle = '', fallbackSubject = '其他', onlyTodoCompletions = false,
     ): void {
       if (!item || visited.has(item)) return;
       visited.add(item);
@@ -110,14 +111,16 @@ export function completedItemsForPeriod(
       const title = text(item.title) || text(item.f?.title) || text(item.f?.calendarTopic)
         || fallbackTitle || TYPE_TITLES[item.type] || '未命名項目';
       const subject = subjectLabel(item, fallbackSubject);
+      const completedInTodo = item.done && item.f?.overdueTodoAction?.kind === 'complete';
       const nested = children(item);
       if (nested.length) {
         nested.forEach(function collectChild(child, index): void {
-          collect(child, `${path}.${index}`, date, originDate, title, subject);
+          collect(child, `${path}.${index}`, date, originDate, title, subject,
+            onlyTodoCompletions && !completedInTodo);
         });
         return;
       }
-      if (!item.done || !validDate(date)) return;
+      if (!item.done || !validDate(date) || (onlyTodoCompletions && !completedInTodo)) return;
       const key = itemKey(item, originDate, path, subject);
       const existing = unique.get(key);
       // The original and its deferred copy represent one task, not two accomplishments.
@@ -125,8 +128,9 @@ export function completedItemsForPeriod(
         unique.set(key, { key, date, recordDate: originDate, subject, title, detail: itemDetail(item, title) });
       }
     }
-    activeEnglishTaskItems(record, record.items ?? []).forEach(function collectRoot(item, index): void {
-      collect(item, String(index), record.date, record.date);
+    // A later English-option change must not erase an explicit todo accomplishment from history.
+    (record.items ?? []).forEach(function collectRoot(item, index): void {
+      collect(item, String(index), record.date, record.date, '', '其他', !activeItems.has(item));
     });
   }
   // Filter after deduplication so an older mirrored completion cannot leak into another period.
