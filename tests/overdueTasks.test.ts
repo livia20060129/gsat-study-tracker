@@ -230,6 +230,43 @@ test('待辦可更新原卡進度與保存可繼續的計時狀態', () => {
   assert.equal(timed.items[0].minutes, '3.0');
 });
 
+test('合併卡片的待辦計時會更新真實來源且重載後仍可繼續', () => {
+  const source = item({
+    id: 'merged-timer-source',
+    type: 'englishPractice',
+    title: '合併來源計時',
+    f: { subject: '英文' },
+  });
+  const duplicatedSource = JSON.parse(JSON.stringify(source)) as StudyItem;
+  const original = record('2026-10-05', [item({
+    id: 'merged-parent',
+    source: 'summary',
+    required: false,
+    f: {
+      dailyWorkSourceItems: [source],
+      groupedWorkEntries: [item({
+        id: 'merged-child',
+        source: 'groupedWork',
+        f: { dailyWorkSourceItems: [duplicatedSource] },
+      })],
+    },
+  })]);
+
+  const running = { mode: 'timer' as const, accumulatedSeconds: 12, startedAt: 456_000 };
+  const timed = updateOverdueTaskTimer(original, source.id, running);
+  assert.ok(timed);
+  assert.deepEqual(overdueTaskTimer(timed, source.id), running);
+  assert.deepEqual(overdueTasks([timed], '2026-10-07')[0].timer, running);
+
+  const reloaded = JSON.parse(JSON.stringify(timed)) as StudyRecord;
+  assert.deepEqual(overdueTaskTimer(reloaded, source.id), running);
+  assert.deepEqual(overdueTasks([reloaded], '2026-10-07')[0].timer, running);
+  assert.deepEqual(
+    reloaded.items[0].f.groupedWorkEntries?.[0].f.dailyWorkSourceItems?.[0].f.timeTracking,
+    running,
+  );
+});
+
 test('完成與跳過移入獨立復原清單，滿 72 小時後自動消失', () => {
   const handledAt = '2026-10-07T01:00:00.000Z';
   const base = record('2026-10-05', [

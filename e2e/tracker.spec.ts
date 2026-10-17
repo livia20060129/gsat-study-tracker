@@ -210,6 +210,51 @@ test('overdue task page filters subjects and persists skip without marking compl
   expect(switchBounds.right).toBeLessThanOrEqual(switchBounds.viewport);
 });
 
+test('todo timer runs for a source item duplicated inside a merged card', async ({ page }) => {
+  await page.goto('/summary.html');
+  await page.evaluate(() => {
+    const now = new Date();
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12);
+    const date = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    const prefix = 'study-v11:guest:';
+    const source = {
+      id: 'todo-merged-timer', type: 'englishPractice', title: '合併卡片計時測試',
+      done: false, minutes: '', required: true, source: 'preset', f: { subject: '英文' },
+    };
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem(`${prefix}${date}`, JSON.stringify({
+      date,
+      items: [{
+        id: 'todo-merged-parent', type: 'general', title: '合併卡片',
+        done: false, minutes: '', required: false, source: 'summary',
+        f: {
+          dailyWorkSourceItems: [source],
+          groupedWorkEntries: [{
+            id: 'todo-merged-child', type: 'general', title: '合併子項目',
+            done: false, minutes: '', required: false, source: 'groupedWork',
+            f: { dailyWorkSourceItems: [structuredClone(source)] },
+          }],
+        },
+      }],
+    }));
+  });
+
+  await page.goto('/todo.html');
+  const card = page.locator('.todo-card').filter({ hasText: '合併卡片計時測試' });
+  await expect(card).toHaveCount(1);
+  await card.getByRole('button', { name: '計時', exact: true }).click();
+  await expect(card.locator('[data-todo-timer-display]')).toHaveText('00:00');
+  await card.getByRole('button', { name: '開始' }).click();
+  await page.waitForTimeout(1_100);
+  await expect(card.locator('[data-todo-timer-display]')).not.toHaveText('00:00');
+
+  await page.reload();
+  await expect(card.getByRole('button', { name: '暫停' })).toBeVisible();
+  await expect(card.locator('[data-todo-timer-display]')).not.toHaveText('00:00');
+  await card.getByRole('button', { name: '暫停' }).click();
+  await expect(card.getByRole('button', { name: '開始' })).toBeVisible();
+});
+
 test('todo page re-reads an original-date completion when restored from browser history', async ({ page }) => {
   await page.goto('about:blank');
   await page.clock.install({ time: new Date('2026-08-10T12:00:00+08:00') });

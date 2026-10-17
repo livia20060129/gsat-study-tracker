@@ -10,6 +10,7 @@ import {
   propagateDailyWorkField,
   propagateDailyWorkMinutes,
   propagateDailyWorkRangeField,
+  relinkDailyWorkSourceItems,
 } from './dailyWorkGroup.ts';
 import { deferredCapacityCandidates, isConfirmedDeferred, isDeferrableStudyItem } from './deferDays.ts';
 import { activeEnglishTaskItems } from './englishTaskChoice.ts';
@@ -250,6 +251,22 @@ function overdueCandidates(record: StudyRecord): StudyItem[] {
   return deferredCapacityCandidates(activeItems) as StudyItem[];
 }
 
+function overdueTaskItem(record: StudyRecord, itemId: string): StudyItem | null {
+  return overdueCandidates(record).find(item => item.id === itemId)
+    ?? findCompletionItem(record.items, itemId);
+}
+
+/**
+ * JSON persistence duplicates source items referenced by merged cards. Relink
+ * those copies before every todo edit so the visible overdue row and the
+ * nested card reference always update the same object.
+ */
+function editableOverdueRecord(record: StudyRecord): StudyRecord {
+  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
+  relinkDailyWorkSourceItems(updated.items);
+  return updated;
+}
+
 function isPendingOverdueTask(item: StudyItem): boolean {
   return isDeferrableStudyItem(item)
     && item.presetKey !== 'weekday_english_review'
@@ -302,8 +319,8 @@ export function updateOverdueTaskSkip(
   skippedOn: string | null,
   handledAt = new Date().toISOString(),
 ): StudyRecord | null {
-  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
-  const item = findCompletionItem(updated.items, itemId);
+  const updated = editableOverdueRecord(record);
+  const item = overdueTaskItem(updated, itemId);
   if (!item) return null;
   item.f = item.f || {};
   if (skippedOn) {
@@ -323,8 +340,8 @@ export function updateOverdueTaskMinutes(
 ): StudyRecord | null {
   const numeric = Number(minutes);
   if (minutes !== '' && (!Number.isFinite(numeric) || numeric < 0)) return null;
-  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
-  const item = findCompletionItem(updated.items, itemId);
+  const updated = editableOverdueRecord(record);
+  const item = overdueTaskItem(updated, itemId);
   if (!item) return null;
   propagateDailyWorkMinutes(item, minutes);
   return updated;
@@ -336,8 +353,8 @@ export function updateOverdueTaskTimer(
   timer: StudyTimerState,
   minutes?: string,
 ): StudyRecord | null {
-  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
-  const item = findCompletionItem(updated.items, itemId);
+  const updated = editableOverdueRecord(record);
+  const item = overdueTaskItem(updated, itemId);
   if (!item) return null;
   propagateDailyWorkField(item, 'timeTracking', normalizeStudyTimerState(timer));
   if (minutes !== undefined) propagateDailyWorkMinutes(item, minutes);
@@ -345,7 +362,7 @@ export function updateOverdueTaskTimer(
 }
 
 export function overdueTaskTimer(record: StudyRecord, itemId: string): StudyTimerState | null {
-  const item = findCompletionItem(record.items, itemId);
+  const item = overdueTaskItem(record, itemId);
   return item ? normalizeStudyTimerState(item.f?.timeTracking) : null;
 }
 
@@ -356,8 +373,8 @@ export function updateOverdueTaskProgress(
   checked: boolean,
 ): StudyRecord | null {
   if (!PROGRESS_FIELDS.some(([key]) => key === field)) return null;
-  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
-  const item = findCompletionItem(updated.items, itemId);
+  const updated = editableOverdueRecord(record);
+  const item = overdueTaskItem(updated, itemId);
   if (!item) return null;
   propagateDailyWorkField(item, field, checked);
   return updated;
@@ -389,8 +406,8 @@ export function updateOverdueTaskPageRange(
   const normalizedStart = String(start ?? '').trim();
   const normalizedEnd = String(end ?? '').trim();
   if (!validatePageRange(normalizedStart, normalizedEnd).valid) return null;
-  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
-  const item = findCompletionItem(updated.items, itemId);
+  const updated = editableOverdueRecord(record);
+  const item = overdueTaskItem(updated, itemId);
   if (!item) return null;
   propagateDailyWorkRangeField(item, 'start', normalizedStart ? String(Number(normalizedStart)) : '');
   propagateDailyWorkRangeField(item, 'end', normalizedEnd ? String(Number(normalizedEnd)) : '');
@@ -405,8 +422,8 @@ export function updateOverdueTaskCompletion(
   handledAt = new Date().toISOString(),
 ): StudyRecord | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(completionDate)) return null;
-  const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
-  const item = findCompletionItem(updated.items, itemId);
+  const updated = editableOverdueRecord(record);
+  const item = overdueTaskItem(updated, itemId);
   if (!item) return null;
   applyManualCompletionMetadata(item, completed, record.date, completionDate, updated.items);
   propagateDailyWorkDone(item, completed);
@@ -468,7 +485,7 @@ export function undoOverdueTaskAction(
   itemId: string,
   actionDate: string,
 ): StudyRecord | null {
-  const item = findCompletionItem(record.items, itemId);
+  const item = overdueTaskItem(record, itemId);
   const kind = item?.f?.overdueTodoAction?.kind;
   if (kind === 'skip') return updateOverdueTaskSkip(record, itemId, null);
   if (kind === 'complete') return updateOverdueTaskCompletion(record, itemId, false, actionDate);
