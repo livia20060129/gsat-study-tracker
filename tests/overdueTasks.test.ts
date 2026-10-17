@@ -96,8 +96,87 @@ test('待辦帶出原紀錄卡的學習時間與已填欄位', () => {
   ]);
   assert.deepEqual(results[0].progress, [
     { key: 'progress', label: '進度', checked: true },
+    { key: 'graded', label: '批改', checked: false },
     { key: 'corrected', label: '訂正', checked: false },
   ]);
+});
+
+test('原卡模板的進度批改訂正即使尚未儲存也全部顯示且不修改原紀錄', () => {
+  const templates: Array<Partial<StudyItem>> = [
+    { type: 'scienceReview', f: { subject: '物理', material: '新關鍵' } },
+    { type: 'mathLecture', f: { material: '教學講義' } },
+    { type: 'chineseReading', f: { kind: 'reading' } },
+    ...['ACE Reading', '英文：ACE Reading', '英文寫作測驗', '英文文法總複習講義',
+      'Prism Reading', 'Prism Reading 3', '大考英聽A攻略', '主題百匯：克漏字',
+      '主題百匯：篇章結構·閱讀測驗', 'Unlock 3 (Listening, speaking, critical thinking)',
+      'Azar英文文法（中階）',
+    ].map(title => ({ type: 'extra' as const, f: { title } })),
+  ];
+  for (const template of templates) {
+    const original = record('2026-10-15', [item(template)]);
+    const snapshot = structuredClone(original);
+    const [entry] = overdueTasks([original], '2026-10-18');
+    assert.deepEqual(entry.progress, [
+      { key: 'progress', label: '進度', checked: false },
+      { key: 'graded', label: '批改', checked: false },
+      { key: 'corrected', label: '訂正', checked: false },
+    ], JSON.stringify(template));
+    assert.deepEqual(original, snapshot);
+  }
+});
+
+test('不替沒有進度勾選欄的模板新增三個勾選，且英文互動題補齊原有欄位', () => {
+  const withoutChecks: Array<Partial<StudyItem>> = [
+    { type: 'mathStudy', f: { material: '教學講義' } },
+    { type: 'mathLecture', f: {} },
+    { type: 'chineseReading', f: { kind: 'writing' } },
+    { type: 'chineseReading', f: { kind: 'book' } },
+    { type: 'extra', f: { title: 'Essential Grammar in Use' } },
+    { type: 'extra', f: { title: 'Traumaland', progress: 'Topic 1' } },
+    { type: 'extra', presetKey: 'cal_azar_example', f: { title: 'Azar英文文法（中階）' } },
+    { type: 'scienceReview', presetKey: 'cal_natural_example', f: { calendarNaturalIntegration: true } },
+  ];
+  for (const template of withoutChecks) {
+    const [entry] = overdueTasks([record('2026-10-15', [item(template)])], '2026-10-18');
+    assert.deepEqual(entry.progress, [], JSON.stringify(template));
+  }
+  for (const template of [
+    { type: 'englishPractice' as const },
+    { type: 'interactive' as const, f: { interactiveType: 'englishPractice' } },
+  ]) {
+    const [entry] = overdueTasks([record('2026-10-15', [item(template)])], '2026-10-18');
+    assert.deepEqual(entry.progress.map(field => field.key), ['listening', 'vocab', 'translation', 'gsatPart1']);
+  }
+});
+
+test('自然待辦進度標記為手動選擇，批改訂正與其他資料分開保存', () => {
+  const original = record('2026-10-15', [item({
+    type: 'scienceReview', minutes: '25',
+    f: { subject: '化學', material: '新關鍵', calendarAutoCompletedProgress: true },
+  }), item({ id: 'untouched' })]);
+  let updated = updateOverdueTaskProgress(original, 'scheduled-item', 'progress', true);
+  assert.ok(updated);
+  reconcileCalendarNaturalPriorCoverage(updated.items[0], false);
+  assert.equal(updated.items[0].f.progress, true);
+  assert.equal(updated.items[0].f.calendarProgressSetByUser, true);
+  updated = updateOverdueTaskProgress(updated, 'scheduled-item', 'graded', true);
+  assert.ok(updated);
+  updated = updateOverdueTaskProgress(updated, 'scheduled-item', 'corrected', true);
+  assert.ok(updated);
+  assert.equal(updated.items[0].done, false);
+  assert.equal(updated.items[0].checkedOn, undefined);
+  assert.equal(updated.items[0].minutes, '25');
+  assert.deepEqual(updated.items[1], original.items[1]);
+  assert.equal(original.items[0].f.progress, undefined);
+  assert.deepEqual(overdueTasks([JSON.parse(JSON.stringify(updated))], '2026-10-18')[0].progress.map(field => field.checked), [true, true, true]);
+
+  updated = updateOverdueTaskProgress(updated, 'scheduled-item', 'progress', false);
+  assert.ok(updated);
+  reconcileCalendarNaturalPriorCoverage(updated.items[0], true);
+  assert.equal(updated.items[0].f.progress, false);
+  assert.equal(updated.items[0].f.calendarProgressUserValue, false);
+  assert.equal(updated.items[0].f.graded, true);
+  assert.equal(updated.items[0].f.corrected, true);
 });
 
 test('文字型進度保留原內容，不會被誤改成核取方塊', () => {
@@ -107,6 +186,7 @@ test('文字型進度保留原內容，不會被誤改成核取方塊', () => {
   })])], '2026-10-07');
   assert.deepEqual(results[0].progress, []);
   assert.deepEqual(results[0].details.at(-1), { label: '進度', value: '完成第一章' });
+  assert.equal(updateOverdueTaskProgress(record('2026-10-04', [item({ f: { progress: '完成第一章' } })]), 'scheduled-item', 'progress', true), null);
 });
 
 test('待辦數學會讀取 Calendar 建議範圍且所有頁碼範圍可修改', () => {

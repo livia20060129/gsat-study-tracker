@@ -1,5 +1,5 @@
 import type { StudyItem, StudyRecord, StudyTimerState } from '../types.ts';
-import { markCalendarNaturalCompletionByUser } from './calendarNaturalCompletion.ts';
+import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser } from './calendarNaturalCompletion.ts';
 import {
   applyManualCompletionMetadata,
   completionChildItems,
@@ -14,6 +14,7 @@ import {
 } from './dailyWorkGroup.ts';
 import { deferredCapacityCandidates, isConfirmedDeferred, isDeferrableStudyItem } from './deferDays.ts';
 import { activeEnglishTaskItems } from './englishTaskChoice.ts';
+import { STUDY_PROGRESS_FIELDS, studyItemProgress } from './itemProgress.ts';
 import { studyItemSubject } from './subjectOrder.ts';
 import { normalizeStudyTimerState } from './studyTimer.ts';
 import { validatePageRange } from './pageRangeValidation.ts';
@@ -106,12 +107,6 @@ const DETAIL_FIELDS: Array<[string, string]> = [
   ['reason', '錯因／不熟觀念'], ['progress', '進度'], ['graded', '批改'],
   ['corrected', '訂正'], ['review', '需要再複習'], ['listening', '英聽'], ['vocab', '單字'],
   ['translation', '中譯英'], ['gsatPart1', 'GSAT 第壹部分'],
-];
-
-const PROGRESS_FIELDS: Array<[string, string]> = [
-  ['progress', '進度'], ['graded', '批改'], ['corrected', '訂正'], ['review', '需要再複習'],
-  ['listening', '英聽'], ['vocab', '單字'], ['translation', '中譯英'],
-  ['gsatPart1', 'GSAT 第壹部分'],
 ];
 
 function dateNumber(value: string): number | null {
@@ -226,7 +221,7 @@ function taskDetails(item: StudyItem): OverdueTaskDetail[] {
       continue;
     }
     if (!(key in fields)) continue;
-    if (PROGRESS_FIELDS.some(([progressKey]) => progressKey === key) && typeof fields[key] === 'boolean') continue;
+    if (STUDY_PROGRESS_FIELDS.some(([progressKey]) => progressKey === key) && typeof fields[key] === 'boolean') continue;
     const value = detailValue(fields[key]);
     if (value) details.push({ label, value });
   }
@@ -235,15 +230,6 @@ function taskDetails(item: StudyItem): OverdueTaskDetail[] {
   const entries = magazineDetails(fields.entries);
   if (entries) details.push({ label: '雜誌紀錄', value: entries });
   return details;
-}
-
-function taskProgress(item: StudyItem): OverdueTaskProgress[] {
-  const fields = item.f ?? {};
-  return PROGRESS_FIELDS.filter(([key]) => typeof fields[key] === 'boolean').map(([key, label]) => ({
-    key,
-    label,
-    checked: fields[key] === true,
-  }));
 }
 
 function overdueCandidates(record: StudyRecord): StudyItem[] {
@@ -313,7 +299,7 @@ export function overdueTasks(records: StudyRecord[], today: string): OverdueTask
         minutes: String(item.minutes ?? ''),
         timer: normalizeStudyTimerState(item.f?.timeTracking),
         details: taskDetails(item),
-        progress: taskProgress(item),
+        progress: studyItemProgress(item),
         daysOverdue,
       });
     }
@@ -385,10 +371,14 @@ export function updateOverdueTaskProgress(
   field: string,
   checked: boolean,
 ): StudyRecord | null {
-  if (!PROGRESS_FIELDS.some(([key]) => key === field)) return null;
   const updated = editableOverdueRecord(record);
   const item = overdueTaskItem(updated, itemId);
-  if (!item) return null;
+  if (!item || !studyItemProgress(item).some(progress => progress.key === field)) return null;
+  if (field === 'progress' && item.type === 'scienceReview') {
+    markCalendarNaturalProgressByUser(item, checked);
+    propagateDailyWorkField(item, 'calendarProgressSetByUser', true);
+    propagateDailyWorkField(item, 'calendarProgressUserValue', checked);
+  }
   propagateDailyWorkField(item, field, checked);
   return updated;
 }
