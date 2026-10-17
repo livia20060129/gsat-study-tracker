@@ -1,4 +1,5 @@
 import './learning-summary.css';
+import { completedItemsForPeriod } from './study/completedItems.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   SUMMARY_MODES,
@@ -13,6 +14,7 @@ import {
   summaryPeriod,
   type LearningPeriodSummary,
   type SummaryMode,
+  type SummaryPeriod,
 } from './study/learningSummary.ts';
 import {
   formatClockMinutes,
@@ -446,6 +448,32 @@ function renderConclusion(current: LearningPeriodSummary, previous: LearningPeri
     <article class="${remarkClass[remarks.completionState]}"><strong>完成率${stateTitle[remarks.completionState]}</strong><p>${remarks.completion}</p></article>`;
 }
 
+function renderCompletedItems(period: SummaryPeriod): void {
+  const entries = completedItemsForPeriod(records, period);
+  const title = activeMode === 'week' ? '本週完成項目' : '本月完成項目';
+  element<HTMLElement>('completedItemsTitle').textContent = title;
+  element<HTMLElement>('completedItemsCount').textContent = `共 ${entries.length} 項`;
+  const container = element<HTMLElement>('summaryCompletedItems');
+  if (!entries.length) {
+    container.innerHTML = `<p class="summary-completed-empty">${activeMode === 'week' ? '本週' : '本月'}尚無完成項目。</p>`;
+    return;
+  }
+  const dates = [...new Set(entries.map(function completionDate(entry): string { return entry.date; }))];
+  container.innerHTML = dates.map(function dayMarkup(date): string {
+    const rows = entries.filter(function onDate(entry): boolean { return entry.date === date; });
+    return `<section class="summary-completed-day" aria-label="${escapeHtml(formatDateLabel(date))}">
+      <h3><time datetime="${date}">${escapeHtml(formatDateLabel(date))}</time><span>${rows.length} 項</span></h3>
+      <ul>${rows.map(function itemMarkup(entry): string {
+        const originalDate = entry.recordDate !== entry.date
+          ? `<small>原排程 ${escapeHtml(entry.recordDate)}</small>` : '';
+        const detail = entry.detail ? `<p>${escapeHtml(entry.detail)}</p>` : '';
+        return `<li><span class="summary-completed-subject">${escapeHtml(entry.subject)}</span>
+          <div><strong>${escapeHtml(entry.title)}</strong>${detail}${originalDate}</div></li>`;
+      }).join('')}</ul>
+    </section>`;
+  }).join('');
+}
+
 function renderAll(): void {
   const period = summaryPeriod(activeAnchor, activeMode);
   const previousPeriod = summaryPeriod(shiftSummaryAnchor(activeAnchor, activeMode, -1), activeMode);
@@ -473,6 +501,7 @@ function renderAll(): void {
   renderComparison(current, previous);
   renderConclusion(current, previous);
   renderPersonalStatus(currentSleep, previousSleep);
+  renderCompletedItems(period);
 }
 
 function switchSummaryMode(mode: SummaryMode): void {
