@@ -439,11 +439,15 @@ export function updateOverdueTaskCompletion(
 function allRecordItems(record: StudyRecord): StudyItem[] {
   const output: StudyItem[] = [];
   const visited = new Set<StudyItem>();
+  const identities = new Set<string>();
   function visit(items: StudyItem[]): void {
     for (const item of items) {
       if (!item || visited.has(item)) continue;
       visited.add(item);
-      output.push(item);
+      if (!identities.has(item.id)) {
+        identities.add(item.id);
+        output.push(item);
+      }
       visit(completionChildItems(item, true));
     }
   }

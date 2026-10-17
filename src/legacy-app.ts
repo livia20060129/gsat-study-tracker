@@ -22,7 +22,7 @@ import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, originalCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
-import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkCompletionDates, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, relinkDailyWorkSourceItems, replaceDailyWorkMinutes, ungroupDailyWorkItems } from './study/dailyWorkGroup';
+import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkCompletionDates, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, relinkDailyWorkSourceItems, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { mergeAzarSectionProgress } from './study/azarChapterCards';
@@ -32,6 +32,8 @@ import { SUBJECT_TIME_SHORT_LABELS, subjectTimeArcPath, subjectTimeDonutSlices, 
 import { completedTimeEntriesForOverviewDate } from './application/overview/overviewStudyTime.ts';
 import { completionIncludedInPeriod } from './study/learningSummary.ts';
 import { withOperationTimeout } from './application/cloud/operationTimeout.ts';
+import { reconcileLocalRecordEdit } from './application/records/localRecordEdits.ts';
+import { changeStudyTimer, resolveStudyTimerTarget, sameStudyTimerPointer, sameStudyTimerTarget, setStudyTimerTargetMinutes, setStudyTimerTargetState, studyTimerTargetState, studyTimerToggleLabel, switchStudyTimerMode } from './application/timer/studyTimerController.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { completionDateValue, deferredCompletionDate, isCompletedByDate } from './study/completionCheckedOn';
@@ -42,7 +44,7 @@ import {
   findCompletionItem,
   refreshCompletionTree,
 } from './study/completionTree';
-import { finishStudyTimer, formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer, resetStudyTimer, setTimedEntryMinutes, startStudyTimer, studyTimerFromManualMinutes } from './study/studyTimer';
+import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
@@ -2428,15 +2430,17 @@ function readTimerPointer(){
  try{var raw=store.getItem(timerPointerKey()),value=raw?JSON.parse(raw):null;return value&&value.date&&value.itemId?value:null}catch(e){return null}
 }
 function writeTimerPointer(pointer){
- try{if(pointer)store.setItem(timerPointerKey(),JSON.stringify(pointer));else store.removeItem(timerPointerKey())}catch(e){}
+ try{if(pointer)store.setItem(timerPointerKey(),JSON.stringify(pointer));else store.removeItem(timerPointerKey());return true}catch(e){return false}
 }
-function sameTimerPointer(a,b){return !!a&&!!b&&a.date===b.date&&a.itemId===b.itemId&&String(a.entryId||'')===String(b.entryId||'')}
+function sameTimerPointer(a,b){
+ if(sameStudyTimerPointer(a,b))return true;
+ if(!a||!b||a.date!==b.date)return false;
+ var rec=recordForTimerDate(a.date);return !!rec&&sameStudyTimerTarget(rec,a,b);
+}
 function timerTargetForRecord(rec,pointer){
  if(!rec||!pointer)return null;
- var item=findRecursive(rec.items,pointer.itemId);if(!item)return null;
- var entry=null;
- if(pointer.entryId){var entries=ensureMagazineEntries(item);entry=entries.find(function(row){return row.id===pointer.entryId})||null;if(!entry)return null}
- return{record:rec,item:item,entry:entry,pointer:pointer};
+ if(pointer.entryId){var item=findCompletionItem(rec.items,pointer.itemId);if(item)ensureMagazineEntries(item)}
+ return resolveStudyTimerTarget(rec,pointer);
 }
 function currentTimerTarget(item,entryId){
  if(!item)return null;
@@ -2445,28 +2449,19 @@ function currentTimerTarget(item,entryId){
  return timerTargetForRecord(data,pointer);
 }
 function timerStateForTarget(target){
- var holder=target.entry||target.item.f||(target.item.f={});
- holder.timeTracking=normalizeStudyTimerState(holder.timeTracking);
- return holder.timeTracking;
+ return studyTimerTargetState(target);
 }
 function setTimerStateForTarget(target,state){
- var normalized=normalizeStudyTimerState(state);
- if(target.entry){target.entry.timeTracking=normalized;if(target.record===data)propagateDailyWorkField(target.item,'entries',ensureMagazineEntries(target.item))}
- else{if(!target.item.f)target.item.f={};target.item.f.timeTracking=normalized;if(target.record===data)propagateDailyWorkField(target.item,'timeTracking',normalized)}
- return normalized;
+ return setStudyTimerTargetState(target,state);
 }
 function setTimerMinutesForTarget(target,value){
- if(target.entry){
-  var entries=ensureMagazineEntries(target.item),entryId=(target.pointer&&target.pointer.entryId)||target.entry.id,currentEntry=setTimedEntryMinutes(entries,entryId,value);
-  if(!currentEntry)return;target.entry=currentEntry;
-  if(target.record===data)propagateDailyWorkField(target.item,'entries',entries)
- }
- else{target.item.minutes=value;if(target.record===data)replaceDailyWorkMinutes(target.item,value)}
+ setStudyTimerTargetMinutes(target,value);
 }
 function persistTimerTarget(target){
- if(target.record===data){persist(false);return}
+ if(target.record===data)return persist(false,{ignoreRoutineTime:true});
  target.record=markRecordLocallyEdited(target.record,readStoredRecord(target.record.date));
- if(writeStoredRecord(target.record))queueCloudSave(target.record);
+ if(!writeStoredRecord(target.record))return false;
+ queueCloudSave(target.record);return true;
 }
 function recordForTimerDate(date){return data&&data.date===date?data:readStoredRecord(date)}
 function activeTimerTarget(){var pointer=readTimerPointer();return pointer?timerTargetForRecord(recordForTimerDate(pointer.date),pointer):null}
@@ -2475,17 +2470,30 @@ function timerTargetTitle(target){
  if(target.entry){var index=ensureMagazineEntries(target.item).indexOf(target.entry);title+='｜第'+(index+1)+'筆'}
  return title;
 }
+function saveTimerTargetChange(target,change,nextPointer){
+ var previous=cloneRecord(target.record),wasCurrent=target.record===data,pointer=readTimerPointer();
+ var pointerChanged=!!(pointer||nextPointer)&&!sameTimerPointer(pointer,nextPointer);
+ if(pointerChanged&&!writeTimerPointer(nextPointer)){id('status').textContent='計時尚未儲存，請確認瀏覽器儲存空間及權限。';return false}
+ setTimerStateForTarget(target,change.state);
+ if(change.minutes!==undefined)setTimerMinutesForTarget(target,change.minutes);
+ if(persistTimerTarget(target))return true;
+ if(wasCurrent)data=previous;
+ target.record=previous;
+ if(pointerChanged)writeTimerPointer(pointer);
+ id('status').textContent='計時尚未儲存，請確認瀏覽器儲存空間及權限。';
+ return false;
+}
 function pauseActiveTimer(now){
  var target=activeTimerTarget();if(!target){writeTimerPointer(null);return null}
- var state=timerStateForTarget(target);if(state.startedAt!==null)setTimerStateForTarget(target,pauseStudyTimer(state,now||Date.now()));
- persistTimerTarget(target);writeTimerPointer(null);return target;
+ var state=timerStateForTarget(target);
+ return saveTimerTargetChange(target,{state:pauseStudyTimer(state,now||Date.now())},null)?target:null;
 }
 function ensureTimerTicker(){
  var pointer=readTimerPointer();
  if(pointer&&!studyTimerTicker)studyTimerTicker=setInterval(refreshTimerUI,1000);
  if(!pointer&&studyTimerTicker){clearInterval(studyTimerTicker);studyTimerTicker=null}
 }
-function timerToggleLabel(state){return state.startedAt!==null?'暫停':(state.accumulatedSeconds?'繼續':'開始')}
+function timerToggleLabel(state){return studyTimerToggleLabel(state)}
 function renderTimeControl(x,entry){
  var target={item:x,entry:entry||null},holder=entry||x.f||(x.f={}),state=normalizeStudyTimerState(holder.timeTracking),entryAttr=entry?' data-timer-entry="'+esc(entry.id)+'"':'',mode=state.mode;
  holder.timeTracking=state;
@@ -3370,15 +3378,11 @@ function selectTimerModeFromControl(item,control){
  var target=timerTargetFromControl(item,control);if(!target)return;
  var state=timerStateForTarget(target),pointer=readTimerPointer(),nextMode=control.getAttribute('data-time-mode')==='timer'?'timer':'manual';
  if(state.mode===nextMode)return;
- if(nextMode==='manual'){
-  if(state.startedAt!==null)state=pauseStudyTimer(state);
-  state.mode='manual';setTimerStateForTarget(target,state);
-  if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
- }else{
-  var manualMinutes=target.entry?target.entry.minutes:target.item.minutes;
-  state=studyTimerFromManualMinutes(manualMinutes);setTimerStateForTarget(target,state)
- }
- persistTimerTarget(target);animateTimerModeSelection(control,nextMode);
+ var manualMinutes=target.entry?target.entry.minutes:target.item.minutes;
+ var change=switchStudyTimerMode(state,nextMode,manualMinutes||'');
+ var nextPointer=nextMode==='manual'&&sameTimerPointer(pointer,target.pointer)?null:pointer;
+ if(!saveTimerTargetChange(target,change,nextPointer)){render();return}
+ animateTimerModeSelection(control,nextMode);
 }
 function runTimerAction(item,control,action){
  var target=timerTargetFromControl(item,control);if(!target)return;
@@ -3387,21 +3391,16 @@ function runTimerAction(item,control,action){
   if(pointer&&!sameTimerPointer(pointer,target.pointer)){
    var previous=activeTimerTarget();
    if(previous&&!confirm('「'+timerTargetTitle(previous)+'」正在計時。是否先暫停它，再開始此項目？'))return;
-   pauseActiveTimer(now);
+   if(previous&&!pauseActiveTimer(now))return;
+   target=timerTargetForRecord(recordForTimerDate(target.pointer.date),target.pointer);if(!target)return;
   }
-  setTimerStateForTarget(target,startStudyTimer(state,now));writeTimerPointer(target.pointer);
- }else if(action==='timer-toggle'){
-  setTimerStateForTarget(target,pauseStudyTimer(state,now));
-  if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
- }else if(action==='timer-finish'){
-  var completedTimer=finishStudyTimer(state,now);
-  setTimerStateForTarget(target,completedTimer.state);setTimerMinutesForTarget(target,completedTimer.minutes);
-  if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
- }else if(action==='timer-reset'){
-  setTimerStateForTarget(target,resetStudyTimer());setTimerMinutesForTarget(target,'');
-  if(sameTimerPointer(pointer,target.pointer))writeTimerPointer(null);
  }
- persistTimerTarget(target);render();
+ var change=changeStudyTimer(state,action.replace('timer-',''),now);if(!change)return;
+ var nextPointer=readTimerPointer();
+ if(change.state.startedAt!==null)nextPointer=target.pointer;
+ else if(sameTimerPointer(nextPointer,target.pointer))nextPointer=null;
+ saveTimerTargetChange(target,change,nextPointer);
+ render();
 }
 
 function updateEnglishReviewWordText(target,item){
@@ -3878,7 +3877,7 @@ function persist(show,options){
  ensureEnglishReviewWordEntryIds(data);readHeader();
  var previous=readStoredRecord(data.date);
   if(previous&&dataLoadBase&&!sameStudyContent(previous,dataLoadBase)){
-  var reconciledDraft=mergeStudyRecordsThreeWay(data,previous,dataLoadBase),draftConflicts=reconciledDraft.conflicts;
+  var reconciledDraft=reconcileLocalRecordEdit(data,previous,dataLoadBase),draftConflicts=reconciledDraft.conflicts;
   if(draftConflicts.length){
    var conflictRecord=setCloudConflictRecord(data,previous,draftConflicts);
    if(show)id('status').textContent=studyRecordConflictSummary(data.date,draftConflicts,data,previous);
@@ -4226,6 +4225,7 @@ id('routineTimeModeSwitch').addEventListener('pointerdown',function(){captureRou
 id('routineTimeModeSwitch').addEventListener('click',function(e){var button=e.target.closest('[data-routine-mode]');if(button)setRoutineTimeMode(button.getAttribute('data-routine-mode'))});
 id('routineTimeModeSwitch').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();var mode=e.key==='Home'||e.key==='ArrowLeft'?'wake':'bedtime';setRoutineTimeMode(mode);id('routineTimeModeSwitch').querySelector('[data-routine-mode="'+mode+'"]').focus()});
 ['wakeHour','wakeMinute','biggestBlock','firstThingTomorrow'].forEach(function(k){id(k).addEventListener('input',headerInput);id(k).addEventListener('change',headerChange)});
+id('routineTimeField').addEventListener('focusout',function(e){if(!id('routineTimeField').contains(e.relatedTarget))headerChange()});
 id('notes').addEventListener('input',notesInput);id('notes').addEventListener('change',headerChange);
 id('addItemBtn').addEventListener('click',addCustom);
 id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);

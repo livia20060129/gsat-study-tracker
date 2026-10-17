@@ -252,7 +252,7 @@ test('todo timer runs for a source item duplicated inside a merged card', async 
   await expect(card.getByRole('button', { name: '暫停' })).toBeVisible();
   await expect(card.locator('[data-todo-timer-display]')).not.toHaveText('00:00');
   await card.getByRole('button', { name: '暫停' }).click();
-  await expect(card.getByRole('button', { name: '開始' })).toBeVisible();
+  await expect(card.getByRole('button', { name: '繼續' })).toBeVisible();
 });
 
 test('todo page re-reads an original-date completion when restored from browser history', async ({ page }) => {

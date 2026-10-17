@@ -29,6 +29,10 @@ infrastructure repositories and gateways
 - 週／月學習總結：`src/study/learningSummary.ts`
 - 數學實際完成頁數：`src/study/mathProgress.ts`
 - Local／Supabase 讀寫：`src/infrastructure/storage/`
+- 主頁／待辦共用計時目標、模式切換與命令：`src/application/timer/studyTimerController.ts`
+- 儲存前載入基準比對與獨立頁面安全寫入：`src/application/records/localRecordEdits.ts`
+- 待辦編輯草稿：`src/ui/todoDrafts.ts`；依帳號、日期與項目保存，離開欄位後才寫入紀錄。
+- 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`
 - Google Calendar 公開 Client ID 解析：`src/config/googleCalendar.ts`
 
@@ -43,6 +47,9 @@ infrastructure repositories and gateways
 5. `npm test` 會自動執行所有 `tests/*.test.ts`，新增測試不需再手動維護清單。
 6. `legacy-app.ts` 不得直接讀取 `import.meta.env`；畫面只能使用 `src/config/` 輸出的已驗證設定。
 7. 前端目前只允許 `VITE_GOOGLE_CLIENT_ID`。新增任何 `VITE_` 變數前必須先確認它可公開，並明確加入白名單；秘密值只放在 Supabase Edge Function secrets。
+8. 計時必須以持久化來源 ID 查找，不得只搜尋可見卡片。切回手動先保存累積分鐘；再次切回計時時，手動分鐘沒有修改就保留原本精確秒數。
+9. 獨立頁面不可直接用舊快照覆蓋整日資料；寫入前須讀取最新紀錄並以載入基準合併。同欄位衝突保留草稿，無法解碼的資料不得覆蓋。
+10. 瀏覽器驗證涵蓋 Chromium 與 WebKit；背景更新、歷史返回及原生欄位事件的差異必須有回歸情境。
 
 ## 本次全專案盤點後的後續順序
 

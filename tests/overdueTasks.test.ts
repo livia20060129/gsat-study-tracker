@@ -265,6 +265,13 @@ test('合併卡片的待辦計時會更新真實來源且重載後仍可繼續',
     reloaded.items[0].f.groupedWorkEntries?.[0].f.dailyWorkSourceItems?.[0].f.timeTracking,
     running,
   );
+  const skipped = updateOverdueTaskSkip(reloaded, source.id, '2026-10-07');
+  assert.ok(skipped);
+  const reloadedSkip = JSON.parse(JSON.stringify(skipped)) as StudyRecord;
+  assert.equal(overdueHandledTasks([reloadedSkip]).length, 1);
+  const restored = updateOverdueTaskSkip(reloadedSkip, source.id, null);
+  assert.ok(restored);
+  assert.equal(overdueHandledTasks([JSON.parse(JSON.stringify(restored))]).length, 0);
 });
 
 test('完成與跳過移入獨立復原清單，滿 72 小時後自動消失', () => {

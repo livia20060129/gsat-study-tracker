@@ -1,7 +1,14 @@
 import './todo-page.css';
 
-import { markRecordLocallyEdited } from './storage/recordSync.ts';
-import { findCompletionItem } from './study/completionTree.ts';
+import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
+import {
+  changeStudyTimer, resolveStudyTimerTarget, sameStudyTimerTarget, setStudyTimerTargetState,
+  studyTimerTargetState, studyTimerToggleLabel, switchStudyTimerMode,
+  type StudyTimerPointer,
+} from './application/timer/studyTimerController.ts';
+import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
+import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
+import { updateTodoList } from './ui/keyedTodoList.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   normalizedOverdueSubject,
@@ -23,12 +30,8 @@ import {
 } from './study/overdueTasks.ts';
 import { orderedEndPage, validatePageRange } from './study/pageRangeValidation.ts';
 import {
-  finishStudyTimer,
   formatStudyTimer,
   pauseStudyTimer,
-  resetStudyTimer,
-  startStudyTimer,
-  studyTimerFromManualMinutes,
 } from './study/studyTimer.ts';
 import type { StudyRecord, StudyTimerState, StudyTimeMode } from './types.ts';
 
@@ -38,15 +41,27 @@ interface TodoActionTarget {
   title: string;
 }
 
-interface TimerPointer {
-  date: string;
-  itemId: string;
-  entryId?: string;
-}
-
 let activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
 let recordPrefix = 'study-v11:guest:';
 let records: StudyRecord[] = [];
+const drafts = new TodoDrafts();
+const draftBases = new Map<string, StudyRecord>();
+let displayedTimers = new Map<string, StudyTimerState>();
+
+function draftKey(action: TodoActionTarget): string {
+  return `${action.recordDate}:${action.itemId}`;
+}
+
+function draftField(input: HTMLInputElement): TodoDraftField | null {
+  if ('todoMinutes' in input.dataset) return 'minutes';
+  if ('todoCompletionDate' in input.dataset) return 'completionDate';
+  if (input.dataset.todoRange === 'start' || input.dataset.todoRange === 'end') return input.dataset.todoRange;
+  return null;
+}
+
+function saveError(error: unknown, fallback: string): void {
+  setError(error instanceof Error ? error.message : fallback);
+}
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -85,6 +100,9 @@ function applyActionData(target: HTMLElement, entry: OverdueTaskEntry): void {
   target.dataset.recordDate = entry.recordDate;
   target.dataset.itemId = entry.itemId;
   target.dataset.title = entry.title;
+  if (target instanceof HTMLInputElement) {
+    target.dataset.todoFocusKey = `${entry.key}:${draftField(target) || target.dataset.todoProgress || ''}`;
+  }
 }
 
 function setError(message: string): void {
@@ -147,7 +165,7 @@ function createManualTimePanel(entry: OverdueTaskEntry): HTMLElement {
   minutes.min = '0';
   minutes.step = '0.1';
   minutes.inputMode = 'decimal';
-  minutes.value = entry.minutes;
+  minutes.value = drafts.value(entry.key, 'minutes', entry.minutes);
   minutes.dataset.todoMinutes = '';
   applyActionData(minutes, entry);
   minutes.setAttribute('aria-label', `${entry.title}的學習時間`);
@@ -175,7 +193,7 @@ function createTimerPanel(entry: OverdueTaskEntry): HTMLElement {
   display.textContent = formatStudyTimer(entry.timer);
   display.dataset.todoTimerDisplay = '';
   applyActionData(display, entry);
-  const toggle = timerButton(entry.timer.startedAt === null ? '開始' : '暫停', 'toggle', entry);
+  const toggle = timerButton(studyTimerToggleLabel(entry.timer), 'toggle', entry);
   toggle.classList.add('todo-timer-primary');
   panel.append(display, toggle, timerButton('完成計時', 'finish', entry), timerButton('歸零', 'reset', entry));
   return panel;
@@ -235,7 +253,7 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
       input.min = '1';
       input.step = '1';
       input.inputMode = 'numeric';
-      input.value = detail.value;
+      input.value = drafts.value(entry.key, detail.editableRange, detail.value);
       input.dataset.todoRange = detail.editableRange;
       input.setAttribute('aria-label', `${entry.title}的${detail.label}`);
       applyActionData(input, entry);
@@ -261,8 +279,9 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   dateLabel.textContent = '完成日期';
   const completionDate = document.createElement('input');
   completionDate.type = 'date';
-  completionDate.value = localDateKey();
+  completionDate.value = drafts.value(entry.key, 'completionDate', localDateKey());
   completionDate.dataset.todoCompletionDate = '';
+  applyActionData(completionDate, entry);
   completionDate.setAttribute('aria-label', `${entry.title}的完成日期`);
   dateField.append(dateLabel, completionDate);
   const actions = document.createElement('div');
@@ -315,6 +334,7 @@ function renderHistory(): void {
 
 function render(): void {
   const entries = overdueTasks(records, localDateKey());
+  displayedTimers = new Map(entries.map(entry => [entry.key, entry.timer]));
   const filtered = visibleEntries(entries);
   document.body.dataset.subject = activeSubject;
   const switcher = element<HTMLDivElement>('subjectSwitch');
@@ -327,7 +347,7 @@ function render(): void {
   element<HTMLElement>('todoSummary').textContent = activeSubject === 'all'
     ? `共有 ${entries.length} 項待辦`
     : `目前科目 ${filtered.length} 項｜全部 ${entries.length} 項`;
-  element<HTMLDivElement>('todoList').replaceChildren(...filtered.map(createTodoCard));
+  updateTodoList(element<HTMLDivElement>('todoList'), filtered, createTodoCard);
   element<HTMLParagraphElement>('todoEmpty').hidden = filtered.length > 0;
   renderHistory();
 }
@@ -335,14 +355,13 @@ function render(): void {
 function saveRecordChange(
   action: TodoActionTarget,
   update: (record: StudyRecord) => StudyRecord | null,
+  useDraftBase = false,
 ): boolean {
   const index = records.findIndex(record => record.date === action.recordDate);
   if (index < 0) return false;
-  const previous = records[index];
-  const updated = update(previous);
-  if (!updated) return false;
-  const edited = markRecordLocallyEdited(updated, previous);
-  localStorage.setItem(`${recordPrefix}${action.recordDate}`, JSON.stringify(edited));
+  const base = useDraftBase ? draftBases.get(action.recordDate) ?? records[index] : records[index];
+  const edited = saveLocalRecordEdit(localStorage, recordPrefix, base, update);
+  if (!edited) return false;
   records[index] = edited;
   return true;
 }
@@ -351,9 +370,9 @@ function timerPointerKey(): string {
   return `${recordPrefix}active-timer`;
 }
 
-function readTimerPointer(): TimerPointer | null {
+function readTimerPointer(): StudyTimerPointer | null {
   try {
-    const parsed = JSON.parse(localStorage.getItem(timerPointerKey()) || 'null') as Partial<TimerPointer> | null;
+    const parsed = JSON.parse(localStorage.getItem(timerPointerKey()) || 'null') as Partial<StudyTimerPointer> | null;
     return parsed && typeof parsed.date === 'string' && typeof parsed.itemId === 'string'
       ? {
         date: parsed.date,
@@ -366,13 +385,15 @@ function readTimerPointer(): TimerPointer | null {
   }
 }
 
-function writeTimerPointer(pointer: TimerPointer | null): void {
+function writeTimerPointer(pointer: StudyTimerPointer | null): void {
   if (pointer) localStorage.setItem(timerPointerKey(), JSON.stringify(pointer));
   else localStorage.removeItem(timerPointerKey());
 }
 
-function sameTimerTarget(pointer: TimerPointer | null, action: TodoActionTarget): boolean {
-  return pointer?.date === action.recordDate && pointer.itemId === action.itemId && !pointer.entryId;
+function sameTimerTarget(pointer: StudyTimerPointer | null, action: TodoActionTarget): boolean {
+  if (!pointer || pointer.entryId || pointer.date !== action.recordDate) return false;
+  const record = records.find(record => record.date === action.recordDate);
+  return Boolean(record && sameStudyTimerTarget(record, pointer, { date: action.recordDate, itemId: action.itemId }));
 }
 
 function currentTimer(action: TodoActionTarget): StudyTimerState | null {
@@ -381,30 +402,32 @@ function currentTimer(action: TodoActionTarget): StudyTimerState | null {
 }
 
 function saveTimer(action: TodoActionTarget, state: StudyTimerState, minutes?: string): boolean {
-  return saveRecordChange(action, record => updateOverdueTaskTimer(record, action.itemId, state, minutes));
+  const previousPointer = readTimerPointer();
+  const changesPointer = state.startedAt !== null || sameTimerTarget(previousPointer, action);
+  if (changesPointer) writeTimerPointer(state.startedAt === null ? null : { date: action.recordDate, itemId: action.itemId });
+  try {
+    const saved = saveRecordChange(action, record => updateOverdueTaskTimer(record, action.itemId, state, minutes));
+    if (!saved && changesPointer) writeTimerPointer(previousPointer);
+    return saved;
+  } catch (error) {
+    if (changesPointer) {
+      try { writeTimerPointer(previousPointer); } catch { /* Keep the original storage error visible. */ }
+    }
+    throw error;
+  }
 }
 
 function pauseActiveTimer(except?: TodoActionTarget): void {
   const pointer = readTimerPointer();
   if (!pointer || (except && sameTimerTarget(pointer, except))) return;
   const action = { recordDate: pointer.date, itemId: pointer.itemId, title: '目前計時項目' };
-  if (pointer.entryId) {
-    saveRecordChange(action, function pauseMagazineTimer(record): StudyRecord | null {
-      const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
-      const item = findCompletionItem(updated.items, pointer.itemId);
-      const entries = Array.isArray(item?.f?.entries) ? item.f.entries : [];
-      const entry = entries.find(candidate => (
-        candidate && typeof candidate === 'object' && String(candidate.id ?? '') === pointer.entryId
-      ));
-      if (!entry || typeof entry !== 'object') return null;
-      const state = entry.timeTracking;
-      entry.timeTracking = pauseStudyTimer(state);
-      return updated;
-    });
-  } else {
-    const state = currentTimer(action);
-    if (state && state.startedAt !== null) saveTimer(action, pauseStudyTimer(state));
-  }
+  saveRecordChange(action, function pauseOtherTimer(record): StudyRecord | null {
+    const updated = JSON.parse(JSON.stringify(record)) as StudyRecord;
+    const target = resolveStudyTimerTarget(updated, pointer);
+    if (!target) return null;
+    setStudyTimerTargetState(target, pauseStudyTimer(studyTimerTargetState(target)));
+    return updated;
+  });
   writeTimerPointer(null);
 }
 
@@ -423,10 +446,10 @@ function skipTask(action: TodoActionTarget): void {
 
 function completeTask(action: TodoActionTarget, completionDate: string): void {
   try {
-    if (sameTimerTarget(readTimerPointer(), action)) {
-      const state = currentTimer(action);
-      if (state && state.startedAt !== null) saveTimer(action, pauseStudyTimer(state));
-      writeTimerPointer(null);
+    const state = currentTimer(action);
+    if (state?.mode === 'timer') {
+      const finished = changeStudyTimer(state, 'finish')!;
+      if (!saveTimer(action, finished.state, finished.minutes)) return setError('計時尚未儲存，請重新讀取後再完成。');
     }
     const saved = saveRecordChange(action, record => (
       updateOverdueTaskCompletion(record, action.itemId, true, completionDate)
@@ -435,19 +458,21 @@ function completeTask(action: TodoActionTarget, completionDate: string): void {
     setError('');
     setFeedback(`已完成「${action.title}」，完成日期為 ${completionDate}。可在下方清單復原。`);
     render();
-  } catch {
-    setError('無法保存完成狀態，請確認瀏覽器儲存權限。');
+  } catch (error) {
+    saveError(error, '無法保存完成狀態，請確認瀏覽器儲存權限。');
   }
 }
 
 function saveMinutes(action: TodoActionTarget, minutes: string): void {
   try {
-    const saved = saveRecordChange(action, record => updateOverdueTaskMinutes(record, action.itemId, minutes));
+    const saved = saveRecordChange(action, record => updateOverdueTaskMinutes(record, action.itemId, minutes), true);
     if (!saved) return setError('學習時間必須是 0 以上的數字。');
+    drafts.remove(draftKey(action), 'minutes');
+    if (!drafts.hasRecordEdits(action.recordDate)) draftBases.delete(action.recordDate);
     setError('');
     setFeedback(`已將「${action.title}」的學習時間保存為 ${minutes || '—'} 分鐘。`);
-  } catch {
-    setError('無法保存學習時間，請確認瀏覽器儲存權限。');
+  } catch (error) {
+    saveError(error, '無法保存學習時間，請確認瀏覽器儲存權限。');
   }
 }
 
@@ -484,53 +509,48 @@ function saveRange(action: TodoActionTarget, input: HTMLInputElement): void {
     }
     const saved = saveRecordChange(action, record => (
       updateOverdueTaskPageRange(record, action.itemId, start.value, end.value)
-    ));
+    ), true);
     if (!saved) return setError('頁碼必須是 1 以上的整數，或留空。');
+    drafts.remove(draftKey(action), 'start', 'end');
+    if (!drafts.hasRecordEdits(action.recordDate)) draftBases.delete(action.recordDate);
     setError('');
     setFeedback(`已同步「${action.title}」的頁碼範圍。`);
-  } catch {
-    setError('無法保存頁碼範圍，請確認瀏覽器儲存權限。');
+  } catch (error) {
+    saveError(error, '無法保存頁碼範圍，請確認瀏覽器儲存權限。');
   }
 }
 
 function switchTimeMode(action: TodoActionTarget, mode: StudyTimeMode, manualMinutes: string): void {
-  const current = currentTimer(action);
-  if (!current || current.mode === mode) return;
-  if (mode === 'timer') {
-    if (!saveTimer(action, studyTimerFromManualMinutes(manualMinutes))) return;
-  } else {
-    const paused = current.startedAt === null ? current : pauseStudyTimer(current);
-    if (!saveTimer(action, { ...paused, mode: 'manual' })) return;
-    if (sameTimerTarget(readTimerPointer(), action)) writeTimerPointer(null);
+  try {
+    const current = currentTimer(action);
+    if (!current || current.mode === mode) return;
+    const change = switchStudyTimerMode(current, mode, manualMinutes);
+    if (!saveTimer(action, change.state, change.minutes)) throw new Error('找不到原始計時項目，請重新讀取後再試。');
+    drafts.remove(draftKey(action), 'minutes');
+    if (!drafts.hasRecordEdits(action.recordDate)) draftBases.delete(action.recordDate);
+    setError('');
+    render();
+  } catch (error) {
+    saveError(error, '無法保存計時模式，請確認瀏覽器儲存權限。');
   }
-  setError('');
-  render();
 }
 
 function runTimerAction(action: TodoActionTarget, command: string): void {
-  const current = currentTimer(action);
-  if (!current) return;
-  if (command === 'toggle') {
-    if (current.startedAt === null) {
-      pauseActiveTimer(action);
-      if (saveTimer(action, startStudyTimer(current))) {
-        writeTimerPointer({ date: action.recordDate, itemId: action.itemId });
-      }
-    } else {
-      saveTimer(action, pauseStudyTimer(current));
-      writeTimerPointer(null);
-    }
-  } else if (command === 'finish') {
-    const result = finishStudyTimer(current);
-    saveTimer(action, result.state, result.minutes);
-    if (sameTimerTarget(readTimerPointer(), action)) writeTimerPointer(null);
-    setFeedback(`已完成「${action.title}」的計時並保存 ${result.minutes || '—'} 分鐘。`);
-  } else if (command === 'reset') {
-    saveTimer(action, resetStudyTimer(), '');
-    if (sameTimerTarget(readTimerPointer(), action)) writeTimerPointer(null);
+  try {
+    const current = currentTimer(action);
+    if (!current) throw new Error('找不到原始計時項目，請重新讀取後再試。');
+    if (command === 'toggle' && current.startedAt === null) pauseActiveTimer(action);
+    const change = changeStudyTimer(current, command);
+    if (!change) return;
+    if (!saveTimer(action, change.state, change.minutes)) throw new Error('計時尚未儲存，請重新讀取後再試。');
+    if (change.minutes !== undefined) drafts.remove(draftKey(action), 'minutes');
+    if (!drafts.hasRecordEdits(action.recordDate)) draftBases.delete(action.recordDate);
+    if (command === 'finish') setFeedback(`已完成「${action.title}」的計時並保存 ${change.minutes || '—'} 分鐘。`);
+    setError('');
+    render();
+  } catch (error) {
+    saveError(error, '無法保存計時。請確認瀏覽器儲存空間及權限後再試。');
   }
-  setError('');
-  render();
 }
 
 function undoHandledTask(action: TodoActionTarget): void {
@@ -546,22 +566,25 @@ function undoHandledTask(action: TodoActionTarget): void {
 }
 
 function refreshTimerDisplays(): void {
-  document.querySelectorAll<HTMLElement>('[data-todo-timer-display]').forEach(function refresh(display): void {
+  document.querySelectorAll<HTMLElement>('.todo-timer-panel:not([hidden]) [data-todo-timer-display]').forEach(function refresh(display): void {
     const action = actionFromElement(display);
-    const state = action ? currentTimer(action) : null;
+    const state = action ? displayedTimers.get(draftKey(action)) : null;
     if (state) display.textContent = formatStudyTimer(state);
   });
 }
 
-function load(): void {
+function load(forceCards = false): void {
   try {
     const result = readMaterialProgressRecords(localStorage);
     records = result.records;
+    if (recordPrefix !== result.prefix) { drafts.clear(); draftBases.clear(); }
     recordPrefix = result.prefix;
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
     element<HTMLParagraphElement>('recordSource').textContent = `${source}｜已讀取 ${result.records.length} 天紀錄`;
     setError('');
     setFeedback('');
+    if (forceCards) element<HTMLDivElement>('todoList').querySelectorAll<HTMLElement>('.todo-card')
+      .forEach(card => { delete card.dataset.todoSignature; });
     render();
   } catch {
     records = [];
@@ -638,7 +661,34 @@ element<HTMLDivElement>('todoList').addEventListener('change', function handleTo
   }
 });
 
+function saveFocusedDraft(input: HTMLInputElement): void {
+  if (!input.isConnected) return;
+  const action = actionFromElement(input);
+  const field = draftField(input);
+  if (!action || !field || !drafts.has(draftKey(action), field)) return;
+  if (field === 'minutes') saveMinutes(action, input.value);
+  else if (field === 'start' || field === 'end') saveRange(action, input);
+}
+
+element<HTMLDivElement>('todoList').addEventListener('focusout', function saveOnFieldExit(event): void {
+  if (event.target instanceof HTMLInputElement) saveFocusedDraft(event.target);
+});
+window.addEventListener('pagehide', function saveBeforeLeaving(): void {
+  if (document.activeElement instanceof HTMLInputElement) saveFocusedDraft(document.activeElement);
+});
+
 element<HTMLDivElement>('todoList').addEventListener('input', function constrainTodoRange(event): void {
+  if (event.target instanceof HTMLInputElement) {
+    const action = actionFromElement(event.target);
+    const field = draftField(event.target);
+    if (action && field) {
+      if (field !== 'completionDate' && !draftBases.has(action.recordDate)) {
+        const base = records.find(record => record.date === action.recordDate);
+        if (base) draftBases.set(action.recordDate, JSON.parse(JSON.stringify(base)) as StudyRecord);
+      }
+      drafts.set(draftKey(action), field, event.target.value);
+    }
+  }
   const input = (event.target as HTMLElement).closest<HTMLInputElement>('[data-todo-range]');
   const card = input?.closest<HTMLElement>('.todo-card');
   const start = card?.querySelector<HTMLInputElement>('[data-todo-range="start"]');
@@ -656,10 +706,17 @@ element<HTMLDivElement>('todoHistoryList').addEventListener('click', function ha
   if (action) undoHandledTask(action);
 });
 
-element<HTMLButtonElement>('refreshTodo').addEventListener('click', load);
-window.addEventListener('storage', load);
+element<HTMLButtonElement>('refreshTodo').addEventListener('click', function refreshManually(): void {
+  draftBases.clear();
+  load(true);
+});
+window.addEventListener('storage', function refreshChangedRecords(event): void {
+  if (event.storageArea !== localStorage) return;
+  if (event.key === null || event.key === ACTIVE_RECORD_PREFIX_KEY
+    || (event.key.startsWith(recordPrefix) && /^\d{4}-\d{2}-\d{2}$/.test(event.key.slice(recordPrefix.length)))) load();
+});
 window.addEventListener('pageshow', function refreshVisibleTodoPage(): void {
-  load();
+  load(true);
 });
 window.addEventListener('hashchange', function syncHash(): void {
   activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
