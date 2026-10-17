@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { clickConnectionToggle } from './helpers/connectionMotion.ts';
 
 test('legal pages switch languages and preserve the choice across navigation', async ({ page }) => {
   await page.goto('/privacy.html?lang=zh');
@@ -739,7 +740,7 @@ test('whole-card deletion requires confirmation and small-row deletion can be un
 });
 
 test('account recovery controls are readable without changing data', async ({ page }) => {
-  await page.locator('#connectionSettings > summary').click();
+  await page.locator('.connection-settings-toggle').click();
   await expect(page.getByRole('button', { name: '忘記密碼' })).toBeVisible();
   await expect(page.getByRole('button', { name: '重寄驗證信' })).toBeVisible();
   await page.getByRole('button', { name: '忘記密碼' }).click();
@@ -754,6 +755,8 @@ test('mobile connection settings stay anchored to their scrolled position', asyn
   });
   const page = await context.newPage();
   await page.goto('/');
+  // Native button fonts differ across platforms; the summary midpoint may hit Save.
+  await page.addStyleTag({ content: '#saveBtn { font-size: 16px; }' });
   const openingFrame = await page.evaluate(() => {
     const settings = document.querySelector<HTMLDetailsElement>('#connectionSettings')!;
     const nextPanel = document.querySelector<HTMLElement>('.panel')!;
@@ -761,7 +764,7 @@ test('mobile connection settings stay anchored to their scrolled position', asyn
     const scrollTop = window.scrollY;
     const collapsedRect = settings.getBoundingClientRect();
     const nextPanelTop = nextPanel.getBoundingClientRect().top;
-    settings.querySelector<HTMLElement>(':scope > summary')!.click();
+    settings.querySelector<HTMLElement>('.connection-settings-toggle')!.click();
     const preparingRect = settings.getBoundingClientRect();
     return {
       backgroundShift: nextPanel.getBoundingClientRect().top - nextPanelTop,
@@ -796,11 +799,13 @@ test('mobile connection settings stay anchored to their scrolled position', asyn
   const updatedTop = await page.locator('#connectionSettings').evaluate(node => node.getBoundingClientRect().top);
   expect(Math.abs(updatedTop - settledTop)).toBeLessThan(1);
   expect(await page.evaluate(() => window.scrollY)).toBe(openingFrame.scrollTop);
-  await page.locator('#connectionSettings > summary').click();
-  await expect(page.locator('#connectionSettings')).toHaveClass(/is-closing/);
-  await page.waitForTimeout(120);
-  const closingTop = await page.locator('#connectionSettings').evaluate(node => node.getBoundingClientRect().top);
-  expect(Math.abs(closingTop - openingFrame.collapsedTop)).toBeLessThan(1);
+  const closingFrames = await clickConnectionToggle(page.locator('.connection-settings-toggle'));
+  expect(closingFrames[0].closing, 'The connection toggle must start closing, not save the record.').toBe(true);
+  expect(closingFrames[0].open).toBe(true);
+  for (const frame of closingFrames) {
+    expect(Math.abs(frame.top - openingFrame.collapsedTop)).toBeLessThan(1);
+    expect(frame.scrollTop).toBe(openingFrame.scrollTop);
+  }
   await expect(page.locator('#connectionSettings')).not.toHaveAttribute('open', '');
   const collapsedTopAfterClose = await page.locator('#connectionSettings').evaluate(
     node => node.getBoundingClientRect().top,
@@ -814,21 +819,19 @@ test('mobile connection settings stay anchored to their scrolled position', asyn
 
 test('connection settings visibly retract before the details element closes', async ({ page }) => {
   const settings = page.locator('#connectionSettings');
+  const toggle = settings.locator('.connection-settings-toggle');
   const collapsedHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
-  await settings.locator(':scope > summary').click();
+  const openingFrames = await clickConnectionToggle(toggle);
   await expect(settings).toHaveAttribute('open', '');
-  await expect(settings).toHaveClass(/is-opening/);
-  await page.waitForTimeout(120);
-  const openingHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
-  expect(openingHeight).toBeGreaterThan(collapsedHeight + 8);
+  expect(openingFrames[0].opening).toBe(true);
+  expect(openingFrames.some(frame => frame.open && frame.height > collapsedHeight + 8)).toBe(true);
   await expect(settings).not.toHaveClass(/is-opening/);
   const expandedHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
 
-  await settings.locator(':scope > summary').click();
-  await expect(settings).toHaveClass(/is-closing/);
-  await page.waitForTimeout(120);
-  const retractingHeight = await settings.evaluate(node => node.getBoundingClientRect().height);
-  expect(retractingHeight).toBeLessThan(expandedHeight - 8);
+  const closingFrames = await clickConnectionToggle(toggle);
+  expect(closingFrames[0].closing).toBe(true);
+  expect(closingFrames[0].open).toBe(true);
+  expect(closingFrames.some(frame => frame.open && frame.height < expandedHeight - 8)).toBe(true);
   await expect(settings).not.toHaveAttribute('open', '');
 });
 
@@ -990,7 +993,7 @@ test('cloud conflict prompt names the card, field, and both values', async ({ pa
   await page.goto('/');
   await page.locator('#studyDate').fill(date);
   await page.locator('#studyDate').dispatchEvent('change');
-  await page.locator('#connectionSettings > summary').click();
+  await page.locator('.connection-settings-toggle').click();
 
   await expect(page.locator('#cloudConflictText')).toContainText('數學講義：進度 › 讀書時間（分鐘）');
   await expect(page.locator('#cloudConflictDetails')).toContainText('本機：25');
