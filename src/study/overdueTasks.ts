@@ -1,4 +1,5 @@
 import type { StudyItem, StudyRecord, StudyTimerState } from '../types.ts';
+import { markCalendarNaturalCompletionByUser } from './calendarNaturalCompletion.ts';
 import {
   applyManualCompletionMetadata,
   completionChildItems,
@@ -6,7 +7,6 @@ import {
   refreshCompletionTree,
 } from './completionTree.ts';
 import {
-  propagateDailyWorkDone,
   propagateDailyWorkField,
   propagateDailyWorkMinutes,
   propagateDailyWorkRangeField,
@@ -439,7 +439,15 @@ export function updateOverdueTaskCompletion(
   const item = overdueTaskItem(updated, itemId);
   if (!item) return null;
   applyManualCompletionMetadata(item, completed, record.date, completionDate, updated.items);
-  propagateDailyWorkDone(item, completed);
+  const visited = new Set<StudyItem>();
+  function completeRepresentedItem(target: StudyItem): void {
+    if (visited.has(target)) return;
+    visited.add(target);
+    target.done = completed;
+    if (target.type === 'scienceReview') markCalendarNaturalCompletionByUser(target, completed);
+    completionChildItems(target, true).forEach(completeRepresentedItem);
+  }
+  completeRepresentedItem(item);
   item.f ||= {};
   if (completed) item.f.overdueTodoAction = { kind: 'complete', handledAt };
   else delete item.f.overdueTodoAction;
@@ -457,6 +465,11 @@ function allRecordItems(record: StudyRecord): StudyItem[] {
     for (const item of items) {
       if (!item || visited.has(item)) continue;
       visited.add(item);
+      const sources = item.f?.dailyWorkSourceItems;
+      if (Array.isArray(sources) && sources.length) {
+        visit(sources);
+        continue;
+      }
       if (!identities.has(item.id)) {
         identities.add(item.id);
         output.push(item);

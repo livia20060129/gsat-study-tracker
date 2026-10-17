@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { reconcileCalendarNaturalPriorCoverage } from '../src/study/calendarNaturalCompletion.ts';
+import { groupDailyWorkItems, ungroupDailyWorkItems } from '../src/study/dailyWorkGroup.ts';
 import {
   normalizedOverdueSubject,
   OVERDUE_UNDO_WINDOW_MS,
@@ -217,6 +219,98 @@ test('待辦可直接保存分鐘並以實際完成日期更新原卡片', () =>
   assert.equal(restored.items[0].f.groupedWorkEntries?.[1].checkedOn, undefined);
   assert.equal(restored.items[0].done, false);
   assert.equal(updateOverdueTaskCompletion(original, 'pending-child', true, 'not-a-date'), null);
+});
+
+test('待辦完成與復原同步合併原卡的可見子項目，不影響其他範圍', () => {
+  const source = item({ id: 'source', minutes: '25', f: { progress: false } });
+  const sibling = item({ id: 'sibling' });
+  const original = record('2026-10-15', [item({
+    id: 'parent',
+    f: {
+      dailyWorkSourceItems: [source, sibling],
+      groupedWorkEntries: [source, sibling].map(entry => item({
+        id: `visible-${entry.id}`,
+        f: { dailyWorkSourceItems: [structuredClone(entry)] },
+      })),
+    },
+  })]);
+
+  const completed = updateOverdueTaskCompletion(original, 'source', true, '2026-10-17');
+  assert.ok(completed);
+  const visible = completed.items[0].f.groupedWorkEntries!;
+  assert.equal(visible[0].done, true);
+  assert.equal(visible[0].checkedOn, '2026-10-17');
+  assert.equal(visible[1].done, false);
+  assert.equal(completed.items[0].done, false);
+  assert.equal(completed.items[0].f.dailyWorkSourceItems![0].minutes, '25');
+  assert.equal(completed.items[0].f.dailyWorkSourceItems![0].f.progress, false);
+  assert.equal(original.items[0].f.dailyWorkSourceItems![0].done, false);
+
+  const reloaded = JSON.parse(JSON.stringify(completed)) as StudyRecord;
+  const allCompleted = updateOverdueTaskCompletion(reloaded, 'sibling', true, '2026-10-18');
+  assert.ok(allCompleted);
+  assert.equal(allCompleted.items[0].done, true);
+  assert.equal(allCompleted.items[0].checkedOn, '2026-10-18');
+  const restored = undoOverdueTaskAction(allCompleted, 'source', '2026-10-18');
+  assert.ok(restored);
+  assert.equal(restored.items[0].f.groupedWorkEntries![0].done, false);
+  assert.equal(restored.items[0].f.groupedWorkEntries![0].checkedOn, undefined);
+  assert.equal(restored.items[0].f.groupedWorkEntries![1].done, true);
+  assert.equal(restored.items[0].f.groupedWorkEntries![1].checkedOn, '2026-10-18');
+  assert.equal(restored.items[0].done, false);
+});
+
+test('待辦自然完成是手動選擇，不會在原卡範圍重新檢查後取消', () => {
+  const original = record('2026-10-15', [item({
+    type: 'scienceReview', f: { calendarAutoCompletedDone: true, progress: false },
+  })]);
+  const completed = updateOverdueTaskCompletion(original, 'scheduled-item', true, '2026-10-17');
+  assert.ok(completed);
+  reconcileCalendarNaturalPriorCoverage(completed.items[0], false);
+  assert.equal(completed.items[0].done, true);
+  assert.equal(completed.items[0].checkedOn, '2026-10-17');
+  assert.equal(completed.items[0].f.calendarCompletionUserValue, true);
+  assert.equal(completed.items[0].f.progress, false);
+
+  const restored = undoOverdueTaskAction(completed, 'scheduled-item', '2026-10-17');
+  assert.ok(restored);
+  reconcileCalendarNaturalPriorCoverage(restored.items[0], true);
+  assert.equal(restored.items[0].done, false);
+  assert.equal(restored.items[0].f.calendarCompletionUserValue, false);
+});
+
+test('待辦完成後重新建立原卡不會複製最近處理紀錄', () => {
+  const original = record('2026-10-15', [10, 20].map(start => item({
+    id: `source-${start}`, type: 'scienceReview', title: '物理',
+    f: { subject: '物理', material: '新關鍵', start: String(start), end: String(start + 2) },
+  })));
+  const now = '2026-10-17T04:00:00.000Z';
+  const completed = updateOverdueTaskCompletion(original, 'source-10', true, '2026-10-17', now);
+  assert.ok(completed);
+  for (let reload = 0; reload < 3; reload++) {
+    completed.items = groupDailyWorkItems(ungroupDailyWorkItems(completed.items));
+    completed.items = JSON.parse(JSON.stringify(completed.items));
+    assert.deepEqual(overdueHandledTasks([completed], Date.parse(now)).map(entry => entry.itemId), ['source-10']);
+  }
+});
+
+test('待辦完成整張整合卡會勾選各子卡並保留獨立進度', () => {
+  for (const childField of ['interactiveEntries', 'calendarIntegrationEntries'] as const) {
+    const original = record('2026-10-15', [item({
+      f: { [childField]: [item({ id: 'nested', f: { corrected: false } })] },
+    })]);
+    const completed = updateOverdueTaskCompletion(original, 'scheduled-item', true, '2026-10-17');
+    assert.ok(completed);
+    assert.equal(completed.items[0].done, true);
+    const child = completed.items[0].f[childField]![0] as StudyItem;
+    assert.equal(child.done, true);
+    assert.equal(child.checkedOn, '2026-10-17');
+    assert.equal(child.f.corrected, false);
+    const restored = undoOverdueTaskAction(completed, 'scheduled-item', '2026-10-17');
+    assert.ok(restored);
+    assert.equal(restored.items[0].f[childField]![0].done, false);
+    assert.equal((restored.items[0].f[childField]![0] as StudyItem).checkedOn, undefined);
+  }
 });
 
 test('待辦可更新原卡進度與保存可繼續的計時狀態', () => {

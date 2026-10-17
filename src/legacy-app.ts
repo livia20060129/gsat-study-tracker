@@ -597,6 +597,7 @@ var SUPPLEMENT_ENGLISH_TITLES=[
 
 var data=null;
 var dataLoadBase=null;
+var localVisibleRefreshPending=false;
 var routineTimeMode='wake';
 var routineTimeDrafts={wake:{hour:'',minute:''},bedtime:{hour:'',minute:''}};
 var routineTimeSwitchTimer=null;
@@ -3901,10 +3902,22 @@ function persist(show,options){
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
 }
 function load(options){
+ localVisibleRefreshPending=false;
  var opts=options||{},d=id('studyDate').value;pendingDeferredTargets={};deferredLimitPrompt=null;data=loadData(d);dataLoadBase=cloneRecord(data);updateCloudConflictUI(data.syncConflict?d:'');updateStorageRecoveryUI();id('weekdayText').textContent=weekdays[parseDate(d).getDay()];
  if(data.storageIssue){writeHeader();render();id('status').textContent=d+' 的本機紀錄無法讀取；原始內容已保留，修復前不會覆蓋。';return}
  var changed=false;if(!opts.skipPresetReconcile)changed=ensureDailyPresets(data,d);if(ensureEnglishReviewWordEntryIds(data))changed=true;writeHeader();render();if(changed&&!opts.cacheOnly)persist(false);
  if(cloudUser&&!cloudBootstrapPending&&!opts.skipCloudRead)cloudPullDate(d,false);
+}
+
+function refreshVisibleRecordFromLocalChange(){
+ if(!data||data.storageIssue||!dataLoadBase)return false;
+ var latest=readStoredRecord(data.date);
+ if(!latest)return false;
+ if(!sameStudyContent(latest,dataLoadBase))localVisibleRefreshPending=true;
+ if(!localVisibleRefreshPending||isEditingRecordControl())return false;
+ // Merge the current draft before reloading so a todo action cannot erase an edit.
+ if(!persist(false))return false;
+ load({skipCloudRead:true});return true;
 }
 
 function itemDetails(x){
@@ -4290,10 +4303,12 @@ id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);
 var connectionSettingsPanel=id('connectionSettings');
 var connectionSettingsSummary=connectionSettingsPanel.querySelector(':scope > summary');
 if(connectionSettingsSummary)setupConnectionSettingsMotion(connectionSettingsPanel,connectionSettingsSummary);
-document.addEventListener('focusout',function(){setTimeout(applyPendingVisibleCloudRefresh,0)});
+document.addEventListener('focusout',function(){setTimeout(function(){applyPendingVisibleCloudRefresh();refreshVisibleRecordFromLocalChange()},0)});
+window.addEventListener('storage',function(event){if(data&&event.storageArea===localStorage&&event.key===STORE_PREFIX+data.date)refreshVisibleRecordFromLocalChange()});
+window.addEventListener('pageshow',function(event){if(event.persisted){localVisibleRefreshPending=true;refreshVisibleRecordFromLocalChange()}});
 window.addEventListener('online',function(){retryDirtyCloudRecordsOnReconnect().catch(function(e){cloudSetMessage('網路恢復後重試失敗：'+(e&&e.message?e.message:String(e)),false)})});
 window.addEventListener('offline',function(){cloudSetMessage('目前離線；新紀錄已保存在本機，恢復連線後會立即重試。',false)});
 window.addEventListener('pagehide',function(){if(data)persist(false)});
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&data)persist(false)});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&data)persist(false);else if(document.visibilityState==='visible')refreshVisibleRecordFromLocalChange()});
 id('studyDate').value=dateString(new Date());updateImportBackupButton();initCloud();
 setInterval(periodicCloudSave,PERIODIC_CLOUD_SAVE_MS);

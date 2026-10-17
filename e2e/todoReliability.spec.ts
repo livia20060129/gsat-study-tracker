@@ -247,3 +247,89 @@ test('the visible grouped card and its todo source control the same timer in bot
   await source.locator('[data-todo-timer-action="toggle"]').click();
   expect(await page.evaluate(prefix => localStorage.getItem(prefix + 'active-timer'), prefix)).toBeNull();
 });
+
+test('todo completion and undo check the original grouped scope after navigation and reload', async ({ page }) => {
+  await seedTodo(page, true);
+  await page.evaluate(({ prefix, date }) => {
+    const record = JSON.parse(localStorage.getItem(prefix + date)!);
+    const second = structuredClone(record.items[0].f.dailyWorkSourceItems[0]);
+    second.id = 'reliability-second-source';
+    second.f.start = '20';
+    second.f.end = '22';
+    record.items[0].f.dailyWorkSourceItems.push(second);
+    localStorage.setItem(prefix + date, JSON.stringify(record));
+  }, { prefix, date });
+  await page.reload();
+  const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="reliability-source"]') });
+  await todo.locator('[data-todo-completion-date]').fill('2026-10-16');
+  await todo.locator('.todo-complete').click();
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+
+  await page.goto('/');
+  await page.locator('#studyDate').fill(date);
+  await page.locator('#studyDate').dispatchEvent('change');
+  const original = page.locator('#dailyItemList [data-item]').filter({
+    has: page.locator('input[data-field="start"][value="10"]'),
+  }).last();
+  const sibling = page.locator('#dailyItemList [data-item]').filter({
+    has: page.locator('input[data-field="start"][value="20"]'),
+  }).last();
+  await expect(original.locator('[data-done]')).toBeChecked();
+  await expect(original.locator('[data-completion-date]')).toHaveValue('2026-10-16');
+  await expect(sibling.locator('[data-done]')).not.toBeChecked();
+  await page.reload();
+  await page.locator('#studyDate').fill(date);
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(original.locator('[data-done]')).toBeChecked();
+  await page.locator('#studyDate').fill('2026-10-16');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await page.locator('#studyDate').fill(date);
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(original.locator('[data-done]')).toBeChecked();
+
+  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  await expect(page.locator('.todo-history-item')).toHaveCount(1);
+  await page.locator('.todo-history-undo').click();
+  await page.goBack();
+  await page.locator('#studyDate').fill(date);
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(original.locator('[data-done]')).not.toBeChecked();
+  await expect(sibling.locator('[data-done]')).not.toBeChecked();
+});
+
+test('todo completion refreshes an open original card without discarding its note draft', async ({ page, context }) => {
+  await seedTodo(page);
+  const originalPage = await context.newPage();
+  await originalPage.goto('/');
+  await originalPage.locator('#studyDate').fill(date);
+  await originalPage.locator('#studyDate').dispatchEvent('change');
+  const original = originalPage.locator('[data-item="reliability-source"]');
+  await expect(original.locator('[data-done]')).not.toBeChecked();
+  await originalPage.locator('#notes').fill('原卡尚在編輯的筆記');
+  await page.locator('.todo-complete[data-item-id="reliability-source"]').click();
+  await expect(page.locator('.todo-history-item')).toHaveCount(1);
+  await originalPage.locator('#notes').blur();
+  await expect(original.locator('[data-done]')).toBeChecked();
+  await expect(original.locator('[data-completion-date]')).toHaveValue('2026-10-17');
+  await expect(originalPage.locator('#notes')).toHaveValue('原卡尚在編輯的筆記');
+  const stored = await page.evaluate(({ prefix, date }) => JSON.parse(localStorage.getItem(prefix + date)!), { prefix, date });
+  expect(stored.notes).toBe('原卡尚在編輯的筆記');
+  expect(stored.items.find((item: { id: string }) => item.id === 'reliability-source').done).toBe(true);
+});
+
+test('returning from todo completion restores the original checkbox and completion date', async ({ page }) => {
+  await seedTodo(page);
+  await page.goto('/');
+  await page.locator('#studyDate').fill(date);
+  await page.locator('#studyDate').dispatchEvent('change');
+  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="reliability-source"]') });
+  await todo.locator('[data-todo-completion-date]').fill('2026-10-16');
+  await todo.locator('.todo-complete').click();
+  await page.goBack();
+  await page.locator('#studyDate').fill(date);
+  await page.locator('#studyDate').dispatchEvent('change');
+  const original = page.locator('[data-item="reliability-source"]');
+  await expect(original.locator('[data-done]')).toBeChecked();
+  await expect(original.locator('[data-completion-date]')).toHaveValue('2026-10-16');
+});
