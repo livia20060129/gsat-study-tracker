@@ -12,6 +12,7 @@ import { summarizeSubjectTime } from '../src/study/subjectTime.ts';
 import { completedStudyTimeEntries } from '../src/study/completedStudyTime.ts';
 import { isCompletedByDate } from '../src/study/completionCheckedOn.ts';
 import { parseCalendarTask } from '../src/calendar/calendarBridge.ts';
+import { unitBook } from '../src/data/unitBooks.ts';
 import { prioritizeCalendarPageRanges } from '../src/calendar/pagePriority.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
 import {
@@ -34,6 +35,7 @@ function runtimeFunction<T>(name: string, dependencies: Record<string, unknown>)
   assert.ok(start >= 0 && end > start, `Missing runtime function: ${name}`);
   return runInNewContext(`${runtime.slice(start, end)}\n${name}`, {
     completionDateMarkup: () => '',
+    unitBook,
     ...dependencies,
   }) as T;
 }

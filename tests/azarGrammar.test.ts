@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
+import { unitBook } from '../src/data/unitBooks.ts';
 
 import { parseCalendarTask, type CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
 import {
@@ -226,6 +227,7 @@ test('Calendar Azar card shows natural-style pages, topic, and page-to-chapter m
   const end = runtime.indexOf('\nfunction renderChineseFields(', start);
   assert.ok(start >= 0 && end > start);
   const context = createContext({
+    unitBook,
     AZAR_GRAMMAR_BOOK_TITLE,
     azarGrammarChapterSummary,
     azarGrammarPageSummary,

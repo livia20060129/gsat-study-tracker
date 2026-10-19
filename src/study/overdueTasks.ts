@@ -1,4 +1,6 @@
 import type { StudyItem, StudyRecord, StudyTimerState } from '../types.ts';
+import { unitBook } from '../data/unitBooks.ts';
+import { applyBookUnitRange, bookUnitRange, bookUnitText, validBookUnitRange } from './unitBookProgress.ts';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser } from './calendarNaturalCompletion.ts';
 import {
   applyManualCompletionMetadata,
@@ -27,6 +29,7 @@ export interface OverdueTaskDetail {
   label: string;
   value: string;
   editableRange?: 'start' | 'end';
+  unitMaximum?: number;
 }
 
 export interface OverdueTaskProgress {
@@ -131,6 +134,7 @@ function taskTitle(item: StudyItem): string {
 function taskDescription(item: StudyItem): string {
   const description = String(item.description ?? '').trim();
   if (description && description !== taskTitle(item)) return description;
+  if (unitBook(item.f?.title || item.f?.book)) return bookUnitText(item);
   const material = String(item.f?.material || item.f?.book || '').trim();
   const range = taskPageRange(item);
   const pages = [range.start, range.end].filter(Boolean);
@@ -186,6 +190,7 @@ function pageRangeFromText(item: StudyItem): { start: string; end: string } {
 
 function taskPageRange(item: StudyItem): { start: string; end: string; editable: boolean } {
   const fields = item.f ?? {};
+  if (unitBook(fields.title || fields.book)) return { ...bookUnitRange(item), editable: true };
   const userFields = fields.dailyWorkUserFields;
   const textRange = pageRangeFromText(item);
   const value = (field: 'start' | 'end'): string => {
@@ -210,13 +215,17 @@ function taskDetails(item: StudyItem): OverdueTaskDetail[] {
   }];
   const fields = item.f ?? {};
   const pageRange = taskPageRange(item);
+  const unitDefinition = unitBook(fields.title || fields.book);
   for (const [key, label] of DETAIL_FIELDS) {
+    if (unitDefinition && ['unit', 'unitStart', 'unitEnd'].includes(key)) continue;
     if (key === 'start' || key === 'end') {
       if (!pageRange.editable) continue;
+      const unitLabel = key === 'start' ? '起始 Unit' : '結束 Unit';
       details.push({
-        label,
+        label: unitDefinition ? unitLabel : label,
         value: key === 'start' ? pageRange.start : pageRange.end,
         editableRange: key,
+        ...(unitDefinition ? { unitMaximum: unitDefinition.total } : {}),
       });
       continue;
     }
@@ -408,6 +417,15 @@ export function updateOverdueTaskPageRange(
 ): StudyRecord | null {
   const normalizedStart = String(start ?? '').trim();
   const normalizedEnd = String(end ?? '').trim();
+  const unitItem = overdueTaskItem(record, itemId);
+  if (unitItem && unitBook(unitItem.f.title || unitItem.f.book)) {
+    if (!validBookUnitRange(unitItem, normalizedStart, normalizedEnd)) return null;
+    const updated = editableOverdueRecord(record);
+    const item = overdueTaskItem(updated, itemId);
+    if (!item) return null;
+    applyBookUnitRange(item, normalizedStart, normalizedEnd);
+    return updated;
+  }
   if (!validatePageRange(normalizedStart, normalizedEnd).valid) return null;
   const updated = editableOverdueRecord(record);
   const item = overdueTaskItem(updated, itemId);

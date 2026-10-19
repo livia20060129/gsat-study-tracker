@@ -26,6 +26,8 @@ import {
 import { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
 import { recordedPageRangeFields } from './recordedPageRange.ts';
+import { unitBookSections } from '../data/unitBooks.ts';
+import { bookUnitRange } from './unitBookProgress.ts';
 
 export { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 
@@ -450,7 +452,24 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
         else markRange(recorded, 'english:azar-intermediate', fields.start, fields.end);
       }
       else if (/英文文法總複習講義/.test(title)) markRange(recorded, 'english:grammar', fields.start, fields.end);
-      else if (mappedBook && pageMappedBookSubject(mappedBook) === '英文') markBookSelection(recorded, mappedBook, fields);
+      else if (mappedBook && pageMappedBookSubject(mappedBook) === '英文') {
+        const range = bookUnitRange(item);
+        const explicitUnits = fields.unitStart !== undefined || fields.unit !== undefined;
+        if (unitBookSections(mappedBook).length && range.start && (explicitUnits || !fields.start)) {
+          const sections = unitBookSections(mappedBook).filter(section => section.unit >= Number(range.start) && section.unit <= Number(range.end));
+          const part = `${fields.calendarUnitProgress ?? ''}\n${item.description ?? ''}`.match(/[（(]\s*(\d+)\s*\/\s*(\d+)\s*[）)]/);
+          const hasOverrides = Boolean(fields.dailyWorkUserFields && typeof fields.dailyWorkUserFields === 'object'
+            && Object.prototype.hasOwnProperty.call(fields.dailyWorkUserFields, 'unitStart'));
+          for (const section of sections) {
+            if (part && !hasOverrides && sections.length === 1 && Number(part[1]) >= 1 && Number(part[1]) <= Number(part[2]) && Number(part[2]) <= 100) {
+              const length = section.end - section.start + 1;
+              const start = section.start + Math.floor(length * (Number(part[1]) - 1) / Number(part[2]));
+              const end = section.start + Math.floor(length * Number(part[1]) / Number(part[2])) - 1;
+              if (end >= start) markRange(recorded, `book:${mappedBook}`, start, end);
+            } else markRange(recorded, `book:${mappedBook}`, section.start, section.end);
+          }
+        } else markBookSelection(recorded, mappedBook, fields);
+      }
     }
 
     if (type === 'scienceReview') {

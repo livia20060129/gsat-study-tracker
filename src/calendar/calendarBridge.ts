@@ -1,4 +1,5 @@
 import { isListeningTestBookTitle, listeningTestNumbers } from '../data/englishBooks.ts';
+import { bookUnitNumbers, unitBook } from '../data/unitBooks.ts';
 import {
   AZAR_GRAMMAR_BOOK_TITLE,
   azarGrammarChaptersForPages,
@@ -78,6 +79,12 @@ export type ParsedCalendarTask =
   | (ParsedBase & { kind: 'ace'; rounds: number[] })
   | (ParsedBase & { kind: 'listeningA'; tests: number[] })
   | (ParsedBase & { kind: 'gujin'; rounds: number[] })
+  | (ParsedBase & {
+      kind: 'bookUnits';
+      subject: '英文';
+      book: PageMappedBook;
+      units: number[];
+    })
   | (ParsedBase & {
       kind: 'bookPages';
       subject: '國文' | '英文';
@@ -542,6 +549,15 @@ export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
   const pageMappedBook = calendarPageMappedBook(`${title}\n${note.material}\n${note.book}\n${note.identifier}\n${description}`);
   if (pageMappedBook) {
     const subject = pageMappedBookSubject(pageMappedBook);
+    const unitDefinition = unitBook(pageMappedBook);
+    if (unitDefinition) {
+      const unitSource = `${title}\n${note.unitProgress}\n${note.hasStandardFields ? '' : description}`;
+      const units = bookUnitNumbers(unitSource, unitDefinition.total);
+      if (units.length || /(?:\bUnits?|單元)\s*[:：#]?\s*[0-9０-９]/i.test(unitSource)
+        || !pageRange(note.pageRange || `${title}\n${description}`)[0]) {
+        return { ...base, title: withoutOriginalDate(title), kind: 'bookUnits', subject: '英文', book: pageMappedBook, units };
+      }
+    }
     if (subject === '英文' && pageMappedBookUsesScopeSelection(pageMappedBook)) {
       const scopeText = normalized(`${title}\n${note.unitProgress}\n${description}`);
       const topic = bookTopics(pageMappedBook).find(candidate => scopeText.includes(candidate)) ?? '';

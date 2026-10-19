@@ -251,6 +251,7 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
       input.className = 'todo-range-input';
       input.type = 'number';
       input.min = '1';
+      if (detail.unitMaximum) { input.max = String(detail.unitMaximum); input.dataset.rangeUnit = 'Unit'; }
       input.step = '1';
       input.inputMode = 'numeric';
       input.value = drafts.value(entry.key, detail.editableRange, detail.value);
@@ -495,11 +496,15 @@ function saveRange(action: TodoActionTarget, input: HTMLInputElement): void {
     const start = card?.querySelector<HTMLInputElement>('[data-todo-range="start"]');
     const end = card?.querySelector<HTMLInputElement>('[data-todo-range="end"]');
     if (!start || !end) return setError('找不到完整的頁碼範圍，請重新讀取後再試。');
+    if (start.dataset.rangeUnit === 'Unit' && start.value && !end.value) end.value = start.value;
     const orderedEnd = orderedEndPage(start.value, end.value);
     if (orderedEnd !== end.value) end.value = orderedEnd;
     if (start.value) end.min = start.value;
     else end.min = '1';
     const validation = validatePageRange(start.value, end.value);
+    if (start.dataset.rangeUnit === 'Unit' && (Number(start.value) > Number(start.max) || Number(end.value) > Number(end.max))) {
+      setError(`Unit 必須介於 1～${start.max}。`);return;
+    }
     start.setCustomValidity('');
     end.setCustomValidity(validation.valid ? '' : validation.message);
     if (!validation.valid) {
@@ -514,7 +519,8 @@ function saveRange(action: TodoActionTarget, input: HTMLInputElement): void {
     drafts.remove(draftKey(action), 'start', 'end');
     if (!drafts.hasRecordEdits(action.recordDate)) draftBases.delete(action.recordDate);
     setError('');
-    setFeedback(`已同步「${action.title}」的頁碼範圍。`);
+    const rangeLabel = start.dataset.rangeUnit === 'Unit' ? 'Unit 範圍' : '頁碼範圍';
+    setFeedback(`已同步「${action.title}」的${rangeLabel}。`);
   } catch (error) {
     saveError(error, '無法保存頁碼範圍，請確認瀏覽器儲存權限。');
   }

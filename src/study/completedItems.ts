@@ -1,4 +1,6 @@
 import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '../types.ts';
+import { unitBook } from '../data/unitBooks.ts';
+import { bookUnitText } from './unitBookProgress.ts';
 import { completionDateValue } from './completionCheckedOn.ts';
 import { NATURAL_SCIENCE_SUBJECTS } from './completedStudyTime.ts';
 import { activeEnglishTaskItems } from './englishTaskChoice.ts';
@@ -85,6 +87,7 @@ function subjectLabel(item: StudyItem, fallback: string): string {
 
 function itemDetail(item: StudyItem, title: string): string {
   const fields = item.f ?? {};
+  if (unitBook(fields.title || fields.book)) return bookUnitText(item);
   const start = text(fields.start) || text(fields.calendarSuggestedStart);
   const end = text(fields.end) || text(fields.calendarSuggestedEnd);
   let pages = text(fields.pageText);
@@ -109,7 +112,7 @@ function itemKey(item: StudyItem, originDate: string, path: string, subject: str
     || text(Array.isArray(fields.calendarEventKeys) ? fields.calendarEventKeys[0] : '');
   if (calendarKey) {
     const scope = [item.type, subject, fields.material, fields.book, fields.title,
-      fields.start, fields.end, fields.round, fields.unit, fields.topic, fields.pageText].map(text);
+      fields.start, fields.end, fields.round, fields.unit, fields.unitStart, fields.unitEnd, fields.topic, fields.pageText].map(text);
     return JSON.stringify(['calendar', calendarKey, ...scope]);
   }
   return JSON.stringify(['item', originDate, originId || item.id || path]);
