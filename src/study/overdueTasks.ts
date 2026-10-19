@@ -1,6 +1,7 @@
 import type { StudyItem, StudyRecord, StudyTimerState } from '../types.ts';
-import { unitBook } from '../data/unitBooks.ts';
-import { applyBookUnitRange, bookUnitRange, bookUnitText, validBookUnitRange } from './unitBookProgress.ts';
+import { numberedStudyScope, type NumberedScopeKind } from '../data/numberedScopes.ts';
+import { bookUnitRange, bookUnitText } from './unitBookProgress.ts';
+import { applyNumberedScope, numberedScopeText, validNumberedScope } from './numberedScopeProgress.ts';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser } from './calendarNaturalCompletion.ts';
 import {
   applyManualCompletionMetadata,
@@ -30,6 +31,7 @@ export interface OverdueTaskDetail {
   value: string;
   editableRange?: 'start' | 'end';
   unitMaximum?: number;
+  rangeKind?: NumberedScopeKind;
 }
 
 export interface OverdueTaskProgress {
@@ -134,7 +136,8 @@ function taskTitle(item: StudyItem): string {
 function taskDescription(item: StudyItem): string {
   const description = String(item.description ?? '').trim();
   if (description && description !== taskTitle(item)) return description;
-  if (unitBook(item.f?.title || item.f?.book)) return bookUnitText(item);
+  const scope = numberedStudyScope(item);
+  if (scope) return scope.kind === 'unit' ? bookUnitText(item) : numberedScopeText(item);
   const material = String(item.f?.material || item.f?.book || '').trim();
   const range = taskPageRange(item);
   const pages = [range.start, range.end].filter(Boolean);
@@ -190,7 +193,10 @@ function pageRangeFromText(item: StudyItem): { start: string; end: string } {
 
 function taskPageRange(item: StudyItem): { start: string; end: string; editable: boolean } {
   const fields = item.f ?? {};
-  if (unitBook(fields.title || fields.book)) return { ...bookUnitRange(item), editable: true };
+  const scope = numberedStudyScope(item);
+  if (scope && (!scope.start || /^\d+$/.test(scope.start))) {
+    return { ...(scope.kind === 'unit' ? bookUnitRange(item) : scope), editable: true };
+  }
   const userFields = fields.dailyWorkUserFields;
   const textRange = pageRangeFromText(item);
   const value = (field: 'start' | 'end'): string => {
@@ -215,17 +221,18 @@ function taskDetails(item: StudyItem): OverdueTaskDetail[] {
   }];
   const fields = item.f ?? {};
   const pageRange = taskPageRange(item);
-  const unitDefinition = unitBook(fields.title || fields.book);
+  const scope = numberedStudyScope(item);
+  const numberedRange = scope && (!scope.start || /^\d+$/.test(scope.start));
   for (const [key, label] of DETAIL_FIELDS) {
-    if (unitDefinition && ['unit', 'unitStart', 'unitEnd'].includes(key)) continue;
+    if (numberedRange && ['unit', 'unitStart', 'unitEnd', 'round'].includes(key)) continue;
     if (key === 'start' || key === 'end') {
       if (!pageRange.editable) continue;
-      const unitLabel = key === 'start' ? '起始 Unit' : '結束 Unit';
+      const scopeLabel = scope?.kind === 'unit' ? 'Unit' : '回次';
       details.push({
-        label: unitDefinition ? unitLabel : label,
+        label: numberedRange ? `${key === 'start' ? '起始' : '結束'} ${scopeLabel}` : label,
         value: key === 'start' ? pageRange.start : pageRange.end,
         editableRange: key,
-        ...(unitDefinition ? { unitMaximum: unitDefinition.total } : {}),
+        ...(numberedRange ? { rangeKind: scope.kind, unitMaximum: scope.maximum } : {}),
       });
       continue;
     }
@@ -418,12 +425,13 @@ export function updateOverdueTaskPageRange(
   const normalizedStart = String(start ?? '').trim();
   const normalizedEnd = String(end ?? '').trim();
   const unitItem = overdueTaskItem(record, itemId);
-  if (unitItem && unitBook(unitItem.f.title || unitItem.f.book)) {
-    if (!validBookUnitRange(unitItem, normalizedStart, normalizedEnd)) return null;
+  const scope = unitItem && numberedStudyScope(unitItem);
+  if (scope) {
+    if (!validNumberedScope(scope, normalizedStart, normalizedEnd)) return null;
     const updated = editableOverdueRecord(record);
     const item = overdueTaskItem(updated, itemId);
     if (!item) return null;
-    applyBookUnitRange(item, normalizedStart, normalizedEnd);
+    applyNumberedScope(item, normalizedStart, normalizedEnd);
     return updated;
   }
   if (!validatePageRange(normalizedStart, normalizedEnd).valid) return null;

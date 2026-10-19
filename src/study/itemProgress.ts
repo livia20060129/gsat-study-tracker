@@ -3,6 +3,7 @@ import { isEnglishPageMappedBook } from '../data/bookPageMaps.ts';
 import { isListeningTestBookTitle } from '../data/englishBooks.ts';
 import type { StudyItem } from '../types.ts';
 import { effectiveTemplatePresetKey } from './makeup.ts';
+import { usesSharedNumberedTemplate } from '../data/numberedScopes.ts';
 
 export const STUDY_PROGRESS_FIELDS = [
   ['progress', '進度'], ['graded', '批改'], ['corrected', '訂正'], ['review', '需要再複習'],
@@ -29,6 +30,7 @@ function hasCalendarTemplate(item: StudyItem, prefix: string): boolean {
 /** Matches the checkbox-bearing branches of the original card's field renderer. */
 function templateProgressKeys(item: StudyItem): readonly ProgressKey[] {
   const fields = item.f ?? {};
+  if (item.type === 'extra' && usesSharedNumberedTemplate(item)) return REVIEW_PROGRESS_KEYS;
   switch (item.type) {
     case 'mathLecture':
       return fields.material ? REVIEW_PROGRESS_KEYS : [];

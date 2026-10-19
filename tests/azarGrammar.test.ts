@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
 import { unitBook } from '../src/data/unitBooks.ts';
+import { numberedStudyScope, usesSharedNumberedTemplate } from '../src/data/numberedScopes.ts';
 
 import { parseCalendarTask, type CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
 import {
@@ -228,6 +229,7 @@ test('Calendar Azar card shows natural-style pages, topic, and page-to-chapter m
   assert.ok(start >= 0 && end > start);
   const context = createContext({
     unitBook,
+    usesSharedNumberedTemplate,
     AZAR_GRAMMAR_BOOK_TITLE,
     azarGrammarChapterSummary,
     azarGrammarPageSummary,
@@ -275,6 +277,7 @@ test('regrouping a Calendar Azar section keeps its manually recorded page range'
   const context = createContext({
     cloneValue: (value: unknown) => structuredClone(value),
     applyDailyWorkRangeOverrides,
+    numberedStudyScope,
   });
   runInContext(runtime.slice(start, end), context);
   const template = {

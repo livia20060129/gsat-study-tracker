@@ -59,7 +59,7 @@ export function presetDefinitionSemanticKey(definition: PresetDefinitionLike): s
   const fields = definition.f || {};
   const semanticFields: Record<string, unknown> = {};
   const meaningfulKeys = [
-    'title', 'book', 'topic', 'round', 'unit', 'unitStart', 'unitEnd', 'start', 'end', 'subject', 'kind',
+    'title', 'book', 'topic', 'scopeKind', 'round', 'roundEnd', 'unit', 'unitStart', 'unitEnd', 'start', 'end', 'subject', 'kind',
     'calendarFixedTemplate', 'calendarOriginalTitle', 'calendarRoute', 'calendarMakeup',
     'calendarGrammarTitle', 'calendarUnitProgress', 'calendarRangeText', 'calendarRangeType', 'calendarTopic',
     'calendarFocus', 'calendarNaturalIntegration', 'calendarSourceDate',
@@ -146,7 +146,7 @@ function groupedChild(definition: PresetDefinitionLike, index: number): Record<s
 
 function calendarRoundIdentity(definition: PresetDefinitionLike): string {
   const fields = definition.f || {};
-  const category = /^cal_(ace|book|listening_a|gujin|writing)_/.exec(definition.key)?.[1] || '';
+  const category = /^cal_(scope|ace|book|listening_a|gujin|writing)_/.exec(definition.key)?.[1] || '';
   if (!category || !normalizedText(fields.round)) return '';
   return JSON.stringify({
     category,
@@ -231,7 +231,7 @@ function groupCalendarWorkDefinitions<T extends PresetDefinitionLike>(definition
       const range = numericPageRange(entry.item.f);
       const workKey = entry.mode === 'range'
         ? `${range?.start || ''}-${range?.end || ''}`
-        : `${normalizedText(entry.item.f?.topic)}｜${normalizedText(entry.item.f?.round)}`;
+        : `${normalizedText(entry.item.f?.topic)}｜${normalizedText(entry.item.f?.round)}｜${normalizedText(entry.item.f?.roundEnd || entry.item.f?.round)}`;
       const found = uniqueKeys.get(workKey);
       if (found === undefined) {
         uniqueKeys.set(workKey, unique.length);

@@ -10,6 +10,7 @@ import {
   type PageMappedBook,
 } from '../data/bookPageMaps.ts';
 import { LISTENING_TEST_BOOK_TITLE, isListeningTestBookTitle } from '../data/englishBooks.ts';
+import { numberedStudyScope } from '../data/numberedScopes.ts';
 import {
   AZAR_GRAMMAR_BOOK_TITLE,
   AZAR_GRAMMAR_CHAPTERS,
@@ -408,13 +409,14 @@ function markExact(recorded: Map<string, MaterialCoverage>, definitionId: string
 
 function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem): void {
   const fields = objectValue(item.f);
+  const scope = numberedStudyScope(item);
   const delegatesRangeToChildren = ['groupedWorkEntries', 'dailyWorkSourceItems']
     .some(key => Array.isArray(fields[key]) && (fields[key] as unknown[]).length > 0);
   const type = String(item.type ?? '');
   const actualMathFields = type === 'mathStudy' || type === 'mathLecture' || type === 'mathPractice'
     ? recordedPageRangeFields(item.f)
     : null;
-  if (!delegatesRangeToChildren && item.done === true && actualMathFields) {
+  if (!scope && !delegatesRangeToChildren && item.done === true && actualMathFields) {
     const material = normalizeMathMaterial(actualMathFields.material);
     const book = normalizeMathBook(actualMathFields.book);
     const definitionId = material === '複習週記' ? 'math:複習週記' : `math:${material}:${book}`;
@@ -428,18 +430,18 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
 
     if (type === 'chineseReading') {
       if (String(fields.kind ?? '') === 'reading' || /古今悅讀一百/.test(title)) {
-        markLinear(recorded, 'chinese:gujin', fields.round);
-      } else if (mappedBook && pageMappedBookSubject(mappedBook) === '國文') {
+        if (scope?.kind !== 'unit') markLinear(recorded, 'chinese:gujin', fields.round, fields.roundEnd ?? fields.round);
+      } else if (!scope && mappedBook && pageMappedBookSubject(mappedBook) === '國文') {
         markBookSelection(recorded, mappedBook, fields);
       }
     }
 
     if (type === 'extra' || type === 'aceReading') {
-      if (/ACE\s*Reading/i.test(title)) markLinear(recorded, 'english:ace', fields.round);
-      else if (isListeningTestBookTitle(title)) markLinear(recorded, 'english:listening', fields.round);
+      if (/ACE\s*Reading/i.test(title)) { if (scope?.kind !== 'unit') markLinear(recorded, 'english:ace', fields.round, fields.roundEnd ?? fields.round); }
+      else if (isListeningTestBookTitle(title)) { if (scope?.kind !== 'unit') markLinear(recorded, 'english:listening', fields.round, fields.roundEnd ?? fields.round); }
       else if (/Essential\s+Grammar\s+in\s+Use/i.test(title)) markLinear(recorded, 'english:essential', fields.unitStart ?? fields.unit, fields.unitEnd ?? fields.unitStart ?? fields.unit);
-      else if (/英文寫作測驗/.test(title)) markLinear(recorded, 'english:writing', fields.round);
-      else if (isAzarGrammarBookTitle(title)) {
+      else if (/英文寫作測驗/.test(title)) { if (scope?.kind !== 'unit') markLinear(recorded, 'english:writing', fields.round, fields.roundEnd ?? fields.round); }
+      else if (!scope && isAzarGrammarBookTitle(title)) {
         if (fields.azarSectionCode) markExact(recorded, 'english:azar-intermediate', fields.azarSectionCode);
         else if (fields.azarChapterNumber) {
           if (item.done) markRange(recorded, 'english:azar-intermediate', fields.start, fields.end);
@@ -451,7 +453,7 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
         }
         else markRange(recorded, 'english:azar-intermediate', fields.start, fields.end);
       }
-      else if (/英文文法總複習講義/.test(title)) markRange(recorded, 'english:grammar', fields.start, fields.end);
+      else if (!scope && /英文文法總複習講義/.test(title)) markRange(recorded, 'english:grammar', fields.start, fields.end);
       else if (mappedBook && pageMappedBookSubject(mappedBook) === '英文') {
         const range = bookUnitRange(item);
         const explicitUnits = fields.unitStart !== undefined || fields.unit !== undefined;
@@ -468,11 +470,14 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
               if (end >= start) markRange(recorded, `book:${mappedBook}`, start, end);
             } else markRange(recorded, `book:${mappedBook}`, section.start, section.end);
           }
-        } else markBookSelection(recorded, mappedBook, fields);
+        } else if (!scope || (scope.kind === 'round' && fields.topic)
+          || (unitBookSections(mappedBook).length && !explicitUnits && !fields.scopeKind)) {
+          markBookSelection(recorded, mappedBook, fields);
+        }
       }
     }
 
-    if (type === 'scienceReview') {
+    if (!scope && type === 'scienceReview') {
       const subject = normalizeNaturalSubject(fields.subject);
       const material = normalizeNaturalMaterial(fields.material);
       markRange(recorded, `natural:${subject}:${material}`, fields.start, fields.end);

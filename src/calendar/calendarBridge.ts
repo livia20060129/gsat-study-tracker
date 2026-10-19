@@ -1,5 +1,6 @@
 import { isListeningTestBookTitle, listeningTestNumbers } from '../data/englishBooks.ts';
 import { bookUnitNumbers, unitBook } from '../data/unitBooks.ts';
+import { numberedScopeMaximum, numberedScopesInText, type NumberedScope } from '../data/numberedScopes.ts';
 import {
   AZAR_GRAMMAR_BOOK_TITLE,
   azarGrammarChaptersForPages,
@@ -67,6 +68,7 @@ export type CalendarRecognizedSubject =
   | '社會';
 
 export type ParsedCalendarTask =
+  | (ParsedBase & { kind: 'numberedScope'; subject: CalendarRecognizedSubject; book: string; scopes: NumberedScope[] })
   | (ParsedBase & {
       kind: 'math';
       material: string;
@@ -452,6 +454,36 @@ function integrationPageItems(description: string) {
 }
 
 export function parseCalendarTask(row: CalendarTaskRow): ParsedCalendarTask {
+  const parsed = parseCalendarTaskByBook(row);
+  const note = calendarStructuredNote(parsed.description);
+  const scopes = numberedScopesInText(`${parsed.title}\n${note.unitProgress}\n${note.hasStandardFields ? '' : parsed.description}`);
+  if (!scopes.length) return parsed;
+  const kind = scopes[0].kind;
+  const nativeUnit = kind === 'unit' && ['bookUnits', 'essentialGrammar'].includes(parsed.kind);
+  const nativeRound = kind === 'round' && (
+    (parsed.kind === 'ace' && parsed.rounds.length > 0)
+    || (parsed.kind === 'listeningA' && parsed.tests.length > 0)
+    || (parsed.kind === 'gujin' && parsed.rounds.length > 0)
+    || (parsed.kind === 'writing' && parsed.round !== null && scopes.length === 1 && scopes[0].start === scopes[0].end)
+    || parsed.kind === 'bookScope'
+  );
+  if (nativeUnit || nativeRound) return parsed;
+  const maximum = numberedScopeMaximum(kind, parsed.title);
+  if (maximum && scopes.some(scope => Number(scope.end) > maximum)) return parsed;
+  let subject = recognizableCalendarSubject(parsed.title);
+  if ('subject' in parsed) subject = parsed.subject;
+  if (!subject && ['azarGrammar', 'bookScope', 'bookUnits', 'grammar', 'essentialGrammar', 'writing', 'ace', 'listeningA'].includes(parsed.kind)) subject = '英文';
+  if (!subject && parsed.kind === 'math') subject = '數學';
+  // Unknown events still need a recognizable subject, even when a Unit/round is present.
+  if (!subject) return parsed;
+  const heading = parsed.title.split(/\b(?:Units?|Rounds?|Tests?)\s*[:：#]?\s*\d|第\s*\d|(?:回次|單元)\s*[:：#]?\s*\d/i)[0];
+  const book = ('book' in parsed && parsed.book) || note.material || note.book
+    || heading.replace(/^(?:國文|英文|數學|物理|化學|生物|地科|自然|社會)\s*[｜:：]?\s*/, '').replace(/[｜:：\s]+$/, '')
+    || parsed.title;
+  return { ...parsed, kind: 'numberedScope', subject, book, scopes: scopes.filter(scope => scope.kind === kind) };
+}
+
+function parseCalendarTaskByBook(row: CalendarTaskRow): ParsedCalendarTask {
   const rawTitle = normalized(row.title ?? '');
   const routed = rawTitle.match(/^(今日項目|今日|本週項目|本周項目|本週|本周)｜(.+)$/);
   const routedTitle = normalized(routed?.[2] ?? rawTitle);

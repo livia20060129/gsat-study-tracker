@@ -13,6 +13,7 @@ import { completedStudyTimeEntries } from '../src/study/completedStudyTime.ts';
 import { isCompletedByDate } from '../src/study/completionCheckedOn.ts';
 import { parseCalendarTask } from '../src/calendar/calendarBridge.ts';
 import { unitBook } from '../src/data/unitBooks.ts';
+import { numberedStudyScope, usesSharedNumberedTemplate } from '../src/data/numberedScopes.ts';
 import { prioritizeCalendarPageRanges } from '../src/calendar/pagePriority.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
 import {
@@ -36,6 +37,8 @@ function runtimeFunction<T>(name: string, dependencies: Record<string, unknown>)
   return runInNewContext(`${runtime.slice(start, end)}\n${name}`, {
     completionDateMarkup: () => '',
     unitBook,
+    numberedStudyScope,
+    usesSharedNumberedTemplate,
     ...dependencies,
   }) as T;
 }

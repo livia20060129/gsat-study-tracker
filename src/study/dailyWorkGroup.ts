@@ -216,7 +216,7 @@ function groupRounds(items: StudyItem[]): StudyItem[] {
     emitted.add(key);
     const byRound = new Map<string, StudyItem[]>();
     bucket.forEach(entry => {
-      const round = [text(entry.f?.topic), text(entry.f?.round)].filter(Boolean).join('｜');
+      const round = [text(entry.f?.topic), text(entry.f?.round), text(entry.f?.roundEnd || entry.f?.round)].filter(Boolean).join('｜');
       const sameRound = byRound.get(round) || [];
       sameRound.push(entry);
       byRound.set(round, sameRound);

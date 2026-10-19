@@ -12,6 +12,8 @@ import { summarizeCompletionUnits } from '../src/study/completionMetrics.ts';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress } from '../src/study/makeup.ts';
 import { reconcileCalendarNaturalPriorCoverage } from '../src/study/calendarNaturalCompletion.ts';
 import { completionIncludedInPeriod } from '../src/study/learningSummary.ts';
+import { numberedStudyScope, usesSharedNumberedTemplate } from '../src/data/numberedScopes.ts';
+import { applyNumberedScope } from '../src/study/numberedScopeProgress.ts';
 
 const date = '2026-09-02';
 function row(id: string, title: string, description: string): CalendarTaskRow {
@@ -35,6 +37,7 @@ function loadRuntime(ctx: ReturnType<typeof createContext>, names: string[]) {
 // Exercise the real runtime orchestration without network, DOM, or user storage.
 function app(rows = [biology, chemistry]) {
   const ctx = createContext({
+    numberedStudyScope, usesSharedNumberedTemplate,
     buildCalendarStudyTaskPlan, resolveNaturalCalendarPlan, combineNaturalCalendarPlans,
     calendarFixedTemplate, dedupePresetDefinitions, presetDefinitionSemanticKey,
     groupDailyWorkItems, ungroupDailyWorkItems, applyDailyWorkRangeOverrides,
@@ -65,6 +68,43 @@ test('the real September 2 note parses biology as 16–18, despite its outer bac
   if (parsed.kind !== 'natural') throw new Error('Expected natural');
   assert.deepEqual([parsed.startPage, parsed.endPage], [16, 18]);
   assert.equal(resolveNaturalCalendarPlan(parsed)?.material, '123日的淬鍊');
+});
+
+test('generic numbered Calendar definitions preserve manual ranges and completion on repeated refresh', () => {
+  for (const title of ['英文｜新教材｜Unit 4', '物理｜新教材｜第 3 回']) {
+    const ctx = app([row('generic', title, '【頁碼範圍】p.10–20')]);
+    const rec = { date, items: [] as any[] };
+    ctx.ensureDailyPresets(rec, date);
+    assert.equal(rec.items.length, 1);
+    const original = rec.items[0];
+    assert.equal(original.f.start, undefined);
+    const kind = numberedStudyScope(original)!.kind;
+    assert.equal(kind, title.includes('Unit') ? 'unit' : 'round');
+    original.done = true; original.checkedOn = date; original.minutes = '35'; original.f.graded = true;
+    applyNumberedScope(original, '6', '7');
+    const restored = clone(rec);
+    ctx.ensureDailyPresets(restored, date);
+    ctx.ensureDailyPresets(restored, date);
+    assert.equal(numberedStudyScope(restored.items[0])?.start, '6');
+    assert.equal(numberedStudyScope(restored.items[0])?.end, '7');
+    assert.equal(restored.items[0].done, true);
+    assert.equal(restored.items[0].checkedOn, date);
+    assert.equal(restored.items[0].minutes, '35');
+    assert.equal(restored.items[0].f.graded, true);
+  }
+});
+
+test('replacing an old Calendar page fallback with a numbered template retains user data', () => {
+  const ctx = app([row('generic', '英文｜新教材｜Unit 4', '')]);
+  const rec = { date, items: [{ id: 'old', type: 'general', source: 'preset', required: true,
+    presetKey: 'cal_subject_old', title: '英文｜新教材｜Unit 4', done: true, checkedOn: date, minutes: '18',
+    f: { subject: '英文', calendarEventKey: 'primary:generic', start: '10', end: '20', graded: true, reason: '筆記' } }] };
+  ctx.ensureDailyPresets(rec, date);
+  assert.equal(rec.items.length, 1);
+  const updated = rec.items[0];
+  assert.equal(numberedStudyScope(updated)?.start, '4');
+  assert.deepEqual([updated.done, updated.checkedOn, updated.minutes, updated.f.graded, updated.f.reason,
+    updated.f.start, updated.f.end], [true, date, '18', true, '筆記', '10', '20']);
 });
 
 test('runtime cards keep biology and chemistry pages independent in either fetch order', () => {
