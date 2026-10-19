@@ -1156,7 +1156,7 @@ test('Calendar-backed math completion survives navigating to its completion date
         checkedOn: '2026-09-18',
         minutes: '49.3',
         required: true,
-        source: 'custom',
+        source: 'preset',
         presetKey: 'calendar-new-key-math',
         title: '數學講義：進度',
         description: 'Google Calendar API：新關鍵',

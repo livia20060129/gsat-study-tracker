@@ -58,6 +58,11 @@ function isWeekly(item: StudyItem): boolean {
   return item.f?.calendarRoute === 'week';
 }
 
+/** Manual cards own their range and completion state, even when they count as required work. */
+function canGroupScheduledWork(item: StudyItem): boolean {
+  return Boolean(item.source) && item.source !== 'custom';
+}
+
 function sourceItems(item: StudyItem): StudyItem[] {
   const sources = item.f?.dailyWorkSourceItems;
   return Array.isArray(sources) && sources.length ? sources : [item];
@@ -164,7 +169,7 @@ function groupedChild(item: StudyItem, index: number): StudyItem {
 function groupSeparatedRanges(items: StudyItem[]): StudyItem[] {
   const buckets = new Map<string, Array<{ item: StudyItem; index: number }>>();
   items.forEach((item, index) => {
-    if (isWeekly(item) || !numericPageRange(item.f) || Array.isArray(item.f?.groupedWorkEntries)) return;
+    if (!canGroupScheduledWork(item) || isWeekly(item) || !numericPageRange(item.f) || Array.isArray(item.f?.groupedWorkEntries)) return;
     const key = workIdentity(item);
     const bucket = buckets.get(key) || [];
     bucket.push({ item, index });
@@ -175,7 +180,7 @@ function groupSeparatedRanges(items: StudyItem[]): StudyItem[] {
   items.forEach((item, index) => {
     const key = workIdentity(item);
     const bucket = buckets.get(key) || [];
-    if (!numericPageRange(item.f) || bucket.length < 2 || isWeekly(item) || Array.isArray(item.f?.groupedWorkEntries)) {
+    if (!canGroupScheduledWork(item) || !numericPageRange(item.f) || bucket.length < 2 || isWeekly(item) || Array.isArray(item.f?.groupedWorkEntries)) {
       output.push(item);
       return;
     }
@@ -190,7 +195,7 @@ function groupSeparatedRanges(items: StudyItem[]): StudyItem[] {
 }
 
 function roundIdentity(item: StudyItem): string {
-  if (!text(item.f?.round) || isWeekly(item)) return '';
+  if (!canGroupScheduledWork(item) || !text(item.f?.round) || isWeekly(item)) return '';
   return workIdentity(item);
 }
 
@@ -311,7 +316,7 @@ function mergeMathPracticeTemplate(items: StudyItem[]): StudyItem {
 function groupBlankScheduledTemplates(items: StudyItem[]): StudyItem[] {
   const buckets = new Map<string, StudyItem[]>();
   items.forEach(item => {
-    if (isWeekly(item)) return;
+    if (!canGroupScheduledWork(item) || isWeekly(item)) return;
     const key = templateIdentity(item);
     const bucket = buckets.get(key) || [];
     bucket.push(item);
@@ -366,12 +371,12 @@ export function ungroupDailyWorkItems(items: StudyItem[]): StudyItem[] {
   return items.flatMap(item => item.f?.dailyWorkGroup ? sourceItems(item) : [item]);
 }
 
-/** Final daily pass: merge work regardless of whether it came from Calendar or a deferral. */
+/** Merge scheduled/Calendar/deferred work, leaving manually added cards independent. */
 export function groupDailyWorkItems(items: StudyItem[]): StudyItem[] {
   const ranged = contiguousRangeClusters(
     items,
     workIdentity,
-    item => isWeekly(item) || Array.isArray(item.f?.groupedWorkEntries) ? null : numericPageRange(item.f),
+    item => !canGroupScheduledWork(item) || isWeekly(item) || Array.isArray(item.f?.groupedWorkEntries) ? null : numericPageRange(item.f),
   ).map(mergeRangeCluster);
   return groupBlankScheduledTemplates(groupRounds(groupSeparatedRanges(ranged)));
 }
