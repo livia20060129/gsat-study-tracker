@@ -6,6 +6,7 @@ import {
   ENGLISH_TOPIC_CLOZE_BOOK,
   ENGLISH_TOPIC_READING_BOOK,
   pageMappedBookSubject,
+  TOEFL_VOCABULARY_3800_BOOK,
   UNLOCK_3_BOOK,
   type PageMappedBook,
 } from '../data/bookPageMaps.ts';
@@ -229,21 +230,27 @@ function largeTopicSegments(rows: readonly PageMapRow[]): SegmentDefinition[] {
 
 function bookDefinition(book: PageMappedBook): MaterialDefinition {
   const subject = pageMappedBookSubject(book) === '國文' ? 'chinese' : 'english';
-  const group = subject === 'chinese' ? '國文教材' : book === UNLOCK_3_BOOK ? '補充' : '學測';
+  let group: MaterialProgressGroup = '學測';
+  if (subject === 'chinese') group = '國文教材';
+  else if (book === UNLOCK_3_BOOK || book === TOEFL_VOCABULARY_3800_BOOK) group = '補充';
+  const sections = BOOK_PAGE_MAPS[book];
+  const largeTopics = book === TOEFL_VOCABULARY_3800_BOOK;
   return {
     id: `book:${book}`,
     subject,
     group,
     title: book,
-    unitLabel: '篇',
-    segments: BOOK_PAGE_MAPS[book].map((section, index) => ({
-      key: String(index + 1),
-      label: `${section.topic}｜${section.detail}（p.${section.start}${section.start === section.end ? '' : `–${section.end}`}）`,
-      start: section.start,
-      end: section.end,
-      topic: section.topic,
-      detail: section.detail,
-    })),
+    unitLabel: largeTopics ? '大單元' : '篇',
+    segments: largeTopics
+      ? largeTopicSegments(sections.map(section => [section.start, section.end, section.topic]))
+      : sections.map((section, index) => ({
+        key: String(index + 1),
+        label: `${section.topic}｜${section.detail}（p.${section.start}${section.start === section.end ? '' : `–${section.end}`}）`,
+        start: section.start,
+        end: section.end,
+        topic: section.topic,
+        detail: section.detail,
+      })),
   };
 }
 
@@ -284,6 +291,7 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
   bookDefinition(ENGLISH_TOPIC_READING_BOOK),
   bookDefinition(ENGLISH_TOPIC_CLOZE_BOOK),
   bookDefinition(UNLOCK_3_BOOK),
+  bookDefinition(TOEFL_VOCABULARY_3800_BOOK),
   ...Object.entries(TEACHING_MATH_PAGE_MAP).map(([book, rows]) => mathDefinition('教學講義', book, rows)),
   mathDefinition('複習週記', '', REVIEW_WEEKLY_PAGE_MAP),
   mathDefinition('智慧型', '1~2', SMART_12_PAGE_MAP),

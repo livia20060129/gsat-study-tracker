@@ -81,6 +81,7 @@ import {
   isEnglishPageMappedBook,
   pageMappedBookUsesScopeSelection,
   pageMappedBookSubject,
+  TOEFL_VOCABULARY_3800_BOOK,
   UNLOCK_3_BOOK,
 } from './data/bookPageMaps';
 import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository';
@@ -589,6 +590,7 @@ var SUPPLEMENT_ENGLISH_TITLES=[
  AZAR_GRAMMAR_BOOK_TITLE,
  'Essential Grammar in Use',
  UNLOCK_3_BOOK,
+ TOEFL_VOCABULARY_3800_BOOK,
  'Prism Reading',
  'Traumaland- Josh Silver',
  'Warriors- Erin Hunter',
@@ -2880,7 +2882,7 @@ function readingOptions(v){
 }
 function reviewEnglishOptions(v){
  var gsat=['ACE Reading',LISTENING_TEST_BOOK_TITLE,ENGLISH_TOPIC_READING_BOOK,ENGLISH_TOPIC_CLOZE_BOOK,'英文寫作測驗','英文文法總複習講義'];
- var supplement=[AZAR_GRAMMAR_BOOK_TITLE,UNLOCK_3_BOOK,'Prism Reading'];
+ var supplement=[AZAR_GRAMMAR_BOOK_TITLE,UNLOCK_3_BOOK,TOEFL_VOCABULARY_3800_BOOK,'Prism Reading'];
  return'<option value="">請選擇</option>'+manualOptionGroup('學測',gsat,v)+manualOptionGroup('補充',supplement,v);
 }
 function prismLevel(f){if(f.level)return String(f.level);var m=String(f.title||'').match(/^Prism Reading ([234])$/);return m?m[1]:''}

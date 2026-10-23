@@ -3,13 +3,15 @@ export const CHINESE_TOPIC_BOOK = '主題百匯：閱讀寫作新進化';
 export const ENGLISH_TOPIC_READING_BOOK = '主題百匯：篇章結構·閱讀測驗';
 export const ENGLISH_TOPIC_CLOZE_BOOK = '主題百匯：克漏字';
 export const UNLOCK_3_BOOK = 'Unlock 3 (Listening, Speaking, Critical Thinking)';
+export const TOEFL_VOCABULARY_3800_BOOK = 'TOEFL托福決戰字彙3800';
 
 export type PageMappedBook =
   | typeof DEEP_FIFTEEN_BOOK
   | typeof CHINESE_TOPIC_BOOK
   | typeof ENGLISH_TOPIC_READING_BOOK
   | typeof ENGLISH_TOPIC_CLOZE_BOOK
-  | typeof UNLOCK_3_BOOK;
+  | typeof UNLOCK_3_BOOK
+  | typeof TOEFL_VOCABULARY_3800_BOOK;
 
 export interface BookPageSection {
   start: number;
@@ -122,12 +124,63 @@ const unlock3: BookPageSection[] = [
   { start: 223, end: 223, topic: 'Reference', detail: 'Acknowledgements' },
 ];
 
+// Arabic printed pages only. TOC lookup spans end immediately before the next listed start.
+const toeflVocabulary3800 = groupedSections([
+  {
+    topic: 'RANK 1',
+    starts: [
+      ['字彙', 1],
+      ['TIPS：開始留學的準備工作', 11],
+      ['TIPS：安排適合自己的應考計畫', 21],
+      ['TIPS：看似相近、實則不同的單字', 31],
+      ['Vocabulary Building：字首', 36],
+      ['Vocabulary Building：字根', 39],
+      ['Vocabulary Building：數字字首', 42],
+      ['Vocabulary Building：聯想法', 44],
+    ],
+    end: 44,
+  },
+  {
+    topic: 'RANK 2',
+    starts: [
+      ['字彙', 45],
+      ['TIPS：TOEFL 測驗的單字範圍', 65],
+      ['TIPS：拼字或發音相似的單字', 85],
+      ['TIPS：關於一字多義', 105],
+    ],
+    end: 114,
+  },
+  {
+    topic: 'RANK 3',
+    starts: [
+      ['字彙', 115],
+      ['TIPS：閱讀測驗解題法', 125],
+      ['TIPS：聽力測驗解題法', 145],
+      ['TIPS：口說測驗解題法', 165],
+      ['TIPS：寫作測驗解題法', 185],
+    ],
+    end: 196,
+  },
+  {
+    topic: 'RANK 4',
+    starts: [
+      ['字彙', 197],
+      ['TIPS：讓語意更清楚的字詞①', 207],
+      ['TIPS：讓語意更清楚的字詞②', 227],
+      ['TIPS：讓語意更清楚的字詞③', 247],
+    ],
+    end: 270,
+  },
+  { topic: '索引', starts: [['索引', 271]], end: 298 },
+]);
+
 export const BOOK_PAGE_MAPS: Record<PageMappedBook, BookPageSection[]> = {
   [DEEP_FIFTEEN_BOOK]: deepFifteen,
   [CHINESE_TOPIC_BOOK]: chineseTopics,
   [ENGLISH_TOPIC_READING_BOOK]: englishReading,
   [ENGLISH_TOPIC_CLOZE_BOOK]: englishCloze,
   [UNLOCK_3_BOOK]: unlock3,
+  [TOEFL_VOCABULARY_3800_BOOK]: toeflVocabulary3800,
 };
 
 export function canonicalPageMappedBook(value: unknown): PageMappedBook | null {
@@ -137,6 +190,7 @@ export function canonicalPageMappedBook(value: unknown): PageMappedBook | null {
   if (title.includes('主題百匯') && (title.includes('篇章結構') || title.includes('閱讀測驗'))) return ENGLISH_TOPIC_READING_BOOK;
   if (title.includes('主題百匯') && title.includes('克漏字')) return ENGLISH_TOPIC_CLOZE_BOOK;
   if (/unlock\s*3\b/i.test(title)) return UNLOCK_3_BOOK;
+  if (/托福\s*決戰\s*字[彙匯]\s*3800/i.test(title)) return TOEFL_VOCABULARY_3800_BOOK;
   return null;
 }
 
