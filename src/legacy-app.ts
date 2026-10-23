@@ -3173,7 +3173,8 @@ function renderMagazineFields(x){
  return h+'<button class="secondary" data-action="mag-add" style="margin-top:8px">新增雜誌紀錄</button>';
 }
 function renderEnglishReviewWordTagRow(word,index,tags,className){
- return'<div class="checkline '+className+'">'+tags.map(function(tag){return'<label><input type="checkbox" data-word-pos="'+tag[0]+'" data-index="'+index+'"'+checked(word[tag[0]])+'> '+tag[1]+'</label>'}).join('')+'</div>';
+ var hidden=englishReviewWordKind(word)!=='word'?' hidden':'';
+ return'<div class="checkline '+className+'"'+hidden+'>'+tags.map(function(tag){return'<label><input type="checkbox" data-word-pos="'+tag[0]+'" data-index="'+index+'"'+checked(word[tag[0]])+'> '+tag[1]+'</label>'}).join('')+'</div>';
 }
 function englishReviewWordKind(word){
  if(word&&word.beautifulSentences)return'sentence';
@@ -3467,6 +3468,8 @@ function selectEnglishReviewWordKind(item,control){
  var switcher=control.closest('[data-word-kind-switch]');if(!switcher)return;
  switcher.dataset.active=kind==='word'?'0':(kind==='combination'?'1':'2');
  switcher.querySelectorAll('[data-word-kind]').forEach(function(button){button.setAttribute('aria-pressed',button.getAttribute('data-word-kind')===kind?'true':'false')});
+ var controls=switcher.closest('.word-review-controls'),posRow=controls&&controls.querySelector('.word-pos-primary');
+ if(posRow)posRow.hidden=kind!=='word';
 }
 function updateMagazineField(target,item){
  var entries=ensureMagazineEntries(item),index=Number(target.getAttribute('data-index'));
