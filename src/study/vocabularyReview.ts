@@ -1,4 +1,5 @@
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, StudyItem, StudyRecord, VocabularyTranslations } from '../types.ts';
+import { applyVocabularyAutoFill, vocabularyAutoFillSources } from './vocabularyAutoFill.ts';
 import {
   normalizedVocabularyTranslations,
   VOCABULARY_PARTS_OF_SPEECH,
@@ -45,6 +46,7 @@ export interface VocabularyReviewEntry {
   translationsByPartOfSpeech: VocabularyTranslations;
   sourceDates: string[];
   occurrenceCount: number;
+  referenceSources?: { ceec: boolean; ecdict: boolean };
 }
 
 interface MutableVocabularyReviewEntry extends Omit<VocabularyReviewEntry, 'tags' | 'contentKinds' | 'sourceDates'> {
@@ -162,6 +164,11 @@ function collectItemWords(
         entries.set(key, entry);
       }
       entry.occurrenceCount += 1;
+      const referenceSources = vocabularyAutoFillSources(word);
+      if (referenceSources) entry.referenceSources = {
+        ceec: entry.referenceSources?.ceec === true || referenceSources.ceec,
+        ecdict: entry.referenceSources?.ecdict === true || referenceSources.ecdict,
+      };
       if (date) entry.sourceDates.add(date);
       const translation = normalizedTranslation(word.translation);
       if (translation || Object.prototype.hasOwnProperty.call(word, 'translationsByPartOfSpeech')) {
@@ -258,6 +265,7 @@ function updateItemWords(
           changed = true;
         }
       }
+      if (edits.text !== undefined && applyVocabularyAutoFill(word)) changed = true;
       if (edits.partsOfSpeech) {
         for (const [field] of VOCABULARY_PARTS_OF_SPEECH) {
           const enabled = edits.partsOfSpeech.has(field);

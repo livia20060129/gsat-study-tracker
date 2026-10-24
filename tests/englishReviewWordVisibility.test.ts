@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
 import { propagateDailyWorkField } from '../src/study/dailyWorkGroup.ts';
+import { vocabularyAutoFillStatus } from '../src/study/vocabularyAutoFill.ts';
+import { VOCABULARY_PARTS_OF_SPEECH } from '../src/study/vocabularyTranslationCounts.ts';
 import type { StudyItem } from '../src/types.ts';
 
 const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
@@ -12,6 +14,7 @@ function reviewRuntime(dependencies: Record<string, unknown> = {}): ReturnType<t
     checked: (value: unknown) => value ? ' checked' : '',
     esc: (value: unknown) => String(value ?? ''),
     propagateDailyWorkField,
+    vocabularyAutoFillStatus, VOCABULARY_PARTS_OF_SPEECH,
     ...dependencies,
   });
   for (const name of ['englishReviewWordKind', 'renderEnglishReviewWordTagRow', 'renderEnglishReviewWordKind',
@@ -38,7 +41,7 @@ test('initial review rows hide POS only for combinations/sentences, including le
     const tag = html.match(/<div class="checkline word-pos-primary"[^>]*>/)?.[0];
     assert.ok(tag);
     assert.equal(tag.includes(' hidden'), index !== 0);
-    assert.equal((html.match(/data-word-pos=/g) ?? []).length, 6);
+    assert.equal((html.match(/data-word-pos=/g) ?? []).length, VOCABULARY_PARTS_OF_SPEECH.length);
     assert.match(html, /data-word-kind-switch/);
     assert.deepEqual(word, snapshot);
   }

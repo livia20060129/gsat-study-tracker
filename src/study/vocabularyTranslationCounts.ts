@@ -3,6 +3,7 @@ import type { EnglishReviewPartOfSpeech, VocabularyTranslations } from '../types
 export const VOCABULARY_PARTS_OF_SPEECH = [
   ['noun', 'Noun'], ['verb', 'Verb'], ['adjective', 'Adjective'], ['adverb', 'Adverb'],
   ['preposition', 'Preposition'], ['conjunction', 'Conjunction'],
+  ['pronoun', 'Pronoun'], ['article', 'Article'], ['auxiliary', 'Auxiliary'],
 ] as const;
 
 export type VocabularyPartOfSpeechField = EnglishReviewPartOfSpeech;
@@ -19,6 +20,9 @@ const PART_OF_SPEECH_LABELS: Record<string, string> = {
   adv: 'Adverb', adverb: 'Adverb', 副詞: 'Adverb',
   prep: 'Preposition', preposition: 'Preposition', 介系詞: 'Preposition', 介詞: 'Preposition',
   conj: 'Conjunction', conjunction: 'Conjunction', 連接詞: 'Conjunction',
+  pron: 'Pronoun', pronoun: 'Pronoun', 代名詞: 'Pronoun',
+  art: 'Article', article: 'Article', 冠詞: 'Article',
+  aux: 'Auxiliary', auxiliary: 'Auxiliary', 助動詞: 'Auxiliary',
 };
 const PART_OF_SPEECH_PATTERN = Object.keys(PART_OF_SPEECH_LABELS).sort((left, right) => right.length - left.length).join('|');
 const CLOSING_BRACKETS: Record<string, string> = { '(': ')', '（': '）', '[': ']', '【': '】', '「': '」', '『': '』' };

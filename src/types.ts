@@ -48,7 +48,7 @@ export interface StudyItemFields {
 }
 
 export type GsatVocabularyLevel = 1 | 2 | 3 | 4 | 5 | 6;
-export type EnglishReviewPartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb' | 'preposition' | 'conjunction';
+export type EnglishReviewPartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb' | 'preposition' | 'conjunction' | 'pronoun' | 'article' | 'auxiliary';
 export type VocabularyTranslations = Partial<Record<EnglishReviewPartOfSpeech | 'unclassified', string[]>>;
 
 export interface EnglishReviewWordEntry extends Record<string, unknown> {

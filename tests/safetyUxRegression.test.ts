@@ -39,13 +39,13 @@ test('all typed fields save after leaving the field while page exit remains dura
 });
 
 test('English review text stays in memory while typing and saves after leaving the field', () => {
-  assert.match(runtime, /function updateEnglishReviewWordText\(target,item\)/);
+  assert.match(runtime, /function updateEnglishReviewWordText\(target,item,completeWord\)/);
   assert.match(runtime, /if\(t\.matches\('\[data-word-text\]'\)&&x\)\{updateEnglishReviewWordText\(t,x\);return\}/);
-  assert.match(runtime, /function handleChange\(e\)\{[\s\S]*?if\(t\.matches\('\[data-word-text\]'\)&&x\)\{updateEnglishReviewWordText\(t,x\);persist\(false\);return\}/);
+  assert.match(runtime, /function handleChange\(e\)\{[\s\S]*?if\(t\.matches\('\[data-word-text\]'\)&&x\)\{updateEnglishReviewWordText\(t,x,true\);persist\(false\);return\}/);
 });
 
 test('English review separates parts of speech from the animated content-kind switch', () => {
-  assert.match(runtime, /var primaryTags=\[\['noun','Noun'\][\s\S]*?\['conjunction','Conjunction'\]\]/);
+  assert.match(runtime, /var primaryTags=VOCABULARY_PARTS_OF_SPEECH/);
   assert.match(runtime, /\[\['word','單字'\],\['combination','組合'\],\['sentence','句子'\]\]/);
   assert.match(runtime, /renderEnglishReviewWordTagRow\(w,i,primaryTags,'word-pos-primary'\)\+renderEnglishReviewWordKind\(w,i\)/);
   assert.match(runtime, /current\.fixedCombination=kind==='combination';current\.beautifulSentences=kind==='sentence'/);

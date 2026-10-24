@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .vite/
+tmp/
+__pycache__/
+*.pyc
 .env
 .env.*
 !.env.example

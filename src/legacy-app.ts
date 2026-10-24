@@ -47,6 +47,8 @@ import {
 import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
+import { applyVocabularyAutoFill, vocabularyAutoFillStatus } from './study/vocabularyAutoFill.ts';
+import { VOCABULARY_PARTS_OF_SPEECH } from './study/vocabularyTranslationCounts.ts';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { setupConnectionSettingsMotion } from './ui/connectionSettingsMotion';
 import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
@@ -3190,9 +3192,9 @@ function renderEnglishReviewWordKind(word,index){
 }
 function renderEnglishReview(x){
  var a=x.f.words;if(!Array.isArray(a))a=x.f.words=[];
- var primaryTags=[['noun','Noun'],['verb','Verb'],['adjective','Adjective'],['adverb','Adverb'],['preposition','Preposition'],['conjunction','Conjunction']];
+ var primaryTags=VOCABULARY_PARTS_OF_SPEECH;
  var h='<div><label>今日單字</label>';if(!a.length)h+='<div class="small">尚未新增今日單字。</div>';
- for(var i=0;i<a.length;i++){var w=typeof a[i]==='string'?{text:a[i]}:(a[i]||{});h+='<div class="field" style="margin-top:8px"><div class="inline"><input data-word-text data-index="'+i+'" value="'+esc(w.text||'')+'" placeholder="輸入今天整理的單字／搭配詞"><button class="delete" data-action="word-delete" data-index="'+i+'">刪除</button></div><div class="word-review-controls">'+renderEnglishReviewWordTagRow(w,i,primaryTags,'word-pos-primary')+renderEnglishReviewWordKind(w,i)+'</div></div>'}
+ for(var i=0;i<a.length;i++){var w=typeof a[i]==='string'?{text:a[i]}:(a[i]||{});h+='<div class="field" style="margin-top:8px"><div class="inline"><input data-word-text data-index="'+i+'" value="'+esc(w.text||'')+'" placeholder="輸入今天整理的單字／搭配詞"><button class="delete" data-action="word-delete" data-index="'+i+'">刪除</button></div><div class="small" data-word-reference>'+esc(vocabularyAutoFillStatus(w))+'</div><div class="word-review-controls">'+renderEnglishReviewWordTagRow(w,i,primaryTags,'word-pos-primary')+renderEnglishReviewWordKind(w,i)+'</div></div>'}
  return h+'</div><button class="secondary" data-action="word-add" style="margin-top:8px">新增單字</button>';
 }
 function renderNestedEntry(x,kind){
@@ -3454,10 +3456,18 @@ function runTimerAction(item,control,action){
  render();
 }
 
-function updateEnglishReviewWordText(target,item){
+function updateEnglishReviewWordText(target,item,completeWord){
  var words=item.f.words||(item.f.words=[]),index=Number(target.getAttribute('data-index'));
  if(!words[index]||typeof words[index]!=='object')words[index]={};
  words[index].text=target.value;
+ if(completeWord){
+  applyVocabularyAutoFill(words[index]);
+  var row=target.closest('.field');
+  if(row){
+   row.querySelectorAll('[data-word-pos]').forEach(function(control){control.checked=words[index][control.getAttribute('data-word-pos')]===true});
+   var note=row.querySelector('[data-word-reference]');if(note)note.textContent=vocabularyAutoFillStatus(words[index]);
+  }
+ }
  propagateDailyWorkField(item,'words',words);
 }
 function selectEnglishReviewWordKind(item,control){
@@ -3552,7 +3562,7 @@ function handleChange(e){
  }
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
  if(t.matches('[data-mag-field]')&&x){updateMagazineField(t,x);persist(false);return}
- if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x);persist(false);return}
+ if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x,true);persist(false);return}
  if(t.matches('[data-deferred]')&&x){
   var isDeferred=confirmedDeferred(x);
   if(t.checked&&!isDeferred){

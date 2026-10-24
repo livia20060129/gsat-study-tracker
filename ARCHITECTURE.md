@@ -35,6 +35,7 @@ infrastructure repositories and gateways
 - 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`
 - Google Calendar 公開 Client ID 解析：`src/config/googleCalendar.ts`
+- 單字精確比對、自動欄位所有權與手動優先：`src/study/vocabularyAutoFill.ts`；官方資料與字典中文分置 `src/data/ceecVocabulary.ts`、`src/data/ceecTranslations.ts`，來源、轉換與授權見 `VOCABULARY_SOURCES.md`。唯讀彙整不得觸發回填或改寫舊紀錄。
 
 首頁與學習總結必須共用 `completedStudyTime.ts`，不得各自建立另一套時間計算。任何 UI 合併卡都只能代表來源項目，不能成為新的持久化資料真相。
 

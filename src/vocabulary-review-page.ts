@@ -18,6 +18,7 @@ import {
 import { vocabularyTranslationGroups } from './study/vocabularyTranslationCounts.ts';
 import { vocabularyMeaningGroups } from './study/vocabularyMeaningGroups.ts';
 import { vocabularyPrintDocument } from './study/vocabularyPrint.ts';
+import { vocabularyReference } from './study/vocabularyAutoFill.ts';
 import type { StudyRecord, VocabularyTranslations } from './types.ts';
 
 const GROUPING_MODES = ['alphabetical', 'partOfSpeech', 'gsatLevel'] as const;
@@ -351,6 +352,19 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     kinds.append(levelBadge);
   }
   identity.append(kinds);
+  if (entry.referenceSources) {
+    const reference = vocabularyReference(entry.text);
+    const note = document.createElement('p');
+    note.className = 'vocabulary-occurrence';
+    const sources = [];
+    if (entry.referenceSources.ceec) sources.push('大考中心（詞性／級數）');
+    if (entry.referenceSources.ecdict) sources.push('ECDICT（中文參考）');
+    note.textContent = `參考來源：${sources.join('、')}`;
+    if (entry.referenceSources.ceec && reference && reference.levels.length > 1) {
+      note.textContent += `；官方表含 ${reference.levels.map(level => `Level ${level}`).join('／')}，自動帶入較低級。`;
+    }
+    identity.append(note);
+  }
   if (entry.occurrenceCount > 1) {
     const occurrence = document.createElement('p');
     occurrence.className = 'vocabulary-occurrence';

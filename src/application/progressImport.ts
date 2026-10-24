@@ -46,7 +46,7 @@ const NESTED_ITEM_FIELDS = [
   'dailyWorkSourceItems',
 ] as const;
 const WORD_BOOLEAN_FIELDS = [
-  'noun', 'verb', 'adjective', 'adverb', 'preposition', 'conjunction',
+  'noun', 'verb', 'adjective', 'adverb', 'preposition', 'conjunction', 'pronoun', 'article', 'auxiliary',
   'fixedCombination', 'beautifulSentences',
 ] as const;
 
@@ -126,7 +126,7 @@ function validateWords(value: unknown, label: string, errors: string[]): void {
     }
     if (word.translationsByPartOfSpeech !== undefined) {
       if (!isObject(word.translationsByPartOfSpeech)) errors.push(`${wordLabel}的詞性翻譯必須是物件。`);
-      else for (const field of ['noun', 'verb', 'adjective', 'adverb', 'preposition', 'conjunction', 'unclassified']) {
+      else for (const field of ['noun', 'verb', 'adjective', 'adverb', 'preposition', 'conjunction', 'pronoun', 'article', 'auxiliary', 'unclassified']) {
         const translations = word.translationsByPartOfSpeech[field];
         if (translations !== undefined && (!Array.isArray(translations) || !translations.length || translations.some(value => typeof value !== 'string'))) {
           errors.push(`${wordLabel}的 ${field} 翻譯至少須保留一個文字欄位。`);
