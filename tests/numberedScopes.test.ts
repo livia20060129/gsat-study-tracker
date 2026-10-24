@@ -7,7 +7,7 @@ import { numberedScopesInText, numberedStudyScope, usesSharedNumberedTemplate } 
 import { decodeStudyRecord, encodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
 import { completedItemsForPeriod } from '../src/study/completedItems.ts';
 import { groupDailyWorkItems } from '../src/study/dailyWorkGroup.ts';
-import { studyItemProgress } from '../src/study/itemProgress.ts';
+import { isProgressOnlyStudyItem, studyItemProgress } from '../src/study/itemProgress.ts';
 import { applyNumberedScope, numberedScopeText, validNumberedScope } from '../src/study/numberedScopeProgress.ts';
 import { overdueTasks, updateOverdueTaskPageRange } from '../src/study/overdueTasks.ts';
 import { bookUnitRange, bookUnitText } from '../src/study/unitBookProgress.ts';
@@ -88,14 +88,14 @@ test('repeating a scope in the title and structured note creates only one number
 test('the real shared renderer uses Unit or round controls, never page fields', () => {
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
   const context = createContext({ numberedStudyScope, usesSharedNumberedTemplate, bookUnitRange, bookUnitText,
-    numberedScopeText, studyItemProgress, isGroupedWork: () => false, isCalendarPageMappedBook: () => false,
+    numberedScopeText, studyItemProgress, isProgressOnlyStudyItem, isGroupedWork: () => false, isCalendarPageMappedBook: () => false,
     esc: (value: unknown) => String(value ?? ''), checked: (value: unknown) => value ? ' checked' : '',
     reasonField: () => '', readingOptions: () => '',
     isPrism: () => false, isAce: () => false, isEnglishPageMappedBook: () => false,
     isAzarGrammar: () => false, isListeningTestBook: () => false, isWritingTest: () => false,
     isGrammarReview: () => false, isEssentialGrammar: (title: string) => title === 'Essential Grammar in Use',
     isCalendarEssentialGrammar: () => true });
-  for (const name of ['renderNumberedScopeFields', 'renderExtraFields', 'renderItemFields']) {
+  for (const name of ['renderNumberedScopeFields', 'renderExtraProgressChecks', 'renderExtraFields', 'renderItemFields']) {
     const start = runtime.indexOf(`function ${name}(`);
     const end = runtime.indexOf('\nfunction ', start + 1);
     runInContext(runtime.slice(start, end), context);

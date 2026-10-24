@@ -95,7 +95,7 @@ import { orderedEndPage, validatePageRange } from './study/pageRangeValidation';
 import { numberedStudyScope, usesSharedNumberedTemplate } from './data/numberedScopes.ts';
 import { applyNumberedScope, numberedScopeText } from './study/numberedScopeProgress.ts';
 import { bookUnitRange, bookUnitText } from './study/unitBookProgress.ts';
-import { studyItemProgress } from './study/itemProgress.ts';
+import { isProgressOnlyStudyItem, studyItemProgress } from './study/itemProgress.ts';
 
 var DAILY_PRESET_START='2026-08-10';
 var MIXED_WRITING_START='2026-08-11';
@@ -2618,7 +2618,7 @@ function refreshCorrectionReasonField(card,item){
  var children=card.children||[],inner=null;
  for(var i=0;i<children.length;i++)if(children[i].classList&&children[i].classList.contains('inner')){inner=children[i];break}
  var existing=card.querySelector&&card.querySelector('[data-correction-reason]');
- if(!item.f||!item.f.corrected){if(existing){existing.remove();return true}return !!inner}
+ if(!item.f||!item.f.corrected||(item.type==='extra'&&isProgressOnlyStudyItem(item))){if(existing){existing.remove();return true}return !!inner}
  if(existing)return true;
  if(!inner||!inner.insertAdjacentHTML)return false;
  inner.insertAdjacentHTML('beforeend',reasonField(item.f));
@@ -2904,6 +2904,16 @@ function captureNumberedScopeInputs(card,x){
  if(start.value&&end.value&&Number(end.value)<Number(start.value))end.value=start.value;
  end.min=start.value||'1';applyNumberedScope(x,start.value,end.value);refreshAuto(card,x);return true;
 }
+function renderExtraProgressChecks(x,reviewMode){
+ var f=x.f,progressOnly=isProgressOnlyStudyItem(x),h='';
+ if(!reviewMode||progressOnly){
+  h='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label>';
+  if(!progressOnly)h+='<label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label>';
+  h+='</div>';
+ }
+ if(!progressOnly&&(reviewMode||f.corrected))h+=reasonField(f);
+ return h;
+}
 function renderExtraFields(x,reviewMode){
  var f=x.f,t=f.title||'',h='',bookOptions;
  if(reviewMode&&!usesSharedNumberedTemplate(x)&&!isPrism(t)&&!isAce(t)&&!isEnglishPageMappedBook(t)&&!isListeningTestBook(t)&&!isAzarGrammar(t)&&!isWritingTest(t)&&!isGrammarReview(t)){
@@ -2913,8 +2923,7 @@ function renderExtraFields(x,reviewMode){
  bookOptions=reviewMode?reviewEnglishOptions(t):readingOptions(t);
  if(usesSharedNumberedTemplate(x)){
   h+=renderNumberedScopeFields(x,bookOptions);
-  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
-  if(reviewMode||f.corrected)h+=reasonField(f);
+  h+=renderExtraProgressChecks(x,reviewMode);
  }else if(isPrism(t)){
   var pl=prismLevel(f);
   h+='<div class="english-book-row"><div class="field english-book"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field"><label>版本</label><select data-field="level"><option value="">請選擇</option><option value="2"'+selected('2',pl)+'>2</option><option value="3"'+selected('3',pl)+'>3</option><option value="4"'+selected('4',pl)+'>4</option></select></div><div class="field"><label>CEFR Level</label><div class="small">'+prismCefr(pl)+'</div></div></div>';
@@ -2947,8 +2956,7 @@ function renderExtraFields(x,reviewMode){
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(englishMappedStart)+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(englishMappedEnd)+'"></div></div>';
   }
   h+=bookPageAutoField(englishMappedBook,englishMappedStart,englishMappedEnd);
-  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
-  if(reviewMode||f.corrected)h+=reasonField(f);
+  h+=renderExtraProgressChecks(x,reviewMode);
  }else if(isAzarGrammar(t)){
   if(isCalendarAzarGrammar(x)){
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><div class="fixed-book-value">'+esc(AZAR_GRAMMAR_BOOK_TITLE)+'</div></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" max="428" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" max="428" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';

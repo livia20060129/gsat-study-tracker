@@ -28,6 +28,7 @@ let activeContentKind: VocabularyContentKind = '單字';
 let activePartOfSpeech = '全部';
 let groupingMode: VocabularyGroupingMode = 'alphabetical';
 let searchText = '';
+let translationsVisible = true;
 const editingEntryKeys = new Set<string>();
 
 function element<T extends HTMLElement>(id: string): T {
@@ -288,6 +289,42 @@ function createTranslationCounts(entry: VocabularyReviewEntry): HTMLElement {
   return value;
 }
 
+function createReadonlyTranslations(entry: VocabularyReviewEntry): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'vocabulary-readonly-translations';
+  if (activeContentKind !== '單字') {
+    container.textContent = entry.translation || '—';
+    return container;
+  }
+  const groups = vocabularyTranslationGroups(entry.translation, entry.tags, entry.translationsByPartOfSpeech);
+  function appendGroup(label: string, values: string[]): void {
+    const group = document.createElement('div');
+    const heading = document.createElement('strong');
+    heading.textContent = label;
+    const translation = document.createElement('p');
+    translation.textContent = values.map(value => value.trim()).filter(Boolean).join('；') || '—';
+    group.append(heading, translation);
+    container.append(group);
+  }
+  for (const [field, label] of VOCABULARY_PARTS_OF_SPEECH) {
+    if (entry.tags.includes(label)) appendGroup(label, groups[field] ?? []);
+  }
+  if (groups.unclassified?.some(value => value.trim())) appendGroup('未分詞性', groups.unclassified);
+  if (!container.childElementCount) container.textContent = '—';
+  return container;
+}
+
+function updateTranslationVisibility(): void {
+  element<HTMLButtonElement>('toggleVocabularyTranslations').textContent = translationsVisible ? '隱藏中文' : '顯示中文';
+  for (const row of element<HTMLDivElement>('vocabularyList').querySelectorAll<HTMLElement>('.vocabulary-row')) {
+    const entry = allEntries.find(candidate => candidate.key === row.dataset.entryKey);
+    if (!entry || editingEntryKeys.has(entry.key)) continue;
+    const existing = row.querySelector('.vocabulary-readonly-translations');
+    if (!translationsVisible) existing?.remove();
+    else if (!existing) row.insertBefore(createReadonlyTranslations(entry), row.querySelector('.vocabulary-readonly-details'));
+  }
+}
+
 function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   const article = document.createElement('article');
   article.className = 'vocabulary-row';
@@ -357,7 +394,9 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
       details.classList.add('is-translation-only');
     }
     details.append(translationLabel, createTranslationCounts(entry));
-    article.append(identity, details);
+    article.append(identity);
+    if (translationsVisible) article.append(createReadonlyTranslations(entry));
+    article.append(details);
   }
   return article;
 }
@@ -623,5 +662,9 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
   }
 });
 element<HTMLButtonElement>('refreshVocabulary').addEventListener('click', load);
+element<HTMLButtonElement>('toggleVocabularyTranslations').addEventListener('click', () => {
+  translationsVisible = !translationsVisible;
+  updateTranslationVisibility();
+});
 window.addEventListener('storage', load);
 load();

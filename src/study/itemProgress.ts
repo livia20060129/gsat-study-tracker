@@ -1,5 +1,5 @@
 import { isAzarGrammarBookTitle } from '../data/azarGrammar.ts';
-import { isEnglishPageMappedBook } from '../data/bookPageMaps.ts';
+import { canonicalPageMappedBook, isEnglishPageMappedBook, TOEFL_VOCABULARY_3800_BOOK } from '../data/bookPageMaps.ts';
 import { isListeningTestBookTitle } from '../data/englishBooks.ts';
 import type { StudyItem } from '../types.ts';
 import { effectiveTemplatePresetKey } from './makeup.ts';
@@ -21,6 +21,11 @@ export interface StudyItemProgress {
 
 const REVIEW_PROGRESS_KEYS = ['progress', 'graded', 'corrected'] as const;
 const ENGLISH_PRACTICE_KEYS = ['listening', 'vocab', 'translation', 'gsatPart1'] as const;
+
+export function isProgressOnlyStudyItem(item: StudyItem): boolean {
+  const title = item.f?.title || item.f?.book || item.title;
+  return item.type === 'extra' && canonicalPageMappedBook(title) === TOEFL_VOCABULARY_3800_BOOK;
+}
 
 function hasCalendarTemplate(item: StudyItem, prefix: string): boolean {
   return (item.source === 'preset' || item.calendarGroupedChild === true)
@@ -63,6 +68,9 @@ function templateProgressKeys(item: StudyItem): readonly ProgressKey[] {
 /** Missing template booleans are unchecked; legacy text progress remains text. */
 export function studyItemProgress(item: StudyItem): StudyItemProgress[] {
   const fields = item.f ?? {};
+  if (isProgressOnlyStudyItem(item)) {
+    return [{ key: 'progress', label: '進度', checked: fields.progress === true }];
+  }
   const templateKeys = templateProgressKeys(item);
   return STUDY_PROGRESS_FIELDS.filter(function hasCheckbox([key]): boolean {
     const value = fields[key];

@@ -465,6 +465,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
 
   await page.getByRole('link', { name: '英文單字複習' }).click();
   await expect(page.getByRole('heading', { name: '英文單字複習' })).toBeVisible();
+  await page.getByRole('button', { name: '隱藏中文', exact: true }).click();
   const links = page.locator('.vocabulary-word-link');
   await expect(links).toHaveCount(2);
   await expect(links).toHaveText(['Leverage', 'novelty']);
