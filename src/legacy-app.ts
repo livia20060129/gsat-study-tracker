@@ -2053,13 +2053,6 @@ function reconcileGroupedWorkEntries(templateEntries,existingEntries,legacyParen
  });
  return out;
 }
-function updateGroupedParentDone(child){
- if(!child||!data||!Array.isArray(data.items))return;
- for(var i=0;i<data.items.length;i++){
-  var parent=data.items[i],entries=groupedWorkEntries(parent);
-  if(entries.indexOf(child)>=0){parent.done=entries.length>0&&entries.every(function(entry){return !!entry.done});return}
- }
-}
 function ensureDeferredForDate(rec,date){
  if(!rec)return false;
  var targetDay=parseDate(date).getDay(),targetOffset=weekDayOffset(targetDay);
@@ -3606,7 +3599,7 @@ function handleChange(e){
   clearPendingDeferred(x);
   clearDeferredLimitPrompt(x);
     if(x.calendarIntegrationChild||x.calendarGroupedChild){
-     if(x.calendarGroupedChild)updateGroupedParentDone(x);
+     data.items.forEach(function(item){refreshCompletionTree(item)});
      persistCompletionChange();updateSummary();maybeCelebrateCompletion(previousWorkloadPercent,t.checked);render();return
    }
    if(x.done&&confirmedDeferred(x)){propagateDailyWorkDeferred(x,false);persistCompletionChange();rebuildDeferredForWeek(data.date)}

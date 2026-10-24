@@ -480,7 +480,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(links).toHaveText(['pay an insurance premium']);
   await expect(page.getByRole('group', { name: '單字排列方式' })).toBeHidden();
   const combinationRow = page.locator('.vocabulary-row[data-entry-key="pay an insurance premium"]');
-  await expect(combinationRow.locator('.vocabulary-readonly-details')).not.toContainText('詞性');
+  await expect(combinationRow.locator('.vocabulary-readonly-translations strong')).toHaveCount(0);
   await combinationRow.getByRole('button', { name: '編輯「pay an insurance premium」' }).click();
   await expect(combinationRow.getByRole('group', { name: '內容類型' })).toBeVisible();
   await expect(combinationRow.getByLabel('組合', { exact: true })).toBeChecked();
@@ -511,7 +511,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(page.getByText('最近紀錄')).toHaveCount(0);
   const leverageRow = page.locator('.vocabulary-row[data-entry-key="leverage"]');
   await expect(leverageRow.locator('[data-vocabulary-pos], [data-vocabulary-translation]')).toHaveCount(0);
-  await expect(leverageRow.locator('.vocabulary-readonly-details')).toContainText('Noun、Verb');
+  await expect(leverageRow.locator('.vocabulary-readonly-translations strong')).toHaveText(['Noun', 'Verb']);
   await leverageRow.getByRole('button', { name: '編輯「Leverage」' }).click();
   await expect(leverageRow.getByLabel('英文內容')).toHaveValue('Leverage');
   await leverageRow.getByLabel('英文內容').fill('Applied leverage');
@@ -532,8 +532,8 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(page.getByText('已儲存「Leverage」的整理資料')).toBeVisible();
   await leverageRow.getByRole('button', { name: '完成「Leverage」' }).click();
   await expect(leverageRow.locator('[data-vocabulary-pos], [data-vocabulary-translation]')).toHaveCount(0);
-  await expect(leverageRow.locator('.vocabulary-readonly-details')).not.toContainText('影響力');
-  await expect(leverageRow.locator('.vocabulary-translation-counts')).toHaveText('Noun：1 個Verb：1 個Adjective：0 個');
+  await expect(leverageRow.locator('.vocabulary-translation-counts')).toHaveCount(0);
+  await expect(leverageRow.locator('.vocabulary-readonly-translations strong')).toHaveText(['Noun', 'Verb', 'Adjective']);
   const storedWords = await page.evaluate(() => ['2026-09-19', '2026-09-20'].map(date => {
     const record = JSON.parse(localStorage.getItem(`study-v11:guest:${date}`) ?? '{}');
     const word = record.items?.[0]?.f?.words?.find((candidate: { text?: string }) => (

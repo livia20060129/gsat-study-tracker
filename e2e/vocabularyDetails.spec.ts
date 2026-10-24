@@ -33,14 +33,14 @@ test('mobile POS translations add/delete with a one-field minimum, hide answers 
   await row.getByLabel('顯示學測單字級數', { exact: true }).check();
   await level.selectOption('3');
   await row.getByRole('button', { name: '完成「novelty」' }).click();
-  await expect(row).not.toContainText('新奇');
-  await expect(row).not.toContainText('獨創性');
-  await expect(row).not.toContainText('創新');
-  await expect(row.locator('.vocabulary-translation-counts')).toHaveText('Noun：2 個Verb：1 個');
+  await expect(row.locator('.vocabulary-readonly-translations')).toHaveClass(/is-masked/);
+  await expect(row.locator('.vocabulary-meaning-mask')).toHaveText(['－', '－', '－']);
+  await expect(row.locator('.vocabulary-translation-counts')).toHaveCount(0);
   await expect(row.locator('.vocabulary-gsat-level')).toHaveText('學測 Level 3');
   await page.reload();
   await expect(row.locator('.vocabulary-gsat-level')).toHaveText('學測 Level 3');
-  await expect(row.locator('.vocabulary-translation-counts')).toHaveText('Noun：2 個Verb：1 個');
+  await expect(row.locator('.vocabulary-translation-counts')).toHaveCount(0);
+  await expect(row.locator('.vocabulary-meaning-answer')).toHaveText(['新奇', '獨創性', '創新']);
   await row.getByRole('button', { name: '編輯「novelty」' }).click();
   await row.getByLabel('Noun', { exact: true }).uncheck();
   await expect(noun).toHaveCount(0);
@@ -72,7 +72,7 @@ test('mobile POS translations add/delete with a one-field minimum, hide answers 
   }
 });
 
-test('legacy translations stay recoverable, POS counts work in both sorts and combinations/sentences keep their existing editor', async ({ page }) => {
+test('legacy translations stay recoverable, separate masks work in both sorts and combinations/sentences keep their editor', async ({ page }) => {
   await page.goto('/vocabulary.review.html');
   await page.evaluate(() => {
     localStorage.clear();
@@ -89,18 +89,18 @@ test('legacy translations stay recoverable, POS counts work in both sorts and co
   await page.reload();
   const row = page.locator('.vocabulary-row[data-entry-key="leverage"]');
   await page.getByRole('button', { name: '隱藏中文', exact: true }).click();
-  await expect(row.locator('.vocabulary-translation-counts')).toHaveText('Noun：2 個Verb：1 個');
-  await expect(row).not.toContainText('影響力');
+  await expect(row.locator('.vocabulary-meaning-mask')).toHaveText(['－', '－', '－']);
+  await expect(row.locator('.vocabulary-meaning-answer').first()).toHaveCSS('visibility', 'hidden');
   const ambiguous = page.locator('.vocabulary-row[data-entry-key="novelty"]');
-  await expect(ambiguous.locator('.vocabulary-translation-counts')).toContainText('未分詞性：2 個');
+  await expect(ambiguous.locator('.vocabulary-readonly-translations strong')).toHaveText(['Noun', 'Adjective', '未分詞性']);
   await ambiguous.getByRole('button', { name: '編輯「novelty」' }).click();
   expect(await ambiguous.locator('[data-translation-group="unclassified"] input').evaluateAll(nodes => nodes.map(node => (node as HTMLInputElement).value))).toEqual(['新奇', '獨創性']);
   await ambiguous.getByRole('button', { name: '完成「novelty」' }).click();
   await page.getByRole('button', { name: '詞性', exact: true }).click();
-  await expect(page.locator('#vocabulary-group-noun .vocabulary-row[data-entry-key="leverage"] .vocabulary-translation-counts')).toHaveText('Noun：2 個Verb：1 個');
+  await expect(page.locator('#vocabulary-group-noun .vocabulary-row[data-entry-key="leverage"] .vocabulary-meaning-mask')).toHaveText(['－', '－', '－']);
   await page.getByRole('button', { name: '組合', exact: true }).click();
   const phrase = page.locator('.vocabulary-row[data-entry-key="pay a premium"]');
-  await expect(phrase).not.toContainText('支付保費');
+  await expect(phrase.locator('.vocabulary-meaning-answer')).toHaveCSS('visibility', 'hidden');
   await expect(phrase.locator('.vocabulary-gsat-level')).toHaveCount(0);
   await phrase.getByRole('button', { name: '編輯「pay a premium」' }).click();
   await expect(phrase.locator('[data-vocabulary-pos], [data-vocabulary-level]')).toHaveCount(0);
@@ -109,7 +109,7 @@ test('legacy translations stay recoverable, POS counts work in both sorts and co
   await phrase.getByRole('button', { name: '完成「pay a premium」' }).click();
   await page.getByRole('button', { name: '句子', exact: true }).click();
   const sentence = page.locator('.vocabulary-row').filter({ hasText: 'Practice makes perfect.' });
-  await expect(sentence).not.toContainText('熟能生巧');
+  await expect(sentence.locator('.vocabulary-meaning-answer')).toHaveCSS('visibility', 'hidden');
   await sentence.getByRole('button', { name: '編輯「Practice makes perfect.」' }).click();
   await expect(sentence.getByLabel('中文翻譯', { exact: true })).toHaveValue('熟能生巧');
 });
@@ -146,7 +146,7 @@ test('GSAT Level sorting uses the third slider position and excludes unchecked w
   await expect(page.locator('#vocabularyList')).not.toContainText('Hidden');
   await expect(page.locator('#vocabularyList')).not.toContainText('Unknown');
   await expect(page.locator('#vocabularyList')).not.toContainText('未標註');
-  await expect(page.locator('#vocabularyList')).not.toContainText('秘密翻譯');
+  await expect(page.locator('.vocabulary-meaning-answer').first()).toHaveCSS('visibility', 'hidden');
   await expect(page.getByLabel('按詞性篩選單字')).toBeHidden();
   expect(await page.locator('#vocabularyGrouping').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.locator('#vocabularySearch').fill('Hidden');
@@ -182,7 +182,7 @@ test('GSAT Level sorting uses the third slider position and excludes unchecked w
   await expect(page.locator('.vocabulary-letter-group')).toHaveCount(0);
 });
 
-test('English stays above the translation/count area in readonly and edit mode on desktop and mobile', async ({ page }) => {
+test('English stays above translations in readonly and edit mode on desktop and mobile', async ({ page }) => {
   await page.goto('/vocabulary.review.html');
   await page.evaluate(() => {
     localStorage.clear();
@@ -197,7 +197,7 @@ test('English stays above the translation/count area in readonly and edit mode o
     await page.reload();
     const word = page.locator('.vocabulary-row[data-entry-key="novelty"]');
     const english = await word.getByRole('link').boundingBox();
-    const counts = await word.locator('.vocabulary-readonly-details').boundingBox();
+    const counts = await word.locator('.vocabulary-readonly-translations').boundingBox();
     expect(counts!.y).toBeGreaterThanOrEqual(english!.y + english!.height);
     await word.getByRole('button', { name: '編輯「novelty」' }).click();
     const englishInput = await word.getByLabel('英文內容').boundingBox();
@@ -207,7 +207,7 @@ test('English stays above the translation/count area in readonly and edit mode o
     await page.getByRole('button', { name: '組合', exact: true }).click();
     const phrase = page.locator('.vocabulary-row[data-entry-key="pay a premium"]');
     const phraseEnglish = await phrase.getByRole('link').boundingBox();
-    const phraseCounts = await phrase.locator('.vocabulary-readonly-details').boundingBox();
+    const phraseCounts = await phrase.locator('.vocabulary-readonly-translations').boundingBox();
     expect(phraseCounts!.y).toBeGreaterThanOrEqual(phraseEnglish!.y + phraseEnglish!.height);
     await phrase.getByRole('button', { name: '編輯「pay a premium」' }).click();
     const phraseEnglishInput = await phrase.getByLabel('英文內容').boundingBox();
@@ -233,18 +233,25 @@ test('Chinese is shown by default and one page toggle controls every view withou
   });
   await page.reload();
   const word = page.locator('.vocabulary-row[data-entry-key="novelty"]');
-  await expect(word.locator('.vocabulary-readonly-translations')).toContainText('新奇；獨創性');
+  await expect(word.locator('.vocabulary-meaning-answer')).toHaveText(['新奇', '獨創性']);
+  const container = await word.locator('.vocabulary-readonly-translations').elementHandle();
+  const before = await word.boundingBox();
   await expect(page.locator('#toggleVocabularyTranslations')).toHaveText('隱藏中文');
   await page.getByRole('button', { name: '隱藏中文', exact: true }).click();
-  await expect(word.locator('.vocabulary-readonly-translations')).toHaveCount(0);
-  await expect(word).not.toContainText('獨創性');
-  await expect(word.locator('.vocabulary-translation-counts')).toHaveText('Noun：2 個');
+  await expect(word.locator('.vocabulary-readonly-translations')).toHaveCount(1);
+  await expect(word.locator('.vocabulary-meaning-mask')).toHaveText(['－', '－']);
+  await expect(word.locator('.vocabulary-meaning-answer').first()).toHaveCSS('visibility', 'hidden');
+  await expect(word.locator('.vocabulary-meaning-answer').first()).toHaveAttribute('aria-hidden', 'true');
+  await expect(word.locator('.vocabulary-translation-counts')).toHaveCount(0);
+  expect((await word.boundingBox())!.height).toBe(before!.height);
+  expect(await container!.evaluate(node => node.isConnected)).toBe(true);
   await page.getByRole('button', { name: '詞性', exact: true }).click();
-  await expect(word.locator('.vocabulary-readonly-translations')).toHaveCount(0);
+  await expect(word.locator('.vocabulary-readonly-translations')).toHaveClass(/is-masked/);
   await page.getByRole('button', { name: 'Level', exact: true }).click();
-  await expect(word.locator('.vocabulary-readonly-translations')).toHaveCount(0);
+  await expect(word.locator('.vocabulary-readonly-translations')).toHaveClass(/is-masked/);
   await page.getByRole('button', { name: '顯示中文', exact: true }).click();
-  await expect(word.locator('.vocabulary-readonly-translations')).toContainText('新奇；獨創性');
+  await expect(word.locator('.vocabulary-meaning-answer')).toHaveText(['新奇', '獨創性']);
+  await expect(word.locator('.vocabulary-meaning-answer').first()).toHaveCSS('visibility', 'visible');
   await word.getByRole('button', { name: '編輯「novelty」' }).click();
   const input = word.getByLabel('Noun 中文翻譯 1', { exact: true });
   const handle = await input.elementHandle();
@@ -253,15 +260,15 @@ test('Chinese is shown by default and one page toggle controls every view withou
   await expect(input).toHaveValue('新意');
   expect(await handle!.evaluate(node => node.isConnected)).toBe(true);
   await word.getByRole('button', { name: '完成「novelty」' }).click();
-  await expect(word.locator('.vocabulary-readonly-translations')).toHaveCount(0);
+  await expect(word.locator('.vocabulary-readonly-translations')).toHaveClass(/is-masked/);
   await page.getByRole('button', { name: '組合', exact: true }).click();
   const phrase = page.locator('.vocabulary-row[data-entry-key="pay a premium"]');
-  await expect(phrase.locator('.vocabulary-readonly-translations')).toHaveCount(0);
+  await expect(phrase.locator('.vocabulary-readonly-translations')).toHaveClass(/is-masked/);
   await page.getByRole('button', { name: '顯示中文', exact: true }).click();
-  await expect(phrase.locator('.vocabulary-readonly-translations')).toHaveText('支付保費');
+  await expect(phrase.locator('.vocabulary-meaning-answer')).toHaveText('支付保費');
   await page.getByRole('button', { name: '句子', exact: true }).click();
-  await expect(page.locator('.vocabulary-readonly-translations')).toHaveText('熟能生巧');
+  await expect(page.locator('.vocabulary-meaning-answer')).toHaveText('熟能生巧');
   await page.reload();
-  await expect(word.locator('.vocabulary-readonly-translations')).toContainText('新意；獨創性');
+  await expect(word.locator('.vocabulary-meaning-answer')).toHaveText(['新意', '獨創性']);
   await expect(page.locator('#toggleVocabularyTranslations')).toHaveText('隱藏中文');
 });

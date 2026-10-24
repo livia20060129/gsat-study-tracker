@@ -75,6 +75,15 @@ function itemIdentity(item: StudyItem): string {
   return presetKey ? `preset:${presetKey}` : '';
 }
 
+/** Grouping also copies the natural children onto the parent and its visible child. */
+function relinkNaturalIntegrationEntries(item: StudyItem, sources: StudyItem[]): void {
+  const entries = item.f?.calendarIntegrationEntries;
+  const canonical = preferredBase(sources).f?.calendarIntegrationEntries;
+  if (!Array.isArray(entries) || !Array.isArray(canonical)) return;
+  const byId = new Map(canonical.filter(entry => entry?.id).map(entry => [entry.id, entry]));
+  item.f.calendarIntegrationEntries = entries.map(entry => byId.get(entry?.id) ?? entry);
+}
+
 /**
  * JSON storage duplicates the hidden source objects referenced by a grouped
  * child. Relink those copies to the canonical sources kept by the parent so a
@@ -104,6 +113,9 @@ export function relinkDailyWorkSourceItems(items: StudyItem[]): void {
         item.f!.dailyWorkSourceItems = sources.map(source => (
           canonicalSources.get(itemIdentity(source)) || source
         ));
+        if (item.f!.dailyWorkSourceItems.length) {
+          relinkNaturalIntegrationEntries(item, item.f!.dailyWorkSourceItems);
+        }
       }
       const children = item.f?.groupedWorkEntries;
       if (Array.isArray(children)) children.forEach(relink);
@@ -392,6 +404,8 @@ export function propagateDailyWorkDone(item: StudyItem, done: boolean): void {
     if (Array.isArray(sources)) sources.forEach(apply);
     const children = target.f?.groupedWorkEntries;
     if (Array.isArray(children)) children.forEach(apply);
+    const integration = target.f?.calendarIntegrationEntries;
+    if (Array.isArray(integration)) integration.forEach(child => apply(child as StudyItem));
   };
   apply(item);
 }
