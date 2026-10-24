@@ -2,19 +2,24 @@ import './vocabulary-review.css';
 import { markRecordLocallyEdited } from './storage/recordSync.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
+  normalizedGsatVocabularyLevel,
   updateVocabularyWordEntries,
   VOCABULARY_CONTENT_KINDS,
   VOCABULARY_PARTS_OF_SPEECH,
   vocabularyEntryKey,
+  vocabularyEntryHasVisibleLevel,
+  vocabularyLevelGroups,
   vocabularyReviewEntries,
   type VocabularyContentKind,
   type VocabularyPartOfSpeechField,
   type VocabularyReviewEntry,
   type VocabularyWordEdits,
 } from './study/vocabularyReview.ts';
-import type { StudyRecord } from './types.ts';
+import { vocabularyTranslationCounts, vocabularyTranslationGroups } from './study/vocabularyTranslationCounts.ts';
+import type { StudyRecord, VocabularyTranslations } from './types.ts';
 
-type VocabularyGroupingMode = 'alphabetical' | 'partOfSpeech';
+const GROUPING_MODES = ['alphabetical', 'partOfSpeech', 'gsatLevel'] as const;
+type VocabularyGroupingMode = (typeof GROUPING_MODES)[number];
 
 let allEntries: VocabularyReviewEntry[] = [];
 let loadedRecords: StudyRecord[] = [];
@@ -50,6 +55,7 @@ function entryMatchesSearch(entry: VocabularyReviewEntry): boolean {
 function filteredEntries(): VocabularyReviewEntry[] {
   return allEntries.filter(entry => (
     entry.contentKinds.includes(activeContentKind)
+    && (groupingMode !== 'gsatLevel' || vocabularyEntryHasVisibleLevel(entry))
     && (
       groupingMode !== 'partOfSpeech'
       || activePartOfSpeech === '全部'
@@ -180,6 +186,108 @@ function createTextEditor(entry: VocabularyReviewEntry): HTMLLabelElement {
   return label;
 }
 
+function createGsatLevelEditor(entry: VocabularyReviewEntry): HTMLElement {
+  const editor = document.createElement('div');
+  editor.className = 'vocabulary-level-editor';
+  const visibilityLabel = document.createElement('label');
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.dataset.vocabularyLevelVisible = '';
+  checkbox.checked = entry.showGsatLevel;
+  visibilityLabel.append(checkbox, document.createTextNode('顯示學測單字級數'));
+  const levelLabel = document.createElement('label');
+  levelLabel.className = 'vocabulary-level-select';
+  const labelText = document.createElement('span');
+  labelText.textContent = '學測單字級數';
+  const select = document.createElement('select');
+  select.dataset.vocabularyLevel = '';
+  for (let level = 1; level <= 6; level += 1) {
+    const option = document.createElement('option');
+    option.value = String(level);
+    option.textContent = `Level ${level}`;
+    select.append(option);
+  }
+  select.value = String(entry.gsatLevel ?? 1);
+  select.disabled = !checkbox.checked;
+  levelLabel.append(labelText, select);
+  editor.append(visibilityLabel, levelLabel);
+  return editor;
+}
+
+function createTranslationGroup(field: keyof VocabularyTranslations, label: string, values: string[]): HTMLElement {
+  const group = document.createElement('fieldset');
+  group.className = 'vocabulary-translation-group';
+  group.dataset.translationGroup = field;
+  const legend = document.createElement('legend');
+  legend.textContent = `${label} 中文翻譯`;
+  group.append(legend);
+  for (const [index, value] of values.entries()) {
+    const row = document.createElement('div');
+    row.className = 'vocabulary-translation-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.placeholder = '輸入一個中文翻譯';
+    input.autocomplete = 'off';
+    input.dataset.vocabularyPosTranslation = field;
+    input.setAttribute('aria-label', `${label} 中文翻譯 ${index + 1}`);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.dataset.deleteTranslation = String(index);
+    remove.textContent = '刪除';
+    remove.disabled = values.length <= 1;
+    remove.setAttribute('aria-label', `刪除 ${label} 第 ${index + 1} 個翻譯`);
+    row.append(input, remove);
+    group.append(row);
+  }
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.dataset.addTranslation = '';
+  add.textContent = '新增翻譯';
+  add.setAttribute('aria-label', `新增 ${label} 翻譯`);
+  group.append(add);
+  return group;
+}
+
+function createWordTranslationEditor(entry: VocabularyReviewEntry): HTMLElement {
+  const editor = document.createElement('div');
+  editor.className = 'vocabulary-word-translations';
+  const groups = vocabularyTranslationGroups(entry.translation, entry.tags, entry.translationsByPartOfSpeech);
+  for (const [field, label] of VOCABULARY_PARTS_OF_SPEECH) {
+    if (entry.tags.includes(label)) editor.append(createTranslationGroup(field, label, groups[field] ?? ['']));
+  }
+  if (groups.unclassified) editor.append(createTranslationGroup('unclassified', '未分詞性（舊翻譯）', groups.unclassified));
+  if (!editor.childElementCount) {
+    const hint = document.createElement('p');
+    hint.className = 'vocabulary-translation-hint';
+    hint.textContent = '勾選詞性後會顯示對應的中文翻譯欄。';
+    editor.append(hint);
+  }
+  return editor;
+}
+
+function createTranslationCounts(entry: VocabularyReviewEntry): HTMLElement {
+  const value = document.createElement('dd');
+  value.className = 'vocabulary-translation-counts';
+  const counts = vocabularyTranslationCounts(entry.translation, activeContentKind === '單字' ? entry.tags : [], entry.translationsByPartOfSpeech);
+  if (activeContentKind !== '單字') {
+    const count = counts.reduce((total, part) => total + part.count, 0);
+    value.textContent = `${count} 個`;
+    return value;
+  }
+  const selectedCounts = counts.filter(count => entry.tags.includes(count.partOfSpeech) || count.partOfSpeech === '未分詞性');
+  if (!selectedCounts.length) {
+    value.textContent = entry.tags.length ? '尚未填寫翻譯' : '尚未勾選詞性';
+    return value;
+  }
+  for (const { partOfSpeech, count } of selectedCounts) {
+    const badge = document.createElement('span');
+    badge.textContent = `${partOfSpeech}：${count} 個`;
+    value.append(badge);
+  }
+  return value;
+}
+
 function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   const article = document.createElement('article');
   article.className = 'vocabulary-row';
@@ -206,6 +314,12 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     badge.textContent = kind;
     kinds.append(badge);
   }
+  if (activeContentKind === '單字' && !editingEntryKeys.has(entry.key) && entry.showGsatLevel && entry.gsatLevel !== null) {
+    const levelBadge = document.createElement('span');
+    levelBadge.className = 'vocabulary-gsat-level';
+    levelBadge.textContent = `學測 Level ${entry.gsatLevel}`;
+    kinds.append(levelBadge);
+  }
   identity.append(kinds);
   if (entry.occurrenceCount > 1) {
     const occurrence = document.createElement('p');
@@ -219,17 +333,20 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     editors.className = 'vocabulary-editors';
     editors.append(createTextEditor(entry));
     editors.append(createContentKindEditor(entry));
-    if (activeContentKind === '單字') editors.append(createPartsOfSpeechEditor(entry));
-    else editors.classList.add('is-translation-only');
-    editors.append(createTranslationEditor(entry));
+    if (activeContentKind === '單字') {
+      editors.append(createPartsOfSpeechEditor(entry));
+      editors.append(createWordTranslationEditor(entry));
+      editors.append(createGsatLevelEditor(entry));
+    } else {
+      editors.classList.add('is-translation-only');
+      editors.append(createTranslationEditor(entry));
+    }
     article.append(identity, editors);
   } else {
     const details = document.createElement('dl');
     details.className = 'vocabulary-readonly-details';
     const translationLabel = document.createElement('dt');
-    translationLabel.textContent = '中文翻譯';
-    const translationValue = document.createElement('dd');
-    translationValue.textContent = entry.translation || '—';
+    translationLabel.textContent = '翻譯詞數';
     if (activeContentKind === '單字') {
       const partOfSpeechLabel = document.createElement('dt');
       partOfSpeechLabel.textContent = '詞性';
@@ -239,7 +356,7 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     } else {
       details.classList.add('is-translation-only');
     }
-    details.append(translationLabel, translationValue);
+    details.append(translationLabel, createTranslationCounts(entry));
     article.append(identity, details);
   }
   return article;
@@ -297,7 +414,7 @@ function partsOfSpeechGroups(entries: VocabularyReviewEntry[]): HTMLElement[] {
 function renderGroupingSwitch(): void {
   const switcher = element<HTMLDivElement>('vocabularyGrouping');
   switcher.hidden = activeContentKind !== '單字';
-  switcher.dataset.active = groupingMode === 'alphabetical' ? '0' : '1';
+  switcher.dataset.active = String(GROUPING_MODES.indexOf(groupingMode));
   for (const button of switcher.querySelectorAll<HTMLButtonElement>('[data-grouping-mode]')) {
     button.setAttribute('aria-pressed', String(button.dataset.groupingMode === groupingMode));
   }
@@ -316,15 +433,22 @@ function renderEntries(): void {
   const list = element<HTMLDivElement>('vocabularyList');
   const empty = element<HTMLParagraphElement>('vocabularyEmpty');
   list.classList.toggle('is-flat', groupingMode === 'alphabetical');
-  list.replaceChildren(...(
-    groupingMode === 'alphabetical'
-      ? entries.map(createVocabularyRow)
-      : partsOfSpeechGroups(entries)
-  ));
+  let rows: HTMLElement[];
+  switch (groupingMode) {
+    case 'partOfSpeech':
+      rows = partsOfSpeechGroups(entries);
+      break;
+    case 'gsatLevel':
+      rows = vocabularyLevelGroups(entries).map(group => createVocabularyGroup(`level-${group.level}`, group.label, group.entries));
+      break;
+    default:
+      rows = entries.map(createVocabularyRow);
+  }
+  list.replaceChildren(...rows);
   empty.hidden = entries.length > 0;
-  empty.textContent = allEntries.length === 0
-    ? '目前尚未在 Tracker 新增英文單字。'
-    : '找不到符合目前篩選條件的單字。';
+  if (!allEntries.length) empty.textContent = '目前尚未在 Tracker 新增英文單字。';
+  else if (groupingMode === 'gsatLevel' && !searchText) empty.textContent = '目前沒有勾選顯示學測級數的單字。';
+  else empty.textContent = '找不到符合目前篩選條件的單字。';
   element<HTMLElement>('visibleVocabularyCount').textContent = `${entries.length} 個`;
 }
 
@@ -373,7 +497,9 @@ element<HTMLDivElement>('vocabularyContentKind').addEventListener('click', event
 element<HTMLDivElement>('vocabularyGrouping').addEventListener('click', event => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-grouping-mode]');
   if (!button) return;
-  groupingMode = button.dataset.groupingMode === 'partOfSpeech' ? 'partOfSpeech' : 'alphabetical';
+  const mode = button.dataset.groupingMode;
+  if (!GROUPING_MODES.includes(mode as VocabularyGroupingMode)) return;
+  groupingMode = mode as VocabularyGroupingMode;
   activePartOfSpeech = '全部';
   render();
 });
@@ -384,11 +510,43 @@ element<HTMLDivElement>('vocabularyPartOfSpeechIndex').addEventListener('click',
   renderPartOfSpeechIndex();
   renderEntries();
 });
+function saveTranslationGroup(entry: VocabularyReviewEntry, group: HTMLElement): boolean {
+  const field = group.dataset.translationGroup as keyof VocabularyTranslations;
+  const groups = vocabularyTranslationGroups(entry.translation, entry.tags, entry.translationsByPartOfSpeech);
+  groups[field] = [...group.querySelectorAll<HTMLInputElement>('[data-vocabulary-pos-translation]')].map(input => input.value);
+  return saveEntryEdits(entry, { translationsByPartOfSpeech: groups });
+}
+
+element<HTMLDivElement>('vocabularyList').addEventListener('input', event => {
+  const target = event.target as HTMLInputElement;
+  if (!target.matches('[data-vocabulary-pos-translation]')) return;
+  const row = target.closest<HTMLElement>('.vocabulary-row');
+  const entry = allEntries.find(candidate => candidate.key === row?.dataset.entryKey);
+  const group = target.closest<HTMLElement>('[data-translation-group]');
+  if (entry && group) saveTranslationGroup(entry, group);
+});
+
 element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
   const target = event.target as HTMLInputElement;
   const row = target.closest<HTMLElement>('[data-entry-key]');
   const entry = allEntries.find(candidate => candidate.key === row?.dataset.entryKey);
   if (!entry) return;
+  if (target.matches('[data-vocabulary-level-visible], [data-vocabulary-level]')) {
+    const editor = target.closest<HTMLElement>('.vocabulary-level-editor');
+    const checkbox = editor?.querySelector<HTMLInputElement>('[data-vocabulary-level-visible]');
+    const select = editor?.querySelector<HTMLSelectElement>('[data-vocabulary-level]');
+    if (!checkbox || !select) return;
+    const level = normalizedGsatVocabularyLevel(select.value);
+    if (level === null) return;
+    const previous = { visible: entry.showGsatLevel, level: entry.gsatLevel };
+    const saved = saveEntryEdits(entry, { showGsatLevel: checkbox.checked, gsatLevel: level });
+    if (!saved && (previous.visible !== checkbox.checked || previous.level !== level)) {
+      checkbox.checked = previous.visible;
+      select.value = String(previous.level ?? 1);
+    }
+    select.disabled = !checkbox.checked;
+    return;
+  }
   if (target.matches('[data-vocabulary-content-kind]')) {
     const kind = target.dataset.vocabularyContentKind as VocabularyContentKind;
     if (!VOCABULARY_CONTENT_KINDS.includes(kind)) return;
@@ -421,7 +579,12 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
   }
   if (target.matches('[data-vocabulary-pos]')) {
     const fieldset = target.closest<HTMLElement>('.vocabulary-pos-editor');
-    if (fieldset) saveEntryEdits(entry, { partsOfSpeech: selectedPartsOfSpeech(fieldset) });
+    if (!fieldset) return;
+    const partsOfSpeech = selectedPartsOfSpeech(fieldset);
+    const tags = VOCABULARY_PARTS_OF_SPEECH.filter(([field]) => partsOfSpeech.has(field)).map(([, label]) => label);
+    const groups = vocabularyTranslationGroups(entry.translation, tags, entry.translationsByPartOfSpeech);
+    for (const field of partsOfSpeech) groups[field] ??= [''];
+    if (saveEntryEdits(entry, { partsOfSpeech, translationsByPartOfSpeech: groups })) renderEntries();
     return;
   }
   if (target.matches('[data-vocabulary-translation]')) {
@@ -429,6 +592,23 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
   }
 });
 element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
+  const action = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-add-translation], [data-delete-translation]');
+  if (action) {
+    if (action.disabled) return;
+    const row = action.closest<HTMLElement>('.vocabulary-row');
+    const entry = allEntries.find(candidate => candidate.key === row?.dataset.entryKey);
+    const group = action.closest<HTMLElement>('[data-translation-group]');
+    if (!entry || !group) return;
+    const field = group.dataset.translationGroup as keyof VocabularyTranslations;
+    const values = [...group.querySelectorAll<HTMLInputElement>('[data-vocabulary-pos-translation]')].map(input => input.value);
+    if (action.hasAttribute('data-add-translation')) values.push('');
+    else if (values.length > 1) values.splice(Number(action.dataset.deleteTranslation), 1);
+    else return;
+    const groups = vocabularyTranslationGroups(entry.translation, entry.tags, entry.translationsByPartOfSpeech);
+    groups[field] = values;
+    if (saveEntryEdits(entry, { translationsByPartOfSpeech: groups })) renderEntries();
+    return;
+  }
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-edit-entry]');
   if (!button) return;
   const key = button.dataset.editEntry;

@@ -526,12 +526,13 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(leverageRow.getByLabel('Noun', { exact: true })).toBeChecked();
   await expect(leverageRow.getByLabel('Verb', { exact: true })).toBeChecked();
   await leverageRow.getByLabel('Adjective', { exact: true }).check();
-  await leverageRow.getByLabel('中文翻譯').fill('運用；影響力');
-  await leverageRow.getByLabel('中文翻譯').press('Tab');
+  await leverageRow.getByLabel('Noun 中文翻譯 1', { exact: true }).fill('影響力');
+  await leverageRow.getByLabel('Verb 中文翻譯 1', { exact: true }).fill('運用');
   await expect(page.getByText('已儲存「Leverage」的整理資料')).toBeVisible();
   await leverageRow.getByRole('button', { name: '完成「Leverage」' }).click();
   await expect(leverageRow.locator('[data-vocabulary-pos], [data-vocabulary-translation]')).toHaveCount(0);
-  await expect(leverageRow.locator('.vocabulary-readonly-details')).toContainText('運用；影響力');
+  await expect(leverageRow.locator('.vocabulary-readonly-details')).not.toContainText('影響力');
+  await expect(leverageRow.locator('.vocabulary-translation-counts')).toHaveText('Noun：1 個Verb：1 個Adjective：0 個');
   const storedWords = await page.evaluate(() => ['2026-09-19', '2026-09-20'].map(date => {
     const record = JSON.parse(localStorage.getItem(`study-v11:guest:${date}`) ?? '{}');
     const word = record.items?.[0]?.f?.words?.find((candidate: { text?: string }) => (
@@ -540,8 +541,8 @@ test('English vocabulary review sorts entries and persists editable parts of spe
     return { word, localDirty: record.localDirty };
   }));
   expect(storedWords).toEqual([
-    { word: expect.objectContaining({ text: 'Leverage', noun: true, verb: true, adjective: true, translation: '運用；影響力' }), localDirty: true },
-    { word: expect.objectContaining({ text: 'Leverage', noun: true, verb: true, adjective: true, translation: '運用；影響力' }), localDirty: true },
+    { word: expect.objectContaining({ text: 'Leverage', noun: true, verb: true, adjective: true, translation: 'Noun：影響力；Verb：運用', translationsByPartOfSpeech: { noun: ['影響力'], verb: ['運用'], adjective: [''] } }), localDirty: true },
+    { word: expect.objectContaining({ text: 'Leverage', noun: true, verb: true, adjective: true, translation: 'Noun：影響力；Verb：運用', translationsByPartOfSpeech: { noun: ['影響力'], verb: ['運用'], adjective: [''] } }), localDirty: true },
   ]);
 
   await page.getByRole('button', { name: '詞性', exact: true }).click();

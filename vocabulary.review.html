@@ -13,7 +13,7 @@
     <header class="vocabulary-page-header">
       <div>
         <h1>英文單字複習</h1>
-        <p>彙整 Tracker 中自行新增的單字、組合與句子，可依字母或詞性檢視。</p>
+        <p>彙整 Tracker 中自行新增的單字、組合與句子，可依字母、詞性或學測 Level 檢視。</p>
       </div>
       <a class="vocabulary-back header-action-link" href="./index.html">回到 Tracker</a>
     </header>
@@ -49,8 +49,9 @@
           <span class="vocabulary-grouping-indicator" aria-hidden="true"></span>
           <button type="button" data-grouping-mode="alphabetical" aria-pressed="true">字母排序</button>
           <button type="button" data-grouping-mode="partOfSpeech" aria-pressed="false">詞性</button>
+          <button type="button" data-grouping-mode="gsatLevel" aria-pressed="false">Level</button>
         </div>
-        <p class="vocabulary-help">字母排序直接顯示 A～Z 清單；詞性模式可使用詞性索引。按「編輯」後可修改單字／組合／句子分類、詞性與中文翻譯。</p>
+        <p class="vocabulary-help">勾選詞性後可新增／刪除對應翻譯，每種至少保留一欄。完成編輯後隱藏中文，只顯示已填數量；舊翻譯無法歸類時仍保留。學測級數為手動標註，勾選後才顯示；Level 排序只列出已勾選的單字，依 Level 1～6、同級 A～Z 排列。</p>
         <div id="vocabularyPartOfSpeechIndex" class="vocabulary-pos-index" aria-label="按詞性篩選單字" hidden></div>
         <div id="vocabularyList" class="vocabulary-list"></div>
         <p id="vocabularyEmpty" class="vocabulary-empty" hidden></p>

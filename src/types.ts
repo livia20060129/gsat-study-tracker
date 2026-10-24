@@ -47,10 +47,17 @@ export interface StudyItemFields {
   timeTracking?: StudyTimerState;
 }
 
+export type GsatVocabularyLevel = 1 | 2 | 3 | 4 | 5 | 6;
+export type EnglishReviewPartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb' | 'preposition' | 'conjunction';
+export type VocabularyTranslations = Partial<Record<EnglishReviewPartOfSpeech | 'unclassified', string[]>>;
+
 export interface EnglishReviewWordEntry extends Record<string, unknown> {
   id?: string;
   text?: string;
   translation?: string;
+  gsatLevel?: GsatVocabularyLevel;
+  showGsatLevel?: boolean;
+  translationsByPartOfSpeech?: VocabularyTranslations;
 }
 
 export type StudyTimeMode = 'manual' | 'timer';
