@@ -11,6 +11,10 @@ import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
+  normalizedOverduePeriod, OVERDUE_PERIODS, overdueEntriesForPeriod, overduePeriodIndex, overduePeriodRange,
+  type OverduePeriod,
+} from './study/overduePeriod.ts';
+import {
   normalizedOverdueSubject,
   OVERDUE_TASK_SUBJECTS,
   overdueHandledTasks,
@@ -42,11 +46,14 @@ interface TodoActionTarget {
 }
 
 let activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
+let activePeriod = normalizedOverduePeriod(new URLSearchParams(location.search).get('period'));
+const PERIOD_LABELS: Record<OverduePeriod, string> = { all: '全部', month: '本月', week: '本週' };
 let recordPrefix = 'study-v11:guest:';
 let records: StudyRecord[] = [];
 const drafts = new TodoDrafts();
 const draftBases = new Map<string, StudyRecord>();
 let displayedTimers = new Map<string, StudyTimerState>();
+let renderedDate = localDateKey();
 
 function draftKey(action: TodoActionTarget): string {
   return `${action.recordDate}:${action.itemId}`;
@@ -334,11 +341,38 @@ function renderHistory(): void {
   element<HTMLParagraphElement>('todoHistoryEmpty').hidden = entries.length > 0;
 }
 
+function renderPeriodFilter(today: string): void {
+  const switcher = element<HTMLDivElement>('periodSwitch');
+  switcher.dataset.active = String(overduePeriodIndex(activePeriod));
+  for (const button of switcher.querySelectorAll<HTMLButtonElement>('[data-period]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.period === activePeriod));
+  }
+  const range = overduePeriodRange(activePeriod, today);
+  element<HTMLParagraphElement>('todoPeriodRange').textContent = range
+    ? `原排程：${range.start.replace(/-/g, '/')}～${range.end.replace(/-/g, '/')}`
+    : '依原排程日期篩選';
+}
+
+function todoSummaryText(total: number, periodCount: number, visibleCount: number): string {
+  if (activePeriod === 'all') {
+    if (activeSubject === 'all') return `共有 ${total} 項待辦`;
+    return `目前科目 ${visibleCount} 項｜全部 ${total} 項`;
+  }
+  const label = PERIOD_LABELS[activePeriod];
+  if (activeSubject === 'all') return `${label} ${periodCount} 項待辦｜全部 ${total} 項`;
+  return `${label}目前科目 ${visibleCount} 項｜本期 ${periodCount} 項｜全部 ${total} 項`;
+}
+
 function render(): void {
-  const entries = overdueTasks(records, localDateKey());
+  const today = localDateKey();
+  renderedDate = today;
+  const entries = overdueTasks(records, today);
   displayedTimers = new Map(entries.map(entry => [entry.key, entry.timer]));
-  const filtered = visibleEntries(entries);
+  const periodEntries = overdueEntriesForPeriod(entries, activePeriod, today);
+  const filtered = visibleEntries(periodEntries);
+  renderPeriodFilter(today);
   document.body.dataset.subject = activeSubject;
+  document.body.dataset.period = activePeriod;
   const switcher = element<HTMLDivElement>('subjectSwitch');
   switcher.dataset.active = String(overdueSubjectIndex(activeSubject));
   switcher.querySelectorAll<HTMLButtonElement>('[data-subject]').forEach(function updateTab(button): void {
@@ -346,11 +380,11 @@ function render(): void {
     button.setAttribute('aria-selected', String(selected));
     button.tabIndex = selected ? 0 : -1;
   });
-  element<HTMLElement>('todoSummary').textContent = activeSubject === 'all'
-    ? `共有 ${entries.length} 項待辦`
-    : `目前科目 ${filtered.length} 項｜全部 ${entries.length} 項`;
+  element<HTMLElement>('todoSummary').textContent = todoSummaryText(entries.length, periodEntries.length, filtered.length);
   updateTodoList(element<HTMLDivElement>('todoList'), filtered, createTodoCard);
-  element<HTMLParagraphElement>('todoEmpty').hidden = filtered.length > 0;
+  const empty = element<HTMLParagraphElement>('todoEmpty');
+  empty.hidden = filtered.length > 0;
+  empty.textContent = activePeriod === 'all' ? '目前沒有符合條件的待辦事項。' : `${PERIOD_LABELS[activePeriod]}沒有符合條件的逾期未完成項目。`;
   renderHistory();
 }
 
@@ -610,6 +644,39 @@ function selectSubject(subject: OverdueTaskSubject, focus = false): void {
     .querySelector<HTMLButtonElement>(`[data-subject="${subject}"]`)?.focus();
 }
 
+function selectPeriod(period: OverduePeriod, focus = false): void {
+  activePeriod = period;
+  const url = new URL(location.href);
+  if (period === 'all') url.searchParams.delete('period');
+  else url.searchParams.set('period', period);
+  history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  render();
+  if (focus) element<HTMLDivElement>('periodSwitch')
+    .querySelector<HTMLButtonElement>(`[data-period="${period}"]`)?.focus();
+}
+
+function readLocationFilters(): void {
+  activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
+  activePeriod = normalizedOverduePeriod(new URLSearchParams(location.search).get('period'));
+}
+
+element<HTMLDivElement>('periodSwitch').addEventListener('click', function switchPeriod(event): void {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-period]');
+  if (button) selectPeriod(normalizedOverduePeriod(button.dataset.period));
+});
+
+element<HTMLDivElement>('periodSwitch').addEventListener('keydown', function movePeriod(event): void {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const current = overduePeriodIndex(activePeriod);
+  let next = current;
+  if (event.key === 'ArrowLeft') next = (current - 1 + OVERDUE_PERIODS.length) % OVERDUE_PERIODS.length;
+  if (event.key === 'ArrowRight') next = (current + 1) % OVERDUE_PERIODS.length;
+  if (event.key === 'Home') next = 0;
+  if (event.key === 'End') next = OVERDUE_PERIODS.length - 1;
+  selectPeriod(OVERDUE_PERIODS[next], true);
+});
+
 element<HTMLDivElement>('subjectSwitch').addEventListener('click', function switchSubject(event): void {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-subject]');
   if (button) selectSubject(normalizedOverdueSubject(button.dataset.subject));
@@ -723,13 +790,21 @@ window.addEventListener('storage', function refreshChangedRecords(event): void {
     || (event.key.startsWith(recordPrefix) && /^\d{4}-\d{2}-\d{2}$/.test(event.key.slice(recordPrefix.length)))) load();
 });
 window.addEventListener('pageshow', function refreshVisibleTodoPage(): void {
+  readLocationFilters();
   load(true);
 });
 window.addEventListener('hashchange', function syncHash(): void {
-  activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
+  readLocationFilters();
+  render();
+});
+window.addEventListener('popstate', function syncHistoryFilters(): void {
+  readLocationFilters();
   render();
 });
 
 setInterval(refreshTimerDisplays, 1000);
-setInterval(renderHistory, 60_000);
+setInterval(function refreshCalendarDate(): void {
+  if (renderedDate !== localDateKey()) render();
+  else renderHistory();
+}, 60_000);
 load();

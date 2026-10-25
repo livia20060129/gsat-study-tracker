@@ -33,6 +33,7 @@ infrastructure repositories and gateways
 - 儲存前載入基準比對與獨立頁面安全寫入：`src/application/records/localRecordEdits.ts`
 - 待辦編輯草稿：`src/ui/todoDrafts.ts`；依帳號、日期與項目保存，離開欄位後才寫入紀錄。
 - 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`
+- 待辦期間篩選：`src/study/overduePeriod.ts`；沿用 `learningSummary.ts` 的曆月與週一至週日邊界，只依原排程日期篩選顯示，不修改紀錄。待辦資格仍由 `overdueTasks.ts` 決定，最近處理獨立按 72 小時計算。
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`
 - Google Calendar 公開 Client ID 解析：`src/config/googleCalendar.ts`
 - Unit／回次與分段頁碼模板選擇：`src/data/numberedScopes.ts`；分數註記判斷共用 `src/data/studyPartAnnotation.ts`。Calendar、原卡片、待辦與教材進度不得各自套用書名例外或把分數推估為已讀頁碼。

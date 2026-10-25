@@ -28,6 +28,15 @@
       </div>
 
       <div class="todo-panel-body">
+        <div class="todo-period-filter">
+          <div class="period-switch" id="periodSwitch" role="group" aria-label="依期間篩選待辦事項" data-active="0">
+            <span class="period-switch-indicator" aria-hidden="true"></span>
+            <button type="button" data-period="all" aria-pressed="true">全部</button>
+            <button type="button" data-period="month" aria-pressed="false">本月</button>
+            <button type="button" data-period="week" aria-pressed="false">本週</button>
+          </div>
+          <p id="todoPeriodRange">依原排程日期篩選</p>
+        </div>
         <div class="subject-switch" id="subjectSwitch" role="tablist" aria-label="依科目篩選待辦事項" data-active="0">
           <span class="subject-switch-indicator" aria-hidden="true"></span>
           <button type="button" role="tab" data-subject="all" aria-selected="true">全部</button>
