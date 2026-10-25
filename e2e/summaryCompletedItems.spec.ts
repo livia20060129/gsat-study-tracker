@@ -97,7 +97,7 @@ test('todo completions appear in the selected summary period, with skip excluded
     localStorage.clear();
     const prefix = 'study-v11:guest:';
     localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
-    const english = { id: 'todo-summary-english', type: 'englishPractice', title: '待辦英文閱讀',
+    const english = { id: 'todo-summary-english', type: 'extra', title: '待辦英文閱讀',
       source: 'preset', required: true, done: false, minutes: '',
       f: { book: 'ACE Reading', start: '18', end: '21' } };
     localStorage.setItem(`${prefix}2026-09-30`, JSON.stringify({ date: '2026-09-30', items: [

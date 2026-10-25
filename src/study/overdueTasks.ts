@@ -273,6 +273,25 @@ const MATH_PRACTICE_PRESET_KEYS = new Set([
   'weekday_math_practice', 'fri_math_practice', 'sat_math_practice', 'sun_math_practice',
 ]);
 
+const INTERACTIVE_ITEM_TYPES = new Set([
+  'interactive', 'interactiveDaily', 'mathOral', 'englishPractice', 'biologyInteractive', 'englishVocabInteractive',
+]);
+
+const INTERACTIVE_PRESET_KEYS = new Set([
+  'daily_interactive', 'weekday_math_oral', 'fri_math_oral', 'sat_math_oral', 'sun_math_oral',
+  'weekday_english_practice', 'fri_other', 'sat_english_practice', 'sun_english_practice',
+]);
+
+/** Todo-only exclusion; never delete, skip or change the original learning record. */
+function isInteractiveReminder(item: StudyItem): boolean {
+  if (INTERACTIVE_ITEM_TYPES.has(item.type) || item.mondayFixedVocab === true) return true;
+  if (item.f?.calendarFixedTemplate === 'interactiveDaily' || Array.isArray(item.f?.interactiveEntries)) return true;
+  if (INTERACTIVE_ITEM_TYPES.has(String(item.f?.interactiveType ?? ''))) return true;
+  return [item.presetKey, item.templatePresetKey].some(key => (
+    INTERACTIVE_PRESET_KEYS.has(String(key ?? '')) || /^cal_interactive_/.test(String(key ?? ''))
+  )) || /互動題/.test(String(item.title ?? ''));
+}
+
 function isMathPracticeReminder(item: StudyItem): boolean {
   if (item.type === 'mathPractice' || item.f?.calendarFixedTemplate === 'mathPractice') return true;
   if (MATH_PRACTICE_PRESET_KEYS.has(String(item.presetKey ?? ''))
@@ -283,6 +302,7 @@ function isMathPracticeReminder(item: StudyItem): boolean {
 
 function isPendingOverdueTask(item: StudyItem): boolean {
   return isDeferrableStudyItem(item)
+    && !isInteractiveReminder(item)
     && item.presetKey !== 'weekday_english_review'
     && String(item.title ?? '').trim() !== '英文訂正與搭配詞整理'
     && !isMathPracticeReminder(item)
@@ -486,6 +506,7 @@ function allRecordItems(record: StudyRecord): StudyItem[] {
         visit(sources);
         continue;
       }
+      if (isInteractiveReminder(item)) continue;
       if (!identities.has(item.id)) {
         identities.add(item.id);
         output.push(item);

@@ -42,7 +42,7 @@ function record(date: string, items: StudyItem[]): StudyRecord {
 test('待辦只列出今天以前尚未完成、未延期且未跳過的正式排程', () => {
   const results = overdueTasks([
     record('2026-10-04', [
-      item({ id: 'english', title: '英文閱讀', type: 'englishPractice', f: { subject: '英文' } }),
+      item({ id: 'english', title: '英文閱讀', type: 'extra', f: { title: 'ACE Reading', subject: '英文' } }),
       item({ id: 'done', title: '已完成', done: true }),
       item({ id: 'deferred', title: '已延期', deferred: true, deferredTargetDay: 5 }),
       item({ id: 'deferred-carry', title: '延期補做', deferredCarry: true }),
@@ -125,7 +125,7 @@ test('原卡模板的進度批改訂正即使尚未儲存也全部顯示且不�
   }
 });
 
-test('不替沒有進度勾選欄的模板新增三個勾選，且英文互動題補齊原有欄位', () => {
+test('不替沒有進度勾選欄的模板新增三個勾選，且互動題不顯示待辦', () => {
   const withoutChecks: Array<Partial<StudyItem>> = [
     { type: 'mathStudy', f: { material: '教學講義' } },
     { type: 'mathLecture', f: {} },
@@ -144,8 +144,7 @@ test('不替沒有進度勾選欄的模板新增三個勾選，且英文互動�
     { type: 'englishPractice' as const },
     { type: 'interactive' as const, f: { interactiveType: 'englishPractice' } },
   ]) {
-    const [entry] = overdueTasks([record('2026-10-15', [item(template)])], '2026-10-18');
-    assert.deepEqual(entry.progress.map(field => field.key), ['listening', 'vocab', 'translation', 'gsatPart1']);
+    assert.deepEqual(overdueTasks([record('2026-10-15', [item(template)])], '2026-10-18'), []);
   }
 });
 
@@ -415,9 +414,9 @@ test('待辦可更新原卡進度與保存可繼續的計時狀態', () => {
 test('合併卡片的待辦計時會更新真實來源且重載後仍可繼續', () => {
   const source = item({
     id: 'merged-timer-source',
-    type: 'englishPractice',
+    type: 'extra',
     title: '合併來源計時',
-    f: { subject: '英文' },
+    f: { title: 'ACE Reading', subject: '英文' },
   });
   const duplicatedSource = JSON.parse(JSON.stringify(source)) as StudyItem;
   const original = record('2026-10-05', [item({

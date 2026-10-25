@@ -58,9 +58,9 @@ test('overdue task page filters subjects and persists skip without marking compl
       date,
       items: [
         {
-          id: 'todo-english', type: 'englishPractice', title: '英文閱讀', done: false,
+          id: 'todo-english', type: 'extra', title: '英文閱讀', done: false,
           minutes: '', required: true, source: 'preset',
-          f: { subject: '英文', book: 'ACE Reading', round: '12', topic: '閱讀測驗', progress: true },
+          f: { title: 'ACE Reading', subject: '英文', book: 'ACE Reading', round: '12', topic: '閱讀測驗', progress: true },
         },
         {
           id: 'todo-math', type: 'mathStudy', title: '數學講義', done: false,
@@ -232,8 +232,8 @@ test('todo timer runs for a source item duplicated inside a merged card', async 
     const date = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
     const prefix = 'study-v11:guest:';
     const source = {
-      id: 'todo-merged-timer', type: 'englishPractice', title: '合併卡片計時測試',
-      done: false, minutes: '', required: true, source: 'preset', f: { subject: '英文' },
+      id: 'todo-merged-timer', type: 'extra', title: '合併卡片計時測試',
+      done: false, minutes: '', required: true, source: 'preset', f: { title: 'ACE Reading', subject: '英文' },
     };
     localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
     localStorage.setItem(`${prefix}${date}`, JSON.stringify({
@@ -281,7 +281,7 @@ test('todo page re-reads an original-date completion when restored from browser 
       date: '2026-08-09',
       items: [{
         id: 'todo-origin-completion',
-        type: 'englishPractice',
+        type: 'extra',
         title: '原日期完成同步測試',
         done: false,
         minutes: '',
@@ -319,7 +319,7 @@ test('todo page preserves a focused manual-minute draft when leaving the origina
       date: '2026-08-09',
       items: [{
         id: 'todo-origin-minutes',
-        type: 'englishPractice',
+        type: 'extra',
         title: '原日期時間同步測試',
         done: false,
         minutes: '',

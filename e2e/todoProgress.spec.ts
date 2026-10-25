@@ -35,6 +35,10 @@ test('todo shows the same progress checkboxes as sparse original templates on mo
   await page.reload();
   for (const template of templates) {
     const todo = page.locator('.todo-card').filter({ has: page.locator(`[data-item-id="${template.id}"]`) });
+    if (template.type === 'englishPractice') {
+      await expect(todo).toHaveCount(0);
+      continue;
+    }
     const actual = await todo.locator('[data-todo-progress]').evaluateAll(inputs => inputs.map(input => (input as HTMLElement).dataset.todoProgress));
     expect(actual).toEqual(expectedProgressKeys(template.id));
     for (const input of await todo.locator('[data-todo-progress]').all()) await expect(input).not.toBeChecked();
