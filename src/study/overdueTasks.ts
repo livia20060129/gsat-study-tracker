@@ -1,4 +1,5 @@
 import type { StudyItem, StudyRecord, StudyTimerState } from '../types.ts';
+import { calendarFixedTemplate } from '../calendar/calendarBridge.ts';
 import { numberedStudyScope, usesSharedPageTemplate, type NumberedScopeKind } from '../data/numberedScopes.ts';
 import { bookUnitRange, bookUnitText } from './unitBookProgress.ts';
 import { applyNumberedScope, numberedScopeText, validNumberedScope } from './numberedScopeProgress.ts';
@@ -282,6 +283,23 @@ const INTERACTIVE_PRESET_KEYS = new Set([
   'weekday_english_practice', 'fri_other', 'sat_english_practice', 'sun_english_practice',
 ]);
 
+const EXCLUDED_ENGLISH_ROUTINE_TEMPLATES = new Set(['englishMockTimed', 'fixedMagazine']);
+const EXCLUDED_ENGLISH_ROUTINE_KEYS = new Set(['fri_mock_timed', 'weekday_magazine', 'fri_magazine']);
+const EXCLUDED_ENGLISH_ROUTINE_PREFIXES = ['cal_fixed_englishMockTimed_', 'cal_fixed_fixedMagazine_', 'cal_magazine_'];
+
+/** Match the two fixed routines, not every mock exam or magazine material. */
+function isExcludedEnglishRoutine(item: StudyItem): boolean {
+  if (EXCLUDED_ENGLISH_ROUTINE_TEMPLATES.has(String(item.f?.calendarFixedTemplate ?? ''))) return true;
+  if ([item.presetKey, item.templatePresetKey].some(value => {
+    const key = String(value ?? '');
+    return EXCLUDED_ENGLISH_ROUTINE_KEYS.has(key) || EXCLUDED_ENGLISH_ROUTINE_PREFIXES.some(prefix => key.startsWith(prefix));
+  })) return true;
+  return [item.title, item.f?.calendarOriginalTitle].some(value => {
+    const title = String(value ?? '').replace(/\s+/g, '').replace(/\//g, '／').replace(/:/g, '：').replace(/\|/g, '｜');
+    return EXCLUDED_ENGLISH_ROUTINE_TEMPLATES.has(calendarFixedTemplate(title) ?? '');
+  });
+}
+
 /** Todo-only exclusion; never delete, skip or change the original learning record. */
 function isInteractiveReminder(item: StudyItem): boolean {
   if (INTERACTIVE_ITEM_TYPES.has(item.type) || item.mondayFixedVocab === true) return true;
@@ -303,6 +321,7 @@ function isMathPracticeReminder(item: StudyItem): boolean {
 function isPendingOverdueTask(item: StudyItem): boolean {
   return isDeferrableStudyItem(item)
     && !isInteractiveReminder(item)
+    && !isExcludedEnglishRoutine(item)
     && item.presetKey !== 'weekday_english_review'
     && String(item.title ?? '').trim() !== '英文訂正與搭配詞整理'
     && !isMathPracticeReminder(item)
@@ -506,7 +525,7 @@ function allRecordItems(record: StudyRecord): StudyItem[] {
         visit(sources);
         continue;
       }
-      if (isInteractiveReminder(item)) continue;
+      if (isInteractiveReminder(item) || isExcludedEnglishRoutine(item)) continue;
       if (!identities.has(item.id)) {
         identities.add(item.id);
         output.push(item);
