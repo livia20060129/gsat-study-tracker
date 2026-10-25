@@ -1,5 +1,5 @@
 import type { StudyItem, StudyRecord, StudyTimerState } from '../types.ts';
-import { numberedStudyScope, type NumberedScopeKind } from '../data/numberedScopes.ts';
+import { numberedStudyScope, usesSharedPageTemplate, type NumberedScopeKind } from '../data/numberedScopes.ts';
 import { bookUnitRange, bookUnitText } from './unitBookProgress.ts';
 import { applyNumberedScope, numberedScopeText, validNumberedScope } from './numberedScopeProgress.ts';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser } from './calendarNaturalCompletion.ts';
@@ -208,7 +208,7 @@ function taskPageRange(item: StudyItem): { start: string; end: string; editable:
   const start = value('start');
   const end = value('end') || start;
   const mathRange = item.type === 'mathStudy' || item.type === 'mathLecture' || item.type === 'mathPractice';
-  const editable = mathRange || Boolean(start || end)
+  const editable = mathRange || usesSharedPageTemplate(item) || Boolean(start || end)
     || hasOwn(fields, 'start') || hasOwn(fields, 'end')
     || hasOwn(fields, 'calendarSuggestedStart') || hasOwn(fields, 'calendarSuggestedEnd');
   return { start, end, editable };
@@ -224,7 +224,7 @@ function taskDetails(item: StudyItem): OverdueTaskDetail[] {
   const scope = numberedStudyScope(item);
   const numberedRange = scope && (!scope.start || /^\d+$/.test(scope.start));
   for (const [key, label] of DETAIL_FIELDS) {
-    if (numberedRange && ['unit', 'unitStart', 'unitEnd', 'round'].includes(key)) continue;
+    if ((numberedRange || usesSharedPageTemplate(item)) && ['unit', 'unitStart', 'unitEnd', 'round'].includes(key)) continue;
     if (key === 'start' || key === 'end') {
       if (!pageRange.editable) continue;
       const scopeLabel = scope?.kind === 'unit' ? 'Unit' : '回次';

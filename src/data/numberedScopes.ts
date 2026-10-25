@@ -1,6 +1,7 @@
 import { unitBook } from './unitBooks.ts';
 import { isEnglishPageMappedBook, pageMappedBookUsesScopeSelection } from './bookPageMaps.ts';
 import { isListeningTestBookTitle } from './englishBooks.ts';
+import { hasStudyPartAnnotation } from './studyPartAnnotation.ts';
 
 export type NumberedScopeKind = 'unit' | 'round';
 
@@ -66,16 +67,33 @@ export function numberedScopesInText(value: unknown): NumberedScope[] {
   return [...unique.values()];
 }
 
-/** Book metadata supplies bounds, never permission to select a numbered template. */
+function scopeSources(item: ScopeItem): unknown[] {
+  const fields = item.f ?? {};
+  return [fields.calendarUnitProgress, fields.title, fields.book, item.title, item.description];
+}
+
+/** A split Unit/round must be recorded with actual pages, without discarding legacy Unit fields. */
+export function usesSharedPageTemplate(item: ScopeItem): boolean {
+  const fields = item.f ?? {};
+  if (fields.scopeKind === 'pages') return true;
+  if (!scopeSources(item).some(hasStudyPartAnnotation)) return false;
+  return fields.scopeKind === 'unit' || fields.scopeKind === 'round'
+    || [fields.unitStart, fields.unitEnd, fields.unit, fields.round, fields.roundEnd]
+      .some(value => /^\d+$/.test(String(value ?? '')))
+    || scopeSources(item).some(value => numberedScopesInText(value).length > 0)
+    || unitBook(fields.title || fields.book || item.title) !== null;
+}
+
+/** Explicit split annotations take priority over Unit/round fields and book defaults. */
 export function numberedStudyScope(item: ScopeItem): NumberedScope | null {
+  if (usesSharedPageTemplate(item)) return null;
   const fields = item.f ?? {};
   const book = unitBook(fields.title || fields.book || item.title);
   let kind: NumberedScopeKind | undefined;
   if (fields.scopeKind === 'unit' || fields.scopeKind === 'round') kind = fields.scopeKind;
   else if ([fields.unitStart, fields.unitEnd, fields.unit].some(value => /^\d+$/.test(String(value ?? '')))) kind = 'unit';
   else if (/^\d+$/.test(String(fields.round ?? '')) || fields.roundEnd) kind = 'round';
-  const inferred = [fields.calendarUnitProgress, item.title, item.description]
-    .flatMap(numberedScopesInText)[0];
+  const inferred = scopeSources(item).flatMap(numberedScopesInText)[0];
   kind ??= inferred?.kind;
   if (!kind && book) kind = 'unit';
   if (!kind) return null;
@@ -94,6 +112,14 @@ export function numberedStudyScope(item: ScopeItem): NumberedScope | null {
   const end = String(hasFields ? fields[endKey] ?? start : fallback?.end ?? start).trim() || start;
   const maximum = numberedScopeMaximum(kind, fields.title || fields.book || item.title);
   return { kind, start, end, ...(maximum ? { maximum } : {}) };
+}
+
+/** A refreshed unsplit Calendar definition must not retain an earlier page-mode marker. */
+export function resetObsoletePageScope(item: ScopeItem, template: ScopeItem): boolean {
+  if (item.f?.scopeKind !== 'pages' || template.f?.scopeKind === 'pages' || !numberedStudyScope(template)) return false;
+  delete item.f.scopeKind;
+  item.f.calendarUnitProgress = template.f?.calendarUnitProgress ?? '';
+  return true;
 }
 
 /** These templates already have their own round/Unit fields and additional book-specific controls. */

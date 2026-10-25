@@ -28,21 +28,20 @@ test('unit books use their own total and never infer a unit from the book editio
   assert.deepEqual(bookUnitNumbers('Unit 0｜Unit 9｜Units 4–2', 8), []);
 });
 
-test('Calendar Unlock Unit scopes select a Unit template, even if an old page note is present', () => {
+test('Calendar Unlock with a split annotation uses the supplied actual pages instead of Unit inputs', () => {
   const parsed = parseCalendarTask({ event_key: 'event', source_event_id: 'event', calendar_id: 'primary',
     event_date: '2026-10-18', title: '英文｜Unlock 3｜Unit 1 Animals（1/2）', category: 'studyItem',
     description: '【頁碼範圍】p.14–24\n【單元進度】Unit 1 Animals（1/2）',
   });
-  assert.equal(parsed.kind, 'bookUnits');
-  if (parsed.kind === 'bookUnits') assert.deepEqual(parsed.units, [1]);
-  assert.equal('startPage' in parsed, false);
+  assert.equal(parsed.kind, 'pageScope');
+  if (parsed.kind === 'pageScope') assert.deepEqual([parsed.startPage, parsed.endPage], [14, 24]);
 });
 
-test('old Calendar descriptions recover Unit without changing saved data or treating 1/2 as Unit 2', () => {
+test('split Calendar descriptions do not infer Unit or pages, while unsplit legacy pages keep Unit inference', () => {
   const old = item({}, { description: 'Google Calendar API：Unlock 3｜Unit 1 Animals（1/2）', done: true, checkedOn: '2026-10-18' });
   const snapshot = structuredClone(old);
-  assert.deepEqual(bookUnitRange(old), { start: '1', end: '1' });
-  assert.equal(bookUnitText(old), 'Unit 1｜Animals');
+  assert.deepEqual(bookUnitRange(old), { start: '', end: '' });
+  assert.equal(bookUnitText(old), '尚未填寫 Unit。');
   assert.deepEqual(old, snapshot);
   const legacyPages = item({ start: '14', end: '24' });
   assert.deepEqual(bookUnitRange(legacyPages), { start: '1', end: '1' });
@@ -99,13 +98,17 @@ test('distinct Units do not merge by retained legacy pages and completion lists 
   assert.deepEqual(completed.map(entry => entry.detail).sort(), ['Unit 1｜Animals', 'Unit 2｜The environment']);
 });
 
-test('unit-based material progress supports Calendar parts without overwriting actual pages', () => {
+test('split material progress requires actual pages, not an estimated fraction of a Unit', () => {
   const first = item({ unitStart: '1', unitEnd: '1', calendarUnitProgress: 'Unit 1 Animals（1/2）' }, { done: true });
   const second = item({ unitStart: '1', unitEnd: '1', calendarUnitProgress: 'Unit 1 Animals（2/2）' }, { id: 'second', done: true });
   const progress = (items: StudyItem[]) => materialProgressRows([{ date: '2026-10-18', items }]).find(row => row.id === `book:${UNLOCK_3_BOOK}`)!;
+  assert.equal(progress([first]).recorded, 0);
+  assert.equal(progress([first, second]).recorded, 0);
+  const noteWithoutPart = item({ unitStart: '1', unitEnd: '1', calendarUnitProgress: 'Unit 1' }, { done: true, description: 'Unlock 3｜Unit 1 Animals（1/2）' });
+  assert.equal(progress([noteWithoutPart]).recorded, 0);
+  assert.equal(first.f.start, undefined);
+  first.f.start = '14'; first.f.end = '24';
+  second.f.start = '25'; second.f.end = '35';
   assert.equal(progress([first]).segments.find(segment => segment.recorded)?.completionPercent, 50);
   assert.equal(progress([first, second]).segments.find(segment => segment.recorded)?.completionPercent, 100);
-  const noteWithoutPart = item({ unitStart: '1', unitEnd: '1', calendarUnitProgress: 'Unit 1' }, { done: true, description: 'Unlock 3｜Unit 1 Animals（1/2）' });
-  assert.equal(progress([noteWithoutPart]).segments.find(segment => segment.recorded)?.completionPercent, 50);
-  assert.equal(first.f.start, undefined);
 });

@@ -4,7 +4,7 @@ const prefix = 'study-v11:guest:';
 const date = '2026-10-15';
 const book = 'Unlock 3 (Listening, Speaking, Critical Thinking)';
 
-test('legacy Calendar Unlock shows editable Units instead of empty locked pages on mobile', async ({ page }) => {
+test('legacy Calendar Unlock with a fraction shows editable pages without losing saved state on mobile', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-18T12:00:00+08:00') });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/');
@@ -15,33 +15,35 @@ test('legacy Calendar Unlock shows editable Units instead of empty locked pages 
       id: 'legacy-unlock-unit', type: 'extra', title: `英文｜${book}`, source: 'custom',
       done: true, checkedOn: '2026-10-16', minutes: '40', required: false,
       description: 'Google Calendar API：Unlock 3｜Unit 1 Animals（1/2）',
-      f: { title: book, book, start: '', end: '', calendarBookRangeLocked: true, progress: true, graded: true, corrected: false },
+      f: { title: book, book, unitStart: '1', unitEnd: '1', start: '', end: '', calendarBookRangeLocked: true, progress: true, graded: true, corrected: false },
     }] }));
   }, { prefix, date, book });
   await page.reload();
   await page.locator('#studyDate').fill(date);
   await page.locator('#studyDate').dispatchEvent('change');
   const card = page.locator('[data-item="legacy-unlock-unit"]');
-  await expect(card.locator('[data-field="start"],[data-field="end"]')).toHaveCount(0);
-  await expect(card.locator('[data-field="unitStart"]')).toHaveValue('1');
-  await expect(card.locator('[data-field="unitEnd"]')).toHaveValue('1');
-  await expect(card.locator('[data-unit-auto]')).toHaveText('Unit 1｜Animals');
-  await expect(card).not.toContainText('頁碼不在');
-  await card.locator('[data-field="unitStart"]').fill('2');
-  await card.locator('[data-field="unitEnd"]').fill('3');
-  await card.locator('[data-field="unitEnd"]').blur();
+  await expect(card.locator('[data-field="unitStart"],[data-field="unitEnd"]')).toHaveCount(0);
+  await expect(card.locator('[data-field="start"]')).toHaveValue('');
+  await expect(card.locator('[data-field="end"]')).toHaveValue('');
+  await expect(card).toContainText('請填寫本次頁碼');
+  await card.locator('[data-field="start"]').fill('14');
+  await card.locator('[data-field="end"]').fill('24');
+  await card.locator('[data-field="end"]').blur();
   await page.reload();
   await page.locator('#studyDate').fill(date);
   await page.locator('#studyDate').dispatchEvent('change');
-  await expect(card.locator('[data-field="unitStart"]')).toHaveValue('2');
-  await expect(card.locator('[data-field="unitEnd"]')).toHaveValue('3');
-  await expect(card.locator('[data-unit-auto]')).toHaveText('Unit 2–3｜The environment｜Transport');
+  await expect(card.locator('[data-field="start"]')).toHaveValue('14');
+  await expect(card.locator('[data-field="end"]')).toHaveValue('24');
+  await expect(card).toContainText('Animals');
   await expect(card.locator('[data-done]')).toBeChecked();
   await expect(card.locator('[data-completion-date]')).toHaveValue('2026-10-16');
   await expect(card.locator('[data-minutes]')).toHaveValue('40');
   await expect(card.locator('[data-check="progress"]')).toBeChecked();
   await expect(card.locator('[data-check="graded"]')).toBeChecked();
   await expect(card.locator('[data-check="corrected"]')).not.toBeChecked();
+  const fields = await page.evaluate(({ prefix, date }) => JSON.parse(localStorage.getItem(prefix + date)!).items
+    .find((item: { id: string }) => item.id === 'legacy-unlock-unit').f, { prefix, date });
+  expect([fields.unitStart, fields.unitEnd]).toEqual(['1', '1']);
 });
 
 test('todo Unit edits round-trip through the original card and completion without changing actual pages', async ({ page }) => {

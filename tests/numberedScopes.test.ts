@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
 import { parseCalendarTask } from '../src/calendar/calendarBridge.ts';
-import { numberedScopesInText, numberedStudyScope, usesSharedNumberedTemplate } from '../src/data/numberedScopes.ts';
+import { numberedScopesInText, numberedStudyScope, usesSharedNumberedTemplate, usesSharedPageTemplate } from '../src/data/numberedScopes.ts';
 import { decodeStudyRecord, encodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
 import { completedItemsForPeriod } from '../src/study/completedItems.ts';
 import { groupDailyWorkItems } from '../src/study/dailyWorkGroup.ts';
@@ -20,7 +20,7 @@ function item(title: string, fields: StudyItem['f'] = {}, type = 'extra'): Study
 
 const cases = [
   ['英文｜Prism Reading 3｜Unit 4', 'unit', '4', '4', '英文'],
-  ['英文｜未登錄教材｜Units ２～３（1/2）', 'unit', '2', '3', '英文'],
+  ['英文｜未登錄教材｜Units ２～３', 'unit', '2', '3', '英文'],
   ['物理｜自訂測驗｜第3回～第5回', 'round', '3', '5', '物理'],
   ['數學｜新教材｜Unit 7', 'unit', '7', '7', '數學'],
   ['國文｜新教材｜Rounds 2–4', 'round', '2', '4', '國文'],
@@ -61,7 +61,7 @@ test('scopes in structured progress and legacy descriptions are book-independent
 test('all supported card types recover explicit scopes without a title whitelist', () => {
   for (const type of ['extra', 'general', 'scienceReview', 'mathStudy', 'chineseReading']) {
     const unit = item('未登錄教材', {}, type);
-    unit.description = 'Google Calendar API：Unit 9（1/2）';
+    unit.description = 'Google Calendar API：Unit 9';
     assert.equal(usesSharedNumberedTemplate(unit), true);
     assert.deepEqual(bookUnitRange(unit), { start: '9', end: '9' });
     const round = item('未登錄教材', { round: '4' }, type);
@@ -87,7 +87,7 @@ test('repeating a scope in the title and structured note creates only one number
 
 test('the real shared renderer uses Unit or round controls, never page fields', () => {
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
-  const context = createContext({ numberedStudyScope, usesSharedNumberedTemplate, bookUnitRange, bookUnitText,
+  const context = createContext({ numberedStudyScope, usesSharedNumberedTemplate, usesSharedPageTemplate, bookUnitRange, bookUnitText,
     numberedScopeText, studyItemProgress, isProgressOnlyStudyItem, isGroupedWork: () => false, isCalendarPageMappedBook: () => false,
     esc: (value: unknown) => String(value ?? ''), checked: (value: unknown) => value ? ' checked' : '',
     reasonField: () => '', readingOptions: () => '',

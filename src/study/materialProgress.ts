@@ -11,7 +11,7 @@ import {
   type PageMappedBook,
 } from '../data/bookPageMaps.ts';
 import { LISTENING_TEST_BOOK_TITLE, isListeningTestBookTitle } from '../data/englishBooks.ts';
-import { numberedStudyScope } from '../data/numberedScopes.ts';
+import { numberedStudyScope, usesSharedPageTemplate } from '../data/numberedScopes.ts';
 import {
   AZAR_GRAMMAR_BOOK_TITLE,
   AZAR_GRAMMAR_CHAPTERS,
@@ -437,7 +437,9 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
     const mappedBook = canonicalPageMappedBook(fields.book ?? fields.title ?? item.title);
 
     if (type === 'chineseReading') {
-      if (String(fields.kind ?? '') === 'reading' || /古今悅讀一百/.test(title)) {
+      if (usesSharedPageTemplate(item)) {
+        if (mappedBook) markRange(recorded, `book:${mappedBook}`, fields.start, fields.end);
+      } else if (String(fields.kind ?? '') === 'reading' || /古今悅讀一百/.test(title)) {
         if (scope?.kind !== 'unit') markLinear(recorded, 'chinese:gujin', fields.round, fields.roundEnd ?? fields.round);
       } else if (!scope && mappedBook && pageMappedBookSubject(mappedBook) === '國文') {
         markBookSelection(recorded, mappedBook, fields);
@@ -445,7 +447,12 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
     }
 
     if (type === 'extra' || type === 'aceReading') {
-      if (/ACE\s*Reading/i.test(title)) { if (scope?.kind !== 'unit') markLinear(recorded, 'english:ace', fields.round, fields.roundEnd ?? fields.round); }
+      if (usesSharedPageTemplate(item)) {
+        if (isAzarGrammarBookTitle(title)) markRange(recorded, 'english:azar-intermediate', fields.start, fields.end);
+        else if (/英文文法總複習講義/.test(title)) markRange(recorded, 'english:grammar', fields.start, fields.end);
+        else if (mappedBook) markRange(recorded, `book:${mappedBook}`, fields.start, fields.end);
+      }
+      else if (/ACE\s*Reading/i.test(title)) { if (scope?.kind !== 'unit') markLinear(recorded, 'english:ace', fields.round, fields.roundEnd ?? fields.round); }
       else if (isListeningTestBookTitle(title)) { if (scope?.kind !== 'unit') markLinear(recorded, 'english:listening', fields.round, fields.roundEnd ?? fields.round); }
       else if (/Essential\s+Grammar\s+in\s+Use/i.test(title)) markLinear(recorded, 'english:essential', fields.unitStart ?? fields.unit, fields.unitEnd ?? fields.unitStart ?? fields.unit);
       else if (/英文寫作測驗/.test(title)) { if (scope?.kind !== 'unit') markLinear(recorded, 'english:writing', fields.round, fields.roundEnd ?? fields.round); }
@@ -467,17 +474,7 @@ function markStudyItem(recorded: Map<string, MaterialCoverage>, item: StudyItem)
         const explicitUnits = fields.unitStart !== undefined || fields.unit !== undefined;
         if (unitBookSections(mappedBook).length && range.start && (explicitUnits || !fields.start)) {
           const sections = unitBookSections(mappedBook).filter(section => section.unit >= Number(range.start) && section.unit <= Number(range.end));
-          const part = `${fields.calendarUnitProgress ?? ''}\n${item.description ?? ''}`.match(/[（(]\s*(\d+)\s*\/\s*(\d+)\s*[）)]/);
-          const hasOverrides = Boolean(fields.dailyWorkUserFields && typeof fields.dailyWorkUserFields === 'object'
-            && Object.prototype.hasOwnProperty.call(fields.dailyWorkUserFields, 'unitStart'));
-          for (const section of sections) {
-            if (part && !hasOverrides && sections.length === 1 && Number(part[1]) >= 1 && Number(part[1]) <= Number(part[2]) && Number(part[2]) <= 100) {
-              const length = section.end - section.start + 1;
-              const start = section.start + Math.floor(length * (Number(part[1]) - 1) / Number(part[2]));
-              const end = section.start + Math.floor(length * Number(part[1]) / Number(part[2])) - 1;
-              if (end >= start) markRange(recorded, `book:${mappedBook}`, start, end);
-            } else markRange(recorded, `book:${mappedBook}`, section.start, section.end);
-          }
+          for (const section of sections) markRange(recorded, `book:${mappedBook}`, section.start, section.end);
         } else if (!scope || (scope.kind === 'round' && fields.topic)
           || (unitBookSections(mappedBook).length && !explicitUnits && !fields.scopeKind)) {
           markBookSelection(recorded, mappedBook, fields);

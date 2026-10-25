@@ -94,7 +94,7 @@ import { createClient } from '@supabase/supabase-js';
 import { parseProgressImportText, progressImportBackupPayload, progressImportResultText } from './application/progressImport';
 import { bedtimeRecordForStudyDate } from './study/sleep';
 import { orderedEndPage, validatePageRange } from './study/pageRangeValidation';
-import { numberedStudyScope, usesSharedNumberedTemplate } from './data/numberedScopes.ts';
+import { numberedStudyScope, resetObsoletePageScope, usesSharedNumberedTemplate, usesSharedPageTemplate } from './data/numberedScopes.ts';
 import { applyNumberedScope, numberedScopeText } from './study/numberedScopeProgress.ts';
 import { bookUnitRange, bookUnitText } from './study/unitBookProgress.ts';
 import { isProgressOnlyStudyItem, studyItemProgress } from './study/itemProgress.ts';
@@ -1779,7 +1779,10 @@ function cloudCalendarDefsForDate(date){
  var parsed=calendarParsedByDate[date]||[],out=[];
  parsed.forEach(function(p){
   var token=p.identifier?calendarIdentifierToken(p.identifier):calendarEventToken(p.sourceEventId||p.eventKey),outStart=out.length;
-  if(p.kind==='numberedScope'){
+  if(p.kind==='pageScope'){
+   var splitPrefix=canonicalPageMappedBook(p.book)?'cal_book_':'cal_scope_';
+   out.push(presetDef(splitPrefix+token,p.subject==='英文'?'extra':'general',p.title,'Google Calendar API：'+p.title,true,{title:p.book,book:p.book,subject:p.subject,scopeKind:'pages',start:p.startPage==null?'':String(p.startPage),end:p.endPage==null?'':String(p.endPage),calendarUnitProgress:p.unitProgress||p.title,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
+  }else if(p.kind==='numberedScope'){
    p.scopes.forEach(function(scope,index){
     var fields={title:p.book,book:p.book,subject:p.subject,scopeKind:scope.kind,calendarUnitProgress:p.unitProgress||p.title,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey};
     fields[scope.kind==='unit'?'unitStart':'round']=scope.start;fields[scope.kind==='unit'?'unitEnd':'roundEnd']=scope.end;
@@ -2231,7 +2234,8 @@ function ensureDailyPresets(rec,date){
    delete legacyCalendarByPresetKey[d.key];
    if(!isSplitBookDefinition)newEventKeys.forEach(function(newEventKey){delete legacyCalendarByEventKey[newEventKey]});
   }
-  if(x.f.calendarBookRangeLocked&&!numberedStudyScope(x)&&x.f.dailyWorkUserFields&&typeof x.f.dailyWorkUserFields==='object'){
+  if(x.f.scopeKind==='pages'&&resetObsoletePageScope(x,{type:d.type,title:d.title,description:d.description,f:d.f}))changed=true;
+  if(x.f.calendarBookRangeLocked&&!numberedStudyScope(x)&&!usesSharedPageTemplate(x)&&x.f.dailyWorkUserFields&&typeof x.f.dailyWorkUserFields==='object'){
    if(Object.prototype.hasOwnProperty.call(x.f.dailyWorkUserFields,'start')){delete x.f.dailyWorkUserFields.start;changed=true}
    if(Object.prototype.hasOwnProperty.call(x.f.dailyWorkUserFields,'end')){delete x.f.dailyWorkUserFields.end;changed=true}
   }
@@ -2835,7 +2839,7 @@ function isPrism(t){return t==='Prism Reading'||/^Prism Reading [234]$/.test(Str
 function isEssentialGrammar(t){return t==='Essential Grammar in Use'}
 function isCalendarPageMappedBook(x){
  var f=x&&x.f||{},book=canonicalPageMappedBook(f.book||f.title||x&&x.title);
- return !!book&&f.calendarBookRangeLocked===true;
+ return !!book&&f.calendarBookRangeLocked===true&&!usesSharedPageTemplate(x);
 }
 function pageMappedBookOptions(values,current,placeholder){
  var normalized=String(current||'').trim(),found=false,h='<option value="">'+esc(placeholder)+'</option>';
@@ -2898,6 +2902,15 @@ function captureNumberedScopeInputs(card,x){
  if(start.value&&!end.value)end.value=start.value;
  if(start.value&&end.value&&Number(end.value)<Number(start.value))end.value=start.value;
  end.min=start.value||'1';applyNumberedScope(x,start.value,end.value);refreshAuto(card,x);return true;
+}
+function renderSharedPageFields(x,reviewMode){
+ var f=x.f,book=f.title||f.book||f.material||x.title||'',mapped=canonicalPageMappedBook(book);
+ var h='<div class="english-book-page-row"><div class="field"><label>書名／教材</label><div class="fixed-book-value">'+esc(book)+'</div></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" step="1" inputmode="numeric" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="'+esc(f.start||'1')+'" step="1" inputmode="numeric" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
+ if(mapped)h+=bookPageAutoField(mapped,f.start,f.end);
+ if(!f.start&&!f.end)h+='<div class="small">此項目為分段進度，請填寫本次頁碼；不會將 Unit／回次數字當成頁碼。</div>';
+ if(!reviewMode)h+='<div class="checkline" style="margin-top:10px">'+studyItemProgress(x).map(function(p){return'<label><input type="checkbox" data-check="'+p.key+'"'+checked(p.checked)+'> '+p.label+'</label>'}).join('')+'</div>';
+ if(reviewMode||f.corrected)h+=reasonField(f);
+ return h;
 }
 function renderExtraProgressChecks(x,reviewMode){
  var f=x.f,progressOnly=isProgressOnlyStudyItem(x),h='';
@@ -3143,6 +3156,7 @@ function renderGroupedWorkFields(x){
 function renderItemFields(x,reviewMode){
  var f=x.f||(x.f={});
  if(isGroupedWork(x))return renderGroupedWorkFields(x);
+ if(usesSharedPageTemplate(x))return renderSharedPageFields(x,reviewMode);
  if(x.type!=='extra'&&usesSharedNumberedTemplate(x)){
   var scopeFields=renderNumberedScopeFields(x,null);
   if(!reviewMode)scopeFields+='<div class="checkline" style="margin-top:10px">'+studyItemProgress(x).map(function(p){return'<label><input type="checkbox" data-check="'+p.key+'"'+checked(p.checked)+'> '+p.label+'</label>'}).join('')+'</div>';
