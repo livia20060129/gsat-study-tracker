@@ -21,6 +21,7 @@ import { combineNaturalCalendarPlans, resolveNaturalCalendarPlan } from './calen
 import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config/supabase.ts';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, originalCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
 import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkCompletionDates, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, relinkDailyWorkSourceItems, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
@@ -31,6 +32,7 @@ import { groupStudyItemsBySubject, studyItemSubject, studyItemSubjectClass } fro
 import { SUBJECT_TIME_SHORT_LABELS, subjectTimeArcPath, subjectTimeDonutSlices, summarizeSubjectTime } from './study/subjectTime';
 import { completedTimeEntriesForOverviewDate } from './application/overview/overviewStudyTime.ts';
 import { completionIncludedInPeriod } from './study/learningSummary.ts';
+import { isInteractiveStudyItem } from './study/interactiveTasks.ts';
 import { withOperationTimeout } from './application/cloud/operationTimeout.ts';
 import { reconcileLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { changeStudyTimer, resolveStudyTimerTarget, sameStudyTimerPointer, sameStudyTimerTarget, setStudyTimerTargetMinutes, setStudyTimerTargetState, studyTimerTargetState, studyTimerToggleLabel, switchStudyTimerMode } from './application/timer/studyTimerController.ts';
@@ -613,8 +615,6 @@ var mathProgressIndex=new MathProgressIndex();
 var pendingDeferredTargets={};
 var deferredLimitPrompt=null;
 
-var SUPABASE_URL='https://arxbirgujbrtzhoficdf.supabase.co';
-var SUPABASE_PUBLISHABLE_KEY='sb_publishable_x8YXDSe-6rvX25o38jEl4w_OYn971PA';
 var cloudClient=null;
 var cloudRecordRepository=null;
 var cloudUser=null;
@@ -1540,6 +1540,7 @@ function normalizeItem(it,date){
  if(it.required===undefined)it.required=it.source==='preset';
  if(it.deferred===undefined)it.deferred=false;
  if(date>=DAILY_PRESET_START&&it.source==='custom')it.required=customCountsOriginal(it);
+ if(isInteractiveStudyItem(it))it.required=false;
  if(it.type==='general'&&it.title==='英文訂正與搭配詞整理'&&!it.presetKey){it.presetKey='weekday_english_review';it.source='preset'}
  if(isSaturdayMakeup(it))ensureEntryArray(it,'makeupEntries');
  if(isSaturdayReview(it))ensureEntryArray(it,'reviewEntries');
@@ -1567,7 +1568,7 @@ function loadData(date){
  }catch(e){}
  return b;
 }
-function presetDef(key,type,title,description,required,f){return{key:key,type:type,title:title,description:description,required:required!==false,f:f||{}}}
+function presetDef(key,type,title,description,required,f){return{key:key,type:type,title:title,description:description,required:required!==false&&!isInteractiveStudyItem({type:type,presetKey:key,title:title,f:f}),f:f||{}}}
 function cloneObj(o){try{return JSON.parse(JSON.stringify(o||{}))}catch(e){return{}}}
 function cloneValue(v){if(v===undefined)return v;try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
 function calendarEventKeysFromFields(fields){
@@ -1849,7 +1850,7 @@ function cloudCalendarDefsForDate(date){
    out.push(presetDef('cal_subject_'+token,'general',p.title,'Google Calendar API'+(p.description?'：'+p.description:''),true,{subject:p.subject,calendarEventId:p.sourceEventId,calendarEventKey:p.eventKey}));
   }
   var route=p.makeup?'today':(p.route||'today');
-  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup;out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup;out[oi].f.calendarSourceDate=p.sourceDate||p.date;if(p.identifier)out[oi].f.calendarIdentifier=p.identifier}
+  for(var oi=outStart;oi<out.length;oi++){out[oi].required=route==='today'&&!p.makeup&&!isInteractiveStudyItem(out[oi]);out[oi].f.calendarRoute=route;out[oi].f.calendarMakeup=!!p.makeup;out[oi].f.calendarSourceDate=p.sourceDate||p.date;if(p.identifier)out[oi].f.calendarIdentifier=p.identifier}
  });
  return out;
 }
@@ -2390,7 +2391,7 @@ function interactiveDailyChild(type){
  c.id=uid('interactive');
  c.type=type;
  c.source='dailyInteractive';
- c.required=true;
+ c.required=false;
  c.title='';
  c.description='';
  c.f={};
@@ -2400,12 +2401,13 @@ function ensureInteractiveEntries(x){
  if(!x.f)x.f={};
  if(!Array.isArray(x.f.interactiveEntries))x.f.interactiveEntries=[];
  var a=x.f.interactiveEntries,date=(data&&data.date)||'';
+ x.required=false;
  var isMonday=date&&parseDate(date).getDay()===1;
  var mondayVocab=null;
  for(var i=0;i<a.length;i++){
   if(!a[i].f)a[i].f={};
   a[i].source='dailyInteractive';
-  a[i].required=true;
+  a[i].required=false;
   if(a[i].mondayFixedVocab||a[i].type==='englishVocabInteractive'&&a[i].locked){
    a[i].type='englishVocabInteractive';
    a[i].title='英文單字／片語互動題';
@@ -3255,6 +3257,10 @@ function renderCard(x,canDelete){
  var isDeferred=confirmedDeferred(x);
  var calendarMeta=x.f&&x.f.dailyWorkGroup?(x.f.dailyWorkIncludesDeferred?'已合併當日排程與延期項目':'已合併同項目範圍'):(x.f&&x.f.calendarMerged?(x.f.calendarIncludesMakeup?'已合併 Google Calendar 同模板項目｜含補做':'已合併 Google Calendar 同模板項目'):'');
  var meta=x.deferredCarry?('補做｜沿用 '+(x.deferredOriginDate||'原日期')+' 的完整項目模板'):(isCalendarMakeup(x)?'今日補做｜Google Calendar':(calendarMeta||(isInteractiveDaily(x)?'':(x.source==='preset'?(x.required?(isDeferred?'已延期至'+deferredTargetLabel(x):''):'每日選做'):(x.required?'列入原定完成度':'')))));
+ if(isInteractiveStudyItem(x)){
+  var optionalContext=x.deferredCarry||isCalendarMakeup(x)||calendarMeta?meta:'';
+  meta='每日選做'+(optionalContext?'｜'+optionalContext:'');
+ }
  if(isInteractiveDaily(x))ensureInteractiveEntries(x);
  if(isCalendarNaturalIntegration(x))ensureCalendarNaturalIntegrationEntries(x,data.date);
  var noTopDone=isInteractiveDaily(x)||isCalendarNaturalIntegration(x)||isGroupedWork(x);
@@ -3651,7 +3657,7 @@ function handleChange(e){
  if(t.matches('[data-interactive-type]')&&x){
   var interactivePointer=readTimerPointer();if(interactivePointer&&interactivePointer.itemId===x.id)pauseActiveTimer();
   if(x.locked){render();return}
-  x.type=t.value;x.done=false;x.minutes='';x.f={};x.source='dailyInteractive';x.required=true;
+  x.type=t.value;x.done=false;x.minutes='';x.f={};x.source='dailyInteractive';x.required=false;
   render();persist(false);return
  }
  if(t.matches('[data-nested-type]')&&x){var nestedPointer=readTimerPointer();if(nestedPointer&&nestedPointer.itemId===x.id)pauseActiveTimer();x.type=t.value;x.done=false;x.minutes='';x.f={};x.source=t.getAttribute('data-nested-type');render();persist(false);return}
@@ -3762,18 +3768,17 @@ function completionUnitsForRecord(rec,date,cutoffDate){
   if(isWeeklyCalendarItem(x))return;
   if(isGroupedWork(x)){
    groupedWorkEntries(x).forEach(function(child){
+    if(isInteractiveStudyItem(child))return;
     var childDeferred=confirmedDeferred(x)||confirmedDeferred(child);
     if(x.deferredCarry||child.deferredCarry||child.required===false)units=units.concat(groupedMakeupCompletionUnits([completed(child)],childDeferred));
     else units=units.concat(groupedOriginalCompletionUnits([completed(child)],childDeferred));
    });
    return;
   }
+  if(isInteractiveStudyItem(x))return;
   if(x.deferredCarry){
    var carryCompleted=completed(x);
-   if(isInteractiveDaily(x)){
-    var carryEntries=(x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[];
-    carryCompleted=carryEntries.length>0&&carryEntries.every(completed);
-   }else if(isCalendarNaturalIntegration(x)){
+   if(isCalendarNaturalIntegration(x)){
     var carryChildren=ensureCalendarNaturalIntegrationEntries(x,date);
     carryCompleted=carryChildren.length>0&&carryChildren.every(completed);
    }
@@ -3788,15 +3793,8 @@ function completionUnitsForRecord(rec,date,cutoffDate){
    units.push(originalCompletionUnit(completed(x),confirmedDeferred(x)));
    var makeupEntries=x.f&&Array.isArray(x.f.makeupEntries)?x.f.makeupEntries:[];
    makeupEntries.forEach(function(m){
-    if(m&&m.type)units.push(makeupCompletionUnit(completed(m),confirmedDeferred(x)||confirmedDeferred(m)));
+    if(m&&m.type&&!isInteractiveStudyItem(m))units.push(makeupCompletionUnit(completed(m),confirmedDeferred(x)||confirmedDeferred(m)));
    });
-   return;
-  }
-  if(isInteractiveDaily(x)){
-   var entries=(rec===data)?ensureInteractiveEntries(x):((x.f&&Array.isArray(x.f.interactiveEntries))?x.f.interactiveEntries:[]);
-   var entriesCompleted=entries.length>0&&entries.every(completed);
-   units.push(originalCompletionUnit(entriesCompleted,confirmedDeferred(x)));
-   if(hasMergedCalendarMakeup(x))units.push(makeupCompletionUnit(entriesCompleted,confirmedDeferred(x)));
    return;
   }
   if(isCalendarNaturalIntegration(x)){

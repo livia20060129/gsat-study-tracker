@@ -19,9 +19,12 @@ export function vocabularyPrintDocument(
   if (entries.some(entry => entry.referenceSources?.ceec)) {
     notices.push('<p>詞性／級數參考：大學入學考試中心《高中英文參考詞彙表》（111 學年度起適用，109 年 7 月）。著作權屬財團法人大學入學考試中心基金會，僅供非營利目的使用。</p>');
   }
-  if (withTranslations && entries.some(entry => entry.referenceSources?.ecdict)) {
+  if (withTranslations && entries.some(entry => entry.referenceSources?.ecdict || entry.dictionarySources?.some(source => source.provider === 'ecdict'))) {
     notices.push('<p>中文參考：ECDICT（skywind3000/ECDICT），https://github.com/skywind3000/ECDICT 。僅擷取對應詞性、分列意思並以 OpenCC 轉為繁體；手動修改內容不代表來源認可。</p>');
     notices.push(`<pre>${escapeHtml(ECDICT_MIT_LICENSE)}</pre>`);
+  }
+  if (withTranslations && entries.some(entry => entry.dictionarySources?.some(source => source.provider === 'cambridge'))) {
+    notices.push('<p>已選中文釋義來源：Cambridge Dictionary（https://dictionary.cambridge.org/）。內容使用與匯出範圍依取得的字典授權辦理；手動修改內容不代表來源認可。</p>');
   }
   const tables = entries.map(function entryRows(entry): string {
     const groups = vocabularyMeaningGroups(entry, kind);

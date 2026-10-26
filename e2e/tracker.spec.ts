@@ -518,7 +518,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await leverageRow.getByLabel('英文內容').press('Tab');
   await expect(page.getByText('已儲存「Applied leverage」的整理資料')).toBeVisible();
   const renamedRow = page.locator('.vocabulary-row[data-entry-key="applied leverage"]');
-  await expect(renamedRow.getByRole('link')).toHaveText('Applied leverage');
+  await expect(renamedRow.locator('.vocabulary-word-link')).toHaveText('Applied leverage');
   await page.reload();
   await renamedRow.getByRole('button', { name: '編輯「Applied leverage」' }).click();
   await renamedRow.getByLabel('英文內容').fill('Leverage');
@@ -1354,11 +1354,12 @@ test('learning summary uses one week/month control for the complete page', async
   await expect(includeStatusDays).not.toBeChecked();
   await expect(page.locator('#statusDaysCompletionState')).toHaveText('不列入');
   await includeStatusDays.check();
-  await expect(page.locator('#summaryTotalCompletion')).toHaveText('92%');
+  // Six of seven required tasks are complete; interactive practice contributes time only.
+  await expect(page.locator('#summaryTotalCompletion')).toHaveText('86%');
   await expect(page.locator('#statusDaysCompletionState')).toHaveText('列入');
   await page.reload();
   await expect(page.locator('#includeStatusDaysCompletion')).toBeChecked();
-  await expect(page.locator('#summaryTotalCompletion')).toHaveText('92%');
+  await expect(page.locator('#summaryTotalCompletion')).toHaveText('86%');
   await page.locator('#summaryCalendar .summary-day.is-mood-unwell [data-summary-day]').click();
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('學習時間');
   await expect(page.locator('#summaryCalendar .summary-day.is-tooltip-open .summary-day-tooltip')).toContainText('完成率');

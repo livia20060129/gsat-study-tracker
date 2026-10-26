@@ -1,5 +1,9 @@
 project_id = "arxbirgujbrtzhoficdf"
 
+[functions.dictionary-lookup]
+# The handler validates the signed-in user with Supabase Auth before dictionary access.
+verify_jwt = false
+
 [functions.google-calendar]
 verify_jwt = false
 

@@ -1,5 +1,7 @@
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, StudyItem, StudyRecord, VocabularyTranslations } from '../types.ts';
 import { applyVocabularyAutoFill, vocabularyAutoFillSources } from './vocabularyAutoFill.ts';
+import { applyDictionarySelection, dictionarySources } from './dictionarySelection.ts';
+import type { DictionaryLookupResult, DictionarySourceReference } from './dictionaryEntries.ts';
 import {
   normalizedVocabularyTranslations,
   VOCABULARY_PARTS_OF_SPEECH,
@@ -23,6 +25,7 @@ export const VOCABULARY_CONTENT_KINDS = ['單字', '組合', '句子'] as const;
 export type VocabularyContentKind = (typeof VOCABULARY_CONTENT_KINDS)[number];
 
 export interface VocabularyWordEdits {
+  dictionarySelection?: DictionaryLookupResult;
   contentKind?: VocabularyContentKind;
   partsOfSpeech?: ReadonlySet<VocabularyPartOfSpeechField>;
   text?: string;
@@ -47,6 +50,7 @@ export interface VocabularyReviewEntry {
   sourceDates: string[];
   occurrenceCount: number;
   referenceSources?: { ceec: boolean; ecdict: boolean };
+  dictionarySources?: DictionarySourceReference[];
 }
 
 interface MutableVocabularyReviewEntry extends Omit<VocabularyReviewEntry, 'tags' | 'contentKinds' | 'sourceDates'> {
@@ -164,6 +168,8 @@ function collectItemWords(
         entries.set(key, entry);
       }
       entry.occurrenceCount += 1;
+      const sources = dictionarySources(word.dictionarySources);
+      if (sources.length) entry.dictionarySources = dictionarySources([...(entry.dictionarySources ?? []), ...sources]);
       const referenceSources = vocabularyAutoFillSources(word);
       if (referenceSources) entry.referenceSources = {
         ceec: entry.referenceSources?.ceec === true || referenceSources.ceec,
@@ -306,6 +312,7 @@ function updateItemWords(
         word.showGsatLevel = edits.showGsatLevel;
         changed = true;
       }
+      if (edits.dictionarySelection && applyDictionarySelection(word, edits.dictionarySelection)) changed = true;
     }
   }
 

@@ -27,6 +27,7 @@ infrastructure repositories and gateways
 - 已完成項目的時間歸屬與去重：`src/study/completedStudyTime.ts`
 - 首頁當日時間資料組裝：`src/application/overview/overviewStudyTime.ts`
 - 週／月學習總結：`src/study/learningSummary.ts`
+- 互動題辨識與每日選做：`src/study/interactiveTasks.ts`；新排程、舊版／Calendar 身分、主頁與週／月完成率及待辦共用同一判斷。互動題不產生完成率單位，學習時間與完成清單仍讀取原始完成紀錄。
 - 數學實際完成頁數：`src/study/mathProgress.ts`
 - Local／Supabase 讀寫：`src/infrastructure/storage/`
 - 主頁／待辦共用計時目標、模式切換與命令：`src/application/timer/studyTimerController.ts`
@@ -35,9 +36,11 @@ infrastructure repositories and gateways
 - 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`
 - 待辦期間篩選：`src/study/overduePeriod.ts`；沿用 `learningSummary.ts` 的曆月與週一至週日邊界，只依原排程日期篩選顯示，不修改紀錄。待辦資格仍由 `overdueTasks.ts` 決定，最近處理獨立按 72 小時計算。
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`
+- 字典前後端共用的純資料協定位於 `supabase/functions/_shared/dictionaryEntries.ts`，由 `src/study/dictionaryEntries.ts` 轉出給前端；不包含 secrets 或 Deno 執行期程式，後端不跨出 functions 目錄引用前端檔案。
 - Google Calendar 公開 Client ID 解析：`src/config/googleCalendar.ts`
 - Unit／回次與分段頁碼模板選擇：`src/data/numberedScopes.ts`；分數註記判斷共用 `src/data/studyPartAnnotation.ts`。Calendar、原卡片、待辦與教材進度不得各自套用書名例外或把分數推估為已讀頁碼。
 - 單字精確比對、自動欄位所有權與手動優先：`src/study/vocabularyAutoFill.ts`；官方資料與字典中文分置 `src/data/ceecVocabulary.ts`、`src/data/ceecTranslations.ts`，來源、轉換與授權見 `VOCABULARY_SOURCES.md`。唯讀彙整不得觸發回填或改寫舊紀錄。
+- 按需字典協定、確認追加與來源：`src/study/dictionaryEntries.ts`、`dictionarySelection.ts`；本機查詢重用 `localDictionaryLookup.ts`。暫存候選由 `src/ui/dictionaryPreview.ts` 管理，網路入口 `src/infrastructure/dictionary/cambridgeLookup.ts` 僅在明確操作後載入。後端 `supabase/functions/dictionary-lookup` 驗證登入再呼叫官方 API，金鑰只在伺服器，不抓公開字典頁、不保存整套詞庫、不接受任意外部網址。保存使用 `saveLocalRecordEdit` 及載入基準合併，不能用過期快照覆蓋整日紀錄。
 
 首頁與學習總結必須共用 `completedStudyTime.ts`，不得各自建立另一套時間計算。任何 UI 合併卡都只能代表來源項目，不能成為新的持久化資料真相。
 

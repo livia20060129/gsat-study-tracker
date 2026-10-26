@@ -1,5 +1,6 @@
 import './vocabulary-review.css';
-import { markRecordLocallyEdited } from './storage/recordSync.ts';
+import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
+import { DictionaryPreview } from './ui/dictionaryPreview.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   normalizedGsatVocabularyLevel,
@@ -33,6 +34,7 @@ let groupingMode: VocabularyGroupingMode = 'alphabetical';
 let searchText = '';
 let translationsVisible = true;
 const editingEntryKeys = new Set<string>();
+const dictionaryPreviews = new Set<DictionaryPreview>();
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -87,28 +89,35 @@ function createWordLink(entry: VocabularyReviewEntry): HTMLElement {
   return link;
 }
 
-function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits): boolean {
+function saveEntryEditsResult(entry: VocabularyReviewEntry, edits: VocabularyWordEdits): 'saved' | 'unchanged' | 'failed' {
   let changed = false;
   try {
-    loadedRecords = loadedRecords.map(record => {
-      const previous = cloneRecord(record);
-      if (!updateVocabularyWordEntries(record, entry.key, edits)) return record;
-      const edited = markRecordLocallyEdited(record, previous);
-      localStorage.setItem(`${activeRecordPrefix}${edited.date}`, JSON.stringify(edited));
+    for (const [index, base] of loadedRecords.entries()) {
+      const edited = saveLocalRecordEdit(localStorage, activeRecordPrefix, base, function applyWordEdit(record): StudyRecord | null {
+        const draft = cloneRecord(record);
+        return updateVocabularyWordEntries(draft, entry.key, edits) ? draft : null;
+      });
+      if (!edited) continue;
       changed = true;
-      return edited;
-    });
-    if (!changed) return false;
+      loadedRecords[index] = edited;
+    }
+    if (!changed) return 'unchanged';
     allEntries = vocabularyReviewEntries(loadedRecords);
     const status = element<HTMLParagraphElement>('vocabularySaveStatus');
     status.textContent = `已儲存「${edits.text ?? entry.text}」的整理資料，回到 Tracker 後會接續雲端同步。`;
-    return true;
-  } catch {
+    element<HTMLParagraphElement>('vocabularyError').hidden = true;
+    return 'saved';
+  } catch (cause) {
+    allEntries = vocabularyReviewEntries(loadedRecords);
     const error = element<HTMLParagraphElement>('vocabularyError');
-    error.textContent = `無法儲存「${entry.text}」的修改，請確認瀏覽器儲存權限後再試一次。`;
+    error.textContent = cause instanceof Error ? cause.message : `無法儲存「${entry.text}」的修改，請確認瀏覽器儲存權限後再試一次。`;
     error.hidden = false;
-    return false;
+    return 'failed';
   }
+}
+
+function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits): boolean {
+  return saveEntryEditsResult(entry, edits) === 'saved';
 }
 
 function selectedPartsOfSpeech(container: HTMLElement): Set<VocabularyPartOfSpeechField> {
@@ -260,7 +269,7 @@ function createWordTranslationEditor(entry: VocabularyReviewEntry): HTMLElement 
   for (const [field, label] of VOCABULARY_PARTS_OF_SPEECH) {
     if (entry.tags.includes(label)) editor.append(createTranslationGroup(field, label, groups[field] ?? ['']));
   }
-  if (groups.unclassified) editor.append(createTranslationGroup('unclassified', '未分詞性（舊翻譯）', groups.unclassified));
+  if (groups.unclassified) editor.append(createTranslationGroup('unclassified', entry.dictionarySources?.length ? '未分詞性' : '未分詞性（舊翻譯）', groups.unclassified));
   if (!editor.childElementCount) {
     const hint = document.createElement('p');
     hint.className = 'vocabulary-translation-hint';
@@ -352,6 +361,21 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     kinds.append(levelBadge);
   }
   identity.append(kinds);
+  if (entry.dictionarySources?.length) {
+    const sources = document.createElement('p');
+    sources.className = 'vocabulary-occurrence';
+    sources.append(document.createTextNode('已選翻譯來源：'));
+    for (const [index, source] of entry.dictionarySources.entries()) {
+      if (index) sources.append(document.createTextNode('、'));
+      const link = document.createElement('a');
+      link.textContent = `${source.provider === 'cambridge' ? 'Cambridge Dictionary' : 'ECDICT'}（${source.word}）`;
+      link.href = source.sourceUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      sources.append(link);
+    }
+    identity.append(sources);
+  }
   if (entry.referenceSources) {
     const reference = vocabularyReference(entry.text);
     const note = document.createElement('p');
@@ -381,6 +405,15 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
       editors.append(createPartsOfSpeechEditor(entry));
       editors.append(createWordTranslationEditor(entry));
       editors.append(createGsatLevelEditor(entry));
+      const preview = new DictionaryPreview({ word: entry.text, recordPrefix: activeRecordPrefix, apply: function applySelection(selection): 'saved' | 'unchanged' | 'failed' {
+        const current = allEntries.find(candidate => candidate.key === entry.key);
+        if (!current || !editingEntryKeys.has(current.key) || !current.contentKinds.includes('單字')) return 'failed';
+        const outcome = saveEntryEditsResult(current, { dictionarySelection: selection });
+        if (outcome === 'saved') renderEntries();
+        return outcome;
+      } });
+      dictionaryPreviews.add(preview);
+      editors.append(preview.element);
     } else {
       editors.classList.add('is-translation-only');
       editors.append(createTranslationEditor(entry));
@@ -459,6 +492,8 @@ function renderContentKindSwitch(): void {
 }
 
 function renderEntries(): void {
+  for (const preview of dictionaryPreviews) preview.dispose();
+  dictionaryPreviews.clear();
   const entries = filteredEntries();
   const list = element<HTMLDivElement>('vocabularyList');
   const empty = element<HTMLParagraphElement>('vocabularyEmpty');

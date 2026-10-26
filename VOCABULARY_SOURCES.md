@@ -39,3 +39,11 @@ python scripts/build_vocabulary_reference.py --pdf "完整路徑/高中英文參
 ## 4. 保存與相容
 
 使用既有 word JSON 的詞性、`translation`、`translationsByPartOfSpeech`、`gsatLevel`、`showGsatLevel`，新增 `vocabularyAutoFill` 快照追蹤哪些值仍屬自動來源，並保留字典出處。手動修改與刻意清空不回填；英文改字時只更新尚未手動變更的自動欄位。未知欄位沿用既有 codec、匯出／匯入、合併及 Cloud JSON 往返，不新增資料庫欄位或後端 API。不在唯讀彙整時改寫舊資料。
+
+## 5. v171.6.86 按需查詢與確認填入
+
+本機預覽重用上述 ECDICT 子集，沒有加入完整 ECDICT 或劍橋資料集。劍橋公開頁面本次正常請求回傳 403，因此不加入網頁爬取、代理繞過或自動重試；線上來源只接官方授權 API，設定及驗證限制見 `supabase/functions/dictionary-lookup/README.md`。
+
+候選釋義只暫存在頁面，勾選後仍不寫入；確認才逐詞性追加所選意思、啟用所選詞性並去重。既有意思與手動學測級數不變。新增 `dictionarySources` 記錄來源、查詢詞及來源網址，沿用既有 JSON 往返；不保存原始字典 HTML、API 金鑰、登入 token 或完整查詢快取。線上查詢只傳英文詞，不附帶其他學習紀錄。
+
+Cambridge Dictionary 的內容不適用 ECDICT 的 MIT 授權。營運者須取得符合顯示、保存及使用者匯出用途的授權後才設定正式 API。候選及使用者修改不代表來源人工審訂；有翻譯 PDF 加註所選來源，本機 ECDICT 仍附 MIT 全文。未翻譯 PDF 不嵌入釋義與字典來源候選。這次沒有改動官方詞彙表、ECDICT 產物或 manifest。

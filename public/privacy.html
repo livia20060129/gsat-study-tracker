@@ -25,7 +25,7 @@
     <article data-legal-panel="zh-Hant">
       <h1>隱私權政策</h1>
       <p class="lead">本政策說明 GSAT Study Tracker 如何處理讀書紀錄、帳號資料與 Google Calendar 資料。</p>
-      <p class="meta">生效日期：2026 年 9 月 27 日</p>
+      <p class="meta">生效日期：2026 年 10 月 26 日</p>
 
       <h2>一、適用範圍</h2>
       <p>本政策適用於 GSAT Study Tracker（以下稱「本網站」）的讀書紀錄、雲端同步及 Google Calendar 連線功能。營運者為 GSAT Study Tracker 個人專案營運者，聯絡信箱為 <a href="mailto:a8744895@gmail.com">a8744895@gmail.com</a>。</p>
@@ -40,6 +40,9 @@
       <p>本網站不會透過 Calendar API 新增、修改或刪除 Google Calendar 內的原始行程。</p>
       <h3>OAuth 與技術資料</h3>
       <p>為維持 Calendar 連線，Supabase 會保存 OAuth Client ID、access token、refresh token、到期時間、授權範圍、同步時間與錯誤資訊。服務供應商也可能處理維持安全及排錯所需的 IP 位址、瀏覽器類型、請求時間與系統紀錄。</p>
+      <h3>使用者主動要求的字典查詢</h3>
+      <p>本機 ECDICT 查詢不會傳送輸入至外部字典。僅在使用者於單字編輯模式選擇「劍橋（線上）」並按下「取得翻譯」，且該授權服務已啟用時，網站才透過 Supabase 後端將該英文單字或短語傳送至 Cambridge Dictionary。Cloud 登入憑證僅用於 Supabase 驗證，不會轉交劍橋；查詢不會附帶其他讀書紀錄、筆記或 Google Calendar 憑證。</p>
+      <p>候選釋義暫時顯示在頁面，使用者選擇並確認後，才將所選翻譯及來源加入自己的紀錄，沿用本機儲存、匯出／匯入與雲端同步。網站不建立完整劍橋詞庫或持久保存查詢候選快取；所選內容的使用與匯出仍依字典授權辦理。</p>
 
       <h2>三、資料使用目的</h2>
       <ul><li>提供每日讀書紀錄、完成率與進度統計。</li><li>從 Google Calendar 建立及更新 Tracker 排程。</li><li>保存與同步使用者自己的讀書紀錄。</li><li>維護帳號、授權、資料安全與處理支援要求。</li></ul>
@@ -56,7 +59,7 @@
       <p>分享內容由使用者自行決定。提交前應移除 OAuth 憑證、Google 帳號技術識別資訊、與升學成果無關的 Calendar 私人行程，以及其他不希望提供的個人資訊。資料提交至招生單位後，其保存及刪除方式依該單位規定辦理。</p>
 
       <h2>六、儲存、服務供應商與分享</h2>
-      <p>資料可能由使用者瀏覽器、Supabase、Google OAuth、Google Calendar API 與 Cloudflare 等維持網站所需的服務處理。部分服務供應商的伺服器可能位於臺灣以外地區。</p>
+      <p>資料可能由使用者瀏覽器、Supabase、Google OAuth、Google Calendar API 與 Cloudflare 等維持網站所需的服務處理；主動使用已啟用的劍橋查詢時，查詢詞也會由 Cambridge Dictionary 處理。部分服務供應商的伺服器可能位於臺灣以外地區。</p>
       <p>本網站不出售或出租個人資料。資料僅會在維持服務所必需、使用者主動要求或同意、法律依法要求，或保護使用者與系統安全所必要時提供。</p>
 
       <h2>七、保存、解除連線與刪除</h2>
@@ -77,7 +80,7 @@
     <article data-legal-panel="en" lang="en" hidden>
       <h1>Privacy Policy</h1>
       <p class="lead">This policy explains how GSAT Study Tracker processes study records, account information, and Google Calendar data.</p>
-      <p class="meta">Effective date: September 27, 2026</p>
+      <p class="meta">Effective date: October 26, 2026</p>
 
       <h2>1. Scope</h2>
       <p>This policy applies to the study-record, cloud-sync, and Google Calendar connection features of GSAT Study Tracker (the “Service”). The Service is operated as a personal project. Privacy and data requests may be sent to <a href="mailto:a8744895@gmail.com">a8744895@gmail.com</a>.</p>
@@ -92,6 +95,9 @@
       <p>The Service does not create, modify, or delete original Google Calendar events through the Calendar API.</p>
       <h3>OAuth and technical information</h3>
       <p>To maintain the Calendar connection, Supabase stores the OAuth client ID, access token, refresh token, expiration time, granted scope, synchronization time, and error information. Service providers may also process IP address, browser type, request time, and system logs required for security and troubleshooting.</p>
+      <h3>User-initiated dictionary lookups</h3>
+      <p>Local ECDICT lookups do not send input to an external dictionary. Only when the user selects Cambridge (online) in word-editing mode and presses the lookup button, and the licensed service is enabled, does the Service send that English word or short phrase to Cambridge Dictionary through its Supabase backend. Cloud sign-in credentials are used only for Supabase authentication and are not forwarded to Cambridge. Other study records, notes, and Google Calendar credentials are not included.</p>
+      <p>Candidate meanings are displayed temporarily. Only after the user selects meanings and confirms are those meanings and their source added to the user's records, following the existing local-storage, export/import, and cloud-sync flows. The Service does not build a complete Cambridge dictionary or persist a cache of lookup candidates. Use and export of selected content remain subject to the applicable dictionary license.</p>
 
       <h2>3. How Information Is Used</h2>
       <ul><li>Provide daily study records, completion rates, and progress statistics.</li><li>Create and update Tracker schedules from Google Calendar events.</li><li>Store and synchronize the user’s own study records.</li><li>Maintain accounts, authorization, data security, and user support.</li></ul>
@@ -108,7 +114,7 @@
       <p>Users control what they share. Before submitting material, users should remove OAuth credentials, technical Google account identifiers, unrelated private Calendar events, and any other information they do not wish to disclose. Information submitted to an institution is retained and deleted according to that institution’s policies.</p>
 
       <h2>6. Storage, Service Providers, and Disclosure</h2>
-      <p>Information may be processed by the user’s browser, Supabase, Google OAuth, Google Calendar API, and Cloudflare as necessary to operate the Service. Some service-provider systems may be located outside Taiwan.</p>
+      <p>Information may be processed by the user’s browser, Supabase, Google OAuth, Google Calendar API, and Cloudflare as necessary to operate the Service. When an enabled Cambridge lookup is requested, Cambridge Dictionary also processes the search word. Some service-provider systems may be located outside Taiwan.</p>
       <p>The Service does not sell or rent personal information. Information is disclosed only when required to operate the Service, when requested or authorized by the user, when legally required, or when necessary to protect users and system security.</p>
 
       <h2>7. Retention, Disconnection, and Deletion</h2>
