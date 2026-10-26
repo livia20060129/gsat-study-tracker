@@ -11,6 +11,7 @@ import { completedItemsForPeriod } from '../src/study/completedItems.ts';
 import { materialProgressRows } from '../src/study/materialProgress.ts';
 import { overdueTasks, updateOverdueTaskPageRange } from '../src/study/overdueTasks.ts';
 import { studyItemProgress } from '../src/study/itemProgress.ts';
+import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
 
 function item(title = '英文｜Unlock 3｜Unit 1 Animals（1/2）', fields: StudyItem['f'] = {}, type = 'extra'): StudyItem {
@@ -73,7 +74,7 @@ test('the real Calendar builder produces one editable page definition with a sta
   const parsed = parseCalendarTask({ event_key: 'event', source_event_id: 'event', calendar_id: 'primary', event_date: '2026-10-25',
     title: '英文｜Unlock 3｜Unit 1（1/2）', description: '【頁碼範圍】p.14–24', category: 'other' });
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
-  const context = createContext({ calendarParsedByDate: { '2026-10-25': [parsed] }, canonicalPageMappedBook });
+  const context = createContext({ calendarParsedByDate: { '2026-10-25': [parsed] }, canonicalPageMappedBook, isInteractiveStudyItem });
   for (const name of ['calendarEventToken', 'calendarIdentifierToken', 'presetDef', 'cloudCalendarDefsForDate']) {
     const start = runtime.indexOf(`function ${name}(`);
     runInContext(runtime.slice(start, runtime.indexOf('\nfunction ', start + 1)), context);

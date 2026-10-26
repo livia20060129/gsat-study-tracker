@@ -12,6 +12,7 @@ import { summarizeCompletionUnits } from '../src/study/completionMetrics.ts';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeMakeupProgress } from '../src/study/makeup.ts';
 import { reconcileCalendarNaturalPriorCoverage } from '../src/study/calendarNaturalCompletion.ts';
 import { completionIncludedInPeriod } from '../src/study/learningSummary.ts';
+import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
 import { numberedStudyScope, usesSharedNumberedTemplate } from '../src/data/numberedScopes.ts';
 import { applyNumberedScope } from '../src/study/numberedScopeProgress.ts';
 
@@ -37,6 +38,7 @@ function loadRuntime(ctx: ReturnType<typeof createContext>, names: string[]) {
 // Exercise the real runtime orchestration without network, DOM, or user storage.
 function app(rows = [biology, chemistry]) {
   const ctx = createContext({
+    isInteractiveStudyItem,
     numberedStudyScope, usesSharedNumberedTemplate,
     buildCalendarStudyTaskPlan, resolveNaturalCalendarPlan, combineNaturalCalendarPlans,
     calendarFixedTemplate, dedupePresetDefinitions, presetDefinitionSemanticKey,

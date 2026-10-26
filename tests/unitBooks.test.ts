@@ -8,6 +8,7 @@ import { parseCalendarTask } from '../src/calendar/calendarBridge.ts';
 import { completedItemsForPeriod } from '../src/study/completedItems.ts';
 import { groupDailyWorkItems } from '../src/study/dailyWorkGroup.ts';
 import { materialProgressRows } from '../src/study/materialProgress.ts';
+import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
 import { overdueTasks, updateOverdueTaskPageRange } from '../src/study/overdueTasks.ts';
 import { bookUnitRange, bookUnitText } from '../src/study/unitBookProgress.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
@@ -53,7 +54,7 @@ test('the actual Calendar definition builder keeps distinct Units and stable ite
     event_date: '2026-10-18', title: '英文｜Unlock 3｜Units 1, 3', category: 'studyItem', description: '',
   });
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
-  const context = createContext({ calendarParsedByDate: { '2026-10-18': [parsed] } });
+  const context = createContext({ calendarParsedByDate: { '2026-10-18': [parsed] }, isInteractiveStudyItem });
   for (const name of ['calendarEventToken', 'calendarIdentifierToken', 'presetDef', 'cloudCalendarDefsForDate']) {
     const start = runtime.indexOf(`function ${name}(`);
     const end = runtime.indexOf('\nfunction ', start + 1);

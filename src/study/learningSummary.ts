@@ -8,6 +8,7 @@ import {
 } from './completionMetrics.ts';
 import { isConfirmedDeferred } from './deferDays.ts';
 import { activeEnglishTaskItems } from './englishTaskChoice.ts';
+import { isInteractiveStudyItem } from './interactiveTasks.ts';
 import { effectiveTemplatePresetKey, specialItemTemplate } from './makeup.ts';
 import { summarizeSubjectTime, type SubjectTimeSummary } from './subjectTime.ts';
 import {
@@ -177,10 +178,6 @@ function isSaturdayMakeup(item: StudyItem): boolean {
     && (effectiveTemplatePresetKey(item) === 'sat_makeup' || item.title === '回補本週未完成項目');
 }
 
-function isInteractiveDaily(item: StudyItem): boolean {
-  return specialItemTemplate(item) === 'interactiveDaily';
-}
-
 function isCalendarNaturalIntegration(item: StudyItem): boolean {
   return Boolean(item.f?.calendarNaturalIntegration && childItems(item, 'calendarIntegrationEntries').length);
 }
@@ -201,6 +198,7 @@ export function summaryCompletionUnitsForRecord(record: StudyRecord): Completion
     const grouped = groupedChildren(item);
     if (grouped.length) {
       for (const child of grouped) {
+        if (isInteractiveStudyItem(child)) continue;
         const deferred = confirmedDeferred(item) || confirmedDeferred(child);
         units.push(...(
           item.deferredCarry || child.deferredCarry || child.required === false
@@ -210,12 +208,11 @@ export function summaryCompletionUnitsForRecord(record: StudyRecord): Completion
       }
       continue;
     }
+    if (isInteractiveStudyItem(item)) continue;
     if (item.deferredCarry) {
       let completed = Boolean(item.done);
-      const interactive = childItems(item, 'interactiveEntries');
       const integration = childItems(item, 'calendarIntegrationEntries');
-      if (interactive.length) completed = interactive.every(child => Boolean(child.done));
-      else if (integration.length) completed = integration.every(child => Boolean(child.done));
+      if (integration.length) completed = integration.every(child => Boolean(child.done));
       units.push(makeupCompletionUnit(completed, confirmedDeferred(item)));
       continue;
     }
@@ -229,15 +226,8 @@ export function summaryCompletionUnitsForRecord(record: StudyRecord): Completion
     if (isSaturdayMakeup(item)) {
       units.push(originalCompletionUnit(Boolean(item.done), confirmedDeferred(item)));
       for (const child of childItems(item, 'makeupEntries')) {
-        if (child?.type) units.push(makeupCompletionUnit(Boolean(child.done), confirmedDeferred(item) || confirmedDeferred(child)));
+        if (child?.type && !isInteractiveStudyItem(child)) units.push(makeupCompletionUnit(Boolean(child.done), confirmedDeferred(item) || confirmedDeferred(child)));
       }
-      continue;
-    }
-    if (isInteractiveDaily(item)) {
-      const children = childItems(item, 'interactiveEntries');
-      const completed = children.length > 0 && children.every(child => Boolean(child.done));
-      units.push(originalCompletionUnit(completed, confirmedDeferred(item)));
-      if (hasMergedCalendarMakeup(item)) units.push(makeupCompletionUnit(completed, confirmedDeferred(item)));
       continue;
     }
     if (isCalendarNaturalIntegration(item)) {

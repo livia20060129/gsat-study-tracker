@@ -5,6 +5,7 @@ import { createContext, runInContext } from 'node:vm';
 import { buildCalendarStudyTaskPlan } from '../src/application/calendar/calendarStudyTaskService.ts';
 import { prioritizeCalendarPageRanges } from '../src/calendar/pagePriority.ts';
 import { dedupePresetDefinitions } from '../src/study/presetDedup.ts';
+import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
 import type { CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
 
 const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
@@ -33,6 +34,7 @@ function row(id: string, title: string, description: string, eventDate = date): 
 
 function app(rows: CalendarTaskRow[]) {
   const context = createContext({
+    isInteractiveStudyItem,
     buildCalendarStudyTaskPlan,
     prioritizeCalendarPageRanges,
     cloneObj: <T>(value: T): T => JSON.parse(JSON.stringify(value)),

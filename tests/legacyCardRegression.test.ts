@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import * as completion from '../src/study/completionMetrics.ts';
+import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
 import { isConfirmedDeferred } from '../src/study/deferDays.ts';
 import { renderItemDeleteFooter } from '../src/ui/itemActions.ts';
 import { propagateDailyWorkField } from '../src/study/dailyWorkGroup.ts';
@@ -36,6 +37,7 @@ function runtimeFunction<T>(name: string, dependencies: Record<string, unknown>)
   assert.ok(start >= 0 && end > start, `Missing runtime function: ${name}`);
   return runInNewContext(`${runtime.slice(start, end)}\n${name}`, {
     completionDateMarkup: () => '',
+    isInteractiveStudyItem,
     unitBook,
     numberedStudyScope,
     usesSharedNumberedTemplate,
@@ -75,7 +77,72 @@ function metrics(items: StudyItem[]) {
   return completion.summarizeCompletionUnits(recordUnits(record, record.date));
 }
 
-test('Friday settlement excludes weekday items completed during the weekend', () => {
+test('all seven weekday presets and Calendar interactive definitions are optional while regular work remains required', () => {
+  const presetDef = runtimeFunction<(...args: unknown[]) => { type: string; required: boolean; f: Record<string, unknown> }>('presetDef', {});
+  const weekdayPresets = runtimeFunction<(day: number) => Array<{ type: string; required: boolean }>>('weekdayPresets', { presetDef });
+  for (let day = 0; day < 7; day++) {
+    const definitions = weekdayPresets(day);
+    assert.equal(definitions.find(entry => entry.type === 'interactiveDaily')?.required, false);
+    assert.equal(definitions.find(entry => entry.type === 'mathStudy' || entry.type === 'mathPractice')?.required, true);
+  }
+  const calendarFixedTemplateDef = runtimeFunction('calendarFixedTemplateDef', {
+    presetDef,
+    calendarFixedTemplateSpec: runtimeFunction('calendarFixedTemplateSpec', {}),
+    cloneObj: structuredClone,
+  });
+  const calendarDefinitions = runtimeFunction<(date: string) => Array<{ type: string; required: boolean; f: Record<string, unknown> }>>(
+    'cloudCalendarDefsForDate', {
+      calendarParsedByDate: { '2026-10-26': ['interactiveDaily', 'fixedMagazine'].map(template => ({
+        kind: 'fixedTemplate', template, title: template, sourceEventId: template, eventKey: template, date: '2026-10-26', route: 'today',
+      })) },
+      calendarEventToken: (value: string) => value,
+      calendarFixedTemplateDef,
+    },
+  )('2026-10-26');
+  assert.equal(calendarDefinitions.find(entry => entry.type === 'interactiveDaily')?.required, false);
+  assert.equal(calendarDefinitions.find(entry => entry.type === 'magazine')?.required, true);
+});
+
+test('interactive child normalization preserves existing work and keeps Monday vocabulary optional without duplication', () => {
+  let nextId = 0;
+  const interactiveDailyChild = runtimeFunction<(type: string) => StudyItem>('interactiveDailyChild', {
+    newItem: (type: string) => item({ type }), uid: () => `new-${++nextId}`,
+  });
+  const ensureEntries = runtimeFunction<(parent: StudyItem) => StudyItem[]>('ensureInteractiveEntries', {
+    data: { date: '2026-10-26' }, parseDate: (date: string) => new Date(`${date}T12:00:00`), interactiveDailyChild,
+  });
+  const child = item({ id: 'saved-child', type: 'biologyInteractive', done: true, checkedOn: '2026-10-25', minutes: '25', f: { topic: '細胞' } });
+  const parent = item({ type: 'interactiveDaily', f: { interactiveEntries: [child] } });
+  const normalized = ensureEntries(parent);
+  assert.equal(parent.required, false);
+  assert.equal(normalized.length, 2);
+  assert.ok(normalized.every(entry => entry.required === false));
+  assert.equal(child.done, true);
+  assert.equal(child.checkedOn, '2026-10-25');
+  assert.equal(child.minutes, '25');
+  assert.equal(child.f.topic, '細胞');
+  assert.equal(normalized[0].id, 'monday-vocab-2026-10-26');
+  assert.equal(normalized[0].locked, true);
+  assert.equal(ensureEntries(parent).length, 2);
+});
+
+test('main-page completion excludes old interactive work and nested children regardless of required or makeup flags', () => {
+  const optional = [
+    item({ type: 'interactiveDaily', f: { interactiveEntries: [item({ done: true })] } }),
+    item({ type: 'englishPractice', source: 'custom', done: true }),
+    item({ type: 'biologyInteractive', deferredCarry: true }),
+    item({ type: 'general', presetKey: 'daily_interactive' }),
+  ];
+  const recordItems = [item({ done: true }), item(), ...optional];
+  const before = structuredClone(recordItems);
+  assert.equal(metrics(recordItems).itemPercent, 50);
+  assert.equal(metrics(recordItems).workloadPercent, 50);
+  assert.equal(metrics(optional).workloadTotal, 0);
+  assert.equal(metrics([item({ f: { groupedWorkEntries: [item({ done: true }), ...optional] } })]).workloadTotal, 1);
+  assert.deepEqual(recordItems, before);
+});
+
+test('Friday settlement excludes optional interaction and weekday items completed during the weekend', () => {
   const record = { date: '2026-09-16', items: [
     item({ done: true, checkedOn: '2026-09-19' }),
     item({ f: { groupedWorkEntries: [item({ done: true, checkedOn: '2026-09-20' })] } }),
@@ -84,10 +151,10 @@ test('Friday settlement excludes weekday items completed during the weekend', ()
   const friday = completion.summarizeCompletionUnits(recordUnits(record, record.date, '2026-09-18'));
   const sunday = completion.summarizeCompletionUnits(recordUnits(record, record.date, '2026-09-20'));
 
-  assert.equal(friday.itemCompleted, 1);
-  assert.equal(friday.workloadCompleted, 1);
-  assert.equal(sunday.itemCompleted, 3);
-  assert.equal(sunday.workloadCompleted, 3);
+  assert.equal(friday.itemCompleted, 0);
+  assert.equal(friday.workloadCompleted, 0);
+  assert.equal(sunday.itemCompleted, 2);
+  assert.equal(sunday.workloadCompleted, 2);
 });
 
 test('weekly completion metrics pass Friday and Sunday as separate snapshot cutoffs', () => {
@@ -228,8 +295,6 @@ test('all runtime card variants exclude confirmed deferrals from both metrics', 
     item({ required: false, f: { calendarMakeup: true } }),
     item({ required: false, source: 'custom' }),
     item({ f: { calendarIncludesMakeup: true } }),
-    item({ type: 'interactiveDaily', f: { interactiveEntries: [item({ done: true })], calendarIncludesMakeup: true } }),
-    item({ type: 'interactiveDaily', deferredCarry: true, f: { interactiveEntries: [item({ done: true })] } }),
     item({ type: 'scienceReview', f: { calendarNaturalIntegration: true, calendarIntegrationEntries: [{ subject: '物理', done: true }, { subject: '生物', done: false }] } }),
     item({ type: 'scienceReview', deferredCarry: true, f: { calendarNaturalIntegration: true, calendarIntegrationEntries: [{ subject: '物理', done: true }] } }),
     item({ type: 'scienceReview', f: { calendarNaturalIntegration: true } }),

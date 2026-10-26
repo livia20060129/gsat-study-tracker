@@ -19,6 +19,7 @@ import {
 import { applyDailyWorkRangeOverrides, propagateDailyWorkRangeField } from '../src/study/dailyWorkGroup.ts';
 import { mergeAzarSectionProgress } from '../src/study/azarChapterCards.ts';
 import { dedupePresetDefinitions } from '../src/study/presetDedup.ts';
+import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
 import type { StudyItem } from '../src/types.ts';
 
 function row(title: string, description: string, category = 'other'): CalendarTaskRow {
@@ -133,6 +134,7 @@ test('identifier alone selects Azar and builds one Tracker row per chapter', () 
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
   const context = createContext({
     AZAR_GRAMMAR_BOOK_TITLE,
+    isInteractiveStudyItem,
     calendarParsedByDate: { '2026-09-11': [parsed] },
   });
   for (const name of ['calendarEventToken', 'calendarIdentifierToken', 'calendarAzarChapterDef', 'presetDef', 'cloudCalendarDefsForDate']) {
@@ -164,6 +166,7 @@ test('adjacent Azar Calendar ranges in the same chapter merge without subsection
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
   const context = createContext({
     AZAR_GRAMMAR_BOOK_TITLE,
+    isInteractiveStudyItem,
     calendarParsedByDate: { '2026-09-11': [first, second] },
   });
   for (const name of ['calendarEventToken', 'calendarIdentifierToken', 'calendarAzarChapterDef', 'presetDef', 'cloudCalendarDefsForDate']) {
