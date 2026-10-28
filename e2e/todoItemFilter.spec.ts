@@ -33,6 +33,78 @@ async function snapshot(page: Page): Promise<string[]> {
   return page.evaluate(() => Object.keys(localStorage).sort().map(key => `${key}=${localStorage.getItem(key)}`));
 }
 
+async function seedScopedItems(page: Page): Promise<void> {
+  await seedItems(page);
+  await page.evaluate(prefix => {
+    localStorage.clear();
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    const items = [];
+    for (let index = 0; index < 2; index += 1) {
+      items.push({ id: `gujin-${index}`, type: 'chineseReading', title: `國文｜古今悅讀一百 第 ${45 + index} 回`,
+        f: { kind: 'reading', round: String(45 + index) } });
+      items.push({ id: `listening-${index}`, type: 'extra', title: `英文｜大考英聽A攻略 Test ${9 + index}`,
+        f: { title: '大考英聽A攻略', round: String(9 + index) } });
+      items.push({ id: `grammar-${index}`, type: 'extra', title: `英文｜英文文法總複習｜Ch.${index + 1} ${index ? '動詞時態' : '英文基本句型'}`,
+        f: { title: '英文文法總複習講義', start: String(10 + index * 10), end: String(15 + index * 10) } });
+      items.push({ id: `unlock-${index}`, type: 'extra', title: `英文｜Unlock 3｜Unit ${index + 1} ${index ? 'The environment' : 'Animals'}`,
+        f: { title: 'Unlock 3', unitStart: String(index + 1), unitEnd: String(index + 1) } });
+    }
+    localStorage.setItem(prefix + '2026-10-20', JSON.stringify({ schemaVersion: 2, date: '2026-10-20', notes: '保留筆記',
+      items: items.map(item => ({ ...item, source: 'preset', required: true, done: false, minutes: '15' })) }));
+  }, prefix);
+  await page.reload();
+}
+
+test('scope options remove repeated subjects and group rounds while completion and undo still affect one card', async ({ page }, testInfo) => {
+  await seedScopedItems(page);
+  const before = await snapshot(page);
+  const select = page.getByRole('combobox', { name: '查看項目', exact: true });
+  const labels = await select.locator('option').allTextContents();
+  expect(labels).toHaveLength(5);
+  expect(new Set(labels)).toEqual(new Set(['全部項目', '國文｜古今悅讀一百', '英文｜大考英聽A攻略', '英文｜英文文法總複習', '英文｜Unlock 3']));
+  await select.selectOption({ label: '國文｜古今悅讀一百' });
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await expect(page.locator('.todo-card h3')).toHaveText(['國文｜古今悅讀一百 第 45 回', '國文｜古今悅讀一百 第 46 回']);
+  await expect(page.locator('.todo-card').first().locator('[data-todo-range="start"]')).toHaveValue('45');
+  await expect(page.locator('.todo-card').last().locator('[data-todo-range="start"]')).toHaveValue('46');
+  expect(await snapshot(page)).toEqual(before);
+  await page.locator('.todo-card').first().locator('.todo-complete').click();
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+  await expect(page.locator('.todo-card h3')).toHaveText('國文｜古今悅讀一百 第 46 回');
+  const items = await page.evaluate(prefix => JSON.parse(localStorage.getItem(prefix + '2026-10-20')!).items, prefix);
+  expect(items.find((item: { id: string }) => item.id === 'gujin-0').done).toBe(true);
+  expect(items.find((item: { id: string }) => item.id === 'gujin-1').done).toBe(false);
+  await page.locator('.todo-history-undo').click();
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.screenshot({ path: testInfo.outputPath('todo-grouped-rounds-mobile.png') });
+  await expect(page.locator('#todoError')).toBeHidden();
+});
+
+test('older scoped URLs restore the grouped chapter selection and Units retain their individual inputs', async ({ page }) => {
+  await seedScopedItems(page);
+  const before = await snapshot(page);
+  const url = new URL(page.url());
+  url.searchParams.set('item', 'english:英文｜英文文法總複習｜Ch.1 英文基本句型');
+  await page.goto(url.href);
+  const select = page.getByRole('combobox', { name: '查看項目', exact: true });
+  await expect(select).toHaveValue('english:英文文法總複習');
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await expect(select.locator('option:checked')).toHaveText('英文｜英文文法總複習');
+  await select.selectOption({ label: '英文｜Unlock 3' });
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await expect(page.locator('.todo-card').first().locator('[data-range-unit="Unit"][data-todo-range="start"]')).toHaveValue('1');
+  await expect(page.locator('.todo-card').last().locator('[data-range-unit="Unit"][data-todo-range="start"]')).toHaveValue('2');
+  await page.reload();
+  await expect(select).toHaveValue('english:Unlock 3');
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await select.selectOption({ label: '英文｜大考英聽A攻略' });
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await expect(page.locator('.todo-card h3')).toHaveText(['英文｜大考英聽A攻略 Test 10', '英文｜大考英聽A攻略 Test 9']);
+  expect(await snapshot(page)).toEqual(before);
+  await expect(page.locator('#todoError')).toBeHidden();
+});
+
 test('item dropdown groups dates, combines with period and subject filters and restores the URL without writing records', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
