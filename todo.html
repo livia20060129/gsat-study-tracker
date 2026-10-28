@@ -47,7 +47,15 @@
           <button type="button" role="tab" data-subject="other" aria-selected="false" tabindex="-1">其他</button>
         </div>
 
-        <div class="todo-summary">
+        <div class="todo-item-filter">
+          <label for="todoItemFilter">查看項目</label>
+          <select id="todoItemFilter" aria-controls="todoList" aria-describedby="todoItemFilterHint">
+            <option value="">全部項目</option>
+          </select>
+          <p id="todoItemFilterHint">同名項目一併顯示，並依目前科目及期間篩選。</p>
+        </div>
+
+        <div class="todo-summary" role="status" aria-live="polite">
           <strong id="todoSummary"></strong>
           <span>時間、計時與進度會直接回寫原紀錄；「跳過」不會視為完成。</span>
         </div>

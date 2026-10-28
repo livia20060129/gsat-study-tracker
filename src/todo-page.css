@@ -1,5 +1,11 @@
 @import "./header-action-link.css";
 
+.todo-item-filter{display:grid;gap:7px;min-width:0;margin:0 0 14px}
+.todo-item-filter label{font-size:13px;font-weight:750;color:#43536a}
+.todo-item-filter select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:44px;padding:10px 32px 10px 12px;border:1px solid #cbd8ea;border-radius:12px;background-color:#fff;color:#17233a;font:inherit;font-size:16px;text-overflow:ellipsis}
+.todo-item-filter select:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:2px}
+.todo-item-filter p{margin:0;color:#64748b;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+
 .todo-period-filter{margin-bottom:14px;min-width:0}
 .period-switch{position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:min(100%,360px);margin:0 auto 8px;padding:4px;border:1px solid #d4ddeb;border-radius:14px;background:#eef2f7}
 .period-switch-indicator{position:absolute;z-index:-1;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/3);border:1px solid #a9c4ed;border-radius:10px;background:#fff;box-shadow:0 2px 7px rgba(15,23,42,.09);transition:transform .22s ease}

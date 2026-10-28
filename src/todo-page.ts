@@ -10,6 +10,7 @@ import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
+import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemOptions } from './study/overdueItemFilter.ts';
 import {
   normalizedOverduePeriod, OVERDUE_PERIODS, overdueEntriesForPeriod, overduePeriodIndex, overduePeriodRange,
   type OverduePeriod,
@@ -47,6 +48,7 @@ interface TodoActionTarget {
 
 let activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
 let activePeriod = normalizedOverduePeriod(new URLSearchParams(location.search).get('period'));
+let activeItem = normalizedOverdueItemFilter(new URLSearchParams(location.search).get('item'));
 const PERIOD_LABELS: Record<OverduePeriod, string> = { all: '全部', month: '本月', week: '本週' };
 let recordPrefix = 'study-v11:guest:';
 let records: StudyRecord[] = [];
@@ -354,6 +356,7 @@ function renderPeriodFilter(today: string): void {
 }
 
 function todoSummaryText(total: number, periodCount: number, visibleCount: number): string {
+  if (activeItem) return `目前篩選 ${visibleCount} 項｜全部 ${total} 項待辦`;
   if (activePeriod === 'all') {
     if (activeSubject === 'all') return `共有 ${total} 項待辦`;
     return `目前科目 ${visibleCount} 項｜全部 ${total} 項`;
@@ -363,14 +366,31 @@ function todoSummaryText(total: number, periodCount: number, visibleCount: numbe
   return `${label}目前科目 ${visibleCount} 項｜本期 ${periodCount} 項｜全部 ${total} 項`;
 }
 
+function renderItemFilter(entries: OverdueTaskEntry[]): void {
+  const select = element<HTMLSelectElement>('todoItemFilter');
+  const options = [{ value: '', label: '全部項目' }, ...overdueItemOptions(entries)];
+  if (activeItem && !options.some(option => option.value === activeItem)) {
+    options.push({ value: activeItem, label: `${activeItem.slice(activeItem.indexOf(':') + 1)}（目前無待辦）` });
+  }
+  const signature = JSON.stringify(options);
+  if (select.dataset.options !== signature) {
+    select.replaceChildren(...options.map(function createOption(option): HTMLOptionElement {
+      return new Option(option.label, option.value);
+    }));
+    select.dataset.options = signature;
+  }
+  select.value = activeItem;
+}
+
 function render(): void {
   const today = localDateKey();
   renderedDate = today;
   const entries = overdueTasks(records, today);
   displayedTimers = new Map(entries.map(entry => [entry.key, entry.timer]));
   const periodEntries = overdueEntriesForPeriod(entries, activePeriod, today);
-  const filtered = visibleEntries(periodEntries);
+  const filtered = overdueEntriesForItem(visibleEntries(periodEntries), activeItem);
   renderPeriodFilter(today);
+  renderItemFilter(entries);
   document.body.dataset.subject = activeSubject;
   document.body.dataset.period = activePeriod;
   const switcher = element<HTMLDivElement>('subjectSwitch');
@@ -385,6 +405,7 @@ function render(): void {
   const empty = element<HTMLParagraphElement>('todoEmpty');
   empty.hidden = filtered.length > 0;
   empty.textContent = activePeriod === 'all' ? '目前沒有符合條件的待辦事項。' : `${PERIOD_LABELS[activePeriod]}沒有符合條件的逾期未完成項目。`;
+  if (activeItem) empty.textContent = '此項目在目前科目及期間內沒有待辦事項，可選擇「全部項目」或調整科目及期間。';
   renderHistory();
 }
 
@@ -658,7 +679,17 @@ function selectPeriod(period: OverduePeriod, focus = false): void {
 function readLocationFilters(): void {
   activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
   activePeriod = normalizedOverduePeriod(new URLSearchParams(location.search).get('period'));
+  activeItem = normalizedOverdueItemFilter(new URLSearchParams(location.search).get('item'));
 }
+
+element<HTMLSelectElement>('todoItemFilter').addEventListener('change', function selectItem(): void {
+  activeItem = normalizedOverdueItemFilter(element<HTMLSelectElement>('todoItemFilter').value);
+  const url = new URL(location.href);
+  if (activeItem) url.searchParams.set('item', activeItem);
+  else url.searchParams.delete('item');
+  history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  render();
+});
 
 element<HTMLDivElement>('periodSwitch').addEventListener('click', function switchPeriod(event): void {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-period]');
