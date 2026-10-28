@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemKey, overdueItemOptions, overdueItemTitle } from '../src/study/overdueItemFilter.ts';
+import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemFilterForSubject, overdueItemKey, overdueItemOptions, overdueItemTitle } from '../src/study/overdueItemFilter.ts';
 import { overdueEntriesForPeriod } from '../src/study/overduePeriod.ts';
 import { overdueTasks } from '../src/study/overdueTasks.ts';
 import type { OverdueItemSubject } from '../src/study/overdueTasks.ts';
@@ -24,13 +24,13 @@ test('item options group identical titles across dates, separate subjects and ha
   assert.deepEqual(entries, snapshot);
 });
 
-test('screenshot rounds, listening tests and grammar chapters become three options with one subject prefix each', () => {
+test('rounds, retained listening tests and grammar chapters group with one subject prefix each', () => {
   const entries = [45, 46, 50, 71].map(round => entry('chinese', `國文｜國文｜古今悅讀一百 第 ${round} 回`));
-  entries.push(...[1, 2, 10].map(round => entry('english', `英文｜大考英聽A攻略 Test ${round}`)));
+  entries.push(...[1, 2, 10].map(round => entry('english', `英文｜英聽補充教材 Test ${round}`)));
   entries.push(...['Ch.1 英文基本句型', 'Ch.2 動詞時態', 'Ch.3 被動語態'].map(chapter => entry('english', `英文｜英文文法總複習｜${chapter}`)));
   const options = overdueItemOptions(entries);
   assert.equal(options.length, 3);
-  assert.deepEqual(new Set(options.map(option => option.label)), new Set(['國文｜古今悅讀一百', '英文｜大考英聽A攻略', '英文｜英文文法總複習']));
+  assert.deepEqual(new Set(options.map(option => option.label)), new Set(['國文｜古今悅讀一百', '英文｜英聽補充教材', '英文｜英文文法總複習']));
   assert.equal(overdueItemTitle('english', '英文：混合題與作文練習'), '混合題與作文練習');
 });
 
@@ -88,6 +88,17 @@ test('item and period filtering intersect without mutating, reordering or copyin
   assert.equal(filtered[0], entries[2]);
   assert.deepEqual(overdueEntriesForItem(entries, 'english:已無待辦'), []);
   assert.deepEqual(entries, snapshot);
+});
+
+test('subject changes reset incompatible item selections and old excluded selections cannot reappear', () => {
+  assert.equal(overdueItemFilterForSubject('chinese:國文｜古今悅讀一百 第45回', 'chinese'), 'chinese:古今悅讀一百');
+  assert.equal(overdueItemFilterForSubject('chinese:古今悅讀一百', 'all'), 'chinese:古今悅讀一百');
+  assert.equal(overdueItemFilterForSubject('english:ACE Reading', 'chinese'), '');
+  assert.equal(overdueItemFilterForSubject('chinese:古今悅讀一百', 'english'), '');
+  for (const selected of ['english:大考英聽A攻略', 'english:英文歷屆／模考：批改與訂正', 'english:混合題與作文練習']) {
+    assert.equal(overdueItemFilterForSubject(selected, 'all'), '');
+    assert.equal(normalizedOverdueItemFilter(selected), '');
+  }
 });
 
 test('item URL values normalize safely and preserve punctuation in real titles', () => {

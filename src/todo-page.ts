@@ -10,7 +10,7 @@ import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
-import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemOptions } from './study/overdueItemFilter.ts';
+import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemFilterForSubject, overdueItemOptions } from './study/overdueItemFilter.ts';
 import {
   normalizedOverduePeriod, OVERDUE_PERIODS, overdueEntriesForPeriod, overduePeriodIndex, overduePeriodRange,
   type OverduePeriod,
@@ -386,11 +386,16 @@ function render(): void {
   const today = localDateKey();
   renderedDate = today;
   const entries = overdueTasks(records, today);
+  const subjectItem = overdueItemFilterForSubject(activeItem, activeSubject);
+  if (subjectItem !== activeItem) {
+    activeItem = subjectItem;
+    writeItemFilterLocation();
+  }
   displayedTimers = new Map(entries.map(entry => [entry.key, entry.timer]));
   const periodEntries = overdueEntriesForPeriod(entries, activePeriod, today);
   const filtered = overdueEntriesForItem(visibleEntries(periodEntries), activeItem);
   renderPeriodFilter(today);
-  renderItemFilter(entries);
+  renderItemFilter(visibleEntries(entries));
   document.body.dataset.subject = activeSubject;
   document.body.dataset.period = activePeriod;
   const switcher = element<HTMLDivElement>('subjectSwitch');
@@ -682,12 +687,16 @@ function readLocationFilters(): void {
   activeItem = normalizedOverdueItemFilter(new URLSearchParams(location.search).get('item'));
 }
 
-element<HTMLSelectElement>('todoItemFilter').addEventListener('change', function selectItem(): void {
-  activeItem = normalizedOverdueItemFilter(element<HTMLSelectElement>('todoItemFilter').value);
+function writeItemFilterLocation(): void {
   const url = new URL(location.href);
   if (activeItem) url.searchParams.set('item', activeItem);
   else url.searchParams.delete('item');
   history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+element<HTMLSelectElement>('todoItemFilter').addEventListener('change', function selectItem(): void {
+  activeItem = normalizedOverdueItemFilter(element<HTMLSelectElement>('todoItemFilter').value);
+  writeItemFilterLocation();
   render();
 });
 

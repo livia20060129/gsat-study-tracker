@@ -275,21 +275,36 @@ const MATH_PRACTICE_PRESET_KEYS = new Set([
   'weekday_math_practice', 'fri_math_practice', 'sat_math_practice', 'sun_math_practice',
 ]);
 
-const EXCLUDED_ENGLISH_ROUTINE_TEMPLATES = new Set(['englishMockTimed', 'fixedMagazine']);
-const EXCLUDED_ENGLISH_ROUTINE_KEYS = new Set(['fri_mock_timed', 'weekday_magazine', 'fri_magazine']);
-const EXCLUDED_ENGLISH_ROUTINE_PREFIXES = ['cal_fixed_englishMockTimed_', 'cal_fixed_fixedMagazine_', 'cal_magazine_'];
+const EXCLUDED_ENGLISH_ROUTINE_TEMPLATES = new Set([
+  'englishMockTimed', 'englishMockCorrection', 'englishMixedWriting', 'fixedMagazine',
+]);
+const EXCLUDED_ENGLISH_ROUTINE_KEYS = new Set([
+  'fri_mock_timed', 'sat_mock_correction', 'english_mixed_writing', 'weekday_magazine', 'fri_magazine',
+]);
+const EXCLUDED_ENGLISH_ROUTINE_PREFIXES = [
+  'cal_fixed_englishMockTimed_', 'cal_fixed_englishMockCorrection_', 'cal_fixed_englishMixedWriting_',
+  'cal_fixed_fixedMagazine_', 'cal_magazine_', 'cal_listening_a_',
+];
 
-/** Match the two fixed routines, not every mock exam or magazine material. */
-function isExcludedEnglishRoutine(item: StudyItem): boolean {
+export function isExcludedEnglishTodoTitle(value: unknown, subject: OverdueItemSubject): boolean {
+  const title = String(value ?? '').replace(/\s+/g, '').replace(/\//g, '／').replace(/:/g, '：')
+    .replace(/\|/g, '｜').replace(/^(?:英文｜)+/, '');
+  return /^(?:英文：)?大考英聽A攻略(?=$|[｜:：（(]|(?:Test|第|p[.．])[0-9０-９])/i.test(title)
+    || EXCLUDED_ENGLISH_ROUTINE_TEMPLATES.has(calendarFixedTemplate(title) ?? '')
+    || (subject === 'english' && /^混合題與作文(?:練習)?(?:$|｜)/.test(title));
+}
+
+/** Match fixed English routines and the listening book without excluding other materials. */
+function isExcludedEnglishTodoItem(item: StudyItem): boolean {
+  if (item.type === 'englishMixedWriting') return true;
   if (EXCLUDED_ENGLISH_ROUTINE_TEMPLATES.has(String(item.f?.calendarFixedTemplate ?? ''))) return true;
   if ([item.presetKey, item.templatePresetKey].some(value => {
     const key = String(value ?? '');
     return EXCLUDED_ENGLISH_ROUTINE_KEYS.has(key) || EXCLUDED_ENGLISH_ROUTINE_PREFIXES.some(prefix => key.startsWith(prefix));
   })) return true;
-  return [item.title, item.f?.calendarOriginalTitle].some(value => {
-    const title = String(value ?? '').replace(/\s+/g, '').replace(/\//g, '／').replace(/:/g, '：').replace(/\|/g, '｜');
-    return EXCLUDED_ENGLISH_ROUTINE_TEMPLATES.has(calendarFixedTemplate(title) ?? '');
-  });
+  const subject = taskSubject(item);
+  return [item.title, item.f?.calendarOriginalTitle, item.f?.title, item.f?.book, item.f?.material]
+    .some(value => isExcludedEnglishTodoTitle(value, subject));
 }
 
 function isMathPracticeReminder(item: StudyItem): boolean {
@@ -303,7 +318,7 @@ function isMathPracticeReminder(item: StudyItem): boolean {
 function isPendingOverdueTask(item: StudyItem): boolean {
   return isDeferrableStudyItem(item)
     && !isInteractiveStudyItem(item)
-    && !isExcludedEnglishRoutine(item)
+    && !isExcludedEnglishTodoItem(item)
     && item.presetKey !== 'weekday_english_review'
     && String(item.title ?? '').trim() !== '英文訂正與搭配詞整理'
     && !isMathPracticeReminder(item)
@@ -507,7 +522,7 @@ function allRecordItems(record: StudyRecord): StudyItem[] {
         visit(sources);
         continue;
       }
-      if (isInteractiveStudyItem(item) || isExcludedEnglishRoutine(item)) continue;
+      if (isInteractiveStudyItem(item) || isExcludedEnglishTodoItem(item)) continue;
       if (!identities.has(item.id)) {
         identities.add(item.id);
         output.push(item);

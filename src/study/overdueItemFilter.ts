@@ -1,4 +1,4 @@
-import { OVERDUE_TASK_SUBJECTS, type OverdueItemSubject } from './overdueTasks.ts';
+import { isExcludedEnglishTodoTitle, OVERDUE_TASK_SUBJECTS, type OverdueItemSubject, type OverdueTaskSubject } from './overdueTasks.ts';
 
 interface FilterableEntry {
   subject: OverdueItemSubject;
@@ -53,7 +53,14 @@ export function normalizedOverdueItemFilter(value: unknown): string {
   const subject = value.slice(0, separator);
   const title = value.slice(separator + 1).trim();
   if (!OVERDUE_TASK_SUBJECTS.some(candidate => candidate !== 'all' && candidate === subject) || !title) return '';
+  if (isExcludedEnglishTodoTitle(title, subject as OverdueItemSubject)) return '';
   return `${subject}:${overdueItemTitle(subject as OverdueItemSubject, title)}`;
+}
+
+export function overdueItemFilterForSubject(selected: string, subject: OverdueTaskSubject): string {
+  const key = normalizedOverdueItemFilter(selected);
+  if (subject === 'all' || key.startsWith(`${subject}:`)) return key;
+  return '';
 }
 
 /** Group a book's rounds, Units and chapters across dates, keeping subjects separate. */

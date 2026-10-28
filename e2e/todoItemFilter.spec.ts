@@ -60,8 +60,8 @@ test('scope options remove repeated subjects and group rounds while completion a
   const before = await snapshot(page);
   const select = page.getByRole('combobox', { name: '查看項目', exact: true });
   const labels = await select.locator('option').allTextContents();
-  expect(labels).toHaveLength(5);
-  expect(new Set(labels)).toEqual(new Set(['全部項目', '國文｜古今悅讀一百', '英文｜大考英聽A攻略', '英文｜英文文法總複習', '英文｜Unlock 3']));
+  expect(labels).toHaveLength(4);
+  expect(new Set(labels)).toEqual(new Set(['全部項目', '國文｜古今悅讀一百', '英文｜英文文法總複習', '英文｜Unlock 3']));
   await select.selectOption({ label: '國文｜古今悅讀一百' });
   await expect(page.locator('.todo-card')).toHaveCount(2);
   await expect(page.locator('.todo-card h3')).toHaveText(['國文｜古今悅讀一百 第 45 回', '國文｜古今悅讀一百 第 46 回']);
@@ -98,9 +98,7 @@ test('older scoped URLs restore the grouped chapter selection and Units retain t
   await page.reload();
   await expect(select).toHaveValue('english:Unlock 3');
   await expect(page.locator('.todo-card')).toHaveCount(2);
-  await select.selectOption({ label: '英文｜大考英聽A攻略' });
-  await expect(page.locator('.todo-card')).toHaveCount(2);
-  await expect(page.locator('.todo-card h3')).toHaveText(['英文｜大考英聽A攻略 Test 10', '英文｜大考英聽A攻略 Test 9']);
+  await expect(select).not.toContainText('大考英聽A攻略');
   expect(await snapshot(page)).toEqual(before);
   await expect(page.locator('#todoError')).toBeHidden();
 });
@@ -125,9 +123,9 @@ test('item dropdown groups dates, combines with period and subject filters and r
   await expect(page.locator('.todo-card')).toHaveCount(1);
   const savedUrl = page.url();
   await page.getByRole('tab', { name: '自然', exact: true }).click();
-  await expect(page.locator('.todo-card')).toHaveCount(0);
-  await expect(page.locator('#todoEmpty')).toContainText('目前科目及期間內沒有待辦事項');
-  await select.selectOption('');
+  await expect(select).toHaveValue('');
+  await expect(select.locator('option')).toHaveCount(3);
+  await expect(select).not.toContainText('ACE Reading');
   await expect(page.locator('.todo-card')).toHaveCount(2);
   await page.goto(savedUrl);
   await page.goto('/todo.html?item=unknown%3Aitem');
@@ -153,6 +151,43 @@ test('item dropdown groups dates, combines with period and subject filters and r
   await page.screenshot({ path: testInfo.outputPath('todo-item-dropdown-mobile.png') });
   expect(await snapshot(page)).toEqual(before);
   expect(errors).toEqual([]);
+});
+
+test('item options follow the selected subject and incompatible URL selections reset without writing records', async ({ page }, testInfo) => {
+  await seedScopedItems(page);
+  const before = await snapshot(page);
+  const select = page.getByRole('combobox', { name: '查看項目', exact: true });
+  await page.getByRole('tab', { name: '國文', exact: true }).click();
+  await expect(select.locator('option')).toHaveText(['全部項目', '國文｜古今悅讀一百']);
+  await select.selectOption('chinese:古今悅讀一百');
+  await page.getByRole('tab', { name: '英文', exact: true }).click();
+  await expect(select).toHaveValue('');
+  await expect(page.locator('.todo-card')).toHaveCount(4);
+  await expect(select.locator('option')).toHaveCount(3);
+  await expect(select).not.toContainText('國文');
+  await expect(select).not.toContainText('大考英聽A攻略');
+  expect(new URL(page.url()).searchParams.has('item')).toBe(false);
+  await page.getByRole('tab', { name: '數學', exact: true }).click();
+  await expect(select.locator('option')).toHaveText(['全部項目']);
+  await expect(page.locator('.todo-card')).toHaveCount(0);
+  const url = new URL(page.url());
+  url.hash = 'chinese';
+  url.searchParams.set('item', 'english:Unlock 3');
+  await page.goto(url.href);
+  await expect(select).toHaveValue('');
+  await expect(select.locator('option')).toHaveText(['全部項目', '國文｜古今悅讀一百']);
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  expect(new URL(page.url()).searchParams.has('item')).toBe(false);
+  url.hash = 'all';
+  url.searchParams.set('item', 'english:大考英聽A攻略');
+  await page.goto(url.href);
+  await expect(select).toHaveValue('');
+  await expect(select).not.toContainText('大考英聽A攻略');
+  await expect(page.locator('.todo-card')).toHaveCount(6);
+  await page.getByRole('tab', { name: '國文', exact: true }).click();
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.screenshot({ path: testInfo.outputPath('todo-subject-items-mobile.png') });
+  expect(await snapshot(page)).toEqual(before);
 });
 
 test('item switching preserves running timers, completion dates and pending manual fields', async ({ page }) => {

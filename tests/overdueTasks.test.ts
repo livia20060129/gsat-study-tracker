@@ -107,7 +107,7 @@ test('原卡模板的進度批改訂正即使尚未儲存也全部顯示且不�
     { type: 'mathLecture', f: { material: '教學講義' } },
     { type: 'chineseReading', f: { kind: 'reading' } },
     ...['ACE Reading', '英文：ACE Reading', '英文寫作測驗', '英文文法總複習講義',
-      'Prism Reading', 'Prism Reading 3', '大考英聽A攻略', '主題百匯：克漏字',
+      'Prism Reading', 'Prism Reading 3', '主題百匯：克漏字',
       '主題百匯：篇章結構·閱讀測驗', 'Unlock 3 (Listening, speaking, critical thinking)',
       'Azar英文文法（中階）',
     ].map(title => ({ type: 'extra' as const, f: { title } })),
