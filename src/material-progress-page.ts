@@ -1,6 +1,10 @@
 import './material-progress.css';
+import { MaterialCatalogEditor } from './ui/materialCatalogEditor.ts';
+import { catalogModeNoun, catalogProgressSubject, effectiveMaterialCatalog, type CatalogMaterial, type CatalogSubject } from './study/materialCatalog.ts';
+import type { StudyRecord } from './types.ts';
 import {
   MATERIAL_PROGRESS_SUBJECTS,
+  builtInMaterialCatalog,
   materialProgressRows,
   normalizedProgressSubject,
   readMaterialProgressRecords,
@@ -19,6 +23,17 @@ const SUBJECT_LABELS: Record<MaterialProgressSubject, string> = {
 
 let activeSubject = normalizedProgressSubject(location.hash.replace(/^#/, ''));
 let rows: MaterialProgressRow[] = [];
+let records: StudyRecord[] = [];
+let prefix = '';
+let catalog: CatalogMaterial[] = [];
+const builtins = builtInMaterialCatalog();
+
+function defaultCatalogSubject(): CatalogSubject {
+  if (activeSubject === 'chinese') return '國文';
+  if (activeSubject === 'english') return '英文';
+  if (activeSubject === 'math') return '數學';
+  return '物理';
+}
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -32,39 +47,52 @@ function setError(message: string): void {
   error.hidden = !message;
 }
 
-function renderRow(row: MaterialProgressRow): HTMLElement {
+function renderRow(material: CatalogMaterial): HTMLElement {
+  const row = rows.find(progress => progress.id === material.id);
   const article = document.createElement('article');
-  article.className = `material-row subject-${row.subject}`;
+  article.className = `material-row subject-${catalogProgressSubject(material.subject)}${material.deleted ? ' is-deleted' : ''}`;
+  article.dataset.materialId = material.id;
 
   const header = document.createElement('div');
   header.className = 'material-row-head';
   const title = document.createElement('h3');
-  title.textContent = row.title;
+  title.textContent = row?.title ?? `${material.subject}｜${material.title}`;
   const count = document.createElement('strong');
-  count.textContent = `完成 ${row.completionPercent}%｜${row.recorded}／${row.total} ${row.unitLabel}已有紀錄`;
+  if (material.deleted) count.textContent = '目錄已停用，原始紀錄保留';
+  else if (row) count.textContent = `完成 ${row.completionPercent}%｜${row.recorded}／${row.total} ${row.unitLabel}已有紀錄`;
+  else count.textContent = '請編輯教材，設定總數與章節對照';
   header.append(title, count);
+  article.append(header);
 
-  const scroll = document.createElement('div');
-  scroll.className = 'material-bar-scroll';
-  const bar = document.createElement('div');
-  bar.className = 'material-bar';
-  bar.style.setProperty('--segment-count', String(row.total));
-  bar.setAttribute('role', 'img');
-  bar.setAttribute('aria-label', `${row.title}：完成 ${row.completionPercent}%，${row.recorded}／${row.total} ${row.unitLabel}已有紀錄`);
+  if (row && !material.deleted) {
+    const scroll = document.createElement('div');
+    scroll.className = 'material-bar-scroll';
+    const bar = document.createElement('div');
+    bar.className = 'material-bar';
+    bar.style.setProperty('--segment-count', String(row.total));
+    bar.setAttribute('role', 'img');
+    bar.setAttribute('aria-label', `${row.title}：完成 ${row.completionPercent}%，${row.recorded}／${row.total} ${row.unitLabel}已有紀錄`);
 
-  row.segments.forEach((segment, index) => {
-    const block = document.createElement('span');
-    block.className = `material-segment ${segment.recorded ? `is-recorded tone-${segment.tone}` : 'is-empty'}`;
-    block.title = `${segment.label}：完成 ${segment.completionPercent}%`;
-    block.setAttribute('aria-hidden', 'true');
-    block.style.setProperty('--segment-number', String(index + 1));
-    block.style.setProperty('--segment-progress', `${segment.completionPercent}%`);
-    block.style.setProperty('--segment-weight', String(segment.completionWeight));
-    bar.append(block);
-  });
+    row.segments.forEach((segment, index) => {
+      const block = document.createElement('span');
+      block.className = `material-segment ${segment.recorded ? `is-recorded tone-${segment.tone}` : 'is-empty'}`;
+      block.title = `${segment.label}：完成 ${segment.completionPercent}%`;
+      block.setAttribute('aria-hidden', 'true');
+      block.style.setProperty('--segment-number', String(index + 1));
+      block.style.setProperty('--segment-progress', `${segment.completionPercent}%`);
+      block.style.setProperty('--segment-weight', String(segment.completionWeight));
+      bar.append(block);
+    });
 
-  scroll.append(bar);
-  article.append(header, scroll);
+    scroll.append(bar);
+    article.append(scroll);
+  }
+  const note = document.createElement('p');
+  note.className = 'material-metadata';
+  const mode = catalogModeNoun(material.mode);
+  const total = material.total > 10000 ? '總數尚未設定' : `共 ${material.total} ${mode}`;
+  note.textContent = `${total}｜${material.sections.length} 筆章節對照`;
+  article.append(note, editor.actions(material));
   return article;
 }
 
@@ -75,7 +103,7 @@ const GROUP_ORDER: Record<MaterialProgressSubject, MaterialProgressGroup[]> = {
   natural: ['物理', '化學', '生物', '地科'],
 };
 
-function renderGroup(group: MaterialProgressGroup, groupRows: MaterialProgressRow[], index: number): HTMLElement {
+function renderGroup(group: MaterialProgressGroup, materials: CatalogMaterial[], index: number): HTMLElement {
   const section = document.createElement('section');
   section.className = 'material-group';
 
@@ -90,15 +118,15 @@ function renderGroup(group: MaterialProgressGroup, groupRows: MaterialProgressRo
 
   const groupList = document.createElement('div');
   groupList.className = 'material-group-list';
-  groupList.append(...groupRows.map(renderRow));
+  groupList.append(...materials.map(renderRow));
   section.append(groupList);
   return section;
 }
 
-function renderGroups(subjectRows: MaterialProgressRow[]): HTMLElement[] {
+function renderGroups(materials: CatalogMaterial[]): HTMLElement[] {
   return GROUP_ORDER[activeSubject].flatMap((group, index) => {
-    const groupRows = subjectRows.filter(row => row.group === group);
-    return groupRows.length > 0 ? [renderGroup(group, groupRows, index)] : [];
+    const grouped = materials.filter(material => material.group === group);
+    return grouped.length > 0 ? [renderGroup(group, grouped, index)] : [];
   });
 }
 
@@ -128,18 +156,29 @@ function render(): void {
   element<HTMLElement>('subjectSummary').textContent = `${SUBJECT_LABELS[activeSubject]}合計完成 ${completionPercent}%`;
 
   const list = element<HTMLDivElement>('materialProgressList');
-  list.replaceChildren(...renderGroups(subjectRows));
+  const query = element<HTMLInputElement>('catalogSearch').value.trim().toLowerCase();
+  const showRetired = element<HTMLInputElement>('showRetiredMaterials').checked;
+  const materials = catalog.filter(material => catalogProgressSubject(material.subject) === activeSubject
+    && (showRetired || !material.deleted) && `${material.subject} ${material.title}`.toLowerCase().includes(query));
+  list.replaceChildren(...renderGroups(materials));
+  element('materialEmpty').hidden = materials.length > 0;
 }
 
 function load(): void {
   try {
     const result = readMaterialProgressRecords(localStorage);
+    records = result.records;
+    prefix = result.prefix;
+    catalog = effectiveMaterialCatalog(builtins, records, true);
     rows = materialProgressRows(result.records);
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
     element<HTMLParagraphElement>('recordSource').textContent = `${source}｜已讀取 ${result.records.length} 天紀錄`;
     setError('');
     render();
   } catch {
+    records = [];
+    prefix = '';
+    catalog = builtins;
     rows = materialProgressRows([]);
     element<HTMLParagraphElement>('recordSource').textContent = '無法讀取本機紀錄';
     setError('瀏覽器目前不允許存取 Tracker 的本機資料，請回到 Tracker 確認瀏覽器儲存權限。');
@@ -171,8 +210,24 @@ element<HTMLDivElement>('subjectSwitch').addEventListener('keydown', event => {
   selectSubject(MATERIAL_PROGRESS_SUBJECTS[next], true);
 });
 
+const editor = new MaterialCatalogEditor({
+  builtins,
+  context: () => ({ prefix, records, entries: catalog, defaultSubject: defaultCatalogSubject() }),
+  onSaved: function refreshAfterSave(entry): void {
+    activeSubject = catalogProgressSubject(entry.subject);
+    const search = element<HTMLInputElement>('catalogSearch');
+    if (search.value && !`${entry.subject} ${entry.title}`.toLowerCase().includes(search.value.trim().toLowerCase())) search.value = entry.title;
+    history.replaceState(null, '', `${location.pathname}${location.search}#${activeSubject}`);
+    load();
+  },
+});
+
 element<HTMLButtonElement>('refreshProgress').addEventListener('click', load);
-window.addEventListener('storage', load);
+element('catalogSearch').addEventListener('input', render);
+element('showRetiredMaterials').addEventListener('change', render);
+window.addEventListener('storage', event => {
+  if (event.key?.startsWith('study-v11:') && !event.key.includes(':cross-tab-lock:')) load();
+});
 window.addEventListener('hashchange', () => {
   activeSubject = normalizedProgressSubject(location.hash.replace(/^#/, ''));
   render();

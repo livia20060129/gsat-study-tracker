@@ -34,7 +34,7 @@ infrastructure repositories and gateways
 - 儲存前載入基準比對與獨立頁面安全寫入：`src/application/records/localRecordEdits.ts`
 - 訪客登入轉存：`src/application/records/guestImport.ts`；先保存訪客畫面，再讀取帳號資料、合併新增內容、排入既有雲端上傳。每個訪客日期有持久化帳號歸屬與匯入收據，重試沿用目的 ID；保留訪客原始內容，不將已轉存資料複製到第二帳號。
 - 教材管理：`src/study/materialCatalog.ts` 為驗證、版本及範圍規則；`src/application/records/catalogEdits.ts` 在寫入前重新讀取最新紀錄並檢查教材載入版本。設定以具穩定 ID、版本及停用標記的 `StudyRecord.materialCatalog` 保存，沿用帳號 RLS、JSON 匯出／匯入與既有 Supabase revision 同步，不新增公共管理權限或資料表。
-- `src/material-catalog-page.ts` 提供目前帳號／訪客的教材管理介面，`builtInMaterialCatalog()` 揭露內建細章節。教材進度圖按大單元合併顯示，小主題留在紀錄卡輸入對照。停用目錄不刪除既有卡片，還原內建也是一筆有版本的變更。
+- `src/material-progress-page.ts` 提供目前帳號／訪客的教材進度及管理，讀取同一份紀錄、目錄及科目選擇；每張教材卡共用進度與管理操作。`src/ui/materialCatalogEditor.ts` 負責共用編輯表單及保存接線，沿用 catalogEdits；`src/material-catalog-page.ts` 只處理舊網址相容導向。`builtInMaterialCatalog()` 揭露內建細章節。進度圖按大單元合併，小主題留在紀錄卡輸入對照；停用不刪既有卡片，還原內建也是一筆有版本的變更。
 - 單字朗讀：`src/ui/vocabularySpeech.ts` 使用瀏覽器 SpeechSynthesis，按下才朗讀，依裝置可用語音及指定美式／英式語系選擇；不新增音檔庫或伺服器發音 API。
 - 待辦編輯草稿：`src/ui/todoDrafts.ts`；依帳號、日期與項目保存，離開欄位後才寫入紀錄。
 - 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`

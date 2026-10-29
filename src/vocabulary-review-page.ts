@@ -347,7 +347,7 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     const speaker = document.createElement('button');
     speaker.type = 'button';
     speaker.className = 'vocabulary-speaker';
-    speaker.textContent = '🔊';
+    speaker.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m11 5-6 4H2v6h3l6 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>';
     speaker.setAttribute('aria-label', `朗讀「${entry.text}」`);
     speaker.setAttribute('aria-pressed', 'false');
     speaker.addEventListener('click', function pronounce(): void {
