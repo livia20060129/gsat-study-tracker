@@ -32,7 +32,7 @@
 .vocabulary-translation-row input:focus-visible,.vocabulary-translation-group button:focus-visible,.vocabulary-level-editor input:focus-visible,.vocabulary-level-editor select:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:2px}
 @media(max-width:420px){.vocabulary-level-editor{align-items:flex-start;flex-direction:column}.vocabulary-translation-group{padding-inline:8px}}
 .vocabulary-grouping-switch button{min-width:0;padding-inline:4px;font-size:13px;white-space:nowrap}
-.vocabulary-view-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:8px}
+.vocabulary-view-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 10px}
 .vocabulary-view-toolbar .vocabulary-grouping-switch{margin-top:0}
 #toggleVocabularyTranslations{min-height:40px;padding:8px 12px;border:1px solid #cbd8ea;border-radius:11px;background:#fff;color:#315b91;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
 #toggleVocabularyTranslations:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:2px}
