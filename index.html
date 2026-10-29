@@ -17,6 +17,7 @@
   <a class="header-action-link" href="./todo.html">待辦事項</a>
   <a class="header-action-link" href="./summary.html">週／月總結</a>
   <a class="header-action-link" href="./material.progress.html">教材進度圖</a>
+  <a class="header-action-link" href="./material.catalog.html">新增／管理教材目錄</a>
   <a class="header-action-link" href="./vocabulary.review.html">英文單字複習</a>
  </div>
 </header>
@@ -58,7 +59,7 @@
      <button id="cloudSignOutBtn" type="button">登出</button>
     </div>
    </div>
-   <div class="small connection-message" id="cloudMessage" aria-live="polite">未登入時仍可使用，本機資料會照常保留。</div>
+   <div class="small connection-message" id="cloudMessage" aria-live="polite">未登入時仍可使用；訪客新增的內容會在登入後自動保存到帳號。</div>
    <div class="cloud-refresh-notice" id="cloudRefreshNotice" hidden aria-live="polite">
     <span>雲端有較新的資料；輸入完成後會安全合併並更新畫面。</span>
     <button id="cloudApplyRefreshBtn" class="secondary" type="button">立即套用</button>
@@ -191,6 +192,7 @@
  <div class="panel-head"><h2>新增讀書項目</h2><span class="badge">需要時自行追加</span></div>
  <div class="content">
   <div class="add-grid"><div class="field"><label for="itemType">項目類型</label><select id="itemType"><option value="">請選擇</option><option value="mathLecture">數學</option><option value="scienceReview">自然</option><option value="extra">英文</option><option value="chineseReading">國文</option><option value="mock">歷屆／模考</option></select></div><button id="addItemBtn" class="primary" type="button">新增</button></div>
+  <div class="add-grid" style="margin-top:12px"><div class="field"><label for="catalogMaterialSelect">從教材目錄新增</label><select id="catalogMaterialSelect"><option value="">請選擇教材</option></select></div><button id="addCatalogItemBtn" class="primary" type="button">加入教材項目</button></div>
   <div class="small" style="margin-top:10px">今日項目由系統依星期自動帶入；這裡可另外追加今日補做。補做會列入今日總項目完成率，但不改變原訂今日項目完成率。自行新增的項目各自保存，不合併相同教材或範圍。</div>
  </div>
 </section>

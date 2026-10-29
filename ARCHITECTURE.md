@@ -32,6 +32,10 @@ infrastructure repositories and gateways
 - Local／Supabase 讀寫：`src/infrastructure/storage/`
 - 主頁／待辦共用計時目標、模式切換與命令：`src/application/timer/studyTimerController.ts`
 - 儲存前載入基準比對與獨立頁面安全寫入：`src/application/records/localRecordEdits.ts`
+- 訪客登入轉存：`src/application/records/guestImport.ts`；先保存訪客畫面，再讀取帳號資料、合併新增內容、排入既有雲端上傳。每個訪客日期有持久化帳號歸屬與匯入收據，重試沿用目的 ID；保留訪客原始內容，不將已轉存資料複製到第二帳號。
+- 教材管理：`src/study/materialCatalog.ts` 為驗證、版本及範圍規則；`src/application/records/catalogEdits.ts` 在寫入前重新讀取最新紀錄並檢查教材載入版本。設定以具穩定 ID、版本及停用標記的 `StudyRecord.materialCatalog` 保存，沿用帳號 RLS、JSON 匯出／匯入與既有 Supabase revision 同步，不新增公共管理權限或資料表。
+- `src/material-catalog-page.ts` 提供目前帳號／訪客的教材管理介面，`builtInMaterialCatalog()` 揭露內建細章節。教材進度圖按大單元合併顯示，小主題留在紀錄卡輸入對照。停用目錄不刪除既有卡片，還原內建也是一筆有版本的變更。
+- 單字朗讀：`src/ui/vocabularySpeech.ts` 使用瀏覽器 SpeechSynthesis，按下才朗讀，依裝置可用語音及指定美式／英式語系選擇；不新增音檔庫或伺服器發音 API。
 - 待辦編輯草稿：`src/ui/todoDrafts.ts`；依帳號、日期與項目保存，離開欄位後才寫入紀錄。
 - 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`
 - 待辦期間篩選：`src/study/overduePeriod.ts`；沿用 `learningSummary.ts` 的曆月與週一至週日邊界，只依原排程日期篩選顯示，不修改紀錄。待辦資格仍由 `overdueTasks.ts` 決定，最近處理獨立按 72 小時計算。

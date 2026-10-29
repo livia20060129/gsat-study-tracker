@@ -38,6 +38,7 @@ function loadRuntime(ctx: ReturnType<typeof createContext>, names: string[]) {
 // Exercise the real runtime orchestration without network, DOM, or user storage.
 function app(rows = [biology, chemistry]) {
   const ctx = createContext({
+    managedMaterialForItem: () => null,
     isInteractiveStudyItem,
     numberedStudyScope, usesSharedNumberedTemplate,
     buildCalendarStudyTaskPlan, resolveNaturalCalendarPlan, combineNaturalCalendarPlans,

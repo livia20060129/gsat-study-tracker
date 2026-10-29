@@ -59,12 +59,15 @@ import { adjacentStudyItemsView, normalizeStudyItemsView, studyItemsViewIndex } 
 import { renderItemDeleteFooter } from './ui/itemActions';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
 import { withCrossTabLock } from './storage/crossTabLock';
+import { importGuestRecords } from './application/records/guestImport.ts';
+import { builtInMaterialCatalog, readMaterialProgressRecords } from './study/materialProgress.ts';
+import { catalogItemFields, catalogItemType, catalogMaterialMatchesItem, catalogOverrides, catalogRangeText, effectiveMaterialCatalog } from './study/materialCatalog.ts';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from './data/mathMaterialPageMaps';
 import { naturalNewKeyPageText } from './data/naturalMaterialPageMaps';
 import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEMS, CALENDAR_NATURAL_PLAN } from './data/naturalCalendar';
-import { isListeningTestBookTitle, LISTENING_TEST_BOOK_TITLE, LISTENING_TEST_MAX } from './data/englishBooks';
+import { GSAT_ENGLISH_TITLES, SUPPLEMENT_ENGLISH_TITLES, isListeningTestBookTitle, LISTENING_TEST_BOOK_TITLE, LISTENING_TEST_MAX } from './data/englishBooks';
 import {
   AZAR_GRAMMAR_BOOK_TITLE,
   azarGrammarChapterSummary,
@@ -582,30 +585,6 @@ var CALENDAR_GRAMMAR_PLAN={"2026-08-20":{"title":"Ch.1 英文基本句型（1／
 
 var CALENDAR_WRITING_TEST_PLAN={"2026-08-21":{"round":17,"focus":"基礎連接詞"},"2026-08-24":{"round":19,"focus":"原因、結果與條件"},"2026-08-26":{"round":1,"focus":"讓步、原因與條件"},"2026-08-28":{"round":4,"focus":"條件、替代與時間"},"2026-08-31":{"round":6,"focus":"時間、結果與並列"},"2026-09-02":{"round":23,"focus":"條件、結果與關係詞"},"2026-09-04":{"round":7,"focus":"倍數、同級與條件"},"2026-09-07":{"round":5,"focus":"助動詞、偏好與並列"},"2026-09-09":{"round":8,"focus":"感官、比較與 too...to"},"2026-09-11":{"round":26,"focus":"轉折、結果與偏好"},"2026-09-14":{"round":15,"focus":"使役、感官與慣用語"},"2026-09-16":{"round":18,"focus":"動名詞與介系詞"},"2026-09-18":{"round":9,"focus":"分詞構句與目的"},"2026-09-21":{"round":10,"focus":"結果句型與分詞構句"},"2026-09-23":{"round":11,"focus":"結果句型與偏好"},"2026-09-25":{"round":24,"focus":"不定詞與重要搭配"},"2026-09-28":{"round":29,"focus":"分詞、比較與目的"},"2026-09-30":{"round":30,"focus":"分詞構句與 otherwise"},"2026-10-02":{"round":33,"focus":"目的、不定詞與 help"},"2026-10-05":{"round":34,"focus":"倒裝、比較與形式主詞"},"2026-10-07":{"round":36,"focus":"受詞補語與動詞搭配"},"2026-10-09":{"round":37,"focus":"動詞搭配與助動詞"},"2026-10-12":{"round":38,"focus":"pay／see／take 搭配"},"2026-10-14":{"round":39,"focus":"spend／find it／prefer"},"2026-10-16":{"round":40,"focus":"原因、疑問詞與 too...to"},"2026-10-19":{"round":2,"focus":"關係副詞與成對連接"},"2026-10-21":{"round":3,"focus":"that／who／when 子句"},"2026-10-23":{"round":12,"focus":"whose 與 lest"},"2026-10-26":{"round":14,"focus":"關係詞與受詞補語"},"2026-10-28":{"round":16,"focus":"since／while 與形式主詞"},"2026-10-30":{"round":20,"focus":"原因、讓步與關係子句"},"2026-11-02":{"round":21,"focus":"關係結構與結果句型"},"2026-11-04":{"round":22,"focus":"whose／when／if 子句"},"2026-11-06":{"round":25,"focus":"關係副詞與時間子句"},"2026-11-09":{"round":27,"focus":"關係代名詞與成對連接"},"2026-11-11":{"round":28,"focus":"關係副詞與否定時間"},"2026-11-13":{"round":31,"focus":"關係子句與補充連接"},"2026-11-16":{"round":13,"focus":"Only when 倒裝與讓步"},"2026-11-18":{"round":32,"focus":"倒裝、關係詞與比較"},"2026-11-20":{"round":35,"focus":"雙重比較與轉折"}};
 
-var GSAT_ENGLISH_TITLES=[
- 'ACE Reading',
- '英文寫作測驗',
- ENGLISH_TOPIC_READING_BOOK,
- ENGLISH_TOPIC_CLOZE_BOOK,
- '英文文法總複習講義',
- '大考英聽A攻略'
-];
-var SUPPLEMENT_ENGLISH_TITLES=[
- '雜誌',
- AZAR_GRAMMAR_BOOK_TITLE,
- 'Essential Grammar in Use',
- UNLOCK_3_BOOK,
- TOEFL_VOCABULARY_3800_BOOK,
- 'Prism Reading',
- 'Traumaland- Josh Silver',
- 'Warriors- Erin Hunter',
- 'NEW TOEIC 新制多益900+ 高頻必考字彙',
- '英文字彙王: 核心單字2001~ 4000',
- '英文字彙王: 核心單字4001~ 6000',
- 'ENGLISH VOCABULARY IN USE',
- '學一次用一輩子的字首．字根．字尾'
-];
-
 var data=null;
 var dataLoadBase=null;
 var localVisibleRefreshPending=false;
@@ -656,6 +635,7 @@ var cloudNaturalIntegrationItemsByDate={};
 var cloudNaturalIntegrationDetailsByDate={};
 
 function setStorageScope(userId){
+ catalogRuntimeCache=null;
  STORE_PREFIX=storagePrefixForUser(userId||null);
  localRecordRepository.setPrefix(STORE_PREFIX);
  try{store.setItem(ACTIVE_RECORD_PREFIX_KEY,STORE_PREFIX)}catch(e){}
@@ -799,6 +779,7 @@ function writeStoredRecord(rec){
  try{
   rec.schemaVersion=CURRENT_STUDY_RECORD_SCHEMA_VERSION;
   if(!localRecordRepository.save(rec))return false;
+  if(rec.materialCatalog)catalogRuntimeCache=null;
   mathProgressIndex.upsert(rec);
   return true;
  }catch(e){return false}
@@ -1406,6 +1387,7 @@ async function retryDirtyCloudRecordsOnReconnect(){
  cloudSetMessage('網路已恢復；待同步紀錄已全部上傳。',true);return true;
 }
 async function activateCloudUser(user){
+ if(user&&!cloudUser&&data&&!persist(false)){cloudSetMessage('登入前的訪客草稿尚未成功保存，請先確認輸入與本機儲存空間。',false);return}
  var serial=++cloudActivationSerial;cloudUser=user||null;setStorageScope(cloudUser?cloudUser.id:null);cloudBootstrapPending=!!cloudUser;cloudUpdateUI();clearCalendarRuntime();
  if(!cloudUser){
   cloudBootstrapPending=false;cloudSetMessage('已登出；目前使用獨立 guest 本機資料。',true);rebuildMathProgressIndex();load({skipCloudRead:true});return;
@@ -1436,6 +1418,9 @@ async function activateCloudUser(user){
   recordStats={ok:false,error:e&&e.message?e.message:String(e)};
  }
  if(serial!==cloudActivationSerial)return;
+ var guestImport=await importGuestRecords(store,cloudUser.id);
+ catalogRuntimeCache=null;
+ if(serial!==cloudActivationSerial)return;
  cloudBootstrapPending=false;
  updateCloudActionButtons();
  var queued=queueDirtyCloudRecords();
@@ -1443,10 +1428,12 @@ async function activateCloudUser(user){
  if(recordStats&&recordStats.ok){
   var msg='登入完成；本機快取已立即顯示，'+recordStats.message;
   if(queued)msg+=' 另有 '+queued+' 天已排入背景上傳。';
+  if(guestImport.importedDates)msg+=' 已保存訪客 '+guestImport.importedDates+' 天紀錄（新增 '+guestImport.importedItems+' 個項目）。';
+  if(guestImport.failedDates.length)msg+=' 訪客 '+guestImport.failedDates.join('、')+' 尚未完成轉存，原始資料仍保留，可重新登入重試。';
   if(!refreshed)msg+=' 目前正在輸入；完成輸入後會安全合併並更新畫面，也可按「立即套用」。';
-  cloudSetMessage(msg,recordStats.conflicts?false:true);
+  cloudSetMessage(msg,!(recordStats.conflicts||guestImport.conflicts||guestImport.failedDates.length));
  }else{
-  cloudSetMessage('已登入並使用本機快取；背景讀取雲端失敗：'+((recordStats&&recordStats.error)||'未知錯誤')+'。',false);
+  cloudSetMessage('已登入並使用本機快取；'+(guestImport.importedDates?'訪客 '+guestImport.importedDates+' 天紀錄已保存在此帳號本機，待網路恢復後同步。':'')+'背景讀取雲端失敗：'+((recordStats&&recordStats.error)||'未知錯誤')+'。',false);
  }
  setTimeout(function(){refreshCalendarAfterCloudActivation(serial)},0);
 }
@@ -1548,6 +1535,7 @@ function loadData(date){
   if(Array.isArray(o.syncConflictDetails))b.syncConflictDetails=cloneObj(o.syncConflictDetails);
   if(o.syncConflictLocal)b.syncConflictLocal=cloneObj(o.syncConflictLocal);
   if(o.syncConflictCloud)b.syncConflictCloud=cloneObj(o.syncConflictCloud);
+  if(Array.isArray(o.materialCatalog))b.materialCatalog=cloneObj(o.materialCatalog);
   b.mood=o.mood||'';b.englishTaskChoice=o.englishTaskChoice==='mixed'||o.englishTaskChoice==='mock'?o.englishTaskChoice:undefined;b.wakeTime=o.wakeTime||'';if(o.bedtime&&typeof o.bedtime==='object')b.bedtime=cloneObj(o.bedtime);b.biggestBlock=o.biggestBlock||'';b.firstThingTomorrow=o.firstThingTomorrow||'';b.notes=o.notes||'';
   var storedCelebrations=o.completionCelebrations&&o.completionCelebrations.version===3?o.completionCelebrations:null;
   b.completionCelebrations={version:3,half:!!(storedCelebrations&&storedCelebrations.half),complete:!!(storedCelebrations&&storedCelebrations.complete)};
@@ -3144,9 +3132,61 @@ function renderGroupedWorkFields(x){
  return h;
 }
 
+var catalogRuntimeCache=null;
+function catalogRuntime(){
+ if(!catalogRuntimeCache){var records=readMaterialProgressRecords(store).records;catalogRuntimeCache={entries:effectiveMaterialCatalog(builtInMaterialCatalog(),records,true),overrides:catalogOverrides(records).filter(function(entry){return!entry.reset})}}
+ return catalogRuntimeCache;
+}
+function managedMaterialForItem(item){
+ var runtime=catalogRuntime(),match=runtime.overrides.find(function(entry){return catalogMaterialMatchesItem(entry,item)});
+ if(match)return match;
+ if(item.f&&item.f.catalogMaterialId)return runtime.entries.find(function(entry){return entry.id===item.f.catalogMaterialId})||item.f.catalogMaterialSnapshot||null;
+ return null;
+}
+function renderManagedMaterialFields(item,entry,reviewMode){
+ var f=item.f,startKey='start',endKey='end',noun='頁';
+ if(entry.mode==='unit'){startKey='unitStart';endKey='unitEnd';noun=' Unit'}
+ else if(entry.mode==='round'){startKey='round';endKey='roundEnd';noun='回次'}
+ var start=f[startKey]||'',end=f[endKey]||'',label=entry.subject+'｜'+entry.title;
+ var max=entry.total<10001?' max="'+entry.total+'"':'';
+ var h='<div class="english-book-page-row"><div class="field"><label>書名／教材</label><div class="fixed-book-value">'+esc(label)+'</div></div><div class="field compact-number"><label>起始'+noun+'</label><input type="number" data-catalog-range="start" min="1"'+max+' step="1" inputmode="numeric" data-field="'+startKey+'" value="'+esc(start)+'"></div><div class="field compact-number"><label>結束'+noun+'</label><input type="number" data-catalog-range="end" min="'+esc(start||1)+'"'+max+' step="1" inputmode="numeric" data-field="'+endKey+'" value="'+esc(end)+'"></div></div>';
+ h+='<div class="field" style="margin-top:10px"><label>範圍對應章節</label><div class="small" data-catalog-auto>'+esc(catalogRangeText(entry,item))+'</div></div>';
+ if(entry.deleted)h+='<div class="small">此教材目錄已停用，已填寫的紀錄仍保留。</div>';
+ var checks=studyItemProgress(item);if(!checks.length)checks=[{key:'progress',label:'進度',checked:!!f.progress}];
+ if(!reviewMode)h+='<div class="checkline" style="margin-top:10px">'+checks.map(function(p){return'<label><input type="checkbox" data-check="'+p.key+'"'+checked(p.checked)+'> '+p.label+'</label>'}).join('')+'</div>';
+ if(reviewMode||f.corrected)h+=reasonField(f);return h;
+}
+function renderCatalogMaterialSelect(){
+ var select=id('catalogMaterialSelect');if(!select)return;var current=select.value;
+ select.innerHTML='<option value="">請選擇教材</option>'+catalogRuntime().entries.filter(function(entry){return!entry.deleted}).map(function(entry){return'<option value="'+esc(entry.id)+'"'+selected(entry.id,current)+(entry.total>10000?' disabled':'')+'>'+esc(entry.subject+'｜'+entry.title+(entry.total>10000?'（請先設定總數）':''))+'</option>'}).join('');
+}
+function filterDisabledCatalogOptions(){
+ var disabled=catalogRuntime().overrides.filter(function(entry){return entry.deleted});if(!disabled.length)return;
+ document.querySelectorAll('[data-item] select[data-field],[data-item] select[data-chinese-kind]').forEach(function(select){
+  var card=select.closest('[data-item]'),item=card&&findItem(card.getAttribute('data-item')),field=select.getAttribute('data-field')||'kind';if(!item)return;
+  Array.from(select.options).forEach(function(option){
+   if(!option.value||option.selected)return;
+   var candidate=Object.assign({},item,{f:Object.assign({},item.f)});candidate.f[field]=option.value;
+   if(field==='title'){candidate.f.book=option.value;candidate.title=option.value}
+   if(field==='kind')candidate.f.book=option.value;
+   if(disabled.some(function(entry){return catalogMaterialMatchesItem(entry,candidate)})){option.disabled=true;option.textContent+='（目錄已停用）'}
+  });
+ });
+}
+function captureManagedMaterialRange(card,item,commit){
+ var entry=managedMaterialForItem(item),start=card.querySelector('[data-catalog-range="start"]'),end=card.querySelector('[data-catalog-range="end"]');
+ if(!entry||!start||!end)return false;
+ if(commit){
+  [start,end].forEach(function(input){if(input.value!=='')input.value=String(Math.max(1,Math.min(entry.total,Math.round(Number(input.value)||1))))});
+  if(start.value&&end.value&&Number(end.value)<Number(start.value))end.value=start.value;
+ }
+ [start,end].forEach(function(input){propagateDailyWorkField(item,input.getAttribute('data-field'),input.value)});
+ end.min=start.value||'1';refreshAuto(card,item);return true;
+}
 function renderItemFields(x,reviewMode){
  var f=x.f||(x.f={});
  if(isGroupedWork(x))return renderGroupedWorkFields(x);
+ var managed=managedMaterialForItem(x);if(managed)return renderManagedMaterialFields(x,managed,reviewMode);
  if(usesSharedPageTemplate(x))return renderSharedPageFields(x,reviewMode);
  if(x.type!=='extra'&&usesSharedNumberedTemplate(x)){
   var scopeFields=renderNumberedScopeFields(x,null);
@@ -3322,6 +3362,7 @@ function updateOverviewMetricView(focusSelected){
  document.querySelectorAll('[data-metric-panel]').forEach(function(panel){var selected=panel.getAttribute('data-metric-panel')===overviewMetricView;panel.hidden=false;panel.classList.toggle('is-active',selected);panel.setAttribute('aria-hidden',selected?'false':'true');panel.inert=!selected});
 }
 function render(){
+ renderCatalogMaterialSelect();
  deferredCapacityCache=null;
  var choicePanel=id('englishTaskChoice'),hasChoice=hasEnglishTaskCollision(data.items),selectedChoice=resolvedEnglishTaskChoice(data);
  choicePanel.hidden=!hasChoice;
@@ -3344,6 +3385,7 @@ function render(){
  document.querySelectorAll('[data-item]').forEach(syncCardPageRangeConstraint);
  updateSummary();
  renderWeeklyItems();
+ filterDisabledCatalogOptions();
  updateStudyItemsView();updateOverviewMetricView(false);
  refreshTimerUI();
 }
@@ -3382,6 +3424,7 @@ function removeNested(target,arrayName){
  var p=parentSpecial(target,arrayName);if(!p)return false;p.f[arrayName]=p.f[arrayName].filter(function(x){return x.id!==target});return true;
 }
 function refreshAuto(card,x){
+ var managed=managedMaterialForItem(x),catalogAuto=card.querySelector('[data-catalog-auto]');if(managed&&catalogAuto){catalogAuto.textContent=catalogRangeText(managed,x);return}
  if(!card||!x)return;
  var unitAuto=card.querySelector('[data-unit-auto]');if(unitAuto)unitAuto.textContent=numberedStudyScope(x)?.kind==='unit'?bookUnitText(x):numberedScopeText(x);
  if(x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice'){applyMathAuto(x.f);var m=card.querySelector('[data-math-auto]');if(m)m.textContent=mathAutoText(x.f)}
@@ -3502,6 +3545,7 @@ function updateMagazineField(target,item){
 }
 function handleInput(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
+ if(t.matches('[data-catalog-range]')&&x&&captureManagedMaterialRange(card,x,false)){updateSummary();return}
  if(t.matches('[data-field="unitStart"],[data-field="unitEnd"],[data-field="round"],[data-field="roundEnd"]')&&x&&numberedStudyScope(x)&&captureNumberedScopeInputs(card,x)){updateSummary();return}
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();return}
  if(t.matches('[data-field]')&&x){var k=t.getAttribute('data-field');if(isCalendarPageMappedBook(x)&&(k==='start'||k==='end'||k==='topic'||k==='round'||k==='title')){render();return}if(k==='start'||k==='end')propagateDailyWorkRangeField(x,k,t.value);else propagateDailyWorkField(x,k,t.value);if(x.type==='extra'&&isEssentialGrammar(x.f.title)&&(k==='unitStart'||k==='unitEnd')&&t.value!==''){var grammarUnit=Math.max(1,Math.min(115,Math.round(Number(t.value)||1)));x.f[k]=String(grammarUnit);t.value=String(grammarUnit);propagateDailyWorkField(x,k,x.f[k])}if(k==='start'||k==='end'){syncCardPageRangeConstraint(card);validateCardPageRange(card,false);refreshAuto(card,x)}if(k==='essayScore'){var u=card.querySelector('[data-essay-upper]'),v=t.value===''?null:Number(t.value);if(u)u.textContent=(v!==null&&Number.isFinite(v)?v+2:'x+2')+' 分'}updateSummary();return}
@@ -3564,6 +3608,7 @@ function updateEditableCompletionDate(item,recordDate,value,rootItems){
 function persistCompletionChange(){return persist(false,{ignoreRoutineTime:true})}
 function handleChange(e){
  var t=e.target,card=t.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null;
+ if(t.matches('[data-catalog-range]')&&x&&captureManagedMaterialRange(card,x,true)){updateSummary();persist(false);return}
  if(t.matches('[data-field="unitStart"],[data-field="unitEnd"],[data-field="round"],[data-field="roundEnd"]')&&x&&numberedStudyScope(x)&&captureNumberedScopeInputs(card,x)){updateSummary();persist(false);return}
  if(t.matches('[data-completion-date]')&&x){
   if(!updateEditableCompletionDate(x,data.date,t.value,data.items)){render();return}
@@ -4307,6 +4352,11 @@ id('routineTimeModeSwitch').addEventListener('keydown',function(e){if(e.key!=='A
 id('routineTimeField').addEventListener('focusout',function(e){if(!id('routineTimeField').contains(e.relatedTarget))headerChange()});
 id('notes').addEventListener('input',notesInput);id('notes').addEventListener('change',headerChange);
 id('addItemBtn').addEventListener('click',addCustom);
+id('addCatalogItemBtn').addEventListener('click',function(){
+ var entry=catalogRuntime().entries.find(function(material){return material.id===id('catalogMaterialSelect').value&&!material.deleted});
+ if(!entry){id('status').textContent='請先選擇教材。';return}
+ var item=newItem(catalogItemType(entry),'custom');item.title=entry.subject+'｜'+entry.title;item.f=catalogItemFields(entry);data.items.push(item);render();persist(false);
+});
 id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);
 var saveFeedbackTimer=null;
 function setSaveButtonState(state){
@@ -4370,7 +4420,7 @@ var connectionSettingsPanel=id('connectionSettings');
 var connectionSettingsSummary=connectionSettingsPanel.querySelector(':scope > summary');
 if(connectionSettingsSummary)setupConnectionSettingsMotion(connectionSettingsPanel,connectionSettingsSummary);
 document.addEventListener('focusout',function(){setTimeout(function(){applyPendingVisibleCloudRefresh();refreshVisibleRecordFromLocalChange()},0)});
-window.addEventListener('storage',function(event){if(data&&event.storageArea===localStorage&&event.key===STORE_PREFIX+data.date)refreshVisibleRecordFromLocalChange()});
+window.addEventListener('storage',function(event){if(event.key&&event.key.indexOf(STORE_PREFIX)===0)catalogRuntimeCache=null;if(data&&event.storageArea===localStorage&&event.key===STORE_PREFIX+data.date)refreshVisibleRecordFromLocalChange()});
 window.addEventListener('pageshow',function(event){if(event.persisted){localVisibleRefreshPending=true;refreshVisibleRecordFromLocalChange()}});
 window.addEventListener('online',function(){retryDirtyCloudRecordsOnReconnect().catch(function(e){cloudSetMessage('網路恢復後重試失敗：'+(e&&e.message?e.message:String(e)),false)})});
 window.addEventListener('offline',function(){cloudSetMessage('目前離線；新紀錄已保存在本機，恢復連線後會立即重試。',false)});

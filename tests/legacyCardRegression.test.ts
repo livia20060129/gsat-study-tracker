@@ -37,6 +37,7 @@ function runtimeFunction<T>(name: string, dependencies: Record<string, unknown>)
   const end = runtime.indexOf('\nfunction ', start + 1);
   assert.ok(start >= 0 && end > start, `Missing runtime function: ${name}`);
   return runInNewContext(`${runtime.slice(start, end)}\n${name}`, {
+    managedMaterialForItem: () => null,
     completionDateMarkup: () => '',
     isInteractiveStudyItem,
     unitBook,

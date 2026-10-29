@@ -10,7 +10,7 @@ import {
   UNLOCK_3_BOOK,
   type PageMappedBook,
 } from '../data/bookPageMaps.ts';
-import { LISTENING_TEST_BOOK_TITLE, isListeningTestBookTitle } from '../data/englishBooks.ts';
+import { LISTENING_TEST_BOOK_TITLE, SUPPLEMENT_ENGLISH_TITLES, isListeningTestBookTitle } from '../data/englishBooks.ts';
 import { numberedStudyScope, usesSharedPageTemplate } from '../data/numberedScopes.ts';
 import {
   AZAR_GRAMMAR_BOOK_TITLE,
@@ -30,6 +30,7 @@ import type { CalendarNaturalIntegrationEntry, StudyItem, StudyRecord } from '..
 import { recordedPageRangeFields } from './recordedPageRange.ts';
 import { unitBookSections } from '../data/unitBooks.ts';
 import { bookUnitRange } from './unitBookProgress.ts';
+import { catalogLargeSections, catalogMaterialMatchesItem, catalogOverrides, catalogProgressSubject, catalogRange, type CatalogMaterial, type CatalogSubject } from './materialCatalog.ts';
 
 export { ACTIVE_RECORD_PREFIX_KEY } from '../storage/local.ts';
 
@@ -326,6 +327,51 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
 
 const definitionById = new Map(MATERIAL_DEFINITIONS.map(definition => [definition.id, definition]));
 
+/** Editable definitions expose the original fine sections, independently of the progress bar grouping. */
+export function builtInMaterialCatalog(): CatalogMaterial[] {
+  const entries = MATERIAL_DEFINITIONS.map(function editableDefinition(definition): CatalogMaterial {
+    const parts = definition.id.split(':');
+    let rows: readonly PageMapRow[] | undefined;
+    let match: CatalogMaterial['match'];
+    let subject: CatalogSubject;
+    let mode: CatalogMaterial['mode'] = 'pages';
+    let title = definition.title.replace(/^(?:國文|英文|數學|自然)｜/, '');
+    if (definition.subject === 'natural') {
+      subject = definition.group as CatalogSubject;
+      title = parts[2];
+      match = { material: title };
+      if (title === '123日的淬鍊') rows = DAY123_PAGE_MAPS[subject];
+      if (title === '好考點') rows = GOODPOINT_PAGE_MAPS[subject];
+      if (title === '新關鍵') rows = ({ 生物: BIOLOGY_NEW_KEY_PAGE_MAP, 化學: CHEMISTRY_NEW_KEY_PAGE_MAP, 物理: PHYSICS_NEW_KEY_PAGE_MAP, 地科: EARTH_SCIENCE_NEW_KEY_PAGE_MAP })[subject as '生物'];
+    } else if (definition.subject === 'math') {
+      subject = '數學';
+      match = { material: parts[1], ...(parts[2] ? { book: parts[2] } : {}) };
+      if (parts[1] === '教學講義') rows = TEACHING_MATH_PAGE_MAP[parts[2]];
+      if (parts[1] === '複習週記') rows = REVIEW_WEEKLY_PAGE_MAP;
+      if (parts[1] === '智慧型') rows = parts[2] === '1~2' ? SMART_12_PAGE_MAP : SMART_34_PAGE_MAP;
+      if (parts[1] === '新關鍵') rows = parts[2] === '1~2' ? NEWKEY_12_PAGE_MAP : NEWKEY_34_PAGE_MAP;
+    } else {
+      subject = definition.subject === 'chinese' ? '國文' : '英文';
+      match = definition.id === 'chinese:gujin' ? { kind: 'reading' } : { title };
+      if (definition.id.startsWith('book:')) rows = BOOK_PAGE_MAPS[parts.slice(1).join(':') as PageMappedBook].map(section => [section.start, section.end, section.topic, section.detail]);
+      if (definition.id === 'english:grammar') rows = GRAMMAR_REVIEW_PAGE_MAP;
+      if (definition.id === 'english:azar-intermediate') rows = AZAR_GRAMMAR_SECTIONS.map(section => [section.start, section.end, section.chapterLabel, section.title]);
+      if (['english:ace', 'english:listening', 'english:writing', 'chinese:gujin'].includes(definition.id)) mode = 'round';
+      if (definition.id === 'english:essential') mode = 'unit';
+    }
+    const sections = rows
+      ? rows.map((row, index) => ({ id: `section-${index + 1}`, start: row[0], end: row[1], topic: row[2], detail: row[3] ?? '' }))
+      : definition.segments.map(segment => ({ id: segment.key, start: segment.start, end: segment.end, topic: segment.label.replace(/（p\..*$/, ''), detail: '' }));
+    return { id: definition.id, title, subject, group: definition.group, mode,
+      total: Math.max(...sections.map(section => section.end)), sections, match, revision: 0, updatedAt: '' };
+  });
+  for (const title of SUPPLEMENT_ENGLISH_TITLES) {
+    if (!entries.some(entry => entry.subject === '英文' && entry.title === title)) entries.push({ id: `supplement:${title}`, title, subject: '英文', group: '補充', mode: 'pages', total: Number.MAX_SAFE_INTEGER, sections: [], match: { title }, revision: 0, updatedAt: '' });
+  }
+  for (const subject of ['物理', '化學', '生物', '地科'] as const) entries.push({ id: `natural:${subject}:大滿貫`, title: '大滿貫', subject, group: subject, mode: 'pages', total: Number.MAX_SAFE_INTEGER, sections: [], match: { material: '大滿貫' }, revision: 0, updatedAt: '' });
+  return entries;
+}
+
 function objectValue(value: unknown): LooseRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as LooseRecord : {};
 }
@@ -552,7 +598,31 @@ export function materialProgressRows(records: readonly StudyRecord[]): MaterialP
   const recorded = new Map<string, MaterialCoverage>();
   const visited = new WeakSet<object>();
   records.forEach(record => (record.items ?? []).forEach(item => visitStudyItem(recorded, item, visited)));
-  return MATERIAL_DEFINITIONS.map(definition => {
+  const definitions = new Map(MATERIAL_DEFINITIONS.map(definition => [definition.id, definition]));
+  const managed = catalogOverrides(records).filter(entry => !entry.reset);
+  for (const entry of managed) {
+    if (entry.deleted) { definitions.delete(entry.id); continue; }
+    const subject = catalogProgressSubject(entry.subject);
+    const group = (subject === 'natural' ? entry.subject : entry.group) as MaterialProgressGroup;
+    definitions.set(entry.id, { id: entry.id, title: `${entry.subject}｜${entry.title}`, subject, group,
+      unitLabel: '大單元', segments: catalogLargeSections(entry).map(section => ({ key: section.id, label: section.topic, start: section.start, end: section.end })) });
+    const coverage = { ranges: [] as Array<[number, number]>, exactKeys: new Set<string>() };
+    const seen = new WeakSet<object>();
+    function visitManaged(item: StudyItem): void {
+      if (!item || typeof item !== 'object' || seen.has(item)) return;
+      seen.add(item);
+      const children = ['groupedWorkEntries', 'dailyWorkSourceItems', 'makeupEntries', 'reviewEntries', 'interactiveEntries', 'calendarIntegrationEntries']
+        .flatMap(key => Array.isArray(item.f?.[key]) ? item.f[key] as StudyItem[] : []);
+      if (catalogMaterialMatchesItem(entry, item) && hasRecordedActivity(item) && !children.length) {
+        const range = catalogRange(entry, item);
+        if (range.start > 0 && range.end >= range.start) coverage.ranges.push([range.start, range.end]);
+      }
+      children.forEach(visitManaged);
+    }
+    records.forEach(record => record.items.forEach(visitManaged));
+    recorded.set(entry.id, coverage);
+  }
+  return [...definitions.values()].map(definition => {
     const found = recorded.get(definition.id) ?? { ranges: [], exactKeys: new Set<string>() };
     const segments = definition.segments.map((segment, index) => {
       const completionPercent = segmentCompletionPercent(segment, found);

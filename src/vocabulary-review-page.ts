@@ -1,6 +1,7 @@
 import './vocabulary-review.css';
 import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { DictionaryPreview } from './ui/dictionaryPreview.ts';
+import { VocabularySpeech, type VocabularyAccent } from './ui/vocabularySpeech.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   normalizedGsatVocabularyLevel,
@@ -35,6 +36,8 @@ let searchText = '';
 let translationsVisible = true;
 const editingEntryKeys = new Set<string>();
 const dictionaryPreviews = new Set<DictionaryPreview>();
+const speech = new VocabularySpeech(document.getElementById('vocabularySpeechStatus')!);
+window.addEventListener('pagehide', function stopSpeech(): void { speech.cancel(); });
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -337,7 +340,22 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   identity.className = 'vocabulary-identity';
   const identityHead = document.createElement('div');
   identityHead.className = 'vocabulary-identity-head';
-  identityHead.append(createWordLink(entry));
+  const wordHeading = document.createElement('div');
+  wordHeading.className = 'vocabulary-word-heading';
+  wordHeading.append(createWordLink(entry));
+  if (entry.lookupQuery) {
+    const speaker = document.createElement('button');
+    speaker.type = 'button';
+    speaker.className = 'vocabulary-speaker';
+    speaker.textContent = '🔊';
+    speaker.setAttribute('aria-label', `朗讀「${entry.text}」`);
+    speaker.setAttribute('aria-pressed', 'false');
+    speaker.addEventListener('click', function pronounce(): void {
+      speech.speak(entry.lookupQuery, element<HTMLSelectElement>('vocabularyAccent').value as VocabularyAccent, speaker);
+    });
+    wordHeading.append(speaker);
+  }
+  identityHead.append(wordHeading);
   const editButton = document.createElement('button');
   editButton.type = 'button';
   editButton.className = 'vocabulary-edit-button';
@@ -389,10 +407,11 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     }
     identity.append(note);
   }
-  if (entry.occurrenceCount > 1) {
+  if (entry.sourceDates.length > 1) {
     const occurrence = document.createElement('p');
-    occurrence.className = 'vocabulary-occurrence';
-    occurrence.textContent = `已整理 ${entry.occurrenceCount} 次`;
+    occurrence.className = 'vocabulary-frequency-badge';
+    occurrence.textContent = `🔥 記錄 ${entry.sourceDates.length} 次`;
+    occurrence.title = '依不同日期的紀錄計算，同一天重複輸入只計一次。';
     identity.append(occurrence);
   }
 
@@ -492,6 +511,7 @@ function renderContentKindSwitch(): void {
 }
 
 function renderEntries(): void {
+  speech.cancel();
   for (const preview of dictionaryPreviews) preview.dispose();
   dictionaryPreviews.clear();
   const entries = filteredEntries();

@@ -63,3 +63,9 @@
 .dictionary-preview-results input{flex:0 0 auto;width:17px;height:17px;margin:3px 0 0}
 .dictionary-preview-results button{justify-self:start;background:#edf4ff}
 .dictionary-preview button:focus-visible,.dictionary-preview select:focus-visible,.dictionary-preview input:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:2px}
+.vocabulary-word-heading { display:flex; align-items:center; gap:8px; min-width:0; flex-wrap:wrap; }
+.vocabulary-speaker { padding:5px 9px; flex:none; font-size:16px; }
+.vocabulary-speaker[aria-pressed="true"] { background:#dceafb; border-color:#548ccc; }
+.vocabulary-accent { display:flex; align-items:center; gap:6px; font-size:13px; }
+.vocabulary-accent select { width:auto; max-width:100%; padding:8px; border:1px solid #cbd7e8; border-radius:10px; background:white; color:#244265; }
+.vocabulary-frequency-badge { display:inline-block; width:fit-content; margin:7px 0 0; padding:3px 8px; border-radius:12px; background:#fff0db; color:#885217; font-size:12px; }

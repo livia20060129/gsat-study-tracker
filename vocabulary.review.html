@@ -53,6 +53,7 @@
           <button type="button" data-grouping-mode="gsatLevel" aria-pressed="false">Level</button>
         </div>
         <button id="toggleVocabularyTranslations" type="button" aria-controls="vocabularyList" aria-pressed="false">隱藏中文</button>
+        <label class="vocabulary-accent">發音口音 <select id="vocabularyAccent"><option value="en-US">美式</option><option value="en-GB">英式</option></select></label>
         <button type="button" data-export-vocabulary="translated">匯出 PDF（有翻譯）</button>
         <button type="button" data-export-vocabulary="blank">匯出 PDF（無翻譯）</button>
         </div>
@@ -61,6 +62,7 @@
         <p id="vocabularyEmpty" class="vocabulary-empty" hidden></p>
         <p id="vocabularyError" class="vocabulary-error" role="alert" hidden></p>
         <p id="vocabularySaveStatus" class="vocabulary-save-status" aria-live="polite"></p>
+        <p id="vocabularySpeechStatus" class="vocabulary-save-status" role="status" aria-live="polite"></p>
       </div>
     </section>
     <footer class="vocabulary-occurrence" style="margin-top:16px"><a href="./vocabulary.sources.html" target="_blank" rel="noopener noreferrer">單字資料來源與授權</a></footer>

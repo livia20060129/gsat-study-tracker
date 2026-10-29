@@ -136,7 +136,7 @@ test('removing the split from a refreshed Calendar definition restores Unit mode
 
 test('the actual shared page renderer uses editable page controls and retains progress checks', () => {
   const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
-  const context = createContext({ canonicalPageMappedBook, studyItemProgress, usesSharedPageTemplate,
+  const context = createContext({ canonicalPageMappedBook, studyItemProgress, usesSharedPageTemplate, managedMaterialForItem: () => null,
     isGroupedWork: () => false, bookPageAutoField: () => '頁碼對照',
     esc: (value: unknown) => String(value ?? ''), checked: (value: boolean) => value ? ' checked' : '', reasonField: () => '' });
   for (const name of ['renderSharedPageFields', 'renderItemFields']) {

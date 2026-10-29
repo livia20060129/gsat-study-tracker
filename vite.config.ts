@@ -14,6 +14,7 @@ function createViteConfig({ mode }: ConfigEnv): UserConfig {
           learningSummary: './summary.html',
           materialProgress: './material.progress.html',
           vocabularyReview: './vocabulary.review.html',
+          materialCatalog: './material.catalog.html',
         },
       },
     },

@@ -507,7 +507,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(page.locator('.vocabulary-row [data-vocabulary-pos]')).toHaveCount(0);
   await page.getByRole('button', { name: '單字', exact: true }).click();
   await expect(links).toHaveText(['Leverage', 'novelty']);
-  await expect(page.getByText('已整理 2 次')).toBeVisible();
+  await expect(page.getByText('🔥 記錄 2 次')).toBeVisible();
   await expect(page.getByText('最近紀錄')).toHaveCount(0);
   const leverageRow = page.locator('.vocabulary-row[data-entry-key="leverage"]');
   await expect(leverageRow.locator('[data-vocabulary-pos], [data-vocabulary-translation]')).toHaveCount(0);

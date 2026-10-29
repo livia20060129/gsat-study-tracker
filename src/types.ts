@@ -126,6 +126,8 @@ export interface BedtimeRecord {
 }
 
 export interface StudyRecord {
+  /** Versioned textbook definitions share the existing account-scoped record sync. */
+  materialCatalog?: import('./study/materialCatalog.ts').CatalogMaterial[];
   /** Explicit JSON payload schema; absent records are decoded as legacy schema 0. */
   schemaVersion?: number;
   date: string;
