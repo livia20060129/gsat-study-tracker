@@ -4,6 +4,8 @@ import test from 'node:test';
 import { createContext, runInContext } from 'node:vm';
 import { buildCalendarStudyTaskPlan } from '../src/application/calendar/calendarStudyTaskService.ts';
 import { prioritizeCalendarPageRanges } from '../src/calendar/pagePriority.ts';
+import { resolveMathCalendarPlan } from '../src/calendar/mathPlan.ts';
+import { CALENDAR_MATH_PLAN } from '../src/data/mathCalendar.ts';
 import { dedupePresetDefinitions } from '../src/study/presetDedup.ts';
 import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
 import type { CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
@@ -37,10 +39,9 @@ function app(rows: CalendarTaskRow[]) {
     isInteractiveStudyItem,
     buildCalendarStudyTaskPlan,
     prioritizeCalendarPageRanges,
+    resolveMathCalendarPlan,
     cloneObj: <T>(value: T): T => JSON.parse(JSON.stringify(value)),
-    CALENDAR_MATH_PLAN: {
-      [date]: { title: '2｜數列與求和', material: '教學講義', book: '2', start: 1, end: 11, pages: 11 },
-    },
+    CALENDAR_MATH_PLAN,
     parseDate: (value: string) => {
       const [year, month, day] = value.split('-').map(Number);
       return new Date(year, month - 1, day, 12);
@@ -110,4 +111,15 @@ test('Sunday Calendar math still creates a card when there is no built-in math p
   const definitions = context.cloudCalendarDefsForDate(sunday);
   assert.equal(definitions.length, 1);
   assert.deepEqual([definitions[0].f.start, definitions[0].f.end], ['26', '28']);
+});
+
+test('October 29 moved 4A fractions become actual page fields in the Calendar definition builder', () => {
+  const moved = '2026-10-29';
+  const context = app([1, 2].map(part => row(`moved-${part}`, '4A｜條件機率與貝氏定理',
+    `【講義版本】教學講義 【冊別】4A 【單元進度】條件機率與貝氏定理（${part}/4） 【來源日期】2026/10/${6 + part}`, moved)));
+  const definitions = context.cloudCalendarDefsForDate(moved);
+  assert.equal(definitions.length, 2);
+  assert.equal(dedupePresetDefinitions(definitions).length, 2);
+  assert.deepEqual(Array.from(definitions, (definition: { f: Record<string, string> }) => [definition.f.book, definition.f.start, definition.f.end]),
+    [['4A', '151', '162'], ['4A', '163', '174']]);
 });

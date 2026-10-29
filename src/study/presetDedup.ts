@@ -106,6 +106,10 @@ function calendarRangeIdentity(definition: PresetDefinitionLike): string {
   return JSON.stringify({
     work: rangeWorkIdentity(definition),
     route: normalizedText(definition.f?.calendarRoute),
+    // Math source records must reach daily-work grouping independently so saved
+    // minutes, manual ranges and completion survive merging adjacent events.
+    source: /^cal_math_/.test(definition.key)
+      ? normalizedText(definition.f?.calendarEventKey || definition.key) : '',
   });
 }
 

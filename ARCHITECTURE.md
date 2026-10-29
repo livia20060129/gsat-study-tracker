@@ -38,6 +38,7 @@ infrastructure repositories and gateways
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`
 - 字典前後端共用的純資料協定位於 `supabase/functions/_shared/dictionaryEntries.ts`，由 `src/study/dictionaryEntries.ts` 轉出給前端；不包含 secrets 或 Deno 執行期程式，後端不跨出 functions 目錄引用前端檔案。
 - Google Calendar 公開 Client ID 解析：`src/config/googleCalendar.ts`
+- 數學 Calendar 分段對照：`src/calendar/mathPlan.ts`，以講義版本、冊別及單元匹配既有實際分段，檢查分母與跨冊順序，不把分數自行換算成頁數。數學行程先保留各自來源紀錄，之後由每日分組合併顯示，避免模板提前合併而丟失分鐘或手動範圍。
 - Unit／回次與分段頁碼模板選擇：`src/data/numberedScopes.ts`；分數註記判斷共用 `src/data/studyPartAnnotation.ts`。Calendar、原卡片、待辦與教材進度不得各自套用書名例外或把分數推估為已讀頁碼。
 - 單字精確比對、自動欄位所有權與手動優先：`src/study/vocabularyAutoFill.ts`；官方資料與字典中文分置 `src/data/ceecVocabulary.ts`、`src/data/ceecTranslations.ts`，來源、轉換與授權見 `VOCABULARY_SOURCES.md`。唯讀彙整不得觸發回填或改寫舊紀錄。
 - 按需字典協定、確認追加與來源：`src/study/dictionaryEntries.ts`、`dictionarySelection.ts`；本機查詢重用 `localDictionaryLookup.ts`。暫存候選由 `src/ui/dictionaryPreview.ts` 管理，網路入口 `src/infrastructure/dictionary/cambridgeLookup.ts` 僅在明確操作後載入。後端 `supabase/functions/dictionary-lookup` 驗證登入再呼叫官方 API，金鑰只在伺服器，不抓公開字典頁、不保存整套詞庫、不接受任意外部網址。保存使用 `saveLocalRecordEdit` 及載入基準合併，不能用過期快照覆蓋整日紀錄。

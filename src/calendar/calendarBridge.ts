@@ -383,7 +383,7 @@ export function calendarStructuredNote(description: string): CalendarStructuredN
 }
 
 function progressFraction(value: string): [number | null, number | null] {
-  const match = value.match(/(?:第\s*)?(\d+)\s*[／/]\s*(\d+)/);
+  const match = value.normalize('NFKC').match(/(?:第\s*)?(\d+)\s*[／/]\s*(\d+)/);
   if (!match) return [null, null];
   const current = Number(match[1]);
   const total = Number(match[2]);
@@ -540,7 +540,7 @@ function parseCalendarTaskByBook(row: CalendarTaskRow): ParsedCalendarTask {
     const legacyProgress = description.match(/(?:【|\[)?\s*單元進度\s*(?:】|\])?\s*[:：]?\s*(\d+)\s*\/\s*(\d+)/);
     const [structuredProgress, structuredTotal] = note.pageRange
       ? [null, null]
-      : progressFraction(note.unitProgress);
+      : progressFraction(note.unitProgress || (hasStudyPartAnnotation(title) ? title : ''));
     const bookMatch = description.match(/冊別[:：]\s*([^\s]+)/);
     const [startPage, endPage] = note.hasStandardFields
       ? structuredPageRange(note.pageRange)

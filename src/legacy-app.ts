@@ -17,6 +17,7 @@ import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, storagePrefixForUser 
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
+import { resolveMathCalendarPlan } from './calendar/mathPlan.ts';
 import { combineNaturalCalendarPlans, resolveNaturalCalendarPlan } from './calendar/naturalPlan';
 import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
@@ -1292,20 +1293,7 @@ function naturalRecommendationByTopic(topic){
  return null;
 }
 function resolveCloudMathPlan(parsed){
- var matches=[];
- Object.keys(CALENDAR_MATH_PLAN||{}).sort().forEach(function(date){var p=CALENDAR_MATH_PLAN[date];if(p&&p.title===parsed.title)matches.push(p)});
- var base=null,start=Number(parsed.startPage||0),end=Number(parsed.endPage||parsed.startPage||0),idx=Number(parsed.progressIndex||0)-1;
- if(start>0)for(var mi=0;mi<matches.length;mi++)if(Number(matches[mi].start)===start&&Number(matches[mi].end)===end){base=matches[mi];break}
- if(!base&&idx>=0&&idx<matches.length)base=matches[idx];
- if(!base&&CALENDAR_MATH_PLAN[parsed.date]&&CALENDAR_MATH_PLAN[parsed.date].title===parsed.title)base=CALENDAR_MATH_PLAN[parsed.date];
- if(!base&&matches.length)base=matches[0];
- var selected=prioritizeCalendarPageRanges(parsed.startPage,parsed.endPage,base?[[base.start,base.end]]:[]);
- if(!base&&!selected.ranges.length)return null;
- var range=selected.ranges[0],out=cloneObj(base||{unitPages:0,weekTarget:0});
- out.title=parsed.title;if(parsed.material)out.material=parsed.material;if(parsed.book)out.book=parsed.book;
- if(parsed.standardNote&&(parsed.material||parsed.book))out.calendarMaterialSource='calendar';
- if(range){out.start=range[0];out.end=range[1];out.pages=range[1]-range[0]+1}
- out.calendarRangeSource=selected.source;out.calendarEventKey=parsed.eventKey;out.calendarSourceEventId=parsed.sourceEventId;return out;
+ return resolveMathCalendarPlan(parsed,CALENDAR_MATH_PLAN||{});
 }
 function selectPrimaryCloudMathPlan(date,plans){
  var list=Array.isArray(plans)?plans.filter(Boolean):[];
@@ -2188,6 +2176,7 @@ function ensureDailyPresets(rec,date){
     }
    }else{
      for(var dk2 in df)if(Object.prototype.hasOwnProperty.call(df,dk2)){
+      if(/^cal_math_/.test(d.key||'')&&['material','book','start','end'].includes(dk2)&&x.f.dailyWorkUserFields&&Object.prototype.hasOwnProperty.call(x.f.dailyWorkUserFields,dk2))continue;
       if(['scopeKind','unitStart','unitEnd','round','roundEnd'].includes(dk2)&&numberedStudyScope(x)&&x.f.dailyWorkUserFields&&Object.prototype.hasOwnProperty.call(x.f.dailyWorkUserFields,dk2))continue;
       if(dk2==='groupedWorkEntries'){
        var nextGrouped=reconcileGroupedWorkEntries(df[dk2],x.f[dk2],x);

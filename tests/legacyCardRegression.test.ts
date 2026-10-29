@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { resolveMathCalendarPlan } from '../src/calendar/mathPlan.ts';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
@@ -461,6 +462,7 @@ test('Calendar New Key material and grouped book replace stale defaults unless t
   assert.equal(parsed.kind, 'math');
   if (parsed.kind !== 'math') throw new Error('Expected math Calendar item');
   const resolveCloudMathPlan = runtimeFunction<(task: typeof parsed) => any>('resolveCloudMathPlan', {
+    resolveMathCalendarPlan,
     CALENDAR_MATH_PLAN: {},
     cloneObj: (value: unknown) => JSON.parse(JSON.stringify(value)),
     prioritizeCalendarPageRanges,
