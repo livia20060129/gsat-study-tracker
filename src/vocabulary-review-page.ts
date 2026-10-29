@@ -379,33 +379,14 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     kinds.append(levelBadge);
   }
   identity.append(kinds);
-  if (entry.dictionarySources?.length) {
-    const sources = document.createElement('p');
-    sources.className = 'vocabulary-occurrence';
-    sources.append(document.createTextNode('已選翻譯來源：'));
-    for (const [index, source] of entry.dictionarySources.entries()) {
-      if (index) sources.append(document.createTextNode('、'));
-      const link = document.createElement('a');
-      link.textContent = `${source.provider === 'cambridge' ? 'Cambridge Dictionary' : 'ECDICT'}（${source.word}）`;
-      link.href = source.sourceUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      sources.append(link);
-    }
-    identity.append(sources);
-  }
-  if (entry.referenceSources) {
+  if (entry.referenceSources?.ceec) {
     const reference = vocabularyReference(entry.text);
-    const note = document.createElement('p');
-    note.className = 'vocabulary-occurrence';
-    const sources = [];
-    if (entry.referenceSources.ceec) sources.push('大考中心（詞性／級數）');
-    if (entry.referenceSources.ecdict) sources.push('ECDICT（中文參考）');
-    note.textContent = `參考來源：${sources.join('、')}`;
-    if (entry.referenceSources.ceec && reference && reference.levels.length > 1) {
-      note.textContent += `；官方表含 ${reference.levels.map(level => `Level ${level}`).join('／')}，自動帶入較低級。`;
+    if (reference && reference.levels.length > 1) {
+      const note = document.createElement('p');
+      note.className = 'vocabulary-occurrence';
+      note.textContent = `官方表含 ${reference.levels.map(level => `Level ${level}`).join('／')}，自動帶入較低級。`;
+      identity.append(note);
     }
-    identity.append(note);
   }
   if (entry.sourceDates.length > 1) {
     const occurrence = document.createElement('p');
@@ -424,7 +405,7 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
       editors.append(createPartsOfSpeechEditor(entry));
       editors.append(createWordTranslationEditor(entry));
       editors.append(createGsatLevelEditor(entry));
-      const preview = new DictionaryPreview({ word: entry.text, recordPrefix: activeRecordPrefix, apply: function applySelection(selection): 'saved' | 'unchanged' | 'failed' {
+      const preview = new DictionaryPreview({ word: entry.text, apply: function applySelection(selection): 'saved' | 'unchanged' | 'failed' {
         const current = allEntries.find(candidate => candidate.key === entry.key);
         if (!current || !editingEntryKeys.has(current.key) || !current.contentKinds.includes('單字')) return 'failed';
         const outcome = saveEntryEditsResult(current, { dictionarySelection: selection });
@@ -511,6 +492,7 @@ function renderContentKindSwitch(): void {
 }
 
 function renderEntries(): void {
+  element('vocabularyLegacySources').hidden = !allEntries.some(entry => entry.dictionarySources?.some(source => source.provider === 'cambridge'));
   speech.cancel();
   for (const preview of dictionaryPreviews) preview.dispose();
   dictionaryPreviews.clear();
@@ -518,6 +500,7 @@ function renderEntries(): void {
   const list = element<HTMLDivElement>('vocabularyList');
   const empty = element<HTMLParagraphElement>('vocabularyEmpty');
   list.classList.toggle('is-flat', groupingMode === 'alphabetical');
+  list.classList.toggle('is-word-grid', activeContentKind === '單字');
   let rows: HTMLElement[];
   switch (groupingMode) {
     case 'partOfSpeech':

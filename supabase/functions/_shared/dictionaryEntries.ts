@@ -1,15 +1,18 @@
-export type DictionaryProvider = 'ecdict' | 'cambridge';
+export type DictionaryProvider = 'ecdict';
+/** The retired provider is accepted only when reading attribution already stored in old records. */
+export type DictionarySourceProvider = DictionaryProvider | 'cambridge';
 export type DictionaryPartOfSpeech = typeof DICTIONARY_PARTS[number];
 export interface DictionaryMeaning {
   partOfSpeech: DictionaryPartOfSpeech;
   text: string;
 }
 export interface DictionarySourceReference {
-  provider: DictionaryProvider;
+  provider: DictionarySourceProvider;
   word: string;
   sourceUrl: string;
 }
 export interface DictionaryLookupResult extends DictionarySourceReference {
+  provider: DictionaryProvider;
   meanings: DictionaryMeaning[];
 }
 
@@ -17,7 +20,7 @@ export const DICTIONARY_PARTS = ['noun', 'verb', 'adjective', 'adverb', 'preposi
   'pronoun', 'article', 'auxiliary', 'unclassified'] as const;
 export const ECDICT_SOURCE_URL = 'https://github.com/skywind3000/ECDICT';
 
-/** A lookup sends only the explicitly requested English word or short phrase. */
+/** Normalize the exact English spelling used for local lookup and saved attribution. */
 export function dictionaryQuery(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const word = value.normalize('NFKC').trim().replace(/’/g, "'").replace(/\s+/g, ' ').toLowerCase();
@@ -45,10 +48,11 @@ export function dictionarySource(value: unknown): DictionarySourceReference | nu
   }
 }
 
-/** Validate both local results and untrusted remote JSON before it reaches the editor. */
+/** Only ECDICT can provide new selections; legacy source metadata remains readable separately. */
 export function dictionaryResult(value: unknown, expectedWord: string): DictionaryLookupResult | null {
   const source = dictionarySource(value);
-  if (!source || source.word !== dictionaryQuery(expectedWord)) return null;
+  if (!source || source.provider !== 'ecdict' || source.word !== dictionaryQuery(expectedWord)
+    || (value as { sourceUrl?: unknown }).sourceUrl !== ECDICT_SOURCE_URL) return null;
   const raw = (value as { meanings?: unknown }).meanings;
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > 40) return null;
   const meanings: DictionaryMeaning[] = [];
@@ -63,5 +67,5 @@ export function dictionaryResult(value: unknown, expectedWord: string): Dictiona
     if (!seen.has(key)) meanings.push(meaning);
     seen.add(key);
   }
-  return { ...source, meanings };
+  return { ...source, provider: 'ecdict', meanings };
 }

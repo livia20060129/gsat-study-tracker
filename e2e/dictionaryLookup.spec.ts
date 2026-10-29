@@ -4,13 +4,9 @@ import type { Page } from '@playwright/test';
 test.use({ timezoneId: 'Asia/Taipei' });
 const date = '2026-10-26';
 const userId = '00000000-0000-0000-0000-000000000001';
-const payload = { ok: true, result: { provider: 'cambridge', word: 'cell',
-  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-traditional/cell', meanings: [
-    { partOfSpeech: 'noun', text: '候選意思甲' }, { partOfSpeech: 'noun', text: '未選意思乙' },
-    { partOfSpeech: 'verb', text: '候選意思丙' },
-  ] } };
 
 async function seed(page: Page, authenticated = false): Promise<void> {
+  await page.route('https://arxbirgujbrtzhoficdf.supabase.co/**', route => route.fulfill({ json: [] }));
   await page.goto('/vocabulary.review.html');
   await page.evaluate(({ date, userId, authenticated }) => {
     localStorage.clear();
@@ -54,6 +50,8 @@ test('local preview is edit-only, sends no dictionary requests and saves only af
   await seed(page);
   await expect(page.locator('[data-dictionary-lookup]')).toHaveCount(0);
   const row = await editCell(page);
+  await expect(row.locator('.dictionary-preview-source')).toHaveText('ECDICT（本機）');
+  await expect(row.locator('[data-dictionary-provider], a[href*="cambridge"]')).toHaveCount(0);
   const before = await record(page);
   await row.getByRole('button', { name: '取得翻譯', exact: true }).click();
   await expect(row.locator('[data-dictionary-meaning]')).not.toHaveCount(0);
@@ -71,7 +69,7 @@ test('local preview is edit-only, sends no dictionary requests and saves only af
   expect(saved.notes).toBe('不要清除筆記');
   await row.getByRole('button', { name: '完成「cell」', exact: true }).click();
   await page.reload();
-  await expect(row).toContainText('ECDICT（cell）');
+  await expect(page.locator('#vocabularyReferences')).toContainText('ECDICT（中文翻譯）');
   await page.getByRole('button', { name: '隱藏中文', exact: true }).click();
   await expect(row.locator('.vocabulary-meaning-answer').first()).toHaveCSS('visibility', 'hidden');
   await page.getByRole('button', { name: '組合', exact: true }).click();
@@ -89,127 +87,97 @@ test('local preview is edit-only, sends no dictionary requests and saves only af
   expect(external).toEqual([]);
 });
 
-test('guest Cambridge lookup fails clearly without sending a word and leaves manual editing available', async ({ page }) => {
-  let requests = 0;
-  await page.route('**/functions/v1/dictionary-lookup', async route => { requests++; await route.abort(); });
-  await seed(page);
+
+for (const authenticated of [false, true]) test(authenticated ? 'signed-in users can confirm ECDICT meanings offline without a dictionary API' : 'guests can confirm ECDICT meanings offline without sign-in or dictionary keys', async ({ page, context }) => {
+  const remote: string[] = [];
+  page.on('request', request => {
+    if (/supabase\.co|dictionary\.cambridge\.org/.test(request.url())) remote.push(request.url());
+  });
+  await seed(page, authenticated);
   const row = await editCell(page);
-  await row.locator('[data-dictionary-provider]').selectOption('cambridge');
-  await row.locator('[data-dictionary-lookup]').click();
-  await expect(row.locator('.dictionary-preview-status')).toContainText('登入 Cloud');
-  expect(requests).toBe(0);
-  await row.locator('[data-vocabulary-pos-translation="noun"]').fill('仍可手動編輯');
-  expect((await record(page)).items[0].f.words[0].translationsByPartOfSpeech.noun).toEqual(['仍可手動編輯']);
+  await context.setOffline(true);
+  await row.getByRole('button', { name: '取得翻譯', exact: true }).click();
+  await expect(row.locator('[data-dictionary-meaning]')).not.toHaveCount(0);
+  await row.locator('[data-dictionary-meaning]').first().check();
+  await row.locator('[data-dictionary-apply]').click();
+  const saved = await record(page);
+  expect(saved.items[0].f.words[0].dictionarySources).toEqual([expect.objectContaining({ provider: 'ecdict', word: 'cell' })]);
+  expect(saved.items[0].f.words[0].translationsByPartOfSpeech.noun).toContain('原有意思');
+  expect(saved.items[0].f.words[0].showGsatLevel).toBe(false);
+  await context.setOffline(false);
+  await page.reload();
+  await expect(page.locator('#vocabularyReferences')).toContainText('ECDICT（中文翻譯）');
+  expect(remote).toEqual([]);
 });
 
-test('authenticated lookup previews only requested senses, requires confirmation and preserves optional Level and source attribution after reload', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
-  await page.route('**/functions/v1/dictionary-lookup', async route => {
-    expect(route.request().postDataJSON()).toEqual({ word: 'cell' });
-    expect(route.request().headers().authorization).toMatch(/^Bearer ey/);
-    await route.fulfill({ json: payload });
-  });
-  await seed(page, true);
-  const row = await editCell(page);
+test('unlisted ECDICT words keep manual translation available and do not trigger a remote fallback', async ({ page }) => {
+  const remote: string[] = [];
+  page.on('request', request => { if (/dictionary\.cambridge\.org|functions\/v1\/dictionary-lookup/.test(request.url())) remote.push(request.url()); });
+  await seed(page);
+  const old = await editCell(page);
+  await old.locator('[data-vocabulary-text]').fill('zzzzunlistedwordzzzz');
+  await old.locator('[data-vocabulary-text]').press('Tab');
+  const row = page.locator('[data-entry-key="zzzzunlistedwordzzzz"]');
   const before = await record(page);
-  await row.locator('[data-dictionary-provider]').selectOption('cambridge');
-  await row.locator('[data-dictionary-lookup]').click();
-  await expect(row.locator('[data-dictionary-meaning]')).toHaveCount(3);
+  await row.getByRole('button', { name: '取得翻譯', exact: true }).click();
+  await expect(row.locator('.dictionary-preview-status')).toContainText('ECDICT 未收錄');
   expect(await record(page)).toEqual(before);
-  await row.locator('[data-dictionary-meaning="0"]').check();
-  await row.locator('[data-dictionary-meaning="2"]').check();
+  await row.locator('[data-vocabulary-pos-translation="noun"]').first().fill('手動中文');
+  expect((await record(page)).items[0].f.words[0].translationsByPartOfSpeech.noun).toEqual(['手動中文']);
+  expect(remote).toEqual([]);
+});
+
+test('saved legacy meanings keep their attribution without restoring a retired provider or external lookup link', async ({ page }) => {
+  await seed(page);
+  await page.evaluate(date => {
+    const key = 'study-v11:guest:' + date;
+    const value = JSON.parse(localStorage.getItem(key)!);
+    const word = value.items[0].f.words[0];
+    word.translation = '歷史保存的意思';
+    word.dictionarySources = [{ provider: 'cambridge', word: 'cell', sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-traditional/cell' }];
+    localStorage.setItem(key, JSON.stringify(value));
+  }, date);
+  await page.reload();
+  const before = await record(page);
+  await expect(page.locator('#vocabularyLegacySources')).toContainText('Cambridge Dictionary 的歷史出處');
+  await expect(page.locator('a[href*="cambridge"]')).toHaveCount(0);
+  const row = await editCell(page);
+  await expect(row.locator('[data-dictionary-provider]')).toHaveCount(0);
+  expect(await record(page)).toEqual(before);
+  await row.locator('[data-dictionary-lookup]').click();
+  await row.locator('[data-dictionary-meaning]').first().check();
   await row.locator('[data-dictionary-apply]').click();
   const word = (await record(page)).items[0].f.words[0];
-  expect(word.translationsByPartOfSpeech).toEqual({ noun: ['原有意思', '候選意思甲'], verb: ['候選意思丙'] });
-  expect(word.verb).toBe(true);
-  expect(word.gsatLevel).toBe(4);
-  expect(word.showGsatLevel).toBe(false);
-  expect(JSON.stringify(word)).not.toContain('未選意思乙');
-  await row.getByRole('button', { name: '完成「cell」', exact: true }).click();
-  await page.reload();
-  await expect(row.getByRole('link', { name: 'Cambridge Dictionary（cell）' })).toHaveAttribute('href', payload.result.sourceUrl);
-  await expect(row).toContainText('候選意思甲');
-  expect(errors).toEqual([]);
+  expect(word.translationsByPartOfSpeech.noun).toContain('歷史保存的意思');
+  expect(word.dictionarySources.map((source: { provider: string }) => source.provider)).toEqual(['cambridge', 'ecdict']);
 });
 
-test('a late Cambridge response cannot fill a renamed word or replace its manually edited translation', async ({ page }) => {
-  let release: (() => Promise<void>) | null = null;
-  await page.route('**/functions/v1/dictionary-lookup', async route => {
-    await new Promise<void>(resolve => { release = async () => { await route.fulfill({ json: payload }).catch(() => {}); resolve(); }; });
-  });
-  await seed(page, true);
-  const row = await editCell(page);
-  await row.locator('[data-dictionary-provider]').selectOption('cambridge');
-  await row.locator('[data-dictionary-lookup]').click();
-  await expect.poll(() => Boolean(release)).toBe(true);
-  await row.locator('[data-vocabulary-text]').fill('atom');
-  await row.locator('[data-vocabulary-text]').blur();
-  await expect(page.locator('.vocabulary-row[data-entry-key="atom"]')).toHaveCount(1);
-  await release!();
-  const saved = await record(page);
-  expect(saved.items[0].f.words[0].text).toBe('atom');
-  expect(saved.items[0].f.words[0].translation).toBe('原有意思');
-  expect(JSON.stringify(saved)).not.toContain('候選意思甲');
-});
-
-test('missing API setup, invalid results and a timeout all preserve records and allow manual input', async ({ page }) => {
-  await page.clock.install({ time: new Date(`${date}T12:00:00+08:00`) });
-  let mode = 'missing';
-  let release: (() => Promise<void>) | null = null;
-  await page.route('**/functions/v1/dictionary-lookup', async route => {
-    if (mode === 'missing') await route.fulfill({ status: 503, json: { ok: false, code: 'not_configured' } });
-    else if (mode === 'invalid') await route.fulfill({ json: { ...payload, result: { ...payload.result, word: 'other' } } });
-    else await new Promise<void>(resolve => { release = async () => { await route.abort().catch(() => {}); resolve(); }; });
-  });
-  await seed(page, true);
-  const row = await editCell(page);
-  const before = await record(page);
-  await row.locator('[data-dictionary-provider]').selectOption('cambridge');
-  await row.locator('[data-dictionary-lookup]').click();
-  await expect(row.locator('.dictionary-preview-status')).toContainText('尚未設定');
-  mode = 'invalid';
-  await row.locator('[data-dictionary-lookup]').click();
-  await expect(row.locator('.dictionary-preview-status')).toContainText('無法確認');
-  mode = 'timeout';
-  await row.locator('[data-dictionary-lookup]').click();
-  await expect.poll(() => Boolean(release)).toBe(true);
-  await page.clock.runFor(12_100);
-  await expect(row.locator('.dictionary-preview-status')).toContainText('查詢逾時');
-  await release!();
-  expect(await record(page)).toEqual(before);
-  await row.locator('[data-vocabulary-pos-translation="noun"]').fill('手動輸入不受影響');
-  expect((await record(page)).items[0].f.words[0].translationsByPartOfSpeech.noun).toEqual(['手動輸入不受影響']);
-});
-
-test('confirmation preserves newer unrelated record edits and reports a same-field conflict without overwriting either input', async ({ page }) => {
-  await page.route('**/functions/v1/dictionary-lookup', route => route.fulfill({ json: payload }));
-  await seed(page, true);
+test('ECDICT confirmation merges unrelated edits and refuses a concurrent translation overwrite', async ({ page }) => {
+  await seed(page);
   const row = await editCell(page);
   await row.locator('[data-dictionary-lookup]').click();
   await row.locator('[data-dictionary-meaning]').first().check();
   await page.evaluate(date => {
-    const key = localStorage.getItem('study-v11:meta:active-record-prefix')! + date;
+    const key = 'study-v11:guest:' + date;
     const value = JSON.parse(localStorage.getItem(key)!);
-    value.notes = '最新筆記';
-    value.items[0].minutes = '40';
+    value.notes = '其他頁籤筆記'; value.items[0].minutes = '40';
     localStorage.setItem(key, JSON.stringify(value));
   }, date);
   await row.locator('[data-dictionary-apply]').click();
-  expect((await record(page)).notes).toBe('最新筆記');
+  expect((await record(page)).notes).toBe('其他頁籤筆記');
   expect((await record(page)).items[0].minutes).toBe('40');
-  await row.locator('[data-dictionary-provider]').selectOption('cambridge');
   await row.locator('[data-dictionary-lookup]').click();
-  await row.locator('[data-dictionary-meaning]').first().check();
+  expect(await row.locator('[data-dictionary-meaning]').count()).toBeGreaterThan(1);
+  await row.locator('[data-dictionary-meaning]').nth(1).check();
   await page.evaluate(date => {
-    const key = localStorage.getItem('study-v11:meta:active-record-prefix')! + date;
+    const key = 'study-v11:guest:' + date;
     const value = JSON.parse(localStorage.getItem(key)!);
-    value.items[0].f.words[0].translation = '另一處改寫的翻譯';
-    value.items[0].f.words[0].translationsByPartOfSpeech.noun = ['另一處改寫的翻譯'];
+    value.items[0].f.words[0].translation = '其他頁籤的中文';
+    value.items[0].f.words[0].translationsByPartOfSpeech = { noun: ['其他頁籤的中文'] };
     localStorage.setItem(key, JSON.stringify(value));
   }, date);
   await row.locator('[data-dictionary-apply]').click();
   await expect(page.locator('#vocabularyError')).toContainText('同一欄位');
-  expect((await record(page)).items[0].f.words[0].translation).toBe('另一處改寫的翻譯');
-  await expect(row.locator('[data-dictionary-meaning]').first()).toBeChecked();
+  expect((await record(page)).items[0].f.words[0].translation).toBe('其他頁籤的中文');
+  expect((await record(page)).notes).toBe('其他頁籤筆記');
 });

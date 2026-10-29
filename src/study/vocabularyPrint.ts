@@ -24,7 +24,7 @@ export function vocabularyPrintDocument(
     notices.push(`<pre>${escapeHtml(ECDICT_MIT_LICENSE)}</pre>`);
   }
   if (withTranslations && entries.some(entry => entry.dictionarySources?.some(source => source.provider === 'cambridge'))) {
-    notices.push('<p>已選中文釋義來源：Cambridge Dictionary（https://dictionary.cambridge.org/）。內容使用與匯出範圍依取得的字典授權辦理；手動修改內容不代表來源認可。</p>');
+    notices.push('<p>歷史保存釋義來源：Cambridge Dictionary（線上服務已停用）。只保留既有資料的出處，不將舊內容改標為 ECDICT；內容使用與匯出範圍仍依原字典授權辦理。</p>');
   }
   const tables = entries.map(function entryRows(entry): string {
     const groups = vocabularyMeaningGroups(entry, kind);

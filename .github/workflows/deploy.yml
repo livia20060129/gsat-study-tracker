@@ -176,7 +176,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase functions deploy google-calendar-callback --project-ref "$SUPABASE_PROJECT_ID"
 
-      - name: Deploy dictionary-lookup function
+      - name: Retire legacy online dictionary lookup
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase functions deploy dictionary-lookup --project-ref "$SUPABASE_PROJECT_ID"
@@ -212,7 +212,7 @@ jobs:
           base_url="https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1"
           smoke_check "google-calendar" "${base_url}/google-calendar" 405 'POST required'
           smoke_check "google-calendar-callback" "${base_url}/google-calendar-callback" 400 '<!doctype html>'
-          smoke_check "dictionary-lookup" "${base_url}/dictionary-lookup" 405 'POST required'
+          smoke_check "dictionary-lookup" "${base_url}/dictionary-lookup" 410 'dictionary_retired'
 
   deploy:
     name: Deploy GitHub Pages
