@@ -116,6 +116,7 @@ test('mobile catalog creates a page map, feeds Tracker and groups its progress b
   await expect(row).toContainText('完成 50%');
   await expect(row.locator('.material-segment')).toHaveCount(1);
   await page.goto('/material.progress.html#english'); await page.locator('#catalogSearch').fill('My English Book');
+  await page.locator('.material-row').getByRole('button', { name: '編輯', exact: true }).click();
   page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: '刪除目錄', exact: true }).click();
   await expect(page.locator('#catalogStatus')).toContainText('教材已儲存');
   await page.goto('/');

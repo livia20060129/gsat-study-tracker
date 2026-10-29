@@ -41,6 +41,7 @@ export class MaterialCatalogEditor {
     element('catalogSubject').addEventListener('change', () => this.updateGroups());
     element('catalogMode').addEventListener('change', () => this.updateLabels());
     element('cancelCatalogEdit').addEventListener('click', () => this.close());
+    element('deleteCatalogMaterial').addEventListener('click', () => this.deleteEditingMaterial());
     element('addCatalogSection').addEventListener('click', () => {
       element('catalogSections').append(this.sectionRow({ id: crypto.randomUUID(), topic: '', detail: '', start: 1, end: 1 }));
     });
@@ -104,6 +105,7 @@ export class MaterialCatalogEditor {
     this.expected = clone(catalogOverrides(context.records).find(current => current.id === this.editing!.id) ?? null);
     this.editingPrefix = context.prefix;
     element('catalogEditorTitle').textContent = entry ? '編輯教材' : '新增教材';
+    element('deleteCatalogMaterial').hidden = !entry || !!entry.deleted;
     element<HTMLInputElement>('catalogTitle').value = this.editing.title;
     element<HTMLSelectElement>('catalogSubject').value = this.editing.subject;
     this.updateGroups(this.editing.group);
@@ -120,6 +122,15 @@ export class MaterialCatalogEditor {
     if (this.busy) return;
     this.editing = null;
     element('catalogEditor').hidden = true;
+  }
+
+  private deleteEditingMaterial(): void {
+    const entry = this.editing;
+    if (this.busy || !entry || entry.deleted) return;
+    if (!this.options.context().entries.some(material => material.id === entry.id)) return;
+    if (confirm(`刪除「${entry.title}」的目錄？既有讀書紀錄會保留。`)) {
+      void this.commit({ ...entry, deleted: true }, this.expected, this.editingPrefix);
+    }
   }
 
   private readDraft(): CatalogMaterial {
@@ -145,19 +156,16 @@ export class MaterialCatalogEditor {
     const expected = catalogOverrides(context.records).find(current => current.id === entry.id) ?? null;
     const prefix = context.prefix;
     const commit = (changed: CatalogMaterial): void => { void this.commit(changed, expected, prefix); };
-    function action(label: string, handler: () => void, danger = false): void {
+    function action(label: string, handler: () => void): void {
       const button = document.createElement('button');
       button.type = 'button'; button.textContent = label;
-      button.className = `material-control${danger ? ' danger' : ''}`;
+      button.className = 'material-control';
       button.dataset.catalogAction = entry.id;
       button.addEventListener('click', handler);
       actions.append(button);
     }
     action('編輯', () => this.open(entry));
     if (entry.deleted) action('恢復教材', () => commit({ ...entry, deleted: false }));
-    else action('刪除目錄', () => {
-      if (confirm(`刪除「${entry.title}」的目錄？既有讀書紀錄會保留。`)) commit({ ...entry, deleted: true });
-    }, true);
     const builtin = this.options.builtins.find(current => current.id === entry.id);
     if (builtin && entry.revision > 0) action('還原內建', () => {
       if (confirm('還原此教材的內建目錄設定？已填紀錄會保留。')) commit({ ...builtin, reset: true });

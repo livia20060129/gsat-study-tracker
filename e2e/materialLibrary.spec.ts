@@ -50,7 +50,10 @@ test('one material row owns its progress and management actions, updates immedia
   await page.getByRole('button', { name: '儲存教材', exact: true }).click();
   await expect(row).toHaveCount(1); await expect(row).toContainText('Renamed Book'); await expect(row).toContainText('完成 50%');
   page.on('dialog', dialog => dialog.accept());
-  await row.getByRole('button', { name: '刪除目錄', exact: true }).click();
+  await expect(row.getByRole('button', { name: '刪除目錄', exact: true })).toHaveCount(0);
+  await row.getByRole('button', { name: '編輯', exact: true }).click();
+  await page.getByLabel('書名', { exact: true }).fill('');
+  await page.getByRole('button', { name: '刪除目錄', exact: true }).click();
   await expect(row).toHaveCount(0);
   await page.getByLabel('顯示已停用教材', { exact: true }).check();
   await expect(row).toContainText('目錄已停用');
@@ -59,6 +62,28 @@ test('one material row owns its progress and management actions, updates immedia
   const saved = await page.evaluate(date => JSON.parse(localStorage.getItem('study-v11:guest:' + date)!), date);
   expect(saved.notes).toBe('preserve my daily notes');
   expect(saved.items).toHaveLength(1); expect(saved.items[0]).toMatchObject({ done: true, minutes: '15', f: { start: '1', end: '10' } });
+});
+
+test('catalog delete appears only for an existing editor and cancelling confirmation preserves the draft', async ({ page }) => {
+  await openLibrary(page);
+  const remove = page.locator('#deleteCatalogMaterial');
+  await expect(remove).toBeHidden();
+  await expect(page.locator('.material-row').getByRole('button', { name: '刪除目錄', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '新增教材', exact: true }).click();
+  await expect(remove).toBeHidden();
+  await page.getByRole('button', { name: '取消編輯', exact: true }).click();
+  const original = page.locator('[data-material-id="english:ace"]');
+  await original.getByRole('button', { name: '編輯', exact: true }).click();
+  await expect(remove).toBeVisible();
+  await page.getByLabel('書名', { exact: true }).fill('Unsaved title');
+  page.once('dialog', dialog => dialog.dismiss());
+  await remove.click();
+  await expect(page.locator('#catalogEditor')).toBeVisible();
+  await expect(page.getByLabel('書名', { exact: true })).toHaveValue('Unsaved title');
+  await expect(original).toBeVisible();
+  expect(await page.evaluate(date => localStorage.getItem('study-v11:guest:' + date), date)).toBeNull();
+  await page.getByRole('button', { name: '取消編輯', exact: true }).click();
+  await expect(remove).toBeHidden();
 });
 
 test('global subject changes filter the library and retain the open editor draft', async ({ page }) => {
