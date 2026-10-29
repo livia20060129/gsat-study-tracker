@@ -34,9 +34,11 @@ export class MaterialCatalogEditor {
   private expected: CatalogMaterial | null = null;
   private editingPrefix = '';
   private busy = false;
+  private managementEnabled = false;
 
   constructor(options: MaterialCatalogEditorOptions) {
     this.options = options;
+    element('toggleMaterialEditing').addEventListener('click', () => this.toggleManagement());
     element('newMaterial').addEventListener('click', () => this.open());
     element('catalogSubject').addEventListener('change', () => this.updateGroups());
     element('catalogMode').addEventListener('change', () => this.updateLabels());
@@ -48,6 +50,19 @@ export class MaterialCatalogEditor {
     element('catalogForm').addEventListener('submit', event => {
       event.preventDefault();
       if (this.editing) void this.commit(this.readDraft(), this.expected, this.editingPrefix);
+    });
+  }
+
+  private toggleManagement(): void {
+    if (this.busy) return;
+    this.managementEnabled = !this.managementEnabled;
+    const toggle = element<HTMLButtonElement>('toggleMaterialEditing');
+    toggle.textContent = this.managementEnabled ? '完成' : '編輯';
+    toggle.setAttribute('aria-pressed', String(this.managementEnabled));
+    element('newMaterial').hidden = !this.managementEnabled;
+    element('catalogEditor').hidden = !this.managementEnabled || !this.editing;
+    document.querySelectorAll<HTMLElement>('.material-row-actions').forEach(actions => {
+      actions.hidden = !this.managementEnabled;
     });
   }
 
@@ -95,7 +110,7 @@ export class MaterialCatalogEditor {
   }
 
   open(entry?: CatalogMaterial): void {
-    if (this.busy) return;
+    if (this.busy || !this.managementEnabled) return;
     const context = this.options.context();
     const subject = context.defaultSubject;
     this.editing = clone(entry ?? {
@@ -152,6 +167,7 @@ export class MaterialCatalogEditor {
   actions(entry: CatalogMaterial): HTMLElement {
     const actions = document.createElement('div');
     actions.className = 'material-row-actions';
+    actions.hidden = !this.managementEnabled;
     const context = this.options.context();
     const expected = catalogOverrides(context.records).find(current => current.id === entry.id) ?? null;
     const prefix = context.prefix;
@@ -200,6 +216,6 @@ export class MaterialCatalogEditor {
   }
 
   private setBusy(busy: boolean): void {
-    document.querySelectorAll<HTMLButtonElement>('[data-catalog-action], #newMaterial, #catalogForm button').forEach(button => { button.disabled = busy; });
+    document.querySelectorAll<HTMLButtonElement>('[data-catalog-action], #toggleMaterialEditing, #newMaterial, #catalogForm button').forEach(button => { button.disabled = busy; });
   }
 }

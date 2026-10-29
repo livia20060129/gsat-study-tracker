@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { enableMaterialEditing } from './helpers/materialEditing.ts';
 
 const date = '2026-10-29';
 const userId = '00000000-0000-0000-0000-000000000091';
@@ -13,6 +14,7 @@ async function isolatedGuest(page: Page): Promise<void> {
 }
 async function addBook(page: Page, mode: 'pages' | 'unit' | 'round' = 'pages'): Promise<void> {
   await page.goto('/material.progress.html#english');
+  await enableMaterialEditing(page);
   await page.getByRole('button', { name: '新增教材', exact: true }).click();
   await page.getByLabel('書名', { exact: true }).fill('My English Book');
   await page.getByLabel('範圍模板').selectOption(mode);
@@ -100,6 +102,7 @@ test('mobile catalog creates a page map, feeds Tracker and groups its progress b
   await expect(page.locator('.material-row')).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('catalog-mobile.png'), fullPage: true });
+  await enableMaterialEditing(page);
   await page.locator('.material-row').getByRole('button', { name: '編輯', exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('catalog-editor-mobile.png'), fullPage: true });
@@ -116,6 +119,7 @@ test('mobile catalog creates a page map, feeds Tracker and groups its progress b
   await expect(row).toContainText('完成 50%');
   await expect(row.locator('.material-segment')).toHaveCount(1);
   await page.goto('/material.progress.html#english'); await page.locator('#catalogSearch').fill('My English Book');
+  await enableMaterialEditing(page);
   await page.locator('.material-row').getByRole('button', { name: '編輯', exact: true }).click();
   page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: '刪除目錄', exact: true }).click();
   await expect(page.locator('#catalogStatus')).toContainText('教材已儲存');
@@ -130,6 +134,7 @@ test('catalog edits built-ins, rejects overlapping sections, restores defaults a
   await isolatedGuest(page);
   await page.evaluate(date => localStorage.setItem('study-v11:guest:' + date, JSON.stringify({ date, notes: 'keep this card', items: [{ id: 'existing-toefl', type: 'extra', source: 'custom', title: 'existing', done: false, minutes: '12', required: false, f: { title: 'TOEFL托福決戰字彙3800', start: '1', end: '8', progress: true } }] })), date);
   await page.reload(); await page.locator('#catalogSearch').fill('TOEFL');
+  await enableMaterialEditing(page);
   await page.locator('.material-row').getByRole('button', { name: '編輯', exact: true }).click();
   await page.getByLabel('書名', { exact: true }).fill('TOEFL My Edition');
   await page.getByRole('button', { name: '儲存教材', exact: true }).click();
@@ -140,6 +145,7 @@ test('catalog edits built-ins, rejects overlapping sections, restores defaults a
   await expect(oldCard.locator('[data-field="start"]')).toHaveValue('1');
   await expect(oldCard.locator('[data-field="end"]')).toHaveValue('8');
   await page.goto('/material.progress.html#english'); await page.locator('#catalogSearch').fill('TOEFL');
+  await enableMaterialEditing(page);
   page.on('dialog', dialog => dialog.accept());
   await page.getByRole('button', { name: '還原內建' }).click();
   await expect(page.locator('.material-row h3')).toHaveText('TOEFL托福決戰字彙3800');

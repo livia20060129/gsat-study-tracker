@@ -39,7 +39,8 @@
         <div class="material-toolbar">
           <label class="material-search" for="catalogSearch">搜尋教材<input id="catalogSearch" type="search" placeholder="輸入書名或科目" /></label>
           <label class="material-retired"><input id="showRetiredMaterials" type="checkbox" />顯示已停用教材</label>
-          <button id="newMaterial" class="material-control primary" type="button">新增教材</button>
+          <button id="newMaterial" class="material-control" type="button" hidden>新增教材</button>
+          <button id="toggleMaterialEditing" class="material-control primary" type="button" aria-pressed="false" aria-controls="newMaterial catalogEditor materialProgressList">編輯</button>
         </div>
         <p id="catalogStatus" class="progress-note" role="status" aria-live="polite"></p>
         <p id="catalogError" class="progress-error" role="alert" hidden></p>

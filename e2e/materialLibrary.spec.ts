@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { enableMaterialEditing } from './helpers/materialEditing.ts';
 
 test.use({ timezoneId: 'Asia/Taipei' });
 const date = '2026-10-29';
@@ -15,11 +16,47 @@ async function openLibrary(page: Page, subject = 'english'): Promise<void> {
 }
 
 async function fillBook(page: Page, title: string, mode = 'pages'): Promise<void> {
+  await enableMaterialEditing(page);
   await page.getByRole('button', { name: '新增教材', exact: true }).click();
   await page.getByLabel('書名', { exact: true }).fill(title);
   await page.getByLabel('範圍模板', { exact: true }).selectOption(mode);
   await page.locator('#catalogTotal').fill('20');
 }
+
+test('toolbar edit reveals material creation and finishing edit preserves a draft without saving it', async ({ page }) => {
+  await openLibrary(page);
+  const toggle = page.locator('#toggleMaterialEditing');
+  const create = page.locator('#newMaterial');
+  const before = await page.evaluate(() => JSON.stringify(Object.entries(localStorage).sort()));
+  await expect(toggle).toHaveText('編輯');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(create).toBeHidden();
+  await expect(page.locator('.material-row').getByRole('button', { name: '編輯', exact: true })).toHaveCount(0);
+  await toggle.click();
+  await expect(toggle).toHaveText('完成');
+  await expect(create).toBeVisible();
+  await expect(page.locator('.material-row').getByRole('button', { name: '編輯', exact: true }).first()).toBeVisible();
+  await create.click();
+  await page.getByLabel('書名', { exact: true }).fill('Preserved Draft');
+  await page.locator('#catalogTotal').fill('20');
+  await toggle.click();
+  await expect(create).toBeHidden();
+  await expect(page.locator('#catalogEditor')).toBeHidden();
+  await page.getByRole('tab', { name: '數學', exact: true }).click();
+  await page.getByRole('button', { name: '重新讀取', exact: true }).click();
+  await expect(page.locator('.material-row').getByRole('button', { name: '編輯', exact: true })).toHaveCount(0);
+  await toggle.click();
+  await expect(page.locator('#catalogEditor')).toBeVisible();
+  await expect(page.getByLabel('書名', { exact: true })).toHaveValue('Preserved Draft');
+  expect(await page.evaluate(() => JSON.stringify(Object.entries(localStorage).sort()))).toBe(before);
+  await page.getByRole('button', { name: '儲存教材', exact: true }).click();
+  await expect(page.locator('#catalogEditor')).toBeHidden();
+  await page.reload();
+  await expect(toggle).toHaveText('編輯');
+  await expect(create).toBeHidden();
+  await page.getByLabel('搜尋教材', { exact: true }).fill('Preserved Draft');
+  await expect(page.locator('.material-row')).toHaveCount(1);
+});
 
 test('one material row owns its progress and management actions, updates immediately and preserves study data', async ({ page }) => {
   await openLibrary(page);
@@ -69,6 +106,7 @@ test('catalog delete appears only for an existing editor and cancelling confirma
   const remove = page.locator('#deleteCatalogMaterial');
   await expect(remove).toBeHidden();
   await expect(page.locator('.material-row').getByRole('button', { name: '刪除目錄', exact: true })).toHaveCount(0);
+  await enableMaterialEditing(page);
   await page.getByRole('button', { name: '新增教材', exact: true }).click();
   await expect(remove).toBeHidden();
   await page.getByRole('button', { name: '取消編輯', exact: true }).click();
@@ -146,6 +184,7 @@ for (const mode of ['unit', 'round']) test(`offline ${mode} material saves local
   await page.reload();
   await page.getByLabel('搜尋教材', { exact: true }).fill(`Offline ${mode}`);
   await expect(page.locator('.material-row')).toHaveCount(1);
+  await enableMaterialEditing(page);
   await page.locator('.material-row').getByRole('button', { name: '編輯', exact: true }).click();
   await expect(page.getByLabel('範圍模板', { exact: true })).toHaveValue(mode);
 });
