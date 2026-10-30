@@ -25,7 +25,7 @@
     <article data-legal-panel="zh-Hant">
       <h1>隱私權政策</h1>
       <p class="lead">本政策說明 GSAT Study Tracker 如何處理讀書紀錄、帳號資料與 Google Calendar 資料。</p>
-      <p class="meta">生效日期：2026 年 10 月 29 日</p>
+      <p class="meta">生效日期：2026 年 10 月 30 日</p>
 
       <h2>一、適用範圍</h2>
       <p>本政策適用於 GSAT Study Tracker（以下稱「本網站」）的讀書紀錄、雲端同步及 Google Calendar 連線功能。營運者為 GSAT Study Tracker 個人專案營運者，聯絡信箱為 <a href="mailto:a8744895@gmail.com">a8744895@gmail.com</a>。</p>
@@ -38,6 +38,7 @@
       <p>使用者主動授權後，本網站以 <code>calendar.readonly</code> 唯讀權限讀取主要 Calendar 中指定期間內的資料。目前同步範圍約為過去 60 天至未來 240 天，可能包含：</p>
       <ul><li>行程標題、說明及地點。</li><li>開始與結束日期、時間及全天行程狀態。</li><li>事件識別碼、更新時間、重複行程資訊及 Calendar 行程連結。</li></ul>
       <p>本網站不會透過 Calendar API 新增、修改或刪除 Google Calendar 內的原始行程。</p>
+      <p>為在 Calendar 連線或讀取失敗時保留排程，本網站會在此瀏覽器按 Tracker 帳號保存最後成功讀取的排程快照。快照只包含上述排程欄位及讀取時間，不包含 OAuth 憑證；錯誤期間優先保留同帳號既有 Tracker 項目。下一次完整成功讀取會替換快照，成功手動解除 Calendar 連線或清除瀏覽器網站資料會刪除本機快照；先前已保存的 Tracker 紀錄依原保存流程處理。</p>
       <h3>OAuth 與技術資料</h3>
       <p>為維持 Calendar 連線，Supabase 會保存 OAuth Client ID、access token、refresh token、到期時間、授權範圍、同步時間與錯誤資訊。服務供應商也可能處理維持安全及排錯所需的 IP 位址、瀏覽器類型、請求時間與系統紀錄。</p>
       <h3>使用者主動要求的字典查詢</h3>
@@ -80,7 +81,7 @@
     <article data-legal-panel="en" lang="en" hidden>
       <h1>Privacy Policy</h1>
       <p class="lead">This policy explains how GSAT Study Tracker processes study records, account information, and Google Calendar data.</p>
-      <p class="meta">Effective date: October 29, 2026</p>
+      <p class="meta">Effective date: October 30, 2026</p>
 
       <h2>1. Scope</h2>
       <p>This policy applies to the study-record, cloud-sync, and Google Calendar connection features of GSAT Study Tracker (the “Service”). The Service is operated as a personal project. Privacy and data requests may be sent to <a href="mailto:a8744895@gmail.com">a8744895@gmail.com</a>.</p>
@@ -93,6 +94,7 @@
       <p>After a user provides authorization, the Service uses the read-only <code>calendar.readonly</code> scope to read events from the user’s primary calendar within a defined period. The current synchronization window is approximately 60 days in the past through 240 days in the future. Data may include:</p>
       <ul><li>Event title, description, and location.</li><li>Start and end dates and times, including all-day status.</li><li>Event identifiers, update timestamps, recurrence information, and the Google Calendar event link.</li></ul>
       <p>The Service does not create, modify, or delete original Google Calendar events through the Calendar API.</p>
+      <p>To retain schedules when Calendar connection or reading fails, the Service stores the last successfully read schedule snapshot in this browser, separately for each Tracker account. The snapshot contains only the schedule fields above and the read time, without OAuth credentials. Existing Tracker items for the same account take priority during failures. A complete successful read replaces the snapshot; successful manual Calendar disconnection or clearing browser site data removes the local snapshot. Previously saved Tracker records follow the existing retention flow.</p>
       <h3>OAuth and technical information</h3>
       <p>To maintain the Calendar connection, Supabase stores the OAuth client ID, access token, refresh token, expiration time, granted scope, synchronization time, and error information. Service providers may also process IP address, browser type, request time, and system logs required for security and troubleshooting.</p>
       <h3>User-initiated dictionary lookups</h3>

@@ -44,6 +44,7 @@ infrastructure repositories and gateways
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`
 - 字典前後端共用的純資料協定位於 `supabase/functions/_shared/dictionaryEntries.ts`，由 `src/study/dictionaryEntries.ts` 轉出給前端；不包含 secrets 或 Deno 執行期程式，後端不跨出 functions 目錄引用前端檔案。
 - Google Calendar 公開 Client ID 解析：`src/config/googleCalendar.ts`
+- Calendar 最後成功排程與帳號隔離：`src/application/calendar/calendarScheduleContinuity.ts`；只保存排程欄位、不存 token 或 metadata，以帳號及請求世代拒絕過期結果。待讀取／失敗時優先保留既有帳號紀錄，缺少快照時不以內建排程取代；完整成功（包含合法空陣列）後才更新。快照是本瀏覽器的獨立衍生快取，不加入 StudyRecord JSON 或資料表，明確解除連線後清除該帳號快照。
 - 數學 Calendar 分段對照：`src/calendar/mathPlan.ts`，以講義版本、冊別及單元匹配既有實際分段，檢查分母與跨冊順序，不把分數自行換算成頁數。數學行程先保留各自來源紀錄，之後由每日分組合併顯示，避免模板提前合併而丟失分鐘或手動範圍。
 - Unit／回次與分段頁碼模板選擇：`src/data/numberedScopes.ts`；分數註記判斷共用 `src/data/studyPartAnnotation.ts`。Calendar、原卡片、待辦與教材進度不得各自套用書名例外或把分數推估為已讀頁碼。
 - 單字精確比對、自動欄位所有權與手動優先：`src/study/vocabularyAutoFill.ts`；官方資料與字典中文分置 `src/data/ceecVocabulary.ts`、`src/data/ceecTranslations.ts`，來源、轉換與授權見 `VOCABULARY_SOURCES.md`。唯讀彙整不得觸發回填或改寫舊紀錄。

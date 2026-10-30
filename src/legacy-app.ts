@@ -96,6 +96,7 @@ import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyR
 import { SupabaseStudyRecordRepository } from './infrastructure/storage/supabaseStudyRecordRepository';
 import { loadAllCalendarTaskRows } from './infrastructure/storage/supabaseCalendarTaskReader';
 import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudyTaskService';
+import { CalendarScheduleContinuity } from './application/calendar/calendarScheduleContinuity.ts';
 import { createClient } from '@supabase/supabase-js';
 import { parseProgressImportText, progressImportBackupPayload, progressImportResultText } from './application/progressImport';
 import { bedtimeRecordForStudyDate } from './study/sleep';
@@ -626,6 +627,8 @@ var CLOUD_RECORD_BOOTSTRAP_TIMEOUT_MS=20000;
 var CLOUD_CALENDAR_BOOTSTRAP_TIMEOUT_MS=15000;
 
 var calendarConnected=false;
+var calendarContinuity=new CalendarScheduleContinuity(store);
+var calendarUsingLastSnapshot=false;
 var calendarCacheLoaded=false;
 var calendarHasError=false;
 var calendarParsedByDate={};
@@ -1206,9 +1209,9 @@ function calendarSetMessage(msg,ok){
  calendarHasError=ok===false;
  var busy=/正在|同步中/.test(String(msg||''));
  if(!cloudUser)setConnectionBadge('calendarStatusBadge','需先登入','offline');
+ else if(ok===false)setConnectionBadge('calendarStatusBadge',calendarUsingLastSnapshot?'同步異常・沿用上次':'同步異常','error');
  else if(!calendarConnected&&!googleCalendarClientConfig.isConfigured)setConnectionBadge('calendarStatusBadge','設定未完成','warning');
  else if(busy)setConnectionBadge('calendarStatusBadge','同步中','busy');
- else if(ok===false)setConnectionBadge('calendarStatusBadge','同步異常','error');
  else if(calendarConnected)setConnectionBadge('calendarStatusBadge','已連接','ok');
  else setConnectionBadge('calendarStatusBadge','未連接','offline');
 }
@@ -1218,12 +1221,13 @@ function calendarUpdateUI(){
   connect.disabled=!cloudUser||calendarConnected||!googleCalendarClientConfig.isConfigured;
   connect.title=!googleCalendarClientConfig.isConfigured?(googleCalendarClientConfig.message||'Google Calendar 設定未完成。'):'';
  }
- if(sync)sync.disabled=!cloudUser||!calendarConnected;
- if(disconnect)disconnect.disabled=!cloudUser||!calendarConnected;
+ if(sync)sync.disabled=!cloudUser||(!calendarConnected&&!calendarUsingLastSnapshot);
+ if(disconnect)disconnect.disabled=!cloudUser||(!calendarConnected&&!calendarUsingLastSnapshot);
  if(!cloudUser)setConnectionBadge('calendarStatusBadge','需先登入','offline');
+ else if(calendarHasError)setConnectionBadge('calendarStatusBadge',calendarUsingLastSnapshot?'同步異常・沿用上次':'同步異常','error');
  else if(calendarConnected)setConnectionBadge('calendarStatusBadge','已連接','ok');
+ else if(calendarUsingLastSnapshot)setConnectionBadge('calendarStatusBadge','沿用上次排程','warning');
  else if(!googleCalendarClientConfig.isConfigured)setConnectionBadge('calendarStatusBadge','設定未完成','warning');
- else if(calendarHasError)setConnectionBadge('calendarStatusBadge','同步異常','error');
  else setConnectionBadge('calendarStatusBadge','未連接','offline');
 }
 function calendarFriendlyError(message,body){
@@ -1262,8 +1266,36 @@ async function calendarInvoke(action,payload){
  return r.data||{};
 }
 function clearCalendarRuntime(){
+ calendarUsingLastSnapshot=false;
  calendarConnected=false;calendarCacheLoaded=false;calendarHasError=false;calendarParsedByDate={};cloudMathPlanByDate={};cloudMathPlansByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
  calendarUpdateUI();
+}
+function calendarRequestCurrent(token){
+ return !!token&&!!cloudUser&&token.userId===cloudUser.id&&currentStorageIsUserScoped()&&calendarContinuity.isCurrent(token);
+}
+function restoreCalendarSnapshot(){
+ var snapshot=calendarContinuity.snapshot;
+ if(!snapshot||!cloudUser||snapshot.userId!==cloudUser.id||!currentStorageIsUserScoped())return false;
+ buildCalendarRuntime(snapshot.rows);calendarCacheLoaded=true;calendarUsingLastSnapshot=true;return true;
+}
+function calendarFallbackText(){
+ var snapshot=calendarContinuity.snapshot;
+ if(snapshot)return '目前沿用此帳號上次成功讀取的排程（'+new Date(snapshot.savedAt).toLocaleString('zh-TW',{hour12:false})+'），已保存的項目、進度與時間保持不變。';
+ return '目前沿用此帳號上一次紀錄的項目，已保存的進度與時間保持不變；暫不套用內建排程。';
+}
+function calendarHandleUnavailable(token,error){
+ if(!calendarRequestCurrent(token)||!calendarContinuity.fail(token))return false;
+ restoreCalendarSnapshot();
+ calendarSetMessage('Calendar 連線／同步失敗：'+(error&&error.message?error.message:String(error))+'。'+calendarFallbackText(),false);
+ calendarUpdateUI();return true;
+}
+function hasStoredCalendarSchedule(){
+ function contains(items){return(Array.isArray(items)?items:[]).some(function(item){
+  if(!item)return false;var f=item.f||{};
+  return /^cal_/.test(item.presetKey||'')||!!f.calendarEventKey||!!f.calendarEventId||!!(f.calendarEventKeys&&f.calendarEventKeys.length)
+   ||['groupedWorkEntries','calendarIntegrationEntries','interactiveEntries','makeupEntries','reviewEntries'].some(function(key){return contains(f[key])});
+ })}
+ return localStudyDates().some(function(date){var record=readStoredRecord(date);return record&&contains(record.items)});
 }
 function naturalRecommendationByTopic(topic){
  var keys=Object.keys(CALENDAR_NATURAL_RECOMMENDED_PAGES||{});
@@ -1308,13 +1340,16 @@ function buildCalendarRuntime(rows){
  });
  Object.keys(cloudMathPlansByDate).forEach(function(date){cloudMathPlanByDate[date]=selectPrimaryCloudMathPlan(date,cloudMathPlansByDate[date])});
 }
-async function refreshCalendarTaskCache(){
- if(!cloudClient||!cloudUser){clearCalendarRuntime();return 0}
- var rows=await loadAllCalendarTaskRows(cloudClient,cloudUser.id);
- buildCalendarRuntime(rows);calendarCacheLoaded=true;return rows.length;
+async function refreshCalendarTaskCache(token){
+ if(!calendarRequestCurrent(token))return null;
+ var rows=await loadAllCalendarTaskRows(cloudClient,token.userId);
+ if(!calendarRequestCurrent(token))return null;
+ buildCalendarRuntime(rows);
+ if(!calendarContinuity.accept(token,rows))return null;
+ calendarCacheLoaded=true;calendarUsingLastSnapshot=false;return rows.length;
 }
 function reconcileStoredCalendarPresets(){
- if(!calendarCacheLoaded)return 0;
+ if(!calendarCacheLoaded||calendarContinuity.preservesRecords)return 0;
  var changedDates=0;
  localStudyDates().sort().forEach(function(ds){
   var rec=loadData(ds);
@@ -1328,31 +1363,56 @@ function reconcileStoredCalendarPresets(){
 }
 async function calendarRefreshStatus(showMessage){
  if(!cloudUser){clearCalendarRuntime();calendarSetMessage('先登入 Study Tracker 帳號，再連接 Google Calendar。',true);return false}
+ var token=calendarContinuity.begin();
  try{
-  var s=await calendarInvoke('status');calendarConnected=!!s.connected;
-  if(calendarConnected){var n=await refreshCalendarTaskCache(),cleaned=cloudBootstrapPending?0:reconcileStoredCalendarPresets();calendarSetMessage('Google Calendar 已連接；已載入 '+n+' 筆同步排程'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true)}
-  else{
-   calendarCacheLoaded=false;calendarParsedByDate={};
-   if(!googleCalendarClientConfig.isConfigured)calendarSetMessage(googleCalendarClientConfig.message,false);
+  var s=await calendarInvoke('status');if(!calendarRequestCurrent(token))return false;
+  calendarConnected=!!s.connected;
+  if(calendarConnected){
+   var n=await refreshCalendarTaskCache(token);if(n===null)return false;
+   var cleaned=cloudBootstrapPending?0:reconcileStoredCalendarPresets();
+   calendarSetMessage('Google Calendar 已連接；已載入 '+n+' 筆同步排程'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true);
+  }else{
+   calendarContinuity.disconnected(token,hasStoredCalendarSchedule());
+   restoreCalendarSnapshot();
+   if(calendarContinuity.preservesRecords)calendarSetMessage('Google Calendar 尚未連接；'+calendarFallbackText(),false);
+   else if(!googleCalendarClientConfig.isConfigured)calendarSetMessage(googleCalendarClientConfig.message,false);
    else calendarSetMessage('尚未連接 Google Calendar；目前使用內建排程 fallback。',true);
   }
   calendarUpdateUI();return calendarConnected;
- }catch(e){calendarCacheLoaded=false;calendarSetMessage('Calendar 連線失敗：'+(e&&e.message?e.message:String(e)),false);calendarUpdateUI();return false}
+ }catch(e){calendarHandleUnavailable(token,e);return false}
 }
 async function calendarConnect(){
+ if(!cloudUser){calendarSetMessage('請先登入 Study Tracker。',false);return}
+ var token=calendarContinuity.begin();
  try{
-  if(!googleCalendarClientConfig.isConfigured||!googleCalendarClientConfig.clientId){calendarSetMessage(googleCalendarClientConfig.message,false);calendarUpdateUI();return}
-  calendarSetMessage('正在建立 Google OAuth 連線…',true);var r=await calendarInvoke('auth-url',{clientId:googleCalendarClientConfig.clientId});if(!r.url)throw new Error('伺服器未回傳 Google 授權網址。');window.location.assign(String(r.url));
- }catch(e){calendarSetMessage('Calendar 連線失敗：'+(e&&e.message?e.message:String(e)),false)}
+  if(!googleCalendarClientConfig.isConfigured||!googleCalendarClientConfig.clientId)throw new Error(googleCalendarClientConfig.message);
+  calendarSetMessage('正在建立 Google OAuth 連線…',true);
+  var r=await calendarInvoke('auth-url',{clientId:googleCalendarClientConfig.clientId});if(!calendarRequestCurrent(token))return;
+  if(!r.url)throw new Error('伺服器未回傳 Google 授權網址。');window.location.assign(String(r.url));
+ }catch(e){calendarHandleUnavailable(token,e)}
 }
 async function calendarSyncNow(){
+ if(!cloudUser){calendarSetMessage('請先登入 Study Tracker。',false);return}
+ var token=calendarContinuity.begin();
  try{
-  calendarSetMessage('正在從 Google Calendar 讀取最新排程（包含刪除）…',true);var r=await calendarInvoke('sync');calendarConnected=!!r.connected;var n=await refreshCalendarTaskCache(),cleaned=reconcileStoredCalendarPresets();calendarSetMessage('同步完成：Google API 更新 '+Number(r.synced||0)+' 筆、移除 '+Number(r.removed||0)+' 筆；Tracker 載入 '+n+' 筆'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true);load({skipCloudRead:true});
- }catch(e){calendarSetMessage('Calendar 同步失敗：'+(e&&e.message?e.message:String(e)),false)}
+  calendarSetMessage('正在從 Google Calendar 讀取最新排程（包含刪除）…',true);
+  var r=await calendarInvoke('sync');if(!calendarRequestCurrent(token))return;
+  if(!r.connected)throw new Error('Google Calendar 尚未連接，請重新授權。');
+  calendarConnected=true;var n=await refreshCalendarTaskCache(token);if(n===null)return;
+  var cleaned=reconcileStoredCalendarPresets();
+  calendarSetMessage('同步完成：Google API 更新 '+Number(r.synced||0)+' 筆、移除 '+Number(r.removed||0)+' 筆；Tracker 載入 '+n+' 筆'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true);
+  calendarUpdateUI();refreshVisibleDataAfterBackgroundSync();
+ }catch(e){calendarHandleUnavailable(token,e)}
 }
 async function calendarDisconnect(){
  if(!window.confirm('確定要解除 Google Calendar 連線嗎？解除後會停止同步，之後需重新授權才能連接。'))return false;
- try{await calendarInvoke('disconnect');clearCalendarRuntime();calendarSetMessage('已解除 Google Calendar 連線；Tracker 回到內建排程 fallback。',true);load({skipCloudRead:true})}catch(e){calendarSetMessage('解除連線失敗：'+(e&&e.message?e.message:String(e)),false)}
+ if(!cloudUser)return false;
+ var token=calendarContinuity.begin();
+ try{
+  await calendarInvoke('disconnect');if(!calendarRequestCurrent(token))return false;
+  calendarContinuity.forget(token);clearCalendarRuntime();
+  calendarSetMessage('已解除 Google Calendar 連線；Tracker 回到內建排程 fallback。',true);load({skipCloudRead:true});return true;
+ }catch(e){calendarHandleUnavailable(token,e);return false}
 }
 
 function isEditingRecordControl(){
@@ -1389,6 +1449,7 @@ async function retryDirtyCloudRecordsOnReconnect(){
 async function activateCloudUser(user){
  if(user&&!cloudUser&&data&&!persist(false)){cloudSetMessage('登入前的訪客草稿尚未成功保存，請先確認輸入與本機儲存空間。',false);return}
  var serial=++cloudActivationSerial;cloudUser=user||null;setStorageScope(cloudUser?cloudUser.id:null);cloudBootstrapPending=!!cloudUser;cloudUpdateUI();clearCalendarRuntime();
+ calendarContinuity.activate(cloudUser?cloudUser.id:null);restoreCalendarSnapshot();
  if(!cloudUser){
   cloudBootstrapPending=false;cloudSetMessage('已登出；目前使用獨立 guest 本機資料。',true);rebuildMathProgressIndex();load({skipCloudRead:true});return;
  }
@@ -1439,6 +1500,7 @@ async function activateCloudUser(user){
 }
 async function refreshCalendarAfterCloudActivation(serial){
  if(serial!==cloudActivationSerial||!cloudUser)return;
+ var calendarSequence=calendarContinuity.sequence;
  calendarSetMessage('正在讀取 Google Calendar 連線狀態…',true);
  try{
   await withOperationTimeout(calendarRefreshStatus(false),{
@@ -1447,7 +1509,7 @@ async function refreshCalendarAfterCloudActivation(serial){
   });
   if(serial===cloudActivationSerial)refreshVisibleDataAfterBackgroundSync();
  }catch(e){
-  if(serial===cloudActivationSerial)calendarSetMessage(e&&e.message?e.message:String(e),false);
+  if(serial===cloudActivationSerial&&calendarContinuity.sequence===calendarSequence+1)calendarHandleUnavailable(calendarContinuity.token,e);
  }
 }
 async function initCloud(){
@@ -1609,7 +1671,8 @@ function calendarGrammarReview(date){
  return CALENDAR_GRAMMAR_PLAN[date]||null;
 }
 function calendarNaturalRecommended(date,item){
- if(!(calendarConnected&&calendarCacheLoaded))return CALENDAR_NATURAL_RECOMMENDED_PAGES[date]||null;
+ if(typeof calendarContinuity!=='undefined'&&calendarContinuity.preservesRecords&&!calendarContinuity.snapshot)return null;
+ if(!(calendarCacheLoaded&&(calendarConnected||(typeof calendarUsingLastSnapshot!=='undefined'&&calendarUsingLastSnapshot))))return CALENDAR_NATURAL_RECOMMENDED_PAGES[date]||null;
  if(!item)return null;
  var keys=calendarEventKeysFromFields(item.f||{});
  var plans=(calendarParsedByDate[date]||[]).filter(function(p){return p.kind==='natural'&&keys.indexOf(p.eventKey)>=0}).map(function(p){return resolveNaturalCalendarPlan(p,naturalRecommendationByTopic(p.topic))}).filter(Boolean);
@@ -1831,9 +1894,13 @@ function cloudCalendarDefsForDate(date){
  return out;
 }
 function calendarDefsForDate(date){
- return calendarConnected&&calendarCacheLoaded?cloudCalendarDefsForDate(date):hardcodedCalendarDefsForDate(date);
+ if(typeof calendarContinuity!=='undefined'&&calendarContinuity.preservesRecords&&!calendarContinuity.snapshot)return[];
+ return calendarCacheLoaded&&(calendarConnected||(typeof calendarUsingLastSnapshot!=='undefined'&&calendarUsingLastSnapshot))?cloudCalendarDefsForDate(date):hardcodedCalendarDefsForDate(date);
 }
-function activeCalendarMathPlan(date){return calendarConnected&&calendarCacheLoaded?(cloudMathPlanByDate[date]||null):(CALENDAR_MATH_PLAN[date]||null)}
+function activeCalendarMathPlan(date){
+ if(typeof calendarContinuity!=='undefined'&&calendarContinuity.preservesRecords&&!calendarContinuity.snapshot)return null;
+ return calendarCacheLoaded&&(calendarConnected||(typeof calendarUsingLastSnapshot!=='undefined'&&calendarUsingLastSnapshot))?(cloudMathPlanByDate[date]||null):(CALENDAR_MATH_PLAN[date]||null);
+}
 
 function calendarWeekMathTarget(date){
  var mon=dateString(mondayOf(parseDate(date)));
@@ -2080,6 +2147,8 @@ function rebuildDeferredForWeek(originDate){
 }
 function ensureDailyPresets(rec,date){
  if(!rec||date<DAILY_PRESET_START)return false;
+ if(typeof calendarContinuity!=='undefined'&&calendarContinuity.preservesRecords&&currentStorageIsUserScoped()
+  &&(!calendarContinuity.snapshot||(rec.items&&rec.items.length)||readStoredRecordResult(date).status!=='missing'))return false;
  if(!Array.isArray(rec.items))rec.items=[];
  var groupedSnapshot=JSON.stringify(rec.items);
  rec.items=ungroupDailyWorkItems(rec.items);
@@ -2282,7 +2351,9 @@ function calendarIntegrationChapterText(subject,ranges){
 function ensureCalendarNaturalIntegrationEntries(x,date){
  if(!x||!x.f)x.f={};
  if(!Array.isArray(x.f.calendarIntegrationEntries))x.f.calendarIntegrationEntries=[];
- var defs=calendarConnected&&calendarCacheLoaded?(cloudNaturalIntegrationItemsByDate[date]||CALENDAR_NATURAL_INTEGRATION_ITEMS[date]||null):(CALENDAR_NATURAL_INTEGRATION_ITEMS[date]||null);
+ if(typeof calendarContinuity!=='undefined'&&calendarContinuity.preservesRecords
+  &&(!calendarContinuity.snapshot||readStoredRecordResult(date).status!=='missing'))return x.f.calendarIntegrationEntries;
+ var defs=calendarCacheLoaded&&(calendarConnected||(typeof calendarUsingLastSnapshot!=='undefined'&&calendarUsingLastSnapshot))?(cloudNaturalIntegrationItemsByDate[date]||CALENDAR_NATURAL_INTEGRATION_ITEMS[date]||null):(CALENDAR_NATURAL_INTEGRATION_ITEMS[date]||null);
  if(!defs||!defs.length)return x.f.calendarIntegrationEntries;
  var old=x.f.calendarIntegrationEntries,by={},out=[];
  for(var i=0;i<old.length;i++)if(old[i]&&old[i].subject)by[old[i].subject]=old[i];
