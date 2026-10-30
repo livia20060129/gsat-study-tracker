@@ -2,6 +2,8 @@ import { saveCatalogMaterial } from '../application/records/catalogEdits.ts';
 import { catalogGroups, catalogModeNoun, catalogOverrides, catalogValidationError, type CatalogMaterial, type CatalogSection, type CatalogSubject } from '../study/materialCatalog.ts';
 import type { StudyRecord } from '../types.ts';
 
+const NATURAL_SUBJECTS: readonly CatalogSubject[] = ['生物', '物理', '化學', '地科'];
+
 export interface MaterialCatalogContext {
   prefix: string;
   records: StudyRecord[];
@@ -73,8 +75,12 @@ export class MaterialCatalogEditor {
   }
 
   private updateGroups(selected?: string): void {
-    const groups = catalogGroups(element<HTMLSelectElement>('catalogSubject').value as CatalogSubject);
+    const subject = element<HTMLSelectElement>('catalogSubject').value as CatalogSubject | '自然';
+    const groups = subject === '自然' ? [...NATURAL_SUBJECTS] : catalogGroups(subject);
     const select = element<HTMLSelectElement>('catalogGroup');
+    const label = subject === '自然' ? '自然科目' : '分類';
+    element('catalogGroupLabel').textContent = label;
+    select.setAttribute('aria-label', label);
     select.replaceChildren(...groups.map(group => new Option(group, group)));
     if (selected && groups.includes(selected)) select.value = selected;
   }
@@ -122,7 +128,7 @@ export class MaterialCatalogEditor {
     element('catalogEditorTitle').textContent = entry ? '編輯教材' : '新增教材';
     element('deleteCatalogMaterial').hidden = !entry || !!entry.deleted;
     element<HTMLInputElement>('catalogTitle').value = this.editing.title;
-    element<HTMLSelectElement>('catalogSubject').value = this.editing.subject;
+    element<HTMLSelectElement>('catalogSubject').value = NATURAL_SUBJECTS.includes(this.editing.subject) ? '自然' : this.editing.subject;
     this.updateGroups(this.editing.group);
     element<HTMLSelectElement>('catalogMode').value = this.editing.mode;
     element<HTMLInputElement>('catalogTotal').value = this.editing.total > 10000 ? '' : String(this.editing.total);
@@ -150,14 +156,17 @@ export class MaterialCatalogEditor {
 
   private readDraft(): CatalogMaterial {
     if (!this.editing) throw new Error('請先選擇教材。');
+    const family = element<HTMLSelectElement>('catalogSubject').value;
+    const group = element<HTMLSelectElement>('catalogGroup').value;
+    const subject = (family === '自然' ? group : family) as CatalogSubject;
     const sections = [...element('catalogSections').querySelectorAll<HTMLElement>('[data-section-id]')].map(function readSection(row): CatalogSection {
       function value(field: string): string { return row.querySelector<HTMLInputElement>(`[data-section-field="${field}"]`)!.value.trim(); }
       return { id: row.dataset.sectionId!, start: Number(value('start')), end: Number(value('end')), topic: value('topic'), detail: value('detail') };
     });
     return {
       ...this.editing, title: element<HTMLInputElement>('catalogTitle').value.trim(),
-      subject: element<HTMLSelectElement>('catalogSubject').value as CatalogSubject,
-      group: element<HTMLSelectElement>('catalogGroup').value,
+      subject,
+      group,
       mode: element<HTMLSelectElement>('catalogMode').value as CatalogMaterial['mode'],
       total: Number(element<HTMLInputElement>('catalogTotal').value),
       sections: sections.sort((left, right) => left.start - right.start), deleted: false, reset: false,

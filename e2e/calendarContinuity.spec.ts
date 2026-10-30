@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
-import { clickConnectionToggle } from './helpers/connectionMotion.ts';
 
-test.use({ timezoneId: 'Asia/Taipei' });
+// Calendar persistence does not depend on animation frames; tracker.spec.ts covers motion separately.
+test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
 const date = '2026-10-29';
 const userA = '00000000-0000-0000-0000-000000000031';
 const userB = '00000000-0000-0000-0000-000000000032';
@@ -24,7 +24,7 @@ function previousRecord(label: string) {
     f: { subject: '英文', calendarEventKey: 'previous:' + label, start: '5', end: '8' } }] };
 }
 
-async function setup(page: Page, state: State, record?: ReturnType<typeof previousRecord>): Promise<void> {
+async function setup(page: Page, state: State, record?: ReturnType<typeof previousRecord>, clockMode: 'fixed' | 'controlled' = 'fixed'): Promise<void> {
   const cloud = new Map<string, Record<string, unknown>>();
   if (record) cloud.set(state.user + ':' + date, { study_date: date, payload: record, revision: 1, updated_at: '2026-10-29T03:00:00Z' });
   await page.route('https://arxbirgujbrtzhoficdf.supabase.co/**', async route => {
@@ -62,7 +62,9 @@ async function setup(page: Page, state: State, record?: ReturnType<typeof previo
     }
     return route.fulfill({ json: [], headers });
   });
-  await page.clock.install({ time: new Date('2026-10-29T12:00:00+08:00') });
+  const time = new Date('2026-10-29T12:00:00+08:00');
+  if (clockMode === 'controlled') await page.clock.install({ time });
+  else await page.clock.setFixedTime(time);
   await page.goto('/summary.html');
   await page.evaluate(({ user, session, record, date }) => {
     localStorage.clear();
@@ -74,7 +76,11 @@ async function setup(page: Page, state: State, record?: ReturnType<typeof previo
 }
 
 async function openSettings(page: Page): Promise<void> {
-  if (!await page.locator('#connectionSettings').evaluate(node => (node as HTMLDetailsElement).open)) await clickConnectionToggle(page.locator('#connectionSettings > summary'));
+  const panel = page.locator('#connectionSettings');
+  if (!await panel.evaluate(node => (node as HTMLDetailsElement).open)) await panel.locator(':scope > summary').click();
+  await expect(panel).toHaveAttribute('open', '');
+  await expect(panel).not.toHaveClass(/\bis-(opening|closing)\b/);
+  await expect(page.locator('#calendarSyncBtn')).toBeVisible();
 }
 async function cached(page: Page, user = userA): Promise<string | null> {
   return page.evaluate(key => localStorage.getItem(key), snapshotKey(user));
@@ -163,7 +169,7 @@ test('malformed task responses retain the snapshot while a genuine successful em
 
 test('a late status response after the bootstrap timeout cannot apply or persist a new schedule', async ({ page }) => {
   const state: State = { user: userA, status: 'hold', table: 'ok', syncFails: false };
-  await setup(page, state, previousRecord('逾時保留項目'));
+  await setup(page, state, previousRecord('逾時保留項目'), 'controlled');
   await expect.poll(() => Boolean(state.held)).toBe(true);
   await page.clock.fastForward(16_000);
   await expect(page.locator('#calendarMessage')).toContainText('上一次紀錄');

@@ -32,7 +32,7 @@ function defaultCatalogSubject(): CatalogSubject {
   if (activeSubject === 'chinese') return '國文';
   if (activeSubject === 'english') return '英文';
   if (activeSubject === 'math') return '數學';
-  return '物理';
+  return '生物';
 }
 
 function element<T extends HTMLElement>(id: string): T {

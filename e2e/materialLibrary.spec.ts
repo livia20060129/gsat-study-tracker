@@ -128,10 +128,12 @@ test('global subject changes filter the library and retain the open editor draft
   await openLibrary(page, 'natural');
   await expect(page.locator('.material-row')).not.toHaveCount(0);
   await fillBook(page, 'My Biology Book');
-  await page.getByLabel('科目', { exact: true }).selectOption('生物');
+  await page.getByLabel('科目', { exact: true }).selectOption('自然');
+  await page.getByLabel('自然科目', { exact: true }).selectOption('生物');
   await page.getByRole('tab', { name: '英文', exact: true }).click();
   await expect(page.getByLabel('書名', { exact: true })).toHaveValue('My Biology Book');
-  await expect(page.getByLabel('科目', { exact: true })).toHaveValue('生物');
+  await expect(page.getByLabel('科目', { exact: true })).toHaveValue('自然');
+  await expect(page.getByLabel('自然科目', { exact: true })).toHaveValue('生物');
   await page.getByRole('button', { name: '重新讀取', exact: true }).click();
   await expect(page.getByLabel('書名', { exact: true })).toHaveValue('My Biology Book');
   await page.getByRole('button', { name: '儲存教材', exact: true }).click();
@@ -187,4 +189,38 @@ for (const mode of ['unit', 'round']) test(`offline ${mode} material saves local
   await enableMaterialEditing(page);
   await page.locator('.material-row').getByRole('button', { name: '編輯', exact: true }).click();
   await expect(page.getByLabel('範圍模板', { exact: true })).toHaveValue(mode);
+});
+
+test('natural material creation uses four science subjects and restores the stored subject when editing', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 900 });
+  await openLibrary(page, 'natural');
+  for (const subject of ['生物', '物理', '化學', '地科']) {
+    await fillBook(page, '分類教材 ' + subject);
+    const family = page.getByLabel('科目', { exact: true });
+    await expect(family.locator('option')).toHaveText(['國文', '英文', '數學', '自然']);
+    await expect(family).toHaveValue('自然');
+    const science = page.getByLabel('自然科目', { exact: true });
+    await expect(science.locator('option')).toHaveText(['生物', '物理', '化學', '地科']);
+    await science.selectOption(subject);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole('button', { name: '儲存教材', exact: true }).click();
+    await expect(page.locator('#catalogEditor')).toBeHidden();
+  }
+  await page.reload();
+  const saved = await page.evaluate(date => JSON.parse(localStorage.getItem('study-v11:guest:' + date)!).materialCatalog, date);
+  for (const subject of ['生物', '物理', '化學', '地科']) {
+    expect(saved.find((book: { title: string }) => book.title === '分類教材 ' + subject)).toMatchObject({ subject, group: subject });
+  }
+  await enableMaterialEditing(page);
+  const chemistry = page.locator('.material-row').filter({ hasText: '分類教材 化學' });
+  await chemistry.getByRole('button', { name: '編輯', exact: true }).click();
+  await expect(page.getByLabel('科目', { exact: true })).toHaveValue('自然');
+  await expect(page.getByLabel('自然科目', { exact: true })).toHaveValue('化學');
+  await page.screenshot({ path: testInfo.outputPath('science-subject-editor-mobile.png') });
+  await page.getByRole('button', { name: '取消編輯', exact: true }).click();
+  await fillBook(page, '分類切換草稿');
+  await page.getByLabel('科目', { exact: true }).selectOption('英文');
+  await expect(page.getByLabel('分類', { exact: true }).locator('option')).toHaveText(['學測', '補充']);
+  await page.getByLabel('科目', { exact: true }).selectOption('數學');
+  await expect(page.getByLabel('分類', { exact: true }).locator('option')).toHaveText(['複習講義', '分冊講義']);
 });
