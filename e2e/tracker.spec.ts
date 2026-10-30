@@ -1421,7 +1421,7 @@ test('learning summary uses one week/month control for the complete page', async
   expect(mobileHeader.headingFontSize).toBe('28px');
   expect(mobileHeader.backBottom).toBeLessThanOrEqual(mobileHeader.headingTop);
   expect(Math.abs(mobileHeader.controlsCenter - mobileHeader.headerCenter)).toBeLessThan(3);
-  expect(mobileHeader.backWidth).toBeLessThan(mobileHeader.headerWidth);
+  expect(Math.abs(mobileHeader.backWidth - mobileHeader.headerWidth)).toBeLessThan(1);
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#summarySubjectDistribution')).toHaveClass(/animate-detail-entry/);
   await page.waitForTimeout(420);
