@@ -130,13 +130,18 @@ test('old data is read-only until edited, phrases are excluded, and source notic
     await preview.close();
   }
   expect((await storedWords(page))[1]).toEqual(original[1]);
-  const sourcePopup = context.waitForEvent('page');
-  await page.getByRole('link', { name: '單字資料來源' }).click();
-  const sources = await sourcePopup;
-  await expect(sources.locator('body')).toContainText('ECDICT');
-  const license = await sources.request.get('/licenses/ECDICT-MIT.txt');
+  const pageCount = context.pages().length;
+  await page.getByRole('link', { name: '單字資料來源與授權', exact: true }).click();
+  await expect(page).toHaveURL(/\/vocabulary\.sources\.html$/);
+  expect(context.pages()).toHaveLength(pageCount);
+  await expect(page.locator('body')).toContainText('ECDICT');
+  const license = await page.request.get('/licenses/ECDICT-MIT.txt');
   expect(license.ok()).toBe(true);
   expect(await license.text()).toContain('Copyright (c) 2025 Linwei');
-  const manifest = await sources.request.get('/vocabulary-reference-manifest.json');
+  const manifest = await page.request.get('/vocabulary-reference-manifest.json');
   expect((await manifest.json()).official.lookupSpellings).toBe(6191);
+  await page.getByRole('link', { name: '返回英文單字複習', exact: true }).click();
+  await expect(page).toHaveURL(/\/vocabulary\.review\.html$/);
+  await expect(page.locator('.vocabulary-row[data-entry-key="alternate"]')).toBeVisible();
+  expect(context.pages()).toHaveLength(pageCount);
 });
