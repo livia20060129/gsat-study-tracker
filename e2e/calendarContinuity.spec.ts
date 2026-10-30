@@ -77,7 +77,9 @@ async function setup(page: Page, state: State, record?: ReturnType<typeof previo
 
 async function openSettings(page: Page): Promise<void> {
   const panel = page.locator('#connectionSettings');
-  if (!await panel.evaluate(node => (node as HTMLDetailsElement).open)) await panel.locator(':scope > summary').click();
+  if (!await panel.evaluate(node => (node as HTMLDetailsElement).open)) {
+    await panel.locator('.connection-settings-toggle').click();
+  }
   await expect(panel).toHaveAttribute('open', '');
   await expect(panel).not.toHaveClass(/\bis-(opening|closing)\b/);
   await expect(page.locator('#calendarSyncBtn')).toBeVisible();
@@ -98,7 +100,19 @@ test('sync/status errors keep same-account items, completion, ranges and minutes
   const snapshot = await cached(page);
   expect(snapshot).not.toBeNull();
   state.syncFails = true;
+  // Keep Save at the summary's click point regardless of the runner's font metrics.
+  await page.addStyleTag({ content: '#connectionSettings > summary { position: relative; } #saveBtn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }' });
+  const summary = page.locator('#connectionSettings > summary');
+  await summary.scrollIntoViewIfNeeded();
+  expect(await summary.evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    return document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest('button')?.id;
+  })).toBe('saveBtn');
+  await page.locator('#saveBtn').evaluate(button => {
+    button.addEventListener('click', () => button.setAttribute('data-test-save-clicked', 'true'));
+  });
   await openSettings(page); await page.locator('#calendarSyncBtn').click();
+  await expect(page.locator('#saveBtn')).not.toHaveAttribute('data-test-save-clicked', 'true');
   await expect(page.locator('#calendarMessage')).toContainText('上次成功讀取');
   await expect(card.locator('[data-done]').first()).toBeChecked();
   await expect(card.locator('[data-minutes]').first()).toHaveValue('33');
