@@ -15,22 +15,28 @@ async function openMathCalendar(page: Page, manual = false): Promise<void> {
   await page.route('https://arxbirgujbrtzhoficdf.supabase.co/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.pathname.endsWith('/functions/v1/google-calendar')) return route.fulfill({ json: { connected: true } });
-    if (url.pathname.endsWith('/rest/v1/calendar_tasks')) return route.fulfill({ json: calendarRows });
-    if (url.pathname.endsWith('/auth/v1/user')) return route.fulfill({ json: { id: userId, aud: 'authenticated', role: 'authenticated' } });
+    const headers = {
+      'Access-Control-Allow-Origin': request.headers().origin || '*',
+      'Access-Control-Allow-Headers': request.headers()['access-control-request-headers'] || 'authorization,apikey,content-type,x-client-info',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    if (url.pathname.endsWith('/functions/v1/google-calendar')) return route.fulfill({ json: { connected: true }, headers });
+    if (url.pathname.endsWith('/rest/v1/calendar_tasks')) return route.fulfill({ json: calendarRows, headers });
+    if (url.pathname.endsWith('/auth/v1/user')) return route.fulfill({ json: { id: userId, aud: 'authenticated', role: 'authenticated' }, headers });
     if (url.pathname.endsWith('/rest/v1/rpc/upsert_study_record')) {
       const body = request.postDataJSON();
       const revision = Number(cloudRecords.get(body.p_study_date)?.revision || 0) + 1;
       const row = { study_date: body.p_study_date, payload: body.p_payload, revision, updated_at: '2026-10-29T04:00:00Z' };
       cloudRecords.set(body.p_study_date, row);
-      return route.fulfill({ json: { ...row, applied: true } });
+      return route.fulfill({ json: { ...row, applied: true }, headers });
     }
     if (url.pathname.endsWith('/rest/v1/study_records')) {
       const requestedDate = url.searchParams.get('study_date')?.replace(/^eq\./, '');
       const rows = [...cloudRecords.values()].filter(row => !requestedDate || row.study_date === requestedDate);
-      return route.fulfill({ json: rows });
+      return route.fulfill({ json: rows, headers });
     }
-    return route.fulfill({ json: [] });
+    return route.fulfill({ json: [], headers });
   });
   await page.clock.install({ time: new Date('2026-10-29T12:00:00+08:00') });
   await page.goto('/summary.html');

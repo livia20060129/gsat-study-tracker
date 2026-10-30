@@ -27,6 +27,8 @@ infrastructure repositories and gateways
 - 已完成項目的時間歸屬與去重：`src/study/completedStudyTime.ts`
 - 首頁當日時間資料組裝：`src/application/overview/overviewStudyTime.ts`
 - 週／月學習總結：`src/study/learningSummary.ts`
+- 補舊進度時數：`completedStudyTime.ts` 的衍生 `scheduledDate` 保留原排程日，與實際完成日比較後由 `learningSummary.ts` 彙整；趨勢圖僅顯示分段，不改儲存或原總時數。
+- 全頁導覽與共用寬度：`public/navigation.css` 同時供靜態頁及建置頁使用，`src/header-action-link.css` 只轉入同一來源；桌面最大 1120px，手機導覽置於標題上方並置中。
 - 互動題辨識與每日選做：`src/study/interactiveTasks.ts`；新排程、舊版／Calendar 身分、主頁與週／月完成率及待辦共用同一判斷。互動題不產生完成率單位，學習時間與完成清單仍讀取原始完成紀錄。
 - 數學實際完成頁數：`src/study/mathProgress.ts`
 - Local／Supabase 讀寫：`src/infrastructure/storage/`

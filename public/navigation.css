@@ -1,0 +1,18 @@
+/* Shared by bundled app pages and standalone public pages. */
+:root{--site-page-width:1120px;--site-page-gutter:14px}
+.header-action-link{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;max-width:100%;min-height:40px;padding:9px 13px;border:1px solid #cbd8ea;border-radius:12px;background:#fff;color:#244ab5;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;font-size:13px;font-weight:800;line-height:1.4;text-align:center;text-decoration:none;overflow-wrap:anywhere;box-shadow:0 3px 10px rgba(15,23,42,.04)}
+.header-action-link:hover{border-color:#9cb3df;background:#f7f9ff;text-decoration:none}
+.header-action-link:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:2px}
+.page-navigation-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.page-navigation-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px;max-width:100%;margin-left:auto}
+.page-navigation-actions>.header-action-link{width:auto}
+body button{font-weight:800}
+body>main:not(.document),body.source-page,.prompt-header-inner,body .header-inner,body .site-footer{box-sizing:border-box;width:100%;max-width:var(--site-page-width);margin-left:auto;margin-right:auto;padding-left:var(--site-page-gutter);padding-right:var(--site-page-gutter)}
+body>main.document{box-sizing:border-box;width:calc(100% - 2 * var(--site-page-gutter));max-width:calc(var(--site-page-width) - 2 * var(--site-page-gutter));margin-left:auto;margin-right:auto}
+.prompt-page>header{padding-left:0;padding-right:0}
+.app-legal-footer .header-action-link{color:#244ab5}
+.app-legal-footer .header-action-link:hover{color:#244ab5;text-decoration:none}
+@media(max-width:700px){
+  body .page-navigation-header{display:flex;align-items:stretch;flex-direction:column}
+  .page-navigation-header>.page-navigation-actions{order:-1;align-self:center;justify-content:center;width:100%;margin:0}
+}

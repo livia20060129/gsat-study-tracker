@@ -359,7 +359,14 @@ function renderTrend(summary: LearningPeriodSummary): void {
   }).join('');
   const bars = points.map(point => {
     const barHeight = plotHeight * point.totalMinutes / maxMinutes;
-    return `<rect x="${point.x - barWidth / 2}" y="${top + plotHeight - barHeight}" width="${barWidth}" height="${barHeight}" rx="4"><title>${point.date}：${formatWholeDuration(point.totalMinutes)}</title></rect>`;
+    const makeupHeight = plotHeight * point.makeupMinutes / maxMinutes;
+    const regularHeight = barHeight - makeupHeight;
+    const regularMinutes = Math.max(0, Math.round((point.totalMinutes - point.makeupMinutes) * 10) / 10);
+    const regular = regularMinutes > 0
+      ? `<rect data-time-kind="regular" data-minutes="${regularMinutes}" x="${point.x - barWidth / 2}" y="${top + plotHeight - regularHeight}" width="${barWidth}" height="${regularHeight}" rx="4"><title>當日進度：${formatWholeDuration(regularMinutes)}</title></rect>` : '';
+    const makeup = point.makeupMinutes > 0
+      ? `<rect class="trend-makeup-time" data-time-kind="makeup" data-minutes="${point.makeupMinutes}" x="${point.x - barWidth / 2}" y="${top + plotHeight - barHeight}" width="${barWidth}" height="${makeupHeight}" rx="4"><title>補舊進度：${formatWholeDuration(point.makeupMinutes)}</title></rect>` : '';
+    return `<g data-trend-date="${point.date}"><title>${point.date}：${formatWholeDuration(point.totalMinutes)}</title>${regular}${makeup}</g>`;
   }).join('');
   const line = points.map(point => `${point.x},${point.y}`).join(' ');
   const dots = points.map(point => `<circle cx="${point.x}" cy="${point.y}" r="3.8"><title>${point.date}：完成率 ${point.completionPercent}%</title></circle>`).join('');

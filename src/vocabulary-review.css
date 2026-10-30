@@ -50,7 +50,7 @@
 .dictionary-preview{display:grid;gap:10px;min-width:0;padding:12px;border:1px solid #d8e1ee;border-radius:12px;background:#f7faff}
 .dictionary-preview-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:9px;min-width:0}
 .dictionary-preview-source{align-self:center;color:#60738d;font-size:12px}
-.dictionary-preview button{min-height:40px;max-width:100%;padding:8px 11px;border:1px solid #bfd1e9;border-radius:9px;background:#fff;color:#244c83;font:inherit;font-size:13px;cursor:pointer}
+.dictionary-preview button{min-height:40px;max-width:100%;padding:8px 11px;border:1px solid #bfd1e9;border-radius:9px;background:#fff;color:#244c83;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
 .dictionary-preview button:disabled{opacity:.5;cursor:not-allowed}
 .dictionary-preview-status{margin:0;font-size:12px;line-height:1.6;color:#60738d;overflow-wrap:anywhere}
 .dictionary-preview-results{display:grid;gap:10px;min-width:0}

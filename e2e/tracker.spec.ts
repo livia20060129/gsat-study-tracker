@@ -1406,18 +1406,22 @@ test('learning summary uses one week/month control for the complete page', async
   const mobileHeader = await page.locator('.summary-header').evaluate(node => {
     const heading = node.querySelector('h1')!.getBoundingClientRect();
     const back = node.querySelector('.summary-back')!.getBoundingClientRect();
+    const controls = node.querySelector('.summary-view-controls')!.getBoundingClientRect();
     const header = node.getBoundingClientRect();
     return {
-      headingBottom: heading.bottom,
+      headingTop: heading.top,
       headingFontSize: getComputedStyle(node.querySelector('h1')!).fontSize,
-      backTop: back.top,
+      backBottom: back.bottom,
+      controlsCenter: controls.left + controls.width / 2,
+      headerCenter: header.left + header.width / 2,
       backWidth: back.width,
       headerWidth: header.width,
     };
   });
   expect(mobileHeader.headingFontSize).toBe('28px');
-  expect(mobileHeader.backTop).toBeGreaterThan(mobileHeader.headingBottom);
-  expect(Math.abs(mobileHeader.backWidth - mobileHeader.headerWidth)).toBeLessThan(3);
+  expect(mobileHeader.backBottom).toBeLessThanOrEqual(mobileHeader.headingTop);
+  expect(Math.abs(mobileHeader.controlsCenter - mobileHeader.headerCenter)).toBeLessThan(3);
+  expect(mobileHeader.backWidth).toBeLessThan(mobileHeader.headerWidth);
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#summarySubjectDistribution')).toHaveClass(/animate-detail-entry/);
   await page.waitForTimeout(420);

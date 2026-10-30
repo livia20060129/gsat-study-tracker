@@ -1,18 +1,14 @@
 <!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>單字資料來源與授權｜GSAT Study Tracker</title>
+<link rel="stylesheet" href="./navigation.css">
 <style>
 body{max-width:800px;margin:40px auto;padding:0 20px;font:16px/1.8 system-ui,"Microsoft JhengHei",sans-serif;color:#24364b;background:#f5f8fc}
 h1{margin:0;font-size:26px}h2{font-size:20px}a{color:#315b91;overflow-wrap:anywhere}
 section{margin:20px 0;padding:18px;border:1px solid #d7e0ec;border-radius:14px;background:white}p{margin:8px 0}
-.source-page-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px}
-.source-navigation{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;margin-left:auto}
-.header-action-link{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;padding:9px 13px;border:1px solid #cbd8ea;border-radius:12px;background:#fff;color:#244ab5;font-size:13px;font-weight:750;text-decoration:none;box-shadow:0 3px 10px rgba(15,23,42,.04)}
-.header-action-link:hover{border-color:#9cb3df;background:#f7f9ff}
-.header-action-link:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:2px}
-</style></head><body>
-<header class="source-page-header">
+</style></head><body class="source-page">
+<header class="source-page-header page-navigation-header">
 <h1>單字資料來源與授權</h1>
-<nav class="source-navigation" aria-label="返回頁面">
+<nav class="source-navigation page-navigation-actions" aria-label="返回頁面">
 <a class="header-action-link" href="./vocabulary.review.html">返回英文單字複習</a>
 <a class="header-action-link" href="./index.html">回到 Tracker</a>
 </nav>
@@ -29,6 +25,6 @@ section{margin:20px 0;padding:18px;border:1px solid #d7e0ec;border-radius:14px;b
 <p>此版沒有採用 Oxford 的釋義，Oxford 只保留外部查詢連結。本機自動帶入及本機字典預覽不會把輸入內容傳給外部字典；已整理的參考資料隨網站提供，在本機比對。</p></section>
 <section><h2>本機 ECDICT 預覽與確認填入</h2>
 <p>在單字編輯模式按下「取得翻譯」，即可從現有 ECDICT 子集預覽、勾選意思並確認填入，不需登入、網路或 API 金鑰。確認前不寫入，確認後只追加所選意思及詞性，保留既有翻譯與學測級數。未收錄的詞可手動輸入；本機子集並非完整 ECDICT 詞庫。</p>
-<p>參考來源集中於「英文單字複習」頁面標題下方。劍橋線上查詢、選項及連結已移除。若舊紀錄已有 Cambridge Dictionary 釋義，仍保留原中文與歷史出處，不將其改標為 ECDICT；歷史內容適用原來源授權，有翻譯 PDF 也會保留其出處。</p></section>
+<p>參考來源集中於「英文單字複習」頁面標題下方。</p></section>
 <section><h2>使用者資料</h2><p>自動帶入只在完整單字輸入完成、離開英文欄位時執行，組合與句子不套用。手動修改優先，既有紀錄不會在開啟頁面時被批次重寫。自動帶入及使用者修改皆沿用原本的本機保存、匯出／匯入與帳號同步流程。</p></section>
 </body></html>
