@@ -5,6 +5,7 @@ import type { StudyItem } from '../src/types.ts';
 const prefix = 'study-v11:guest:';
 const date = '2026-11-01';
 const calendarTopic = 'Calendar 主題只保留在原始資料';
+const calendarDescription = 'Google Calendar API：1-2｜數列與級數｜【講義版本】新關鍵 【頁碼範圍】p.101–103 【識別碼】GSAT-NEWKEY-MATH-20261010';
 
 function studyItem(id: string, type: string, fields: StudyItem['f']): StudyItem {
   return { id, type, title: id, source: 'custom', required: false, done: false, minutes: '', f: fields };
@@ -53,6 +54,8 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
     studyItem('flat-chinese', 'chineseReading', { kind: 'book', book: DEEP_FIFTEEN_BOOK, start: '8', end: '25' }),
     studyItem('flat-unit', 'extra', { title: '自訂 Unit 教材', unitStart: '2', unitEnd: '3' }),
   ];
+  items[1].description = calendarDescription;
+  items[2].description = '保留學習說明｜' + calendarDescription;
   await seed(page, items);
   for (const width of [1280, 375, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -67,6 +70,7 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
       await expect(reference).not.toContainText('Google Calendar');
       await expect(reference).not.toContainText('建議進度');
       await expect(reference).not.toContainText('建議頁碼');
+      await expect(card).not.toContainText('Google Calendar API');
       await reference.locator('summary').click();
       await expect(reference.locator('.study-reference-content')).toBeHidden();
       const keys = item.id === 'flat-unit' ? ['unitStart', 'unitEnd'] : ['start', 'end'];
@@ -110,6 +114,11 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
     return record.items.find((item: StudyItem) => item.id === 'flat-science').f.calendarTopic;
   }, { prefix, date });
   expect(storedTopic).toBe(calendarTopic);
+  expect(await page.evaluate(({ prefix, date }) => {
+    const record = JSON.parse(localStorage.getItem(prefix + date)!);
+    return record.items.find((item: StudyItem) => item.id === 'flat-science').description;
+  }, { prefix, date })).toBe(calendarDescription);
+  await expect(page.locator('#itemList [data-item="flat-english"] .item-desc')).toHaveText('保留學習說明');
   for (const width of [1280, 375]) {
     await page.setViewportSize({ width, height: 900 });
     await card.screenshot({ path: testInfo.outputPath(`flat-card-${width}.png`) });
@@ -153,11 +162,13 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   const original = studyItem('flat-todo', 'scienceReview', { subject: '生物', material: '新關鍵', start: '72', end: '82' });
   original.source = 'preset';
   original.required = true;
+  original.description = calendarDescription;
   await seed(page, [original], '2026-10-29');
   await page.setViewportSize({ width: 320, height: 852 });
   await page.goto('/todo.html');
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="flat-todo"]') });
   await expect(todo).toBeVisible();
+  await expect(todo).not.toContainText('Google Calendar API');
   await expect(todo).not.toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(todo).toHaveCSS('border-left-width', '4px');
   await expect(page.locator('.study-record-section')).toHaveCSS('border-top-width', '0px');
@@ -175,4 +186,5 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   await expect(card.locator('[data-field="end"]')).toHaveValue('97');
   await expect(card.locator('[data-field="start"]')).toBeVisible();
   await expect(card.locator('.study-reference-details')).toHaveAttribute('open', '');
+  await expect(card).not.toContainText('Google Calendar API');
 });

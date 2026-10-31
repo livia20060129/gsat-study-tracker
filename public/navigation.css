@@ -20,11 +20,18 @@ body>main.document{box-sizing:border-box;width:calc(100% - 2 * var(--site-page-g
   body.source-page{margin-top:22px}
   body.prompt-page>header,body .header-inner{padding-top:22px}
   body .page-navigation-header,body .summary-header{gap:16px}
+  body .page-navigation-header{align-items:flex-start}
   body .summary-header{padding:0}
   body .summary-heading{align-self:start}
   body .page-navigation-header h1,body .summary-header h1{margin:0;padding:0;color:#172033;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;font-size:28px;font-weight:700;font-style:normal;line-height:1.55;letter-spacing:normal;text-align:left;font-synthesis:none;text-rendering:optimizeLegibility}
   body .legal-page-heading{min-width:0}
   body .legal-page-heading>.brand{display:block;margin:0;color:#64748b;font-size:13px;font-weight:400;line-height:1.55}
+}
+@media screen and (min-width:701px){
+  .page-navigation-actions{flex-shrink:0;min-width:136px}
+  body .page-navigation-header:not(.app-header){flex-wrap:nowrap}
+  body .page-navigation-header:not(.app-header)>.page-navigation-actions{max-width:calc(100% - 160px)}
+  body .page-navigation-header>:not(.page-navigation-actions){min-width:0}
 }
 @media(max-width:700px){
   body .page-navigation-header{display:flex;align-items:stretch;flex-direction:column}

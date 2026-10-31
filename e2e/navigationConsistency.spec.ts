@@ -59,6 +59,9 @@ test('every page shares bold navigation, full-width mobile button rows and deskt
         expect(appearance['border-top-style'], path).toBe('solid');
         expect(appearance['text-decoration-line'], path).toBe('none');
         expect(appearance.height, path + ' common navigation height').toBe('44px');
+        if (width > 700 && await button.getAttribute('data-navigation') === 'home') {
+          expect(appearance.width, path + ' desktop home button keeps its full width').toBe('136px');
+        }
         expect(await button.evaluate(node => node.scrollHeight <= node.clientHeight), path + ' button text stays inside').toBe(true);
         const destination = new URL((await button.getAttribute('href'))!, page.url()).pathname;
         const identity = { text: (await button.innerText()).trim(), appearance };
@@ -98,6 +101,9 @@ test('every page shares bold navigation, full-width mobile button rows and deskt
       const bounds = (await pageContainer.boundingBox())!;
       expect(Math.abs(bounds.width - Math.min(width, 1120)), path).toBeLessThan(1);
       const navBounds = (await navigation.boundingBox())!;
+      if (width !== 701 || path !== '/') {
+        expect(Math.abs(navBounds.y - 22), path + ' navigation stays at the same top position').toBeLessThan(1);
+      }
       if (width <= 700) {
         const heading = (await page.locator('h1:visible').first().boundingBox())!;
         expect(Math.abs(navBounds.x + navBounds.width / 2 - width / 2), path).toBeLessThan(2);

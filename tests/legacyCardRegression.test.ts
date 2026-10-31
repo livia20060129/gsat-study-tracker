@@ -3,6 +3,7 @@ import { resolveMathCalendarPlan } from '../src/calendar/mathPlan.ts';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { renderStudyReference } from '../src/ui/studyReference.ts';
+import { studyCardDescription } from '../src/ui/studyDescription.ts';
 import { runInNewContext } from 'node:vm';
 import * as completion from '../src/study/completionMetrics.ts';
 import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
@@ -39,6 +40,7 @@ function runtimeFunction<T>(name: string, dependencies: Record<string, unknown>)
   assert.ok(start >= 0 && end > start, `Missing runtime function: ${name}`);
   return runInNewContext(`${runtime.slice(start, end)}\n${name}`, {
     renderStudyReference,
+    studyCardDescription,
     managedMaterialForItem: () => null,
     completionDateMarkup: () => '',
     isInteractiveStudyItem,

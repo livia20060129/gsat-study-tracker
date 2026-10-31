@@ -8,6 +8,7 @@ import {
 } from './application/timer/studyTimerController.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
+import { studyCardDescription } from './ui/studyDescription.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemFilterForSubject, overdueItemOptions } from './study/overdueItemFilter.ts';
@@ -243,10 +244,11 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   const title = document.createElement('h3');
   title.textContent = entry.title;
   main.append(title);
-  if (entry.description) {
+  const descriptionText = studyCardDescription(entry.description);
+  if (descriptionText) {
     const description = document.createElement('p');
     description.className = 'todo-description';
-    description.textContent = entry.description;
+    description.textContent = descriptionText;
     main.append(description);
   }
   const details = document.createElement('dl');
@@ -647,7 +649,7 @@ function load(forceCards = false): void {
     if (recordPrefix !== result.prefix) { drafts.clear(); draftBases.clear(); }
     recordPrefix = result.prefix;
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
-    element<HTMLParagraphElement>('recordSource').textContent = `${source}｜已讀取 ${result.records.length} 天紀錄`;
+    element<HTMLSpanElement>('recordSource').textContent = `${source}｜已讀取 ${result.records.length} 天紀錄`;
     setError('');
     setFeedback('');
     if (forceCards) element<HTMLDivElement>('todoList').querySelectorAll<HTMLElement>('.todo-card')
@@ -655,7 +657,7 @@ function load(forceCards = false): void {
     render();
   } catch {
     records = [];
-    element<HTMLParagraphElement>('recordSource').textContent = '無法讀取本機紀錄';
+    element<HTMLSpanElement>('recordSource').textContent = '無法讀取本機紀錄';
     setFeedback('');
     setError('瀏覽器目前不允許存取 Tracker 的本機資料，請回到 Tracker 確認瀏覽器儲存權限。');
     render();
@@ -820,7 +822,8 @@ element<HTMLDivElement>('todoHistoryList').addEventListener('click', function ha
   if (action) undoHandledTask(action);
 });
 
-element<HTMLButtonElement>('refreshTodo').addEventListener('click', function refreshManually(): void {
+element<HTMLAnchorElement>('refreshTodo').addEventListener('click', function refreshManually(event): void {
+  event.preventDefault();
   draftBases.clear();
   load(true);
 });
