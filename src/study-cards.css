@@ -4,7 +4,7 @@
 .study-record-section>.panel-head,.study-record-section>.todo-panel-head{padding:12px 0;border-bottom:0}
 .study-record-section>.content,.study-record-section>.todo-panel-body,.study-record-section>.view-pane>.content{padding:0}
 
-.study-record-section .item.subject-card{margin-top:12px;padding:18px;border:1px solid var(--study-card-line);border-left:4px solid var(--subject-accent);border-radius:14px;background:var(--study-card-surface);box-shadow:none}
+.study-record-section .item.subject-card{margin-top:12px;padding:18px;border:1px solid var(--study-card-line);border-left:4px solid var(--subject-accent);border-radius:14px;background:var(--subject-soft,var(--study-card-surface));box-shadow:none}
 .study-record-section .item .item-top{margin:0;padding:0;border-radius:0;background:transparent}
 .study-record-section .item .item-title{color:var(--subject-ink,var(--text))}
 .study-record-section .item .inner{margin-top:16px;padding:16px 0 0;border:0;border-top:1px solid var(--study-card-line);border-radius:0;background:transparent}
@@ -19,7 +19,7 @@
 
 .study-record-section .item .item{margin:16px 0 0;padding:16px 0 0;border:0;border-top:1px solid var(--study-card-line);border-radius:0;background:transparent;box-shadow:none}
 .study-record-section .item .item .item-title{color:var(--subject-child-ink,var(--subject-ink))}
-.study-record-section .todo-card{padding:18px;border-color:var(--study-card-line);border-left-color:var(--subject-accent);border-radius:14px;background:var(--study-card-surface)}
+.study-record-section .todo-card{padding:18px;border-color:var(--study-card-line);border-left-color:var(--subject-accent);border-radius:14px;background:color-mix(in srgb,var(--subject-accent) 8%,var(--study-card-surface))}
 .study-record-section .todo-record-grid,.study-record-section .todo-progress-editor{border-top-color:var(--study-card-line)}
 .study-reference-details{margin-top:14px;padding-top:12px;border-top:1px solid var(--study-card-line)}
 .study-reference-details>summary{width:fit-content;cursor:pointer;color:var(--subject-ink,var(--text));font-size:13px;font-weight:700;line-height:1.6}

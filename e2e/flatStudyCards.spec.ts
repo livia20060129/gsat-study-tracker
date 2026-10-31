@@ -60,10 +60,15 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
       const card = page.locator(`#itemList [data-item="${item.id}"]`);
       const reference = card.locator('.study-reference-details');
       await expect(reference).toHaveCount(1);
-      await expect(reference).not.toHaveAttribute('open', '');
+      await expect(reference).toHaveAttribute('open', '');
+      await expect(reference.locator('.study-reference-content')).toBeVisible();
       await expect(reference.locator('input, select, textarea, button')).toHaveCount(0);
       await expect(reference).not.toContainText(calendarTopic);
       await expect(reference).not.toContainText('Google Calendar');
+      await expect(reference).not.toContainText('建議進度');
+      await expect(reference).not.toContainText('建議頁碼');
+      await reference.locator('summary').click();
+      await expect(reference.locator('.study-reference-content')).toBeHidden();
       const keys = item.id === 'flat-unit' ? ['unitStart', 'unitEnd'] : ['start', 'end'];
       await expectRangeOnOneRow(card, `[data-field="${keys[0]}"]`, `[data-field="${keys[1]}"]`);
       const surface = await card.evaluate(element => {
@@ -72,11 +77,14 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
         return { background: style.backgroundColor, stripe: style.borderLeftWidth, shadow: style.boxShadow,
           fieldBorder: field.borderTopWidth, fieldBackground: field.backgroundColor };
       });
-      expect(surface).toEqual({ background: 'rgb(255, 255, 255)', stripe: '4px', shadow: 'none',
+      const backgrounds: Record<string, string> = {
+        'flat-math': 'rgb(251, 244, 229)', 'flat-science': 'rgb(238, 246, 242)',
+        'flat-english': 'rgb(245, 241, 247)', 'flat-chinese': 'rgb(250, 241, 239)', 'flat-unit': 'rgb(245, 241, 247)',
+      };
+      expect(surface).toEqual({ background: backgrounds[item.id], stripe: '4px', shadow: 'none',
         fieldBorder: '0px', fieldBackground: 'rgba(0, 0, 0, 0)' });
       await reference.locator('summary').click();
       await expect(reference.locator('.study-reference-content')).toBeVisible();
-      await reference.locator('summary').click();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
@@ -95,7 +103,7 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
   await expect(card.locator('[data-minutes]')).toHaveValue('22');
   await expect(card.locator('[data-check="progress"]')).toBeChecked();
   await expect(card.locator(':scope > .item-top > [data-done]')).toBeChecked();
-  await card.locator('summary').click();
+  await expect(card.locator('.study-reference-details')).toHaveAttribute('open', '');
   await expect(card.locator('[data-science-auto]')).toBeVisible();
   const storedTopic = await page.evaluate(({ prefix, date }) => {
     const record = JSON.parse(localStorage.getItem(prefix + date)!);
@@ -128,7 +136,7 @@ test('nested natural subjects use dividers and retain independent completion and
   await biology.locator('[data-minutes]').blur();
   await expect(chemistry.locator(':scope > .item-top > [data-done]')).not.toBeChecked();
   const details = biology.locator('.study-reference-details');
-  await details.locator('summary').click();
+  await expect(details).toHaveAttribute('open', '');
   await expect(details).not.toContainText(calendarTopic);
   await expect(details.locator('.study-reference-content')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -150,7 +158,7 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   await page.goto('/todo.html');
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="flat-todo"]') });
   await expect(todo).toBeVisible();
-  await expect(todo).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(todo).not.toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(todo).toHaveCSS('border-left-width', '4px');
   await expect(page.locator('.study-record-section')).toHaveCSS('border-top-width', '0px');
   const end = todo.locator('[data-todo-range="end"]');
@@ -166,5 +174,5 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   const card = page.locator('[data-item="flat-todo"]');
   await expect(card.locator('[data-field="end"]')).toHaveValue('97');
   await expect(card.locator('[data-field="start"]')).toBeVisible();
-  await expect(card.locator('.study-reference-details')).not.toHaveAttribute('open', '');
+  await expect(card.locator('.study-reference-details')).toHaveAttribute('open', '');
 });

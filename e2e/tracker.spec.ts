@@ -3,6 +3,7 @@ import { clickConnectionToggle } from './helpers/connectionMotion.ts';
 
 test('legal pages switch languages and preserve the choice across navigation', async ({ page }) => {
   await page.goto('/privacy.html?lang=zh');
+  await expect(page.locator('.header-inner h1:visible')).toHaveText('隱私權政策');
   await expect(page.locator('[data-legal-panel="zh-Hant"]')).toBeVisible();
   await expect(page.locator('[data-legal-panel="en"]')).toBeHidden();
 
@@ -10,18 +11,22 @@ test('legal pages switch languages and preserve the choice across navigation', a
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
   await expect(page).toHaveTitle('Privacy Policy | GSAT Study Tracker');
+  await expect(page.locator('.header-inner h1:visible')).toHaveText('Privacy Policy');
   await expect(page).toHaveURL(/lang=en/);
 
   await page.goto('/terms.html');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
   await expect(page).toHaveTitle('Terms of Service | GSAT Study Tracker');
+  await expect(page.locator('.header-inner h1:visible')).toHaveText('Terms of Service');
 
   await page.goto('/support.html');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
   await expect(page).toHaveTitle('User Support | GSAT Study Tracker');
+  await expect(page.locator('.header-inner h1:visible')).toHaveText('User Support');
   await page.locator('[data-legal-language="zh-Hant"]').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hant');
   await expect(page.locator('[data-legal-panel="zh-Hant"]')).toBeVisible();
+  await expect(page.locator('.header-inner h1:visible')).toHaveText('使用者支援');
 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileBounds = await page.locator('.document, .language-switch').evaluateAll(elements => elements.map(element => {

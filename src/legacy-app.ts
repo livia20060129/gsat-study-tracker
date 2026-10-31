@@ -2652,9 +2652,6 @@ function renderMathFields(x,reviewMode){
  var mathAutoField='<div class="field"><label>'+(f.material==='複習週記'?'對應章節':'對應單元／章節')+'</label><div class="small" data-math-auto>'+esc(mathAutoText(f))+'</div></div>';
  var reference=mathAutoField;
  if(hasDeferredStudySource(x))reference='<div class="math-auto-source-row">'+mathAutoField+'<div class="field"><label>來源日期</label><div class="fixed-book-value">'+esc(groupedSourceDateText(x,(data&&data.date)||''))+'</div></div></div>';
- if(x.type==='mathStudy'&&f.calendarPlanTitle){
-  reference+='<div class="field"><label>建議進度</label><div class="small">本單元共 '+esc(f.calendarUnitPages)+' 頁｜建議總量 '+esc(f.calendarUnitTargetPages||f.calendarUnitPages)+' 頁｜本週需要寫約 '+esc(f.calendarWeekTarget)+' 頁｜今日約 '+esc(f.calendarDailyPages)+' 頁<br>建議頁碼：'+esc(f.calendarSuggestedBook)+' 冊 p.'+esc(f.calendarSuggestedStart)+'–'+esc(f.calendarSuggestedEnd)+'</div></div>';
- }
  h+=renderStudyReference(reference);
  if(x.type==='mathLecture'){
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
