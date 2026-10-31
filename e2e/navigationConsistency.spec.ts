@@ -54,13 +54,15 @@ test('every page shares bold navigation, full-width mobile button rows and deskt
       const buttons = navigation.locator('.header-action-link');
       expect(await buttons.count(), path).toBeGreaterThan(0);
       for (const button of await buttons.all()) {
-        const appearance = await buttonAppearance(button, width > 700);
+        const isHome = await button.getAttribute('data-navigation') === 'home';
+        const appearance = await buttonAppearance(button, width > 700 || isHome);
         expect(Number(appearance['font-weight']), path).toBeGreaterThanOrEqual(700);
         expect(appearance['border-top-style'], path).toBe('solid');
         expect(appearance['text-decoration-line'], path).toBe('none');
         expect(appearance.height, path + ' common navigation height').toBe('44px');
-        if (width > 700 && await button.getAttribute('data-navigation') === 'home') {
-          expect(appearance.width, path + ' desktop home button keeps its full width').toBe('136px');
+        if (isHome) {
+          const expectedWidth = width > 700 ? 136 : width - 28;
+          expect(parseFloat(appearance.width), path + ' home button keeps the same actual width on every page').toBe(expectedWidth);
         }
         expect(await button.evaluate(node => node.scrollHeight <= node.clientHeight), path + ' button text stays inside').toBe(true);
         const destination = new URL((await button.getAttribute('href'))!, page.url()).pathname;
@@ -101,6 +103,11 @@ test('every page shares bold navigation, full-width mobile button rows and deskt
       const bounds = (await pageContainer.boundingBox())!;
       expect(Math.abs(bounds.width - Math.min(width, 1120)), path).toBeLessThan(1);
       const navBounds = (await navigation.boundingBox())!;
+      const home = navigation.locator('[data-navigation="home"]');
+      if (await home.count()) {
+        const homeBounds = (await home.boundingBox())!;
+        expect(Math.abs(homeBounds.y - 22), path + ' home button stays in the first navigation row').toBeLessThan(1);
+      }
       if (width !== 701 || path !== '/') {
         expect(Math.abs(navBounds.y - 22), path + ' navigation stays at the same top position').toBeLessThan(1);
       }

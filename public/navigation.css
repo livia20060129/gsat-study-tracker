@@ -37,4 +37,5 @@ body>main.document{box-sizing:border-box;width:calc(100% - 2 * var(--site-page-g
   body .page-navigation-header{display:flex;align-items:stretch;flex-direction:column}
   .page-navigation-header>.page-navigation-actions{order:-1;align-self:center;align-items:stretch;justify-content:center;width:100%;margin:0}
   .page-navigation-actions>.header-action-link{flex:1 1 140px;min-width:0}
+  .page-navigation-actions>.header-action-link[data-navigation="home"],.summary-view-controls>.header-action-link[data-navigation="home"]{order:-1;flex:1 0 100%;width:100%}
 }
