@@ -107,6 +107,16 @@ test('every page shares bold navigation, full-width mobile button rows and deskt
       if (await home.count()) {
         const homeBounds = (await home.boundingBox())!;
         expect(Math.abs(homeBounds.y - 22), path + ' home button stays in the first navigation row').toBeLessThan(1);
+        const legacyBounds = await home.evaluate(node => {
+          node.removeAttribute('data-navigation');
+          const rect = node.getBoundingClientRect();
+          const result = { width: rect.width, height: rect.height, top: rect.top };
+          node.setAttribute('data-navigation', 'home');
+          return result;
+        });
+        expect(legacyBounds, path + ' older deployed markup keeps the same return button dimensions').toEqual({
+          width: width > 700 ? 136 : width - 28, height: 44, top: 22,
+        });
       }
       if (width !== 701 || path !== '/') {
         expect(Math.abs(navBounds.y - 22), path + ' navigation stays at the same top position').toBeLessThan(1);

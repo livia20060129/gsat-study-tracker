@@ -13,6 +13,7 @@
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
 import { renderStudyReference } from './ui/studyReference.ts';
 import { studyCardDescription } from './ui/studyDescription.ts';
+import { deduplicateStudyIdentityFields } from './ui/studyIdentityFields.ts';
 import { decideRevisionSync, markRecordLocallyEdited, mergeStudyRecordsForUpload, mergeStudyRecordsThreeWay, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { studyRecordConflictDetailsText, studyRecordConflictSummary } from './storage/conflictPresentation';
 import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
@@ -2401,14 +2402,13 @@ function renderCalendarNaturalIntegrationEntry(c){
  var h='<div class="item subject-card subject-natural'+(c.done?' done':'')+'" data-item="'+esc(c.id)+'" style="margin-top:10px"><div class="item-top">';
  h+='<input type="checkbox" data-done'+checked(c.done)+'>';
  h+='<div class="completion-title-block"><div class="item-title">'+esc(c.subject)+'</div>'+completionDateMarkup(c)+'</div>'+renderTimeControl(c)+'</div>';
- h+='<div class="inner"><div class="science-main-row">';
- h+='<div class="field"><label>科目</label><div class="fixed-book-value">'+esc(c.subject)+'</div></div>';
+ h+='<div class="inner"><div class="science-main-row science-integration-row">';
  h+='<div class="field"><label>講義版本</label><div class="fixed-book-value">123日的淬鍊</div></div>';
  if(single){
   h+='<div class="field compact-number"><label>起始頁</label><div class="fixed-book-value">'+esc(ranges[0][0])+'</div></div>';
   h+='<div class="field compact-number"><label>結束頁</label><div class="fixed-book-value">'+esc(ranges[0][1])+'</div></div>';
  }else{
-  h+='<div class="field" style="flex:1"><label>指定頁碼</label><div class="fixed-book-value">'+esc(c.pageText||'—')+'</div></div>';
+  h+='<div class="field science-page-text"><label>指定頁碼</label><div class="fixed-book-value">'+esc(c.pageText||'—')+'</div></div>';
  }
  h+='</div>';
  h+=renderStudyReference('<div class="field"><label>123日的淬鍊｜頁碼對應章節</label><div class="small">'+esc(c.chapterText||'—')+'</div></div>');
@@ -3453,6 +3453,7 @@ function render(){
  id('dailyItemList').innerHTML=dc?daily:'<div class="small">今日沒有項目。</div>';
  id('englishReviewList').innerHTML=erc?englishReview:'<div class="small">今日尚未新增英文訂正與搭配詞整理。</div>';
  id('itemList').innerHTML=oc?other:'<div class="small">尚未新增其他項目。</div>';
+ deduplicateStudyIdentityFields(document);
  id('dailyPresetBadge').textContent=dc+' 項';
  id('englishReviewBadge').textContent=erc+' 項';
  id('itemCountBadge').textContent=oc+' 項';

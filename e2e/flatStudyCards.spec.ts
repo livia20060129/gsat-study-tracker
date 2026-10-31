@@ -75,6 +75,7 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
       await expect(reference.locator('.study-reference-content')).toBeHidden();
       const keys = item.id === 'flat-unit' ? ['unitStart', 'unitEnd'] : ['start', 'end'];
       await expectRangeOnOneRow(card, `[data-field="${keys[0]}"]`, `[data-field="${keys[1]}"]`);
+      if (item.id === 'flat-science') await expect(card.locator('select[data-field="subject"]')).toBeEnabled();
       const surface = await card.evaluate(element => {
         const style = getComputedStyle(element);
         const field = getComputedStyle(element.querySelector('.field')!);
@@ -125,7 +126,7 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
   }
 });
 
-test('nested natural subjects use dividers and retain independent completion and time controls on mobile', async ({ page }, testInfo) => {
+test('nested natural subjects display their names once and retain desktop/mobile layout and independent controls', async ({ page }, testInfo) => {
   const recordDate = '2026-10-24';
   const integration = studyItem('flat-integration', 'scienceReview', { subject: '混合', calendarNaturalIntegration: true, calendarTopic });
   integration.source = 'preset';
@@ -135,6 +136,32 @@ test('nested natural subjects use dividers and retain independent completion and
   await page.setViewportSize({ width: 320, height: 852 });
   const biology = page.locator(`[data-item="natural-integration-${recordDate}-生物"]`);
   const chemistry = page.locator(`[data-item="natural-integration-${recordDate}-化學"]`);
+  for (const width of [1280, 721, 720, 375, 320]) {
+    await page.setViewportSize({ width, height: 852 });
+    for (const subject of ['生物', '化學', '物理', '地科']) {
+      const card = page.locator(`[data-item="natural-integration-${recordDate}-${subject}"]`);
+      await expect(card.locator('.item-title')).toHaveText(subject);
+      const row = card.locator('.science-integration-row');
+      await expect(row.getByText('科目', { exact: true })).toHaveCount(0);
+      await expect(row.getByText(subject, { exact: true })).toHaveCount(0);
+      await expect(row.getByText('123日的淬鍊', { exact: true })).toBeVisible();
+      if (width > 720) {
+        const fields = await row.locator(':scope > .field').evaluateAll(elements => elements.map(element => {
+          const rect = element.getBoundingClientRect();
+          return { top: rect.top, left: rect.left, right: rect.right };
+        }));
+        const bounds = (await row.boundingBox())!;
+        expect(fields.length).toBeGreaterThanOrEqual(2);
+        expect(fields.every(field => Math.abs(field.top - fields[0].top) < 1)).toBe(true);
+        expect(Math.abs(fields[0].left - bounds.x)).toBeLessThan(1);
+        expect(Math.abs(fields[fields.length - 1].right - bounds.x - bounds.width)).toBeLessThan(1);
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (width === 1280) {
+      await biology.screenshot({ path: testInfo.outputPath('natural-subject-1280.png') });
+    }
+  }
   const style = await biology.evaluate(element => {
     const style = getComputedStyle(element);
     return { border: style.borderLeftWidth, radius: style.borderRadius, shadow: style.boxShadow };
@@ -156,6 +183,66 @@ test('nested natural subjects use dividers and retain independent completion and
   await expect(biology.locator(':scope > .item-top > [data-done]')).toBeChecked();
   await expect(biology.locator('[data-minutes]')).toHaveValue('12.5');
   await expect(chemistry.locator(':scope > .item-top > [data-done]')).not.toBeChecked();
+});
+
+test('Calendar cards omit repeated readonly book names while preserving selectors, ranges and saved data', async ({ page }, testInfo) => {
+  const recordDate = '2026-08-09';
+  const definitions = [
+    { id: 'identity-azar', type: 'extra', presetKey: 'cal_azar_identity', title: 'Azar英文文法（中階）｜Ch.6 名詞與代名詞',
+      f: { title: 'Azar英文文法（中階）', start: '160', end: '164' } },
+    { id: 'identity-grammar', type: 'extra', presetKey: 'cal_grammar_identity', title: '英文｜英文文法總複習｜Ch.6 假設語氣',
+      f: { title: '英文文法總複習講義', start: '78', end: '83', calendarGrammarTitle: 'Ch.6 假設語氣' } },
+    { id: 'identity-reading', type: 'chineseReading', presetKey: 'cal_gujin_identity', title: '國文｜古今悅讀一百 第 76 回',
+      f: { kind: 'reading', round: '76' } },
+    { id: 'identity-unit', type: 'extra', presetKey: 'cal_scope_identity', title: '英文｜自訂 Unit 教材｜Unit 2–3',
+      f: { title: '自訂 Unit 教材', unitStart: '2', unitEnd: '3', calendarEventId: 'identity-unit' } },
+  ];
+  const items: StudyItem[] = definitions.map(definition => ({ ...definition, source: 'preset', required: true,
+    done: false, minutes: '' }));
+  items.push(studyItem('identity-editable', 'extra', { title: 'Azar英文文法（中階）', start: '18', end: '21' }));
+  items.push({ ...studyItem('identity-material', 'mathStudy', { material: '新關鍵', book: '1~2', start: '101', end: '103',
+    calendarMathMaterialLocked: true }), source: 'preset', presetKey: 'cal_math_identity' });
+  await seed(page, items, recordDate);
+  for (const width of [1280, 375, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const definition of definitions) {
+      const card = page.locator(`[data-item="${definition.id}"]`);
+      await expect(card.locator('.item-title')).toBeVisible();
+      await expect(card.locator('.inner').getByText('書名', { exact: true })).toHaveCount(0);
+      await expect(card.locator('.study-fields-deduplicated')).toHaveCount(1);
+      if (definition.id === 'identity-unit') {
+        await expect(card.locator('[data-field="unitStart"]')).toBeEditable();
+        await expect(card.locator('[data-field="unitEnd"]')).toBeEditable();
+      } else if (definition.type === 'extra') {
+        await expect(card.locator('[data-field="start"]')).toBeEditable();
+        await expect(card.locator('[data-field="end"]')).toBeEditable();
+      } else {
+        await expect(card.getByText('第 76 回', { exact: true })).toBeVisible();
+      }
+    }
+    await expect(page.locator('[data-item="identity-editable"] select[data-field="title"]')).toBeEnabled();
+    await expect(page.locator('[data-item="identity-material"] .fixed-book-value').filter({ hasText: /^新關鍵$/ })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  const azar = page.locator('[data-item="identity-azar"]');
+  await azar.locator('[data-field="end"]').fill('165');
+  await azar.locator('[data-field="end"]').blur();
+  await azar.locator('[data-minutes]').fill('19');
+  await azar.locator('[data-minutes]').blur();
+  await azar.locator('[data-done]').check();
+  await page.reload();
+  await page.locator('#studyDate').fill(recordDate);
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(azar.locator('[data-field="end"]')).toHaveValue('165');
+  await expect(azar.locator('[data-minutes]')).toHaveValue('19');
+  await expect(azar.locator('[data-done]')).toBeChecked();
+  await expect(azar.locator('.inner').getByText('書名', { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(({ prefix, date }) => {
+    const record = JSON.parse(localStorage.getItem(prefix + date)!);
+    return record.items.find((item: StudyItem) => item.id === 'identity-azar').f.title;
+  }, { prefix, date: recordDate })).toBe('Azar英文文法（中階）');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await azar.screenshot({ path: testInfo.outputPath('single-book-title-1280.png') });
 });
 
 test('flat todo cards preserve direct range edits and synchronize them back to the original card', async ({ page }) => {
