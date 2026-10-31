@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { renderStudyReference } from '../src/ui/studyReference.ts';
 import { createContext, runInContext } from 'node:vm';
 import { parseCalendarTask, calendarFixedTemplate } from '../src/calendar/calendarBridge.ts';
 import type { CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
@@ -266,7 +267,8 @@ function editingApp(day: string, separated: boolean | 'biology', deferred = fals
     orderCardPageRange: () => ({ endAdjusted: false, end: '' }),
     validateCardPageRange: () => ({ valid: true, message: '' }),
     scienceMaterialOptions: () => '<option>123日的淬鍊</option>',
-    calendarTopicSourceRow: () => '',
+    calendarSourceRow: () => '',
+    renderStudyReference,
   });
   const mapStart = runtime.indexOf('var DAY123_PAGE_MAPS=');
   runInContext(runtime.slice(mapStart, runtime.indexOf('function day123PageMap(', mapStart)), ctx);

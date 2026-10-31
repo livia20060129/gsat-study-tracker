@@ -93,7 +93,7 @@ test('sync/status errors keep same-account items, completion, ranges and minutes
   const state: State = { user: userA, status: 'ok', table: 'ok', syncFails: false };
   await setup(page, state);
   await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
-  const card = page.locator('.item.subject-math').filter({ hasText: '條件機率與貝氏定理' }).first();
+  const card = page.locator('.item.subject-math').filter({ has: page.locator('[data-field="book"] option[value="4A"]:checked') }).first();
   await card.locator('[data-minutes]').first().fill('33');
   await card.locator('[data-minutes]').first().blur();
   await card.locator('[data-done]').first().check();

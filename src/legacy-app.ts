@@ -11,6 +11,7 @@
  */
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
+import { renderStudyReference } from './ui/studyReference.ts';
 import { decideRevisionSync, markRecordLocallyEdited, mergeStudyRecordsForUpload, mergeStudyRecordsThreeWay, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { studyRecordConflictDetailsText, studyRecordConflictSummary } from './storage/conflictPresentation';
 import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, storagePrefixForUser } from './storage/local';
@@ -2409,7 +2410,7 @@ function renderCalendarNaturalIntegrationEntry(c){
   h+='<div class="field" style="flex:1"><label>指定頁碼</label><div class="fixed-book-value">'+esc(c.pageText||'—')+'</div></div>';
  }
  h+='</div>';
- h+='<div class="field" style="margin-top:10px"><label>123日的淬鍊｜頁碼對應章節</label><div class="small">'+esc(c.chapterText||'—')+'</div></div>';
+ h+=renderStudyReference('<div class="field"><label>123日的淬鍊｜頁碼對應章節</label><div class="small">'+esc(c.chapterText||'—')+'</div></div>');
  h+='</div></div>';
  return h;
 }
@@ -2649,11 +2650,12 @@ function renderMathFields(x,reviewMode){
  h+='<div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
  applyMathAuto(f);
  var mathAutoField='<div class="field"><label>'+(f.material==='複習週記'?'對應章節':'對應單元／章節')+'</label><div class="small" data-math-auto>'+esc(mathAutoText(f))+'</div></div>';
- if(hasDeferredStudySource(x))h+='<div class="math-auto-source-row">'+mathAutoField+'<div class="field"><label>來源日期</label><div class="fixed-book-value">'+esc(groupedSourceDateText(x,(data&&data.date)||''))+'</div></div></div>';
- else h+='<div style="margin-top:10px">'+mathAutoField+'</div>';
+ var reference=mathAutoField;
+ if(hasDeferredStudySource(x))reference='<div class="math-auto-source-row">'+mathAutoField+'<div class="field"><label>來源日期</label><div class="fixed-book-value">'+esc(groupedSourceDateText(x,(data&&data.date)||''))+'</div></div></div>';
  if(x.type==='mathStudy'&&f.calendarPlanTitle){
-  h+='<div class="field" style="margin-top:10px"><label>Google Calendar 數學排程</label><div class="small"><strong>'+esc(f.calendarPlanTitle)+'</strong><br>本單元共 '+esc(f.calendarUnitPages)+' 頁｜建議總量 '+esc(f.calendarUnitTargetPages||f.calendarUnitPages)+' 頁｜本週需要寫約 '+esc(f.calendarWeekTarget)+' 頁｜今日約 '+esc(f.calendarDailyPages)+' 頁<br>建議頁碼：'+esc(f.calendarSuggestedBook)+' 冊 p.'+esc(f.calendarSuggestedStart)+'–'+esc(f.calendarSuggestedEnd)+'</div></div>';
+  reference+='<div class="field"><label>建議進度</label><div class="small">本單元共 '+esc(f.calendarUnitPages)+' 頁｜建議總量 '+esc(f.calendarUnitTargetPages||f.calendarUnitPages)+' 頁｜本週需要寫約 '+esc(f.calendarWeekTarget)+' 頁｜今日約 '+esc(f.calendarDailyPages)+' 頁<br>建議頁碼：'+esc(f.calendarSuggestedBook)+' 冊 p.'+esc(f.calendarSuggestedStart)+'–'+esc(f.calendarSuggestedEnd)+'</div></div>';
  }
+ h+=renderStudyReference(reference);
  if(x.type==='mathLecture'){
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
@@ -2775,16 +2777,17 @@ function calendarSourceDateLabel(value){
  var raw=String(value||'').trim(),m=raw.match(/^(?:\d{4}-)?(\d{1,2})[-\/](\d{1,2})$/);
  return m?Number(m[1])+'/'+Number(m[2]):(raw||'—');
 }
-function calendarTopicSourceRow(x){
+function calendarSourceRow(x){
  var f=x.f||{},showSource=shouldShowSourceDate(x,(data&&data.date)||'');
- return'<div class="calendar-topic-source-row'+(showSource?'':' source-hidden')+'"><div class="field"><label>Google Calendar 當日主題</label><div class="fixed-book-value">'+esc(f.calendarTopic||'—')+'</div></div>'+(showSource?'<div class="field"><label>來源日期</label><div class="fixed-book-value">'+esc(calendarSourceDateLabel(f.calendarSourceDate))+'</div></div>':'')+'</div>';
+ if(!showSource)return'';
+ return'<div class="field" style="margin-top:10px"><label>來源日期</label><div class="fixed-book-value">'+esc(calendarSourceDateLabel(f.calendarSourceDate))+'</div></div>';
 }
 function renderScienceFields(x,reviewMode){
  var f=x.f;
  if(isCalendarNaturalIntegration(x)){
   var entries=ensureCalendarNaturalIntegrationEntries(x,(data&&data.date)||'');
   var ih='';
-  if(f.calendarTopic)ih+=calendarTopicSourceRow(x);
+  ih+=calendarSourceRow(x);
   for(var ii=0;ii<entries.length;ii++)ih+=renderCalendarNaturalIntegrationEntry(entries[ii]);
   return ih;
  }
@@ -2794,11 +2797,13 @@ function renderScienceFields(x,reviewMode){
   :'<div class="field"><label>科目</label><select data-field="subject"><option value="">請選擇</option>'+['混合','物理','化學','生物','地科'].map(function(s){return'<option'+selected(s,f.subject)+'>'+s+'</option>'}).join('')+'</select></div>';
  var h='<div class="science-main-row">'+subjectField;
  h+='<div class="field"><label>講義版本</label><select data-field="material">'+scienceMaterialOptions(f.subject,f.material)+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
- if(isCalendarNatural(x)&&f.calendarTopic)h+=calendarTopicSourceRow(x);
- if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))h+='<div class="field" style="margin-top:10px"><label>對應單元／章節</label><div class="small" data-science-auto>'+esc(goodPointCombinedText(f.subject,f.start,f.end))+'</div></div>';
- if(f.material==='123日的淬鍊'&&f.subject!=='混合')h+='<div class="field" style="margin-top:10px"><label>123日的淬鍊｜頁碼對應章節</label><div class="small" data-science-auto>'+esc(day123Text(f.subject,f.start,f.end))+'</div></div>';
- if(['生物','化學','物理','地科'].includes(f.subject)&&f.material==='新關鍵')h+='<div class="field" style="margin-top:10px"><label>新關鍵｜頁碼對應單元／主題</label><div class="small" data-science-auto>'+esc(naturalNewKeyPageText(f.subject,f.start,f.end))+'</div></div>';
- if(f.subject==='混合'&&f.material==='複習週記')h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-science-auto>'+esc(naturalReviewText(x))+'</div></div>';
+ if(isCalendarNatural(x))h+=calendarSourceRow(x);
+ var reference='';
+ if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))reference='<div class="field"><label>對應單元／章節</label><div class="small" data-science-auto>'+esc(goodPointCombinedText(f.subject,f.start,f.end))+'</div></div>';
+ if(f.material==='123日的淬鍊'&&f.subject!=='混合')reference='<div class="field"><label>123日的淬鍊｜頁碼對應章節</label><div class="small" data-science-auto>'+esc(day123Text(f.subject,f.start,f.end))+'</div></div>';
+ if(['生物','化學','物理','地科'].includes(f.subject)&&f.material==='新關鍵')reference='<div class="field"><label>新關鍵｜頁碼對應單元／主題</label><div class="small" data-science-auto>'+esc(naturalNewKeyPageText(f.subject,f.start,f.end))+'</div></div>';
+ if(f.subject==='混合'&&f.material==='複習週記')reference='<div class="field"><label>對應章節</label><div class="small" data-science-auto>'+esc(naturalReviewText(x))+'</div></div>';
+ if(reference)h+=renderStudyReference(reference);
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
  if(reviewMode||f.corrected)h+=reasonField(f);
  return h;
@@ -2912,7 +2917,7 @@ function applyEnglishPageBookSelection(item,field,value){
  return true;
 }
 function bookPageAutoField(book,start,end){
- return'<div class="chinese-book-map-row"><div class="field"><label>對應主題</label><div class="small" data-book-topic-auto>'+esc(bookPageTopicText(book,start,end))+'</div></div><div class="field"><label>對應章節</label><div class="small" data-book-detail-auto>'+esc(bookPageDetailText(book,start,end))+'</div></div></div>'
+ return renderStudyReference('<div class="chinese-book-map-row"><div class="field"><label>對應主題</label><div class="small" data-book-topic-auto>'+esc(bookPageTopicText(book,start,end))+'</div></div><div class="field"><label>對應章節</label><div class="small" data-book-detail-auto>'+esc(bookPageDetailText(book,start,end))+'</div></div></div>');
 }
 function applyChineseItemSelection(item,value){
  var book=canonicalPageMappedBook(value),visited=[];
@@ -2943,7 +2948,7 @@ function renderNumberedScopeFields(x,bookOptions){
  var bookControl=knownOption&&!x.f.calendarEventId&&!isCalendarPageMappedBook(x)?'<select data-field="title">'+bookOptions+'</select>':'<div class="fixed-book-value">'+esc(bookTitle)+'</div>';
  var total=scope.maximum?'<div class="small">全書共 '+scope.maximum+' Unit</div>':'';
  var unit=isUnit?'Unit':'回次',startKey=isUnit?'unitStart':'round',endKey=isUnit?'unitEnd':'roundEnd';
- return'<div class="english-book-page-row"><div class="field"><label>書名</label>'+bookControl+total+'</div><div class="field compact-number"><label>起始 '+unit+'</label><input type="number" min="1"'+max+' step="1" inputmode="numeric" data-field="'+startKey+'" value="'+esc(range.start)+'"></div><div class="field compact-number"><label>結束 '+unit+'</label><input type="number" min="'+esc(range.start||'1')+'"'+max+' step="1" inputmode="numeric" data-field="'+endKey+'" value="'+esc(range.end)+'"></div></div><div class="field" style="margin-top:10px"><label>'+unit+' 對應範圍</label><div class="small" data-unit-auto>'+esc(isUnit?bookUnitText(x):numberedScopeText(x))+'</div></div>';
+ return'<div class="english-book-page-row"><div class="field"><label>書名</label>'+bookControl+total+'</div><div class="field compact-number"><label>起始 '+unit+'</label><input type="number" min="1"'+max+' step="1" inputmode="numeric" data-field="'+startKey+'" value="'+esc(range.start)+'"></div><div class="field compact-number"><label>結束 '+unit+'</label><input type="number" min="'+esc(range.start||'1')+'"'+max+' step="1" inputmode="numeric" data-field="'+endKey+'" value="'+esc(range.end)+'"></div></div>'+renderStudyReference('<div class="field"><label>'+unit+' 對應範圍</label><div class="small" data-unit-auto>'+esc(isUnit?bookUnitText(x):numberedScopeText(x))+'</div></div>');
 }
 function captureNumberedScopeInputs(card,x){
  var spec=numberedStudyScope(x),isUnit=spec&&spec.kind==='unit',start=card.querySelector('[data-field="'+(isUnit?'unitStart':'round')+'"]'),end=card.querySelector('[data-field="'+(isUnit?'unitEnd':'roundEnd')+'"]');
@@ -3018,12 +3023,12 @@ function renderExtraFields(x,reviewMode){
  }else if(isAzarGrammar(t)){
   if(isCalendarAzarGrammar(x)){
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><div class="fixed-book-value">'+esc(AZAR_GRAMMAR_BOOK_TITLE)+'</div></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" max="428" data-field="start" value="'+esc(f.start||'')+'" placeholder="起始"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" max="428" data-field="end" value="'+esc(f.end||'')+'" placeholder="結束"></div></div>';
-   h+=calendarTopicSourceRow(x);
-   h+='<div class="field" style="margin-top:10px"><label>頁碼對應章節</label><div class="small" data-azar-auto>'+esc(azarGrammarChapterSummary(f.start,f.end))+'</div></div>';
+   h+=calendarSourceRow(x);
+   h+=renderStudyReference('<div class="field"><label>頁碼對應章節</label><div class="small" data-azar-auto>'+esc(azarGrammarChapterSummary(f.start,f.end))+'</div></div>');
    if(f.calendarAzarParseError&&!f.start)h+='<div class="small calendar-scope-error" role="alert">'+esc(f.calendarAzarParseError)+'</div>';
   }else{
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" max="428" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" max="428" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
-   h+='<div class="field" style="margin-top:10px"><label>對應章節與分項</label><div class="small" data-azar-auto>'+esc(azarGrammarPageSummary(f.start,f.end))+'</div></div>';
+   h+=renderStudyReference('<div class="field"><label>對應章節與分項</label><div class="small" data-azar-auto>'+esc(azarGrammarPageSummary(f.start,f.end))+'</div></div>');
    if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
    if(reviewMode||f.corrected)h+=reasonField(f);
   }
@@ -3050,7 +3055,7 @@ function renderExtraFields(x,reviewMode){
   }else{
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
   }
-  h+='<div class="field" style="margin-top:10px"><label>對應章節</label><div class="small" data-grammar-auto>'+esc(grammarReviewAutoText(f))+'</div></div>';
+  h+=renderStudyReference('<div class="field"><label>對應章節</label><div class="small" data-grammar-auto>'+esc(grammarReviewAutoText(f))+'</div></div>');
   if(isCalendarGrammarReview(x)&&f.calendarGrammarTitle){
    var calendarGrammar=grammarScheduleSummary(f.calendarFocus,f.calendarRangeText);
    h+='<div class="field" style="margin-top:10px"><label>Google Calendar 英文文法排程</label><div class="small">'+calendarGrammar.details.map(function(line){return esc(line)}).join('<br>')+'</div></div>';
@@ -3221,7 +3226,7 @@ function renderManagedMaterialFields(item,entry,reviewMode){
  var start=f[startKey]||'',end=f[endKey]||'',label=entry.subject+'｜'+entry.title;
  var max=entry.total<10001?' max="'+entry.total+'"':'';
  var h='<div class="english-book-page-row"><div class="field"><label>書名／教材</label><div class="fixed-book-value">'+esc(label)+'</div></div><div class="field compact-number"><label>起始'+noun+'</label><input type="number" data-catalog-range="start" min="1"'+max+' step="1" inputmode="numeric" data-field="'+startKey+'" value="'+esc(start)+'"></div><div class="field compact-number"><label>結束'+noun+'</label><input type="number" data-catalog-range="end" min="'+esc(start||1)+'"'+max+' step="1" inputmode="numeric" data-field="'+endKey+'" value="'+esc(end)+'"></div></div>';
- h+='<div class="field" style="margin-top:10px"><label>範圍對應章節</label><div class="small" data-catalog-auto>'+esc(catalogRangeText(entry,item))+'</div></div>';
+ h+=renderStudyReference('<div class="field"><label>範圍對應章節</label><div class="small" data-catalog-auto>'+esc(catalogRangeText(entry,item))+'</div></div>');
  if(entry.deleted)h+='<div class="small">此教材目錄已停用，已填寫的紀錄仍保留。</div>';
  var checks=studyItemProgress(item);if(!checks.length)checks=[{key:'progress',label:'進度',checked:!!f.progress}];
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px">'+checks.map(function(p){return'<label><input type="checkbox" data-check="'+p.key+'"'+checked(p.checked)+'> '+p.label+'</label>'}).join('')+'</div>';

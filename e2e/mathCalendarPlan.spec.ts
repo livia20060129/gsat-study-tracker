@@ -81,7 +81,7 @@ test('October 29 moved math fractions repair blank page fields, merge adjacent r
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 375, height: 900 });
   await openMathCalendar(page);
-  const card = page.locator('.item.subject-math').filter({ hasText: '條件機率與貝氏定理' }).first();
+  const card = page.locator('.item.subject-math').filter({ has: page.locator('[data-field="book"] option[value="4A"]:checked') }).first();
   await expect(card.locator('[data-field="book"]').first()).toHaveValue('4A');
   await expect(card.locator('[data-field="start"]').first()).toHaveValue('151');
   await expect(card.locator('[data-field="end"]').first()).toHaveValue('174');
@@ -106,7 +106,7 @@ test('refreshing a moved math fraction preserves deliberate page overrides while
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await openMathCalendar(page, true);
-  const card = page.locator('.item.subject-math').filter({ hasText: '條件機率與貝氏定理' }).first();
+  const card = page.locator('.item.subject-math').filter({ has: page.locator('[data-field="book"] option[value="4A"]:checked') }).first();
   await expect(card.locator('[data-field="start"]')).toHaveValue('170');
   await expect(card.locator('[data-field="end"]')).toHaveValue('172');
   await expect.poll(async () => (await source(page, 2)).item?.f.calendarSuggestedStart).toBe(163);
