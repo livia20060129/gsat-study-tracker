@@ -5,6 +5,7 @@ import { renderStudyReference } from '../src/ui/studyReference.ts';
 import { createContext, runInContext } from 'node:vm';
 import { unitBook } from '../src/data/unitBooks.ts';
 import { numberedStudyScope, usesSharedNumberedTemplate } from '../src/data/numberedScopes.ts';
+import { restoreMathScheduleFields } from '../src/study/mathScheduleFields.ts';
 
 import { parseCalendarTask, type CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
 import {
@@ -285,6 +286,7 @@ test('regrouping a Calendar Azar section keeps its manually recorded page range'
     cloneValue: (value: unknown) => structuredClone(value),
     applyDailyWorkRangeOverrides,
     numberedStudyScope,
+    restoreMathScheduleFields,
   });
   runInContext(runtime.slice(start, end), context);
   const template = {

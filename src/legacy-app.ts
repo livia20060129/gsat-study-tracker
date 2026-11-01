@@ -28,6 +28,7 @@ import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config/supabase.ts';
 import { formatPercentagePointDelta, groupedMakeupCompletionUnits, groupedOriginalCompletionUnits, makeupCompletionUnit, originalCompletionUnit, summarizeCompletionUnits } from './study/completionMetrics';
 import { applyDailyWorkRangeOverrides, groupDailyWorkItems, propagateDailyWorkCompletionDates, propagateDailyWorkDeferred, propagateDailyWorkDone, propagateDailyWorkField, propagateDailyWorkMinutes, propagateDailyWorkRangeField, relinkDailyWorkSourceItems, ungroupDailyWorkItems } from './study/dailyWorkGroup';
 import { cloneOriginalItemForMakeup, effectiveTemplatePresetKey, mergeDeferredCarryRanges, mergeMakeupProgress, specialItemTemplate } from './study/makeup';
+import { restoreMathScheduleFields } from './study/mathScheduleFields.ts';
 import { dedupePresetDefinitions, presetDefinitionSemanticKey } from './study/presetDedup';
 import { mergeAzarSectionProgress } from './study/azarChapterCards';
 import { countDeferredToDay, deferredCapacityCandidates, DEFERRED_TARGET_LIMIT, futureDeferredDays, isConfirmedDeferred, isDeferrableStudyItem, requiresDeferredLimitConfirmation } from './study/deferDays';
@@ -1917,6 +1918,10 @@ function applyCalendarMathPlan(rec,date){
  var changed=false,blank=!x.f.material&&!x.f.book&&!x.f.start&&!x.f.end;
  if(blank){x.f.material=p.material||'教學講義';x.f.book=p.book;x.f.start=String(p.start);x.f.end=String(p.end);changed=true}
  var userFields=x.f.dailyWorkUserFields&&typeof x.f.dailyWorkUserFields==='object'?x.f.dailyWorkUserFields:{};
+ var compatible=(!x.f.material||x.f.material===(p.material||'教學講義'))&&(!x.f.book||x.f.book===p.book);
+ if(compatible&&!x.f.start&&!x.f.end){
+  ['start','end'].forEach(function(field){if(!Object.prototype.hasOwnProperty.call(userFields,field)){x.f[field]=String(p[field]);changed=true}});
+ }
  if(p.calendarRangeSource==='calendar'){
  if(!Object.prototype.hasOwnProperty.call(userFields,'start')&&x.f.start!==String(p.start)){x.f.start=String(p.start);changed=true}
  if(!Object.prototype.hasOwnProperty.call(userFields,'end')&&x.f.end!==String(p.end)){x.f.end=String(p.end);changed=true}
@@ -2089,6 +2094,7 @@ function mergeGroupedEntry(template,existing){
  next.f=Object.assign({},cloneValue(template.f||{}),cloneValue(old.f||{}));
  ['title','book','topic','start','end','scopeKind','unitStart','unitEnd','round','roundEnd','azarChapterNumber','azarChapterTitle','azarChapterLabel','azarSectionCode','azarSectionTitle','calendarTopic','calendarBookRangeLocked','calendarMathMaterialLocked','calendarScopeParseError','calendarEventId','calendarEventIds','calendarEventKey','calendarEventKeys','calendarSourceDate','calendarSourceDates'].forEach(function(k){if(template.f&&template.f[k]!==undefined&&!(numberedStudyScope(next)&&old.f?.dailyWorkUserFields&&Object.prototype.hasOwnProperty.call(old.f.dailyWorkUserFields,k)))next.f[k]=cloneValue(template.f[k])});
  if(/^cal_azar_/.test(String(template.presetKey||'')))applyDailyWorkRangeOverrides(next);
+ restoreMathScheduleFields(next,template,old);
  return next;
 }
 function reconcileGroupedWorkEntries(templateEntries,existingEntries,legacyParent){
@@ -2234,6 +2240,10 @@ function ensureDailyPresets(rec,date){
      }else if(x.f[dk]!==df[dk]){x.f[dk]=df[dk];changed=true}
     }
    }else{
+     if(/^cal_math_/.test(d.key||'')){
+      var mathDefinition={type:d.type,f:Object.assign({},df)};
+      restoreMathScheduleFields(mathDefinition,{type:d.type,f:df},x);df=mathDefinition.f;
+     }
      for(var dk2 in df)if(Object.prototype.hasOwnProperty.call(df,dk2)){
       if(/^cal_math_/.test(d.key||'')&&['material','book','start','end'].includes(dk2)&&x.f.dailyWorkUserFields&&Object.prototype.hasOwnProperty.call(x.f.dailyWorkUserFields,dk2))continue;
       if(['scopeKind','unitStart','unitEnd','round','roundEnd'].includes(dk2)&&numberedStudyScope(x)&&x.f.dailyWorkUserFields&&Object.prototype.hasOwnProperty.call(x.f.dailyWorkUserFields,dk2))continue;
@@ -2278,6 +2288,11 @@ function ensureDailyPresets(rec,date){
    for(var lk in legacyFields)if(Object.prototype.hasOwnProperty.call(legacyFields,lk)&&!/^calendar/.test(lk)){
     var currentValue=x.f[lk],legacyValue=legacyFields[lk],currentBlank=currentValue===undefined||currentValue===null||currentValue===''||(Array.isArray(currentValue)&&currentValue.length===0);
     if(currentBlank&&legacyValue!==undefined&&legacyValue!==null&&legacyValue!==''){x.f[lk]=cloneValue(legacyValue);changed=true}
+   }
+   if(/^cal_math_/.test(d.key||'')){
+    var previousMathFields=JSON.stringify(x.f);
+    restoreMathScheduleFields(x,{type:d.type,f:d.f||{}},legacyItem);
+    if(JSON.stringify(x.f)!==previousMathFields)changed=true;
    }
    delete legacyCalendarByTemplate[mergedTemplate];
    delete legacyCalendarByPresetKey[d.key];

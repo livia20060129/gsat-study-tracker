@@ -16,6 +16,7 @@ import { completionIncludedInPeriod } from '../src/study/learningSummary.ts';
 import { isInteractiveStudyItem } from '../src/study/interactiveTasks.ts';
 import { numberedStudyScope, usesSharedNumberedTemplate } from '../src/data/numberedScopes.ts';
 import { applyNumberedScope } from '../src/study/numberedScopeProgress.ts';
+import { restoreMathScheduleFields } from '../src/study/mathScheduleFields.ts';
 
 const date = '2026-09-02';
 function row(id: string, title: string, description: string): CalendarTaskRow {
@@ -46,6 +47,7 @@ function app(rows = [biology, chemistry]) {
     calendarFixedTemplate, dedupePresetDefinitions, presetDefinitionSemanticKey,
     groupDailyWorkItems, ungroupDailyWorkItems, applyDailyWorkRangeOverrides,
     effectiveTemplatePresetKey, reconcileCalendarNaturalPriorCoverage,
+    restoreMathScheduleFields,
     cloneObj: clone, cloneValue: clone,
     calendarConnected: true, calendarCacheLoaded: true, DAILY_PRESET_START: '2026-08-17',
     CALENDAR_NATURAL_RECOMMENDED_PAGES: {
