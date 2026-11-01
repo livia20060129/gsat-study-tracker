@@ -64,7 +64,7 @@ import { LatestTaskQueue } from './storage/latestTaskQueue';
 import { withCrossTabLock } from './storage/crossTabLock';
 import { importGuestRecords } from './application/records/guestImport.ts';
 import { builtInMaterialCatalog, readMaterialProgressRecords } from './study/materialProgress.ts';
-import { catalogItemFields, catalogItemType, catalogMaterialMatchesItem, catalogOverrides, catalogRangeText, effectiveMaterialCatalog } from './study/materialCatalog.ts';
+import { catalogMaterialMatchesItem, catalogOverrides, catalogRangeText, effectiveMaterialCatalog } from './study/materialCatalog.ts';
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from './data/mathMaterialPageMaps';
@@ -3242,10 +3242,6 @@ function renderManagedMaterialFields(item,entry,reviewMode){
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px">'+checks.map(function(p){return'<label><input type="checkbox" data-check="'+p.key+'"'+checked(p.checked)+'> '+p.label+'</label>'}).join('')+'</div>';
  if(reviewMode||f.corrected)h+=reasonField(f);return h;
 }
-function renderCatalogMaterialSelect(){
- var select=id('catalogMaterialSelect');if(!select)return;var current=select.value;
- select.innerHTML='<option value="">請選擇教材</option>'+catalogRuntime().entries.filter(function(entry){return!entry.deleted}).map(function(entry){return'<option value="'+esc(entry.id)+'"'+selected(entry.id,current)+(entry.total>10000?' disabled':'')+'>'+esc(entry.subject+'｜'+entry.title+(entry.total>10000?'（請先設定總數）':''))+'</option>'}).join('');
-}
 function filterDisabledCatalogOptions(){
  var disabled=catalogRuntime().overrides.filter(function(entry){return entry.deleted});if(!disabled.length)return;
  document.querySelectorAll('[data-item] select[data-field],[data-item] select[data-chinese-kind]').forEach(function(select){
@@ -3450,7 +3446,6 @@ function updateOverviewMetricView(focusSelected){
  document.querySelectorAll('[data-metric-panel]').forEach(function(panel){var selected=panel.getAttribute('data-metric-panel')===overviewMetricView;panel.hidden=false;panel.classList.toggle('is-active',selected);panel.setAttribute('aria-hidden',selected?'false':'true');panel.inert=!selected});
 }
 function render(){
- renderCatalogMaterialSelect();
  deferredCapacityCache=null;
  var choicePanel=id('englishTaskChoice'),hasChoice=hasEnglishTaskCollision(data.items),selectedChoice=resolvedEnglishTaskChoice(data);
  choicePanel.hidden=!hasChoice;
@@ -4442,11 +4437,6 @@ id('routineTimeModeSwitch').addEventListener('keydown',function(e){if(e.key!=='A
 id('routineTimeField').addEventListener('focusout',function(e){if(!id('routineTimeField').contains(e.relatedTarget))headerChange()});
 id('notes').addEventListener('input',notesInput);id('notes').addEventListener('change',headerChange);
 id('addItemBtn').addEventListener('click',addCustom);
-id('addCatalogItemBtn').addEventListener('click',function(){
- var entry=catalogRuntime().entries.find(function(material){return material.id===id('catalogMaterialSelect').value&&!material.deleted});
- if(!entry){id('status').textContent='請先選擇教材。';return}
- var item=newItem(catalogItemType(entry),'custom');item.title=entry.subject+'｜'+entry.title;item.f=catalogItemFields(entry);data.items.push(item);render();persist(false);
-});
 id('addEnglishReviewBtn').addEventListener('click',addEnglishReview);
 var saveFeedbackTimer=null;
 function setSaveButtonState(state){

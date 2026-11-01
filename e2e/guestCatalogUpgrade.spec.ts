@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { enableMaterialEditing } from './helpers/materialEditing.ts';
+import type { StudyRecord } from '../src/types.ts';
 
 const date = '2026-10-29';
 const userId = '00000000-0000-0000-0000-000000000091';
@@ -37,6 +38,25 @@ async function signIn(page: Page): Promise<void> {
   await page.locator('#cloudEmail').fill('test@example.com');
   await page.locator('#cloudPassword').fill('dummy-password');
   await page.locator('#cloudSignInBtn').click();
+}
+
+async function restoreSavedCatalogCard(page: Page): Promise<void> {
+  await page.evaluate(date => {
+    const key = 'study-v11:guest:' + date;
+    const record = JSON.parse(localStorage.getItem(key)!) as StudyRecord;
+    const material = record.materialCatalog?.find(entry => entry.title === 'My English Book');
+    if (!material) throw new Error('The saved catalog fixture is missing.');
+    record.items.push({
+      id: 'saved-catalog-card', type: 'extra', source: 'custom',
+      title: '英文｜My English Book', done: false, minutes: '', required: false,
+      f: {
+        catalogMaterialId: material.id, catalogMaterialSnapshot: { ...material, sections: [] },
+        title: material.title, subject: material.subject, scopeKind: material.mode,
+        start: '', end: '', unitStart: '', unitEnd: '', round: '', roundEnd: '',
+      },
+    });
+    localStorage.setItem(key, JSON.stringify(record));
+  }, date);
 }
 
 test('guest login merges same-date additions and catalogs into cloud, captures current notes and stays idempotent', async ({ page }) => {
@@ -95,7 +115,7 @@ test('failed login keeps guest additions and never starts an account import', as
   expect(await page.evaluate(date => JSON.parse(localStorage.getItem('study-v11:guest:' + date)!).items.some((item: { id: string }) => item.id === 'guest'), date)).toBe(true);
 });
 
-test('mobile catalog creates a page map, feeds Tracker and groups its progress by large unit', async ({ page }, testInfo) => {
+test('mobile catalog creates a page map and retains saved Tracker cards and large-unit progress', async ({ page }, testInfo) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 375, height: 812 }); await isolatedGuest(page); await addBook(page);
   await page.reload(); await page.locator('#catalogSearch').fill('My English Book');
@@ -107,9 +127,11 @@ test('mobile catalog creates a page map, feeds Tracker and groups its progress b
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('catalog-editor-mobile.png'), fullPage: true });
   await page.getByRole('button', { name: '取消編輯', exact: true }).click();
+  await restoreSavedCatalogCard(page);
   await page.getByRole('link', { name: '回到 Tracker', exact: true }).click();
-  await page.locator('#catalogMaterialSelect').selectOption({ label: '英文｜My English Book' });
-  await page.getByRole('button', { name: '加入教材項目' }).click();
+  await expect(page.locator('#catalogMaterialSelect')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '加入教材項目' })).toHaveCount(0);
+  await expect(page.locator('#addItemBtn')).toBeVisible();
   const card = page.locator('#itemList .item').filter({ hasText: 'My English Book' }).first();
   await card.locator('[data-field="start"]').fill('1'); await card.locator('[data-field="end"]').fill('10'); await card.locator('[data-field="end"]').blur();
   await expect(card.locator('[data-catalog-auto]')).toHaveText('Unit 1｜小主題 A');
@@ -124,7 +146,6 @@ test('mobile catalog creates a page map, feeds Tracker and groups its progress b
   page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: '刪除目錄', exact: true }).click();
   await expect(page.locator('#catalogStatus')).toContainText('教材已儲存');
   await page.goto('/');
-  await expect(page.locator('#catalogMaterialSelect option').filter({ hasText: 'My English Book' })).toHaveCount(0);
   await expect(card.locator('[data-field="start"]')).toHaveValue('1'); await expect(card.locator('[data-field="end"]')).toHaveValue('10');
   await expect(card).toContainText('目錄已停用');
   expect(errors).toEqual([]);
@@ -156,9 +177,8 @@ test('catalog edits built-ins, rejects overlapping sections, restores defaults a
   await expect(page.locator('#catalogError')).toContainText('重疊'); await expect(page.locator('#catalogEditor')).toBeVisible();
 });
 
-for (const mode of ['unit', 'round'] as const) test(`catalog ${mode} selection uses numeric template and retains input after reload`, async ({ page }) => {
-  await isolatedGuest(page); await addBook(page, mode); await page.goto('/');
-  await page.locator('#catalogMaterialSelect').selectOption({ label: '英文｜My English Book' }); await page.locator('#addCatalogItemBtn').click();
+for (const mode of ['unit', 'round'] as const) test(`saved catalog ${mode} card uses numeric template and retains input after reload`, async ({ page }) => {
+  await isolatedGuest(page); await addBook(page, mode); await restoreSavedCatalogCard(page); await page.goto('/');
   const card = page.locator('#itemList .item').filter({ hasText: 'My English Book' }).first();
   const startKey = mode === 'unit' ? 'unitStart' : 'round', endKey = mode === 'unit' ? 'unitEnd' : 'roundEnd';
   await expect(card.locator('[data-field="start"]')).toHaveCount(0);
