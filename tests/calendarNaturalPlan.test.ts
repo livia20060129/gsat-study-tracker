@@ -269,6 +269,7 @@ function editingApp(day: string, separated: boolean | 'biology', deferred = fals
     scienceMaterialOptions: () => '<option>123日的淬鍊</option>',
     calendarSourceRow: () => '',
     renderStudyReference,
+    deduplicateStudyIdentityFields: () => {},
   });
   const mapStart = runtime.indexOf('var DAY123_PAGE_MAPS=');
   runInContext(runtime.slice(mapStart, runtime.indexOf('function day123PageMap(', mapStart)), ctx);

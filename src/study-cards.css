@@ -25,6 +25,9 @@
 .study-reference-details>summary{width:fit-content;cursor:pointer;color:var(--subject-ink,var(--text));font-size:13px;font-weight:700;line-height:1.6}
 .study-reference-details>summary:focus-visible{outline:2px solid var(--subject-accent,var(--accent));outline-offset:4px;border-radius:3px}
 .study-reference-content{display:grid;gap:12px;padding-top:12px}
+.study-record-section [hidden]{display:none!important}
+.study-record-section .item .study-inner-empty{display:none}
+.study-record-section .item .study-inner-checks-only{padding-top:0;border-top:0}
 
 @media(min-width:721px){
   .study-record-section .item .science-integration-row{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}

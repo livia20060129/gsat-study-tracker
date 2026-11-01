@@ -1,54 +1,117 @@
-const IDENTITY_LABELS = new Set(['科目', '書名', '書名／教材', '書名/教材', '講義版本']);
+import { studyBookIncludes, studyHeadingText, studyReferenceText, type StudyRangeKind } from './studyDisplayText.ts';
+
+const IDENTITY_LABELS = new Set(['科目', '書名', '書名／教材', '書名/教材', '講義版本', '國文項目']);
+const SCOPE_LABELS = new Set(['回數', '回次', 'Unit', 'Test', '主題']);
 const FIELD_ROWS = [
   '.math-main-row', '.science-main-row', '.chinese-book-main-row', '.english-book-row',
   '.english-book-page-row', '.english-title-half', '.grid-2', '.grid-3', '.grid-4', '.field-grid',
 ].join(',');
 
-function comparableIdentity(value: string): string {
-  return value.normalize('NFKC').trim()
-    .replace(/^(?:國文|英文|數學A?|自然|生物|物理|化學|地科)\s*[｜|：:]\s*/, '')
-    .replace(/講義$/, '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, '');
+const sourceText = new WeakMap<HTMLElement, { source: string; output: string }>();
+
+/** Keep source text in the view only, so live range edits can reveal previously repeated chapters. */
+function originalText(element: HTMLElement): string {
+  const current = element.textContent ?? '';
+  const saved = sourceText.get(element);
+  return saved?.output === current ? saved.source : current;
 }
 
-function cardHeadingIdentities(card: HTMLElement): string[] {
-  const identities: string[] = [];
-  let owner: HTMLElement | null = card;
-  while (owner) {
-    const heading = owner.querySelector<HTMLElement>(':scope > .item-top .item-title');
-    if (heading?.textContent) identities.push(comparableIdentity(heading.textContent));
-    owner = owner.parentElement?.closest<HTMLElement>('[data-item]') ?? null;
+function displayText(element: HTMLElement, value: string): void {
+  const source = originalText(element);
+  if (element.textContent !== value) element.textContent = value;
+  sourceText.set(element, { source, output: value });
+}
+
+function ownedElements<T extends HTMLElement>(card: HTMLElement, selector: string): T[] {
+  return [...card.querySelectorAll<T>(selector)].filter(element => element.closest('[data-item]') === card);
+}
+
+function rangeKinds(card: HTMLElement): StudyRangeKind[] {
+  const kinds = new Set<StudyRangeKind>();
+  for (const input of ownedElements<HTMLInputElement>(card, 'input[data-field]')) {
+    const field = input.dataset.field;
+    if (field === 'start' || field === 'end') kinds.add('pages');
+    if (field === 'unitStart' || field === 'unitEnd' || field === 'unit') kinds.add('unit');
+    if (field === 'round' || field === 'roundEnd') kinds.add('round');
   }
-  return identities;
+  for (const label of ownedElements(card, '.field > label')) {
+    const text = label.textContent?.trim() ?? '';
+    if (/^(起始|結束)頁$/.test(text)) kinds.add('pages');
+  }
+  return [...kinds];
 }
 
-/** Remove only repeated display fields; selectors and all record values stay intact. */
-export function deduplicateStudyIdentityFields(root: ParentNode): void {
+function deduplicateCard(card: HTMLElement): void {
+  const kinds = rangeKinds(card);
+  const fields = ownedElements(card, '.field');
+  const selectedBooks = fields.flatMap(field => {
+    const label = field.querySelector(':scope > label')?.textContent?.trim() ?? '';
+    const select = field.querySelector<HTMLSelectElement>('select');
+    if (!IDENTITY_LABELS.has(label) || !select?.value) return [];
+    return [select.hasAttribute('data-chinese-kind') ? select.selectedOptions[0].textContent ?? select.value : select.value];
+  });
+  const heading = card.querySelector<HTMLElement>(':scope > .item-top .item-title');
+  if (heading) {
+    const title = studyHeadingText(originalText(heading), selectedBooks, kinds);
+    const subjects: Record<string, string> = { chinese: '國文', english: '英文', math: '數學', science: '自然' };
+    const subject = Object.entries(subjects).find(([key]) => card.classList.contains(`subject-${key}`))?.[1];
+    displayText(heading, title || subject || '讀書項目');
+  }
+  const context = [heading?.textContent ?? '', ...selectedBooks];
+  let parent = card.parentElement?.closest<HTMLElement>('[data-item]');
+  while (parent) {
+    context.push(parent.querySelector(':scope > .item-top .item-title')?.textContent ?? '');
+    parent = parent.parentElement?.closest<HTMLElement>('[data-item]');
+  }
   const changedRows = new Set<HTMLElement>();
-  for (const card of root.querySelectorAll<HTMLElement>('.study-record-section [data-item]')) {
-    const headings = cardHeadingIdentities(card);
-    for (const field of card.querySelectorAll<HTMLElement>('.field')) {
-      if (field.closest('[data-item]') !== card || field.querySelector('input,select,textarea')) continue;
-      const row = field.parentElement;
-      if (!row?.matches(FIELD_ROWS)) continue;
-      const label = field.querySelector(':scope > label')?.textContent?.trim() ?? '';
-      if (!IDENTITY_LABELS.has(label)) continue;
-      const value = field.querySelector(':scope > .fixed-book-value')?.textContent;
-      if (!value) continue;
-      const identity = comparableIdentity(value);
-      if (identity.length < 2 || !headings.some(heading => heading.includes(identity))) continue;
-      field.remove();
-      changedRows.add(row);
-    }
+  for (const field of fields) {
+    if (field.closest('.study-reference-details') || field.querySelector('input,select,textarea')) continue;
+    const row = field.parentElement;
+    if (!row?.matches(FIELD_ROWS)) continue;
+    const label = field.querySelector(':scope > label')?.textContent?.trim() ?? '';
+    const value = field.querySelector<HTMLElement>(':scope > .fixed-book-value');
+    if (!value) continue;
+    const text = originalText(value);
+    const scope = SCOPE_LABELS.has(label);
+    const remaining = scope ? studyReferenceText(text, context) : text;
+    if (scope) displayText(value, remaining);
+    const repeated = IDENTITY_LABELS.has(label)
+      ? context.some(previous => studyBookIncludes(previous, text))
+      : scope && !remaining;
+    field.hidden = repeated;
+    if (!repeated) context.push(remaining);
+    if (repeated || row.classList.contains('study-fields-deduplicated')) changedRows.add(row);
   }
   for (const row of changedRows) {
-    const count = row.children.length;
-    if (!count) {
-      row.remove();
-      continue;
-    }
+    const count = [...row.children].filter(child => !(child as HTMLElement).hidden).length;
+    row.hidden = count === 0;
     row.classList.add('study-fields-deduplicated');
     row.style.setProperty('--study-field-count', String(count));
   }
+  for (const reference of ownedElements(card, '.study-reference-details')) {
+    for (const field of reference.querySelectorAll<HTMLElement>('.field')) {
+      const value = field.querySelector<HTMLElement>(':scope > .small, :scope > .fixed-book-value');
+      if (!value) continue;
+      const label = field.querySelector<HTMLElement>(':scope > label');
+      if (label) displayText(label, originalText(label).split('｜').filter(part => !context.some(previous => studyBookIncludes(previous, part))).join('｜'));
+      const text = studyReferenceText(originalText(value), context, kinds);
+      displayText(value, text);
+      field.hidden = !text;
+      if (text) context.push(text);
+    }
+    reference.hidden = ![...reference.querySelectorAll<HTMLElement>('.field')].some(field => !field.hidden);
+  }
+  const inner = card.querySelector<HTMLElement>(':scope > .inner');
+  if (inner) {
+    const visible = [...inner.children].filter(child => !(child as HTMLElement).hidden);
+    inner.classList.toggle('study-inner-empty', !visible.length);
+    inner.classList.toggle('study-inner-checks-only', visible.every(child => child.matches('.checkline,[data-correction-reason]')));
+  }
+}
+
+/** Apply the same presentation rules on initial render and after live range edits. Never change records. */
+export function deduplicateStudyIdentityFields(root: ParentNode): void {
+  const cards = [...root.querySelectorAll<HTMLElement>('.study-record-section [data-item]')];
+  if (root instanceof HTMLElement && root.matches('.study-record-section [data-item]')) cards.unshift(root);
+  for (const card of cards) deduplicateCard(card);
 }

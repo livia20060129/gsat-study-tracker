@@ -64,6 +64,11 @@ test('flat page and Unit cards keep ranges editable while references omit Calend
       const reference = card.locator('.study-reference-details');
       await expect(reference).toHaveCount(1);
       await expect(reference).toHaveAttribute('open', '');
+      if (item.id === 'flat-unit') {
+        await expect(reference).toBeHidden();
+        await expectRangeOnOneRow(card, '[data-field="unitStart"]', '[data-field="unitEnd"]');
+        continue;
+      }
       await expect(reference.locator('.study-reference-content')).toBeVisible();
       await expect(reference.locator('input, select, textarea, button')).toHaveCount(0);
       await expect(reference).not.toContainText(calendarTopic);
@@ -208,7 +213,7 @@ test('Calendar cards omit repeated readonly book names while preserving selector
     for (const definition of definitions) {
       const card = page.locator(`[data-item="${definition.id}"]`);
       await expect(card.locator('.item-title')).toBeVisible();
-      await expect(card.locator('.inner').getByText('書名', { exact: true })).toHaveCount(0);
+      await expect(card.locator('.inner').getByText('書名', { exact: true })).toBeHidden();
       await expect(card.locator('.study-fields-deduplicated')).toHaveCount(1);
       if (definition.id === 'identity-unit') {
         await expect(card.locator('[data-field="unitStart"]')).toBeEditable();
@@ -217,7 +222,7 @@ test('Calendar cards omit repeated readonly book names while preserving selector
         await expect(card.locator('[data-field="start"]')).toBeEditable();
         await expect(card.locator('[data-field="end"]')).toBeEditable();
       } else {
-        await expect(card.getByText('第 76 回', { exact: true })).toBeVisible();
+        await expect(card.getByText('第 76 回', { exact: true })).toBeHidden();
       }
     }
     await expect(page.locator('[data-item="identity-editable"] select[data-field="title"]')).toBeEnabled();
@@ -236,7 +241,7 @@ test('Calendar cards omit repeated readonly book names while preserving selector
   await expect(azar.locator('[data-field="end"]')).toHaveValue('165');
   await expect(azar.locator('[data-minutes]')).toHaveValue('19');
   await expect(azar.locator('[data-done]')).toBeChecked();
-  await expect(azar.locator('.inner').getByText('書名', { exact: true })).toHaveCount(0);
+  await expect(azar.locator('.inner').getByText('書名', { exact: true })).toBeHidden();
   expect(await page.evaluate(({ prefix, date }) => {
     const record = JSON.parse(localStorage.getItem(prefix + date)!);
     return record.items.find((item: StudyItem) => item.id === 'identity-azar').f.title;

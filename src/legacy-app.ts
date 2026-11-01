@@ -22,7 +22,6 @@ import { calendarFixedTemplate } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
 import { resolveMathCalendarPlan } from './calendar/mathPlan.ts';
 import { combineNaturalCalendarPlans, resolveNaturalCalendarPlan } from './calendar/naturalPlan';
-import { grammarScheduleSummary } from './calendar/scheduleSummary';
 import { normalizedGrammarUnitTitle, selectGrammarPlan } from './calendar/grammarPlan';
 import { googleCalendarClientConfig } from './config/googleCalendar';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config/supabase.ts';
@@ -3054,9 +3053,8 @@ function renderExtraFields(x,reviewMode){
    h+='<div class="english-book-page-row"><div class="field"><label>書名</label><select data-field="title">'+bookOptions+'</select></div><div class="field compact-number"><label>起始頁</label><input type="number" min="1" data-field="start" value="'+esc(f.start||'')+'"></div><div class="field compact-number"><label>結束頁</label><input type="number" min="1" data-field="end" value="'+esc(f.end||'')+'"></div></div>';
   }
   h+=renderStudyReference('<div class="field"><label>對應章節</label><div class="small" data-grammar-auto>'+esc(grammarReviewAutoText(f))+'</div></div>');
-  if(isCalendarGrammarReview(x)&&f.calendarGrammarTitle){
-   var calendarGrammar=grammarScheduleSummary(f.calendarFocus,f.calendarRangeText);
-   h+='<div class="field" style="margin-top:10px"><label>Google Calendar 英文文法排程</label><div class="small">'+calendarGrammar.details.map(function(line){return esc(line)}).join('<br>')+'</div></div>';
+  if(isCalendarGrammarReview(x)&&f.calendarFocus){
+   h+='<div class="field" style="margin-top:10px"><label>重點</label><div class="small">'+esc(f.calendarFocus)+'</div></div>';
   }
   if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
   if(reviewMode||f.corrected)h+=reasonField(f);
@@ -3500,8 +3498,8 @@ function removeNested(target,arrayName){
  var p=parentSpecial(target,arrayName);if(!p)return false;p.f[arrayName]=p.f[arrayName].filter(function(x){return x.id!==target});return true;
 }
 function refreshAuto(card,x){
- var managed=managedMaterialForItem(x),catalogAuto=card.querySelector('[data-catalog-auto]');if(managed&&catalogAuto){catalogAuto.textContent=catalogRangeText(managed,x);return}
  if(!card||!x)return;
+ var managed=managedMaterialForItem(x),catalogAuto=card.querySelector('[data-catalog-auto]');if(managed&&catalogAuto){catalogAuto.textContent=catalogRangeText(managed,x);deduplicateStudyIdentityFields(card);return}
  var unitAuto=card.querySelector('[data-unit-auto]');if(unitAuto)unitAuto.textContent=numberedStudyScope(x)?.kind==='unit'?bookUnitText(x):numberedScopeText(x);
  if(x.type==='mathStudy'||x.type==='mathLecture'||x.type==='mathPractice'){applyMathAuto(x.f);var m=card.querySelector('[data-math-auto]');if(m)m.textContent=mathAutoText(x.f)}
  if(x.type==='extra'&&isGrammarReview(x.f&&x.f.title)){var g=card.querySelector('[data-grammar-auto]');if(g)g.textContent=grammarReviewAutoText(x.f)}
@@ -3519,6 +3517,7 @@ function refreshAuto(card,x){
   var topicMap=card.querySelector('[data-book-topic-auto]');if(topicMap)topicMap.textContent=bookPageTopicText(mappedBook,x.f.start,x.f.end);
   var detailMap=card.querySelector('[data-book-detail-auto]');if(detailMap)detailMap.textContent=bookPageDetailText(mappedBook,x.f.start,x.f.end);
  }
+ deduplicateStudyIdentityFields(card);
 }
 
 function cardPageRangeInputs(card){

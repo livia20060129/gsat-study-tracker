@@ -8,7 +8,7 @@ import {
 } from './application/timer/studyTimerController.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
-import { studyCardDescription } from './ui/studyDescription.ts';
+import { todoStudyDisplay } from './ui/todoStudyDisplay.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemFilterForSubject, overdueItemOptions } from './study/overdueItemFilter.ts';
@@ -236,15 +236,16 @@ function createTimeEditor(entry: OverdueTaskEntry): HTMLElement {
 }
 
 function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
+  const display = todoStudyDisplay(entry);
   const article = document.createElement('article');
   article.className = `todo-card subject-${entry.subject}`;
   const main = document.createElement('div');
   main.className = 'todo-card-main';
   main.append(createMeta(entry));
   const title = document.createElement('h3');
-  title.textContent = entry.title;
+  title.textContent = display.title;
   main.append(title);
-  const descriptionText = studyCardDescription(entry.description);
+  const descriptionText = display.description;
   if (descriptionText) {
     const description = document.createElement('p');
     description.className = 'todo-description';
@@ -253,7 +254,7 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   }
   const details = document.createElement('dl');
   details.className = 'todo-record-grid';
-  for (const detail of entry.details) {
+  for (const detail of display.details) {
     const label = document.createElement('dt');
     label.textContent = detail.label;
     const value = document.createElement('dd');
