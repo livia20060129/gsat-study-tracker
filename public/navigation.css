@@ -13,8 +13,6 @@ body button{font-weight:800}
 body>main:not(.document),body.source-page,.prompt-header-inner,body .header-inner,body .site-footer{box-sizing:border-box;width:100%;max-width:var(--site-page-width);margin-left:auto;margin-right:auto;padding-left:var(--site-page-gutter);padding-right:var(--site-page-gutter)}
 body>main.document{box-sizing:border-box;width:calc(100% - 2 * var(--site-page-gutter));max-width:calc(var(--site-page-width) - 2 * var(--site-page-gutter));margin-left:auto;margin-right:auto}
 .prompt-page>header{padding-left:0;padding-right:0}
-.app-legal-footer .header-action-link{color:#244ab5}
-.app-legal-footer .header-action-link:hover{color:#244ab5;text-decoration:none}
 @media screen{
   body>main:not(.document){padding-top:22px}
   body.source-page{margin-top:22px}
