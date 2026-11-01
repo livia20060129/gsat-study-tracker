@@ -1,5 +1,5 @@
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, StudyItem, StudyRecord, VocabularyTranslations } from '../types.ts';
-import { applyVocabularyAutoFill, vocabularyAutoFillSources } from './vocabularyAutoFill.ts';
+import { applyVocabularyAutoFill, markVocabularyManualFields, vocabularyAutoFillSources } from './vocabularyAutoFill.ts';
 import { applyDictionarySelection, dictionarySources } from './dictionarySelection.ts';
 import type { DictionaryLookupResult, DictionarySourceReference } from './dictionaryEntries.ts';
 import {
@@ -25,6 +25,8 @@ export const VOCABULARY_CONTENT_KINDS = ['單字', '組合', '句子'] as const;
 export type VocabularyContentKind = (typeof VOCABULARY_CONTENT_KINDS)[number];
 
 export interface VocabularyWordEdits {
+  autoFill?: boolean;
+  autoFillTranslations?: VocabularyTranslations;
   dictionarySelection?: DictionaryLookupResult;
   contentKind?: VocabularyContentKind;
   partsOfSpeech?: ReadonlySet<VocabularyPartOfSpeechField>;
@@ -251,6 +253,7 @@ function updateItemWords(
       const text = typeof rawWord === 'string' ? rawWord : rawWord.text;
       if (vocabularyEntryKey(text) !== key) continue;
       const word = typeof rawWord === 'string' ? { text: rawWord } : rawWord;
+      const beforeWord = JSON.stringify(word);
       if (typeof rawWord === 'string') item.f.words[index] = word;
       if (edits.text !== undefined) {
         const nextText = normalizedWordText(edits.text);
@@ -271,8 +274,9 @@ function updateItemWords(
           changed = true;
         }
       }
-      if (edits.text !== undefined && applyVocabularyAutoFill(word)) changed = true;
+      if ((edits.text !== undefined || edits.autoFill) && applyVocabularyAutoFill(word, edits.autoFillTranslations)) changed = true;
       if (edits.partsOfSpeech) {
+        markVocabularyManualFields(word, VOCABULARY_PARTS_OF_SPEECH.map(([field]) => field));
         for (const [field] of VOCABULARY_PARTS_OF_SPEECH) {
           const enabled = edits.partsOfSpeech.has(field);
           if (word[field] !== enabled) {
@@ -282,6 +286,7 @@ function updateItemWords(
         }
       }
       if (edits.translation !== undefined) {
+        markVocabularyManualFields(word, ['translation', 'translationsByPartOfSpeech']);
         if (word.translation !== edits.translation) {
           word.translation = edits.translation;
           changed = true;
@@ -292,6 +297,7 @@ function updateItemWords(
         }
       }
       if (edits.translationsByPartOfSpeech !== undefined) {
+        markVocabularyManualFields(word, ['translation', 'translationsByPartOfSpeech']);
         const current = normalizedVocabularyTranslations(word.translationsByPartOfSpeech);
         const updates = normalizedVocabularyTranslations(edits.translationsByPartOfSpeech);
         const next = { ...current, ...updates };
@@ -302,6 +308,7 @@ function updateItemWords(
         }
       }
       if (edits.gsatLevel !== undefined) {
+        markVocabularyManualFields(word, ['gsatLevel']);
         const level = normalizedGsatVocabularyLevel(edits.gsatLevel);
         if (level !== null && word.gsatLevel !== level) {
           word.gsatLevel = level;
@@ -309,10 +316,12 @@ function updateItemWords(
         }
       }
       if (edits.showGsatLevel !== undefined && word.showGsatLevel !== edits.showGsatLevel) {
+        markVocabularyManualFields(word, ['showGsatLevel']);
         word.showGsatLevel = edits.showGsatLevel;
         changed = true;
       }
       if (edits.dictionarySelection && applyDictionarySelection(word, edits.dictionarySelection)) changed = true;
+      if (JSON.stringify(word) !== beforeWord) changed = true;
     }
   }
 

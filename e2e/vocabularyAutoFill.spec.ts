@@ -112,8 +112,9 @@ test('old data is read-only until edited, phrases are excluded, and source notic
   await row.getByLabel('英文內容').fill('alternate');
   await row.getByLabel('英文內容').press('Tab');
   const alternate = page.locator('.vocabulary-row[data-entry-key="alternate"]');
-  await expect(alternate.getByLabel('Noun', { exact: true })).toBeChecked();
-  await expect(alternate.getByLabel('Noun 中文翻譯 1', { exact: true })).toHaveValue('');
+  await expect(alternate.getByLabel('Noun', { exact: true })).not.toBeChecked();
+  await expect(alternate.getByLabel('Verb', { exact: true })).toBeChecked();
+  await expect(alternate.getByLabel('Verb 中文翻譯 1', { exact: true })).toHaveValue('輪流');
   await alternate.getByRole('button', { name: '完成「alternate」' }).click();
   await page.locator('#vocabularySearch').fill('alternate');
   for (const withTranslations of [true, false]) {
@@ -147,4 +148,104 @@ test('old data is read-only until edited, phrases are excluded, and source notic
   await expect(page).toHaveURL(/\/vocabulary\.review\.html$/);
   await expect(page.locator('.vocabulary-row[data-entry-key="alternate"]')).toBeVisible();
   expect(context.pages()).toHaveLength(pageCount);
+});
+
+async function openTrackerWord(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.locator('#studyDate').fill('2026-10-24');
+  await page.locator('#studyDate').dispatchEvent('change');
+}
+
+for (const returnBeforeResponse of [false, true]) test(`an ECDICT word saves across date changes when returning ${returnBeforeResponse ? 'before' : 'after'} its response`, async ({ page }) => {
+  await seedWords(page, [{ id: 'extended', text: '' }]);
+  let release = function (): void {};
+  let requests = 0;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/dictionaries/ecdict-v1/*.json', async route => { requests++; await pending; await route.continue(); });
+  await openTrackerWord(page);
+  const input = page.locator('[data-item="autofill"] [data-word-text]');
+  await input.fill('novelty'); await input.press('Tab');
+  await expect.poll(() => requests).toBe(1);
+  await expect.poll(async () => (await storedWords(page))[0].text).toBe('novelty');
+  await page.locator('#studyDate').fill('2026-10-25');
+  await page.locator('#studyDate').dispatchEvent('change');
+  if (returnBeforeResponse) {
+    await page.locator('#studyDate').fill('2026-10-24');
+    await page.locator('#studyDate').dispatchEvent('change');
+  }
+  release();
+  await expect.poll(async () => (await storedWords(page))[0]).toMatchObject({ noun: true,
+    translationsByPartOfSpeech: { noun: ['新奇', '新鮮', '新奇的事物'] } });
+  expect((await storedWords(page))[0].gsatLevel).toBeUndefined();
+  if (returnBeforeResponse) await expect(page.locator('[data-item="autofill"] [data-word-pos="noun"]')).toBeChecked();
+  await page.reload();
+  await page.goto('/vocabulary.review.html');
+  const row = page.locator('[data-entry-key="novelty"]');
+  await expect(row.locator('.vocabulary-meaning-answer')).toHaveText(['新奇', '新鮮', '新奇的事物']);
+  await expect(row.locator('.vocabulary-gsat-level')).toHaveCount(0);
+  await row.getByRole('button', { name: '編輯「novelty」' }).click();
+  await row.getByLabel('Noun 中文翻譯 1', { exact: true }).fill('我的手動翻譯');
+  await row.getByLabel('Verb', { exact: true }).check();
+  await row.getByLabel('Noun', { exact: true }).uncheck();
+  await row.getByRole('button', { name: '完成「novelty」' }).click();
+  await page.reload();
+  expect((await storedWords(page))[0].translationsByPartOfSpeech?.noun?.[0]).toBe('我的手動翻譯');
+  expect((await storedWords(page))[0]).toMatchObject({ noun: false, verb: true });
+});
+
+test('late dictionary responses cannot replace newer English or overwrite a manual unchecked POS', async ({ page }) => {
+  await seedWords(page, [{ id: 'extended', text: '' }, { id: 'manual', text: '' }]);
+  let release = function (): void {};
+  let requests = 0;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/dictionaries/ecdict-v1/*.json', async route => { requests++; await pending; await route.continue(); });
+  await openTrackerWord(page);
+  const card = page.locator('[data-item="autofill"]');
+  const first = card.locator('[data-word-text][data-index="0"]');
+  const second = card.locator('[data-word-text][data-index="1"]');
+  await first.fill('novelty'); await first.press('Tab');
+  await second.fill('novelty'); await second.press('Tab');
+  const noun = card.locator('[data-word-pos="noun"][data-index="1"]');
+  await noun.check(); await noun.uncheck();
+  await first.fill('ability'); await first.press('Tab');
+  release();
+  await expect.poll(async () => (await storedWords(page))[1].translation).toContain('新奇');
+  expect(requests).toBe(1);
+  expect((await storedWords(page))[0]).toMatchObject({ text: 'ability', translationsByPartOfSpeech: { noun: ['能力', '才幹'] } });
+  expect((await storedWords(page))[1].noun).toBe(false);
+  await expect(noun).not.toBeChecked();
+});
+
+test('review English changes use ECDICT automatically without the preview confirmation step', async ({ page }) => {
+  await seedWords(page, [{ id: 'extended', text: 'new-test-word' }]);
+  await page.reload();
+  const original = page.locator('[data-entry-key="new-test-word"]');
+  await original.getByRole('button', { name: '編輯「new-test-word」' }).click();
+  await original.getByLabel('英文內容').fill('novelty');
+  await original.getByLabel('英文內容').press('Tab');
+  const row = page.locator('[data-entry-key="novelty"]');
+  await expect(row.getByLabel('Noun', { exact: true })).toBeChecked();
+  await expect(row.getByLabel('Noun 中文翻譯 1', { exact: true })).toHaveValue('新奇');
+  expect((await storedWords(page))[0].showGsatLevel).toBeUndefined();
+  await row.getByLabel('Noun 中文翻譯 1', { exact: true }).fill('自訂中文');
+  await row.getByLabel('英文內容').focus();
+  await row.getByLabel('英文內容').dispatchEvent('change');
+  await expect(row.getByLabel('Noun 中文翻譯 1', { exact: true })).toHaveValue('自訂中文');
+});
+
+test('lookup failures keep English saved and let a later edit retry ECDICT', async ({ page }) => {
+  await seedWords(page, [{ id: 'extended', text: '' }]);
+  let requests = 0;
+  await page.route('**/dictionaries/ecdict-v1/*.json', route => {
+    requests++;
+    return requests === 1 ? route.fulfill({ status: 503, body: '' }) : route.continue();
+  });
+  await openTrackerWord(page);
+  const input = page.locator('[data-item="autofill"] [data-word-text]');
+  await input.fill('novelty'); await input.press('Tab');
+  await expect(page.locator('[data-item="autofill"] [data-word-reference]')).toContainText('ECDICT 暫時無法載入');
+  expect((await storedWords(page))[0].text).toBe('novelty');
+  await input.dispatchEvent('change');
+  await expect.poll(async () => (await storedWords(page))[0].translation).toContain('新奇');
+  expect(requests).toBe(2);
 });

@@ -53,7 +53,10 @@ import {
 import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
-import { applyVocabularyAutoFill, vocabularyAutoFillStatus } from './study/vocabularyAutoFill.ts';
+import { applyVocabularyAutoFill, markVocabularyManualFields, vocabularyAutoFillStatus } from './study/vocabularyAutoFill.ts';
+import { loadEcdictTranslations } from './study/ecdictLookup.ts';
+import { updateVocabularyWordEntries, vocabularyEntryKey } from './study/vocabularyReview.ts';
+import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { VOCABULARY_PARTS_OF_SPEECH } from './study/vocabularyTranslationCounts.ts';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { setupConnectionSettingsMotion } from './ui/connectionSettingsMotion';
@@ -3593,17 +3596,49 @@ function runTimerAction(item,control,action){
  render();
 }
 
+function refreshEnglishWordControls(target,word,itemId,index){
+ if(!target.isConnected&&itemId){
+  var current=Array.from(document.querySelectorAll('[data-word-text]')).find(function(control){
+   var card=control.closest('[data-item]');return card&&card.getAttribute('data-item')===itemId&&Number(control.getAttribute('data-index'))===index;
+  });
+  if(current)target=current;
+ }
+ if(target.value!==word.text)return;
+ var row=target.isConnected&&target.closest('.field');if(!row)return;
+ row.querySelectorAll('[data-word-pos]').forEach(function(control){control.checked=word[control.getAttribute('data-word-pos')]===true});
+ var note=row.querySelector('[data-word-reference]');if(note)note.textContent=vocabularyAutoFillStatus(word);
+}
+function loadEnglishWordDefaults(target,item,index){
+ var record=data,prefix=STORE_PREFIX,text=target.value,key=vocabularyEntryKey(text),word=item.f.words[index],wordId=word&&word.id;
+ if(!key||word.fixedCombination||word.beautifulSentences)return;
+ loadEcdictTranslations(text).then(function(translations){
+  if(!translations||STORE_PREFIX!==prefix||localStorage.getItem(ACTIVE_RECORD_PREFIX_KEY)!==prefix)return;
+  if(data&&data.date===record.date){
+   var current=findItem(item.id),entries=current&&current.f.words;
+   var entry=entries&&entries.find(function(candidate){return candidate&&candidate.id===wordId});
+   if(!entry||vocabularyEntryKey(entry.text)!==key)return;
+   if(applyVocabularyAutoFill(entry,translations)){propagateDailyWorkField(current,'words',current.f.words);persist(false)}
+   refreshEnglishWordControls(target,entry,current.id,entries.indexOf(entry));return;
+  }
+  var stored=readStoredRecord(record.date);if(!stored)return;
+  try{
+   var saved=saveLocalRecordEdit(localStorage,prefix,stored,function(latest){
+    var draft=cloneRecord(latest);return updateVocabularyWordEntries(draft,key,{autoFill:true,autoFillTranslations:translations})?draft:null;
+   });
+   if(saved&&!saved.syncConflict)queueCloudSave(saved,true);
+  }catch(error){id('status').textContent='單字已保存，ECDICT 資料尚未寫入：'+error.message}
+ }).catch(function(){
+  if(target.isConnected&&target.value===text){var note=target.closest('.field').querySelector('[data-word-reference]');if(note)note.textContent='ECDICT 暫時無法載入；單字已保存，可稍後重試或手動編輯。'}
+ });
+}
 function updateEnglishReviewWordText(target,item,completeWord){
  var words=item.f.words||(item.f.words=[]),index=Number(target.getAttribute('data-index'));
  if(!words[index]||typeof words[index]!=='object')words[index]={};
  words[index].text=target.value;
  if(completeWord){
   applyVocabularyAutoFill(words[index]);
-  var row=target.closest('.field');
-  if(row){
-   row.querySelectorAll('[data-word-pos]').forEach(function(control){control.checked=words[index][control.getAttribute('data-word-pos')]===true});
-   var note=row.querySelector('[data-word-reference]');if(note)note.textContent=vocabularyAutoFillStatus(words[index]);
-  }
+  refreshEnglishWordControls(target,words[index]);
+  loadEnglishWordDefaults(target,item,index);
  }
  propagateDailyWorkField(item,'words',words);
 }
@@ -3780,7 +3815,7 @@ function handleChange(e){
   render();persist(false);return
  }
  if(t.matches('[data-nested-type]')&&x){var nestedPointer=readTimerPointer();if(nestedPointer&&nestedPointer.itemId===x.id)pauseActiveTimer();x.type=t.value;x.done=false;x.minutes='';x.f={};x.source=t.getAttribute('data-nested-type');render();persist(false);return}
- if(t.matches('[data-word-pos]')&&x){var a=x.f.words||(x.f.words=[]),i=Number(t.getAttribute('data-index'));if(!a[i]||typeof a[i]!=='object')a[i]={};a[i][t.getAttribute('data-word-pos')]=t.checked;propagateDailyWorkField(x,'words',a);persist(false);return}
+ if(t.matches('[data-word-pos]')&&x){var a=x.f.words||(x.f.words=[]),i=Number(t.getAttribute('data-index'));if(!a[i]||typeof a[i]!=='object')a[i]={};markVocabularyManualFields(a[i],VOCABULARY_PARTS_OF_SPEECH.map(function(tag){return tag[0]}));a[i][t.getAttribute('data-word-pos')]=t.checked;propagateDailyWorkField(x,'words',a);persist(false);return}
 }
 function hideDeleteUndo(){
  if(deleteUndoTimer){clearTimeout(deleteUndoTimer);deleteUndoTimer=null}

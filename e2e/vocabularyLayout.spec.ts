@@ -36,8 +36,8 @@ test('page references appear directly under the title and all word groupings use
   const references = page.locator('#vocabularyReferences');
   expect(await page.locator('h1').evaluate(node => node.nextElementSibling?.id)).toBe('vocabularyReferences');
   await expect(references.getByRole('link')).toHaveCount(3);
-  await expect(references).toContainText('大考中心（詞性／Level）');
-  await expect(references).toContainText('ECDICT（中文翻譯）');
+  await expect(references).toContainText('大考中心（Level）');
+  await expect(references).toContainText('ECDICT（中文翻譯／詞性）');
   await expect(page.locator('#vocabularyLegacySources')).toBeHidden();
   await expect(page.locator('.vocabulary-row a[href*="ECDICT"], .vocabulary-row .vocabulary-reference-sources')).toHaveCount(0);
   const rows = page.locator('.vocabulary-row');

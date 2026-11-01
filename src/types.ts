@@ -52,6 +52,8 @@ export type EnglishReviewPartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb'
 export type VocabularyTranslations = Partial<Record<EnglishReviewPartOfSpeech | 'unclassified', string[]>>;
 
 export interface EnglishReviewWordEntry extends Record<string, unknown> {
+  /** Per-field manual choices also protect edits made while dictionary data is loading. */
+  vocabularyManualFields?: Record<string, boolean>;
   id?: string;
   text?: string;
   translation?: string;

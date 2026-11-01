@@ -532,6 +532,10 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   await expect(leverageRow.getByLabel('Noun', { exact: true })).toBeChecked();
   await expect(leverageRow.getByLabel('Verb', { exact: true })).toBeChecked();
   await leverageRow.getByLabel('Adjective', { exact: true }).check();
+  while (await leverageRow.locator('[data-vocabulary-pos-translation="noun"]').count() > 1) {
+    const count = await leverageRow.locator('[data-vocabulary-pos-translation="noun"]').count();
+    await leverageRow.getByRole('button', { name: `刪除 Noun 第 ${count} 個翻譯`, exact: true }).click();
+  }
   await leverageRow.getByLabel('Noun 中文翻譯 1', { exact: true }).fill('影響力');
   await leverageRow.getByLabel('Verb 中文翻譯 1', { exact: true }).fill('運用');
   await expect(page.getByText('已儲存「Leverage」的整理資料')).toBeVisible();

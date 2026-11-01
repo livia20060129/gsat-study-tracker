@@ -21,6 +21,7 @@ import { vocabularyTranslationGroups } from './study/vocabularyTranslationCounts
 import { vocabularyMeaningGroups } from './study/vocabularyMeaningGroups.ts';
 import { vocabularyPrintDocument } from './study/vocabularyPrint.ts';
 import { vocabularyReference } from './study/vocabularyAutoFill.ts';
+import { loadEcdictTranslations } from './study/ecdictLookup.ts';
 import type { StudyRecord, VocabularyTranslations } from './types.ts';
 
 const GROUPING_MODES = ['alphabetical', 'partOfSpeech', 'gsatLevel'] as const;
@@ -121,6 +122,32 @@ function saveEntryEditsResult(entry: VocabularyReviewEntry, edits: VocabularyWor
 
 function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits): boolean {
   return saveEntryEditsResult(entry, edits) === 'saved';
+}
+
+function renderEnrichedEntries(): void {
+  const focused = document.activeElement as HTMLInputElement | null;
+  const rowKey = focused?.closest<HTMLElement>('[data-entry-key]')?.dataset.entryKey;
+  const attribute = focused && [...focused.attributes].find(value => value.name.startsWith('data-vocabulary-'));
+  const ariaLabel = focused?.getAttribute('aria-label');
+  const selection = focused?.type === 'text' ? [focused.selectionStart, focused.selectionEnd] : null;
+  renderEntries();
+  if (!rowKey || !attribute) return;
+  const selector = ariaLabel ? `[aria-label="${CSS.escape(ariaLabel)}"]` : `[${attribute.name}="${CSS.escape(attribute.value)}"]`;
+  const replacement = element('vocabularyList').querySelector<HTMLInputElement>(`[data-entry-key="${CSS.escape(rowKey)}"] ${selector}`);
+  replacement?.focus({ preventScroll: true });
+  if (replacement?.type === 'text' && selection) replacement.setSelectionRange(selection[0], selection[1]);
+}
+
+async function fillEcdictEntry(key: string): Promise<void> {
+  const prefix = activeRecordPrefix;
+  try {
+    const translations = await loadEcdictTranslations(key);
+    if (!translations || prefix !== activeRecordPrefix) return;
+    const entry = allEntries.find(candidate => candidate.key === key);
+    if (entry && saveEntryEdits(entry, { autoFill: true, autoFillTranslations: translations })) renderEnrichedEntries();
+  } catch {
+    if (prefix === activeRecordPrefix) element('vocabularySaveStatus').textContent = '英文已儲存；ECDICT 暫時無法載入，可稍後重試或手動編輯。';
+  }
 }
 
 function selectedPartsOfSpeech(container: HTMLElement): Set<VocabularyPartOfSpeechField> {
@@ -654,7 +681,7 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
       error.hidden = false;
       return;
     }
-    if (nextText === entry.text) return;
+    if (nextText === entry.text) { void fillEcdictEntry(entry.key); return; }
     if (!saveEntryEdits(entry, { text: nextText })) {
       target.value = entry.text;
       return;
@@ -663,6 +690,7 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
     editingEntryKeys.delete(entry.key);
     editingEntryKeys.add(vocabularyEntryKey(nextText));
     renderEntries();
+    void fillEcdictEntry(vocabularyEntryKey(nextText));
     return;
   }
   if (target.matches('[data-vocabulary-pos]')) {
