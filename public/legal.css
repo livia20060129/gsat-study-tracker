@@ -1,7 +1,7 @@
 @import "./navigation.css";
 :root{
   color-scheme:light;
-  --bg:#f4f7fb;
+  --bg:var(--site-page-background);
   --paper:#ffffff;
   --text:#10233f;
   --muted:#5e6f86;
@@ -13,7 +13,7 @@
 html{font-size:16px;scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;line-height:1.85}
 a{color:var(--accent);text-underline-offset:3px}
-.site-header{background:rgba(255,255,255,.96);border-bottom:1px solid var(--line)}
+.site-header{background:var(--site-page-background);border-bottom:1px solid var(--line)}
 .header-inner{max-width:920px;margin:auto;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:18px}
 .brand{font-size:18px;font-weight:800;color:var(--text);text-decoration:none}
 .nav{display:flex;gap:10px;flex-wrap:wrap;font-size:14px}

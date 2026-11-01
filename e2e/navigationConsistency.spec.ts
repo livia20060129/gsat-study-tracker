@@ -54,7 +54,9 @@ test('every page shares bold navigation, full-width mobile button rows and deskt
       const buttons = navigation.locator('.header-action-link');
       expect(await buttons.count(), path).toBeGreaterThan(0);
       for (const button of await buttons.all()) {
-        const isHome = await button.getAttribute('data-navigation') === 'home';
+        const destination = new URL((await button.getAttribute('href'))!, page.url()).pathname;
+        const isHome = destination.endsWith('/index.html');
+        if (isHome) await expect(button, path + ' return link must include the shared home marker').toHaveAttribute('data-navigation', 'home');
         const appearance = await buttonAppearance(button, width > 700 || isHome);
         expect(Number(appearance['font-weight']), path).toBeGreaterThanOrEqual(700);
         expect(appearance['border-top-style'], path).toBe('solid');
@@ -65,7 +67,6 @@ test('every page shares bold navigation, full-width mobile button rows and deskt
           expect(parseFloat(appearance.width), path + ' home button keeps the same actual width on every page').toBe(expectedWidth);
         }
         expect(await button.evaluate(node => node.scrollHeight <= node.clientHeight), path + ' button text stays inside').toBe(true);
-        const destination = new URL((await button.getAttribute('href'))!, page.url()).pathname;
         const identity = { text: (await button.innerText()).trim(), appearance };
         const previous = destinations.get(destination);
         if (previous) expect(identity, path + ' same destination uses the same button format').toEqual(previous);

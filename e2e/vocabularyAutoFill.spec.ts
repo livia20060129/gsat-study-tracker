@@ -140,7 +140,10 @@ test('old data is read-only until edited, phrases are excluded, and source notic
   expect(await license.text()).toContain('Copyright (c) 2025 Linwei');
   const manifest = await page.request.get('/vocabulary-reference-manifest.json');
   expect((await manifest.json()).official.lookupSpellings).toBe(6191);
-  await page.getByRole('link', { name: '返回英文單字複習', exact: true }).click();
+  const returnToVocabulary = page.locator('.source-navigation a[href="./vocabulary.review.html"]');
+  await expect(returnToVocabulary).toHaveText('英文單字複習');
+  await expect(returnToVocabulary).toHaveAttribute('data-navigation', 'vocabulary');
+  await returnToVocabulary.click();
   await expect(page).toHaveURL(/\/vocabulary\.review\.html$/);
   await expect(page.locator('.vocabulary-row[data-entry-key="alternate"]')).toBeVisible();
   expect(context.pages()).toHaveLength(pageCount);
