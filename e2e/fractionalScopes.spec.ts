@@ -83,6 +83,7 @@ test('split todo pages round-trip with original cards, preserve Unit metadata, a
   await card.locator('[data-field="end"]').fill('24');
   await card.locator('[data-field="end"]').blur();
   await navigateSite(page, 'todo.html');
+  await expandTodoCard(todo);
   await expect(todo.locator('[data-todo-range="end"]')).toHaveValue('24');
   await todo.locator('.todo-complete').click();
   await page.goto('/');

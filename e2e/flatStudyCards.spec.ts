@@ -271,6 +271,7 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   await end.fill('97');
   await end.blur();
   await page.reload();
+  await expandTodoCard(todo);
   await expect(end).toHaveValue('97');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto('/');

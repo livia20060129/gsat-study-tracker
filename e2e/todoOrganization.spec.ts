@@ -175,3 +175,58 @@ test('old full-view links still start compact and completing or skipping does no
   await expect(cards).toHaveCount(2);
   for (const card of await cards.all()) await expect(card).toHaveAttribute('data-expanded', 'false');
 });
+
+test('editors load only on first expansion and both unopened completion and retained date drafts save correctly', async ({ page }) => {
+  await seed(page);
+  await expect(page.locator('[data-todo-range]')).toHaveCount(0);
+  await page.getByRole('tab', { name: '自然', exact: true }).click();
+  await page.locator('[data-period="week"]').click();
+  const cards = page.locator('#todoRecentList .todo-card');
+  await cards.first().locator('.todo-complete').click();
+  const first = await page.evaluate(({ prefix }) => JSON.parse(localStorage.getItem(prefix + '2026-11-02')!), { prefix });
+  expect(first.items[2].done).toBe(true);
+  expect(first.items[2].checkedOn).toBe('2026-11-05');
+  expect(first.items[2].f.start).toBe('10');
+  await cards.locator('h3').click();
+  await expect(page.locator('[data-todo-range]')).toHaveCount(2);
+  const minutes = cards.locator('[data-todo-minutes]');
+  await minutes.fill('28.5');
+  await minutes.blur();
+  await minutes.evaluate(node => node.setAttribute('data-lazy-probe', 'retained'));
+  await cards.locator('[data-todo-completion-date]').fill('2026-11-03');
+  await cards.locator('h3').click();
+  await cards.locator('h3').click();
+  await expect(minutes).toHaveAttribute('data-lazy-probe', 'retained');
+  await expect(minutes).toHaveValue('28.5');
+  await expect(cards.locator('[data-todo-completion-date]')).toHaveValue('2026-11-03');
+  await cards.locator('h3').click();
+  await cards.locator('.todo-complete').click();
+  const second = await page.evaluate(({ prefix }) => JSON.parse(localStorage.getItem(prefix + '2026-11-04')!), { prefix });
+  expect(second.items[2].done).toBe(true);
+  expect(second.items[2].checkedOn).toBe('2026-11-03');
+  expect(second.items[2].minutes).toBe('28.5');
+});
+
+test('normal pageshow preserves existing editors while cached-page restoration reloads changed records', async ({ page }) => {
+  await seed(page);
+  await page.getByRole('tab', { name: '自然', exact: true }).click();
+  await page.locator('[data-period="week"]').click();
+  const card = page.locator('#todoRecentList .todo-card').first();
+  await card.locator('h3').click();
+  const start = card.locator('[data-todo-range="start"]');
+  await start.evaluate(node => node.setAttribute('data-page-probe', 'retained'));
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow')));
+  await expect(start).toHaveAttribute('data-page-probe', 'retained');
+  await page.evaluate(({ prefix }) => {
+    const key = prefix + '2026-11-02';
+    const record = JSON.parse(localStorage.getItem(key)!);
+    record.items[2].f.start = '30';
+    record.items[2].f.end = '40';
+    record.items[2].minutes = '45';
+    localStorage.setItem(key, JSON.stringify(record));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+  }, { prefix });
+  await expect(start).toHaveValue('30');
+  await expect(card.locator('[data-todo-range="end"]')).toHaveValue('40');
+  await expect(card.locator('[data-todo-minutes]')).toHaveValue('45');
+});

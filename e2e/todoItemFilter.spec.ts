@@ -66,6 +66,7 @@ test('scope options remove repeated subjects and group rounds while completion a
   await select.selectOption({ label: '國文｜古今悅讀一百' });
   await expect(page.locator('.todo-card')).toHaveCount(2);
   await expect(page.locator('.todo-card h3')).toHaveText(['國文｜古今悅讀一百', '國文｜古今悅讀一百']);
+  for (const card of await page.locator('.todo-card').all()) await expandTodoCard(card);
   await expect(page.locator('.todo-card').first().locator('[data-todo-range="start"]')).toHaveValue('45');
   await expect(page.locator('.todo-card').last().locator('[data-todo-range="start"]')).toHaveValue('46');
   expect(await snapshot(page)).toEqual(before);
@@ -78,6 +79,7 @@ test('scope options remove repeated subjects and group rounds while completion a
   expect(items.find((item: { id: string }) => item.id === 'gujin-1').done).toBe(false);
   await page.locator('.todo-history-undo').click();
   await expect(page.locator('.todo-card')).toHaveCount(2);
+  for (const card of await page.locator('.todo-card').all()) await expandTodoCard(card);
   await expect(page.locator('.todo-card').first().locator('[data-todo-range="start"]')).toHaveValue('45');
   await expect(page.locator('.todo-card').last().locator('[data-todo-range="start"]')).toHaveValue('46');
   await page.setViewportSize({ width: 375, height: 900 });
@@ -97,6 +99,7 @@ test('older scoped URLs restore the grouped chapter selection and Units retain t
   await expect(select.locator('option:checked')).toHaveText('英文｜英文文法總複習');
   await select.selectOption({ label: '英文｜Unlock 3' });
   await expect(page.locator('.todo-card')).toHaveCount(2);
+  for (const card of await page.locator('.todo-card').all()) await expandTodoCard(card);
   await expect(page.locator('.todo-card').first().locator('[data-range-unit="Unit"][data-todo-range="start"]')).toHaveValue('1');
   await expect(page.locator('.todo-card').last().locator('[data-range-unit="Unit"][data-todo-range="start"]')).toHaveValue('2');
   await page.reload();

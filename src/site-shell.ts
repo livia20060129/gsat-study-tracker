@@ -120,13 +120,25 @@ function updateRailStatus(): void {
     const state = badge?.textContent?.trim();
     left.querySelector('[data-rail-storage]')!.textContent = state ? `Cloud：${state}` : '資料儲存於本機';
 }
+function weekDates(value: string): string[] {
+    const monday = new Date(`${value}T12:00:00`);
+    monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+    return Array.from({ length: 7 }, function dateOfWeek(_, index): string {
+        const day = new Date(monday);
+        day.setDate(day.getDate() + index);
+        return dateKey(day);
+    });
+}
+let previousTicks = '';
+let previousPreview = '';
 function refreshRails(): void {
     try {
+        const today = dateKey(), selected = sidebarDate.value || today;
+        const selectedWeek = weekDates(selected), currentWeek = new Set(weekDates(today));
+        const needed = new Set([...selectedWeek, ...currentWeek].filter(day => day <= today));
         const prefix = initialRecordPrefix(localStorage), records: StudyRecord[] = [], keys = new Set<string>();
-        for (let index = 0; index < localStorage.length; index += 1) {
-            const key = localStorage.key(index);
-            if (!key?.startsWith(prefix) || !/^\d{4}-\d{2}-\d{2}$/.test(key.slice(prefix.length)))
-                continue;
+        for (const day of needed) {
+            const key = prefix + day;
             const raw = localStorage.getItem(key);
             if (!raw)
                 continue;
@@ -145,7 +157,6 @@ function refreshRails(): void {
         for (const key of cache.keys())
             if (!keys.has(key))
                 cache.delete(key);
-        const today = dateKey(), selected = sidebarDate.value || today;
         const anchor = new Date(`${selected}T12:00:00`), monday = new Date(anchor);
         monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
         let count = 0;
@@ -163,14 +174,24 @@ function refreshRails(): void {
         left.querySelector('[data-rail-weekday]')!.textContent = `星期${'日一二三四五六'[anchor.getDay()]}`;
         left.querySelector('[data-rail-days]')!.textContent = String(count);
         left.querySelector('[data-rail-week-description]')!.textContent = `已填寫 ${count} 天紀錄`;
-        left.querySelector('.site-week-ticks')!.innerHTML = ticks.join('');
+        const tickMarkup = ticks.join('');
+        if (previousTicks !== tickMarkup) {
+            left.querySelector('.site-week-ticks')!.innerHTML = tickMarkup;
+            previousTicks = tickMarkup;
+        }
         left.querySelector('[data-rail-account]')!.textContent = prefix.includes(':user:') ? '目前帳號的本機資料' : '訪客本機資料';
-        const pending = overdueEntriesForPeriod(overdueTasks(records, today), 'week', today);
+        const pending = overdueEntriesForPeriod(overdueTasks(records.filter(record => currentWeek.has(record.date)), today), 'week', today);
         right.querySelector('[data-rail-overdue-count]')!.textContent = `${pending.length} 項`;
-        right.querySelector('[data-rail-overdue-list]')!.innerHTML = pending.length ? overduePreviewGroups(pending).slice(0, 5).map(group => `<a class="site-overdue-item" href="./todo.html?period=week&amp;item=${encodeURIComponent(group.key)}#${group.subject}"><strong>${escapeText(group.title)}：${group.count} 項逾期</strong><small>${escapeText(group.subjectLabel)}</small></a>`).join('') : '<p class="site-overdue-empty">本週尚無逾期項目</p>';
+        const preview = pending.length ? overduePreviewGroups(pending).slice(0, 5).map(group => `<a class="site-overdue-item" href="./todo.html?period=week&amp;item=${encodeURIComponent(group.key)}#${group.subject}"><strong>${escapeText(group.title)}：${group.count} 項逾期</strong><small>${escapeText(group.subjectLabel)}</small></a>`).join('') : '<p class="site-overdue-empty">本週尚無逾期項目</p>';
+        if (previousPreview !== preview) {
+            right.querySelector('[data-rail-overdue-list]')!.innerHTML = preview;
+            previousPreview = preview;
+        }
         updateRailStatus();
     }
     catch {
+        previousPreview = '';
+        previousTicks = '';
         left.querySelector('[data-rail-account]')!.textContent = '無法讀取本機資料';
         right.querySelector('[data-rail-overdue-list]')!.textContent = '本機資料暫時無法讀取。';
     }
@@ -179,7 +200,9 @@ let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleRefresh(): void { clearTimeout(refreshTimer); refreshTimer = setTimeout(refreshRails, 180); }
 window.addEventListener('storage', scheduleRefresh);
 window.addEventListener('study-records-changed', scheduleRefresh);
-window.addEventListener('pageshow', scheduleRefresh);
+window.addEventListener('pageshow', function refreshRestoredRails(event): void {
+    if (event.persisted) scheduleRefresh();
+});
 window.addEventListener('focus', scheduleRefresh);
 document.getElementById('studyDate')?.addEventListener('change', scheduleRefresh);
 const badge = document.getElementById('cloudStatusBadge');

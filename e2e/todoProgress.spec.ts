@@ -41,6 +41,7 @@ test('todo shows the same progress checkboxes as sparse original templates on mo
       await expect(todo).toHaveCount(0);
       continue;
     }
+    await expandTodoCard(todo);
     const actual = await todo.locator('[data-todo-progress]').evaluateAll(inputs => inputs.map(input => (input as HTMLElement).dataset.todoProgress));
     expect(actual).toEqual(expectedProgressKeys(template.id));
     for (const input of await todo.locator('[data-todo-progress]').all()) await expect(input).not.toBeChecked();
@@ -100,6 +101,7 @@ test('progress grading and correction sync both ways for a merged source without
   await original.locator('[data-check="graded"]').uncheck();
   await expect(todo.locator('[data-todo-progress="graded"]')).not.toBeChecked();
   await page.reload();
+  await expandTodoCard(todo);
   await expect(todo.locator('[data-todo-progress="progress"]')).toBeChecked();
   await expect(todo.locator('[data-todo-progress="graded"]')).not.toBeChecked();
   await expect(todo.locator('[data-todo-progress="corrected"]')).toBeChecked();

@@ -63,6 +63,7 @@ let records: StudyRecord[] = [];
 const drafts = new TodoDrafts();
 const draftBases = new Map<string, StudyRecord>();
 let displayedTimers = new Map<string, StudyTimerState>();
+let displayedEntries = new Map<string, OverdueTaskEntry>();
 let renderedDate = localDateKey();
 
 function draftKey(action: TodoActionTarget): string {
@@ -253,25 +254,11 @@ function setTodoRangeSummary(main: HTMLElement, text: string): void {
   summary.textContent = text;
 }
 
-function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
+function populateTodoCardEditors(article: HTMLElement, entry: OverdueTaskEntry): void {
+  if (article.dataset.todoEditors === 'true') return;
   const display = todoStudyDisplay(entry);
-  const article = document.createElement('article');
-  article.className = `todo-card subject-${entry.subject}`;
-  const main = document.createElement('div');
-  main.className = 'todo-card-main';
-  main.append(createMeta(entry));
-  const title = document.createElement('h3');
-  title.textContent = display.title;
-  applyStudyHeadingHierarchy(title);
-  const expand = document.createElement('button');
-  expand.type = 'button';
-  expand.className = 'todo-expand';
-  expand.dataset.todoExpand = entry.key;
-  expand.setAttribute('aria-label', `展開或收合 ${display.title}的詳細內容`);
-  expand.setAttribute('aria-expanded', String(expandedCards.has(entry.key)));
-  article.dataset.expanded = String(expandedCards.has(entry.key));
-  main.append(title);
-  setTodoRangeSummary(main, display.rangeSummary);
+  const main = article.querySelector<HTMLElement>('.todo-card-main')!;
+  const controls = article.querySelector<HTMLElement>('.todo-card-controls')!;
   const descriptionText = display.description;
   if (descriptionText) {
     const description = document.createElement('p');
@@ -314,9 +301,7 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   const progress = createProgressEditor(entry);
   if (progress) main.append(progress);
 
-  const controls = document.createElement('div');
-  controls.className = 'todo-card-controls';
-  controls.append(createTimeEditor(entry));
+  controls.prepend(createTimeEditor(entry));
   const dateField = document.createElement('label');
   dateField.className = 'todo-control-field';
   const dateLabel = document.createElement('span');
@@ -328,6 +313,31 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   applyActionData(completionDate, entry);
   completionDate.setAttribute('aria-label', `${entry.title}的完成日期`);
   dateField.append(dateLabel, completionDate);
+  controls.insertBefore(dateField, controls.querySelector('.todo-actions'));
+  article.dataset.todoEditors = 'true';
+}
+
+function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
+  const display = todoStudyDisplay(entry);
+  const article = document.createElement('article');
+  article.className = `todo-card subject-${entry.subject}`;
+  const main = document.createElement('div');
+  main.className = 'todo-card-main';
+  main.append(createMeta(entry));
+  const title = document.createElement('h3');
+  title.textContent = display.title;
+  applyStudyHeadingHierarchy(title);
+  const expand = document.createElement('button');
+  expand.type = 'button';
+  expand.className = 'todo-expand';
+  expand.dataset.todoExpand = entry.key;
+  expand.setAttribute('aria-label', `展開或收合 ${display.title}的詳細內容`);
+  expand.setAttribute('aria-expanded', String(expandedCards.has(entry.key)));
+  article.dataset.expanded = String(expandedCards.has(entry.key));
+  main.append(title);
+  setTodoRangeSummary(main, display.rangeSummary);
+  const controls = document.createElement('div');
+  controls.className = 'todo-card-controls';
   const actions = document.createElement('div');
   actions.className = 'todo-actions';
   const complete = document.createElement('button');
@@ -343,8 +353,9 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   applyActionData(skip, entry);
   skip.setAttribute('aria-label', `跳過 ${entry.title}`);
   actions.append(expand, complete, skip);
-  controls.append(dateField, actions);
+  controls.append(actions);
   article.append(main, controls);
+  if (expandedCards.has(entry.key)) populateTodoCardEditors(article, entry);
   return article;
 }
 
@@ -425,6 +436,7 @@ function render(): void {
     writeItemFilterLocation();
   }
   displayedTimers = new Map(entries.map(entry => [entry.key, entry.timer]));
+  displayedEntries = new Map(entries.map(entry => [entry.key, entry]));
   const periodEntries = overdueEntriesForPeriod(entries, activePeriod, today);
   const filtered = overdueEntriesForItem(visibleEntries(periodEntries), activeItem);
   renderPeriodFilter(today);
@@ -836,6 +848,8 @@ function toggleTodoCard(card: HTMLElement): void {
   if (expandedCards.has(key)) expandedCards.delete(key);
   else expandedCards.add(key);
   animateDisclosureChange(card, function applyExpandedState(): void {
+    const entry = displayedEntries.get(key);
+    if (expandedCards.has(key) && entry) populateTodoCardEditors(card, entry);
     card.dataset.expanded = String(expandedCards.has(key));
     card.querySelector('[data-todo-expand]')?.setAttribute('aria-expanded', String(expandedCards.has(key)));
   });
@@ -859,7 +873,7 @@ element<HTMLDivElement>('todoList').addEventListener('click', function handleTod
   if (target.classList.contains('todo-skip')) return skipTask(action);
   if (target.classList.contains('todo-complete')) {
     const date = target.closest<HTMLElement>('.todo-card')
-      ?.querySelector<HTMLInputElement>('[data-todo-completion-date]')?.value ?? '';
+      ?.querySelector<HTMLInputElement>('[data-todo-completion-date]')?.value ?? drafts.value(draftKey(action), 'completionDate', localDateKey());
     return completeTask(action, date);
   }
   if (target.dataset.todoTimeMode) {
@@ -945,7 +959,8 @@ window.addEventListener('storage', function refreshChangedRecords(event): void {
   if (event.key === null || event.key === ACTIVE_RECORD_PREFIX_KEY
     || (event.key.startsWith(recordPrefix) && /^\d{4}-\d{2}-\d{2}$/.test(event.key.slice(recordPrefix.length)))) load();
 });
-window.addEventListener('pageshow', function refreshVisibleTodoPage(): void {
+window.addEventListener('pageshow', function refreshVisibleTodoPage(event): void {
+  if (!event.persisted) return;
   readLocationFilters();
   load(true);
 });

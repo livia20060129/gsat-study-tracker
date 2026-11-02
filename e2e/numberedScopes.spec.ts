@@ -82,6 +82,7 @@ test('todo round ranges edit and complete the original card without becoming pag
   await card.locator('[data-field="roundEnd"]').fill('7');
   await card.locator('[data-field="roundEnd"]').blur();
   await navigateSite(page, 'todo.html');
+  await expandTodoCard(todo);
   await expect(todo.locator('[data-todo-range="start"]')).toHaveValue('6');
   await expect(todo.locator('[data-todo-range="end"]')).toHaveValue('7');
   await todo.locator('.todo-complete').click();

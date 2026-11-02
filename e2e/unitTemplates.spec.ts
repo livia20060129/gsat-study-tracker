@@ -78,6 +78,7 @@ test('todo Unit edits round-trip through the original card and completion withou
   await card.locator('[data-field="unitEnd"]').fill('2');
   await card.locator('[data-field="unitEnd"]').blur();
   await navigateSite(page, 'todo.html');
+  await expandTodoCard(todo);
   await expect(todo.locator('[data-todo-range="start"]')).toHaveValue('2');
   await expect(todo.locator('[data-todo-range="end"]')).toHaveValue('2');
   await todo.locator('.todo-complete').click();

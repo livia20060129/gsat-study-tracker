@@ -1,6 +1,7 @@
 import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import { clickConnectionToggle } from './helpers/connectionMotion.ts';
+import { expandTodoCard } from './helpers/todoCard.ts';
 
 test('legal pages switch languages and preserve the choice across navigation', async ({ page }) => {
   await page.goto('/privacy.html?lang=zh');
@@ -218,6 +219,7 @@ test('overdue task page filters subjects and persists skip without marking compl
   await mathEnd.fill('60');
   await mathEnd.dispatchEvent('change');
   await page.reload();
+  await expandTodoCard(page.locator('.todo-card'));
   await expect(page.getByLabel('數學講義的起始頁')).toHaveValue('33');
   await expect(page.getByLabel('數學講義的結束頁')).toHaveValue('60');
   await page.getByRole('tab', { name: '自然' }).click();
@@ -341,6 +343,7 @@ test('todo page preserves a focused manual-minute draft when leaving the origina
   });
   await page.goto('/');
   await navigateSite(page, 'todo.html');
+  await expandTodoCard(page.locator('.todo-card'));
   await expect(page.getByLabel('原日期時間同步測試的學習時間')).toHaveValue('');
 
   await page.goBack();
@@ -351,6 +354,7 @@ test('todo page preserves a focused manual-minute draft when leaving the origina
 
   await page.goForward();
   await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
+  await expandTodoCard(page.locator('.todo-card'));
   await expect(page.getByLabel('原日期時間同步測試的學習時間')).toHaveValue('37.5');
 });
 

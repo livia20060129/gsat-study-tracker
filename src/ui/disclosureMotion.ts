@@ -12,6 +12,7 @@ interface Motion {
 export interface DisclosureSnapshot {
   height: number;
   anchors: Array<{ element: HTMLElement; rect: DOMRect }>;
+  scroll: { x: number; y: number };
 }
 
 interface MotionOptions {
@@ -23,7 +24,8 @@ interface MotionOptions {
   collapseBox?: boolean;
   opacity?: Map<HTMLElement, number>;
   boxFrom?: Partial<Record<typeof BOX_PROPERTIES[number], string>>;
-  revealBoundary?: { from: DOMRect; to: DOMRect };
+  revealBoundary?: { from: DOMRect; selector: string };
+  scroll?: DisclosureSnapshot['scroll'];
 }
 
 const motions = new Map<HTMLElement, Motion>();
@@ -54,7 +56,7 @@ export function captureDisclosure(element: HTMLElement, selectors: readonly stri
     const child = element.querySelector<HTMLElement>(selector);
     if (child && child.getClientRects().length) anchors.push({ element: child, rect: child.getBoundingClientRect() });
   }
-  return { height: element.getBoundingClientRect().height, anchors };
+  return { height: element.getBoundingClientRect().height, anchors, scroll: { x: scrollX, y: scrollY } };
 }
 
 function runMotion(
@@ -82,6 +84,16 @@ function runMotion(
     ...timing, id: 'study-disclosure-height',
   });
   const animations = [height];
+  if (options.scroll) {
+    // Measuring the collapsed layout can clamp scroll at the page bottom before
+    // the first animation frame. Restore only that synchronous measurement shift.
+    element.getBoundingClientRect();
+    if (scrollX !== options.scroll.x || scrollY !== options.scroll.y) {
+      window.scrollTo({ left: options.scroll.x, top: options.scroll.y, behavior: 'instant' });
+    }
+  }
+  const boundary = options.revealBoundary;
+  const boundaryTarget = boundary ? element.querySelector<HTMLElement>(boundary.selector)?.getBoundingClientRect() : null;
   for (const child of options.fade ?? []) {
     if (!child.getClientRects().length) continue;
     const opacity = Number(getComputedStyle(child).opacity);
@@ -89,12 +101,11 @@ function runMotion(
     animations.push(child.animate([{ opacity: start }, { opacity: opening ? opacity : 0 }], {
       ...timing, id: 'study-disclosure-fade',
     }));
-    const boundary = options.revealBoundary;
     const rect = child.getBoundingClientRect();
-    if (boundary && rect.right > boundary.to.left && rect.left < boundary.to.right) {
+    if (boundary && boundaryTarget && rect.right > boundaryTarget.left && rect.left < boundaryTarget.right) {
       // Reveal editors above the moving footer, keeping buttons clear of the inputs.
       const bottom = rect.bottom - boundary.from.top + 8;
-      const end = rect.bottom - boundary.to.top + 8;
+      const end = rect.bottom - boundaryTarget.top + 8;
       if (bottom > 0) animations.push(child.animate([{ clipPath: `inset(0 0 ${bottom}px 0)` }, { clipPath: `inset(0 0 ${end}px 0)` }], {
         ...timing, id: 'study-disclosure-clip',
       }));
@@ -134,19 +145,19 @@ export function animateDisclosureChange(element: HTMLElement, change: () => void
   const opening = element.dataset.expanded !== 'false';
   const fade = opening ? [...element.querySelectorAll<HTMLElement>('.todo-description,.todo-record-grid,.todo-progress-editor,.todo-time-editor,.todo-control-field')] : [];
   const from = snapshot.anchors.find(anchor => anchor.element.matches('.todo-actions'))?.rect;
-  const to = element.querySelector<HTMLElement>('.todo-actions')?.getBoundingClientRect();
-  const revealBoundary = opening && from && to ? { from, to } : undefined;
-  runMotion(element, snapshot.height, element.getBoundingClientRect().height, { opening, fade, anchors: snapshot.anchors, revealBoundary });
+  const revealBoundary = opening && from ? { from, selector: '.todo-actions' } : undefined;
+  runMotion(element, snapshot.height, element.getBoundingClientRect().height, { opening, fade, anchors: snapshot.anchors, revealBoundary, scroll: snapshot.scroll });
 }
 
 /** Supports editors that replace their own row while keeping the surrounding list unchanged. */
 export function animateDisclosureReplacement(element: HTMLElement, before: DisclosureSnapshot): void {
   stopMotion(element);
-  runMotion(element, before.height, element.getBoundingClientRect().height, { fade: [...element.children].filter(child => child instanceof HTMLElement) as HTMLElement[] });
+  runMotion(element, before.height, element.getBoundingClientRect().height, { fade: [...element.children].filter(child => child instanceof HTMLElement) as HTMLElement[], scroll: before.scroll });
 }
 
 export function animateVisibility(element: HTMLElement, visible: boolean): void {
   if ((visibilityTargets.get(element) ?? !element.hidden) === visible) return;
+  const scroll = { x: scrollX, y: scrollY };
   const from = element.hidden ? 0 : element.getBoundingClientRect().height;
   const fade = [...element.children].filter(child => child instanceof HTMLElement) as HTMLElement[];
   const opacity = motions.has(element) ? new Map(fade.map(child => [child, Number(getComputedStyle(child).opacity)])) : undefined;
@@ -158,7 +169,7 @@ export function animateVisibility(element: HTMLElement, visible: boolean): void 
   const inert = element.inert;
   if (!visible) element.inert = true;
   runMotion(element, from, visible ? element.getBoundingClientRect().height : 0, {
-    opening: visible, collapseBox: true, fade, opacity, boxFrom,
+    opening: visible, collapseBox: true, fade, opacity, boxFrom, scroll,
     finish(): void { element.hidden = !visible; visibilityTargets.delete(element); },
     restore(): void { element.inert = inert; },
   });
@@ -166,6 +177,7 @@ export function animateVisibility(element: HTMLElement, visible: boolean): void 
 
 function toggleDetails(details: HTMLDetailsElement): void {
   const opening = !(detailTargets.get(details) ?? details.open);
+  const scroll = { x: scrollX, y: scrollY };
   const from = details.getBoundingClientRect().height;
   const previousOpacity = motions.has(details) ? new Map([...details.children].filter(child => child instanceof HTMLElement)
     .map(child => [child as HTMLElement, Number(getComputedStyle(child).opacity)])) : undefined;
@@ -186,7 +198,7 @@ function toggleDetails(details: HTMLDetailsElement): void {
   if (!opening) content.forEach(child => { child.inert = true; });
   summary.setAttribute('aria-expanded', String(opening));
   runMotion(details, from, to, {
-    opening, fade: content, opacity: previousOpacity,
+    opening, fade: content, opacity: previousOpacity, scroll,
     finish(): void {
       details.open = opening;
       summary.setAttribute('aria-expanded', String(opening));
@@ -210,7 +222,12 @@ export function initializeDisclosureMotion(): void {
     event.preventDefault();
     toggleDetails(details);
   });
-  window.addEventListener('resize', finishMotions);
+  let viewportWidth = innerWidth;
+  window.addEventListener('resize', function settleWidthChange(): void {
+    if (innerWidth === viewportWidth) return;
+    viewportWidth = innerWidth;
+    finishMotions();
+  });
   window.addEventListener('pagehide', finishMotions);
   matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', finishMotions);
 }

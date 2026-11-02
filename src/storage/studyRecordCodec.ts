@@ -58,10 +58,11 @@ export function decodeStudyRecord(
   input: unknown,
   authoritativeDate?: string,
 ): StudyRecordDecodeResult {
+  const parsedFromString = typeof input === 'string';
   let parsed: unknown = input;
-  if (typeof input === 'string') {
+  if (parsedFromString) {
     try {
-      parsed = JSON.parse(input);
+      parsed = JSON.parse(input as string);
     } catch {
       return { ok: false, error: 'invalid-json' };
     }
@@ -74,7 +75,8 @@ export function decodeStudyRecord(
     return { ok: false, error: 'unsupported-schema-version' };
   }
 
-  let migrated = cloneObject(parsed);
+  // JSON.parse already owns its result; object inputs still need an independent copy.
+  let migrated = parsedFromString ? parsed : cloneObject(parsed);
   if (fromVersion < CURRENT_STUDY_RECORD_SCHEMA_VERSION) migrated = migrateRecord(migrated);
 
   const date = validDate(authoritativeDate)
