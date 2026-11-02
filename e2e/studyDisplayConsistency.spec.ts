@@ -130,6 +130,7 @@ test('editing pages reveals new chapter mappings and restores deduplication with
 test('todo uses single book labels and editable numbered ranges and still saves to the original card', async ({ page }) => {
   await seed(page);
   await page.goto('/todo.html');
+  await page.locator('#todoLongTerm > summary').click();
   const unlock = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="display-unlock"]') });
   await expect(unlock).toBeVisible();
   expect((await unlock.innerText()).match(/Unlock 3/g)).toHaveLength(1);

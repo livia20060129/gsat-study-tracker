@@ -46,6 +46,7 @@
 .vocabulary-card-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:5px;flex:0 0 auto;max-width:100%}
 .vocabulary-star{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:5px;border:0;border-radius:8px;background:transparent;color:#94a3b8;cursor:pointer}
 .vocabulary-star svg{flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linejoin:round;pointer-events:none}
+.vocabulary-star-save-error{grid-column:1/-1;margin:8px 0 0;padding:8px 10px;border-radius:8px;background:#fff2ed;color:#a14432;font-size:12px;line-height:1.6;overflow-wrap:anywhere}
 .vocabulary-star{touch-action:manipulation;position:relative}
 .vocabulary-star[aria-pressed="true"]{color:#a66a08;background:#fff4d6}
 .vocabulary-star[aria-pressed="true"] svg{fill:#edb948}

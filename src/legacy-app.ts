@@ -41,6 +41,8 @@ import { completedTimeEntriesForOverviewDate } from './application/overview/over
 import { completionIncludedInPeriod } from './study/learningSummary.ts';
 import { isInteractiveStudyItem } from './study/interactiveTasks.ts';
 import { withOperationTimeout } from './application/cloud/operationTimeout.ts';
+import { PendingCloudSync } from './application/cloud/pendingCloudSync.ts';
+import { initializePendingSyncDialog } from './ui/pendingSyncDialog.ts';
 import { reconcileLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { changeStudyTimer, resolveStudyTimerTarget, sameStudyTimerPointer, sameStudyTimerTarget, setStudyTimerTargetMinutes, setStudyTimerTargetState, studyTimerTargetState, studyTimerToggleLabel, switchStudyTimerMode } from './application/timer/studyTimerController.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
@@ -609,11 +611,20 @@ var cloudRecordRepository=null;
 var cloudUser=null;
 var cloudLoading=false;
 var cloudBootstrapPending=false;
-var cloudSaveQueue=new LatestTaskQueue(450,async function(date,record){
+var pendingCloudSync=new PendingCloudSync(store);
+var pendingSyncDialog=null;
+var pendingSyncPreview=null;
+var pendingSyncRefreshTimer=null;
+var cloudSaveQueue=new LatestTaskQueue(450,async function(date,job){
+ if(job.scope!==STORE_PREFIX||job.serial!==cloudActivationSerial||!currentStorageIsUserScoped())return false;
+ if(pendingCloudSync.state(job.scope,date).phase==='paused')return false;
  await withCloudDateLock(date,async function(){
+  if(job.scope!==STORE_PREFIX||job.serial!==cloudActivationSerial)return false;
   // localStorage is shared by tabs. Merge the enqueue-time copy with the copy
   // written by another tab so neither tab's recorded items can disappear.
-  var latest=mergeStudyRecordsForUpload(readStoredRecord(date)||record,record);
+  var stored=readStoredRecord(date);
+  if(stored&&!stored.localDirty&&!stored.syncConflict&&Number(stored.serverRevision)>0){pendingCloudSync.saved(job.scope,date);updateCloudStatusBadge();return true}
+  var latest=mergeStudyRecordsForUpload(stored||job.record,job.record);
   return cloudSaveRecord(latest);
  });
 });
@@ -676,15 +687,31 @@ function dirtyCloudDates(){
  return localStudyDates().filter(function(date){var rec=readStoredRecord(date);return !!rec&&!!rec.localDirty&&!rec.syncConflict});
 }
 function updateCloudStatusBadge(){
+ var pendingDetails=refreshPendingSyncDetails();
  if(cloudAuthPending){setConnectionBadge('cloudStatusBadge','登入中','busy');return}
  if(!cloudUser&&cloudSessionRestoring){setConnectionBadge('cloudStatusBadge',cloudSessionRestoreError?'登入確認暫停':'恢復登入中',cloudSessionRestoreError?'error':'busy');return}
  if(!cloudUser){setConnectionBadge('cloudStatusBadge','本機模式','offline');return}
  if(cloudLoading||cloudBootstrapPending||cloudManualSyncPending){setConnectionBadge('cloudStatusBadge','同步中','busy');return}
  var pending=dirtyCloudDates().length;
+ var conflicts=pendingDetails.filter(function(entry){return entry.phase==='conflict'}).length;
+ if(conflicts){setConnectionBadge('cloudStatusBadge','需處理 '+conflicts+' 天'+(pending?'・待同步 '+pending+' 天':''),'error');return}
  if(cloudHasError){setConnectionBadge('cloudStatusBadge',pending?'同步失敗・待 '+pending+' 天':'同步異常','error');return}
  if(pending){setConnectionBadge('cloudStatusBadge','待同步 '+pending+' 天','warning');return}
  setConnectionBadge('cloudStatusBadge','已同步','ok');
 }
+function refreshPendingSyncDetails(){
+ var records=cloudUser&&currentStorageIsUserScoped()?localStudyDates().map(readStoredRecord).filter(Boolean):[];
+ var entries=pendingCloudSync.entries(STORE_PREFIX,records),button=id('cloudPendingDetailsBtn');
+ if(button)button.hidden=!entries.length;
+ if(pendingSyncDialog)pendingSyncDialog.render(entries);
+ return entries;
+}
+function schedulePendingCloudSync(){
+ if(pendingSyncRefreshTimer)return;
+ pendingSyncRefreshTimer=setTimeout(function(){pendingSyncRefreshTimer=null;refreshPendingSyncDetails();if(!cloudLoading&&!cloudBootstrapPending&&document.visibilityState!=='hidden'&&navigator.onLine!==false)queueDirtyCloudRecords()},600);
+}
+function cloudSaveContextCurrent(scope,serial){return scope===STORE_PREFIX&&serial===cloudActivationSerial&&currentStorageIsUserScoped()}
+function cloudLocalWriteError(message){var error=new Error(message+' '+(localRecordRepository.saveError()||'本機儲存失敗，原紀錄仍保留。'));error.name='LocalCloudWriteError';return error}
 function cloudSetMessage(msg,ok){
  var el=id('cloudMessage');if(el)el.textContent=msg||'';
  if(ok===false)cloudHasError=true;else if(ok===true)cloudHasError=false;
@@ -811,14 +838,20 @@ function updateCurrentRecordSyncMeta(date,serverRec){
 }
 async function cloudSaveRecord(rec,forcedBaseRevision){
  if(!cloudRecordRepository||!cloudUser||!rec||!currentStorageIsUserScoped())return false;
+ var scope=STORE_PREFIX,serial=cloudActivationSerial;
+ if(pendingCloudSync.state(scope,rec.date).phase==='paused')return false;
+ pendingCloudSync.started(scope,rec.date);refreshPendingSyncDetails();
  if(rec.storageIssue||localStorageDecodeIssue(rec.date)){
+  pendingCloudSync.failed(scope,rec.date,'本機資料無法解碼，請先備份並修復。',true);
   cloudSetMessage(rec.date+' 的本機資料無法解碼；已停止上傳，請先下載備份並使用雲端版本修復。',false);return false;
  }
  try{
   var snapshot=null,result=null;
   for(var attempt=0;attempt<2;attempt++){
    var stored=readStoredRecord(rec.date),pending=mergeStudyRecordsForUpload(stored||rec,rec);
-   var cloudSnapshot=await cloudRecordRepository.loadDate(rec.date),cloudRecord=cloudSnapshot?cloudSnapshot.record:null;
+   var cloudSnapshot=await withOperationTimeout(cloudRecordRepository.loadDate(rec.date),{timeoutMs:20000,message:rec.date+' 雲端讀取逾時；保留本機紀錄，稍後重試。'}),cloudRecord=cloudSnapshot?cloudSnapshot.record:null;
+   if(!cloudSaveContextCurrent(scope,serial))return false;
+   var afterRead=readStoredRecord(rec.date);if(afterRead)pending=mergeStudyRecordsForUpload(afterRead,pending);
    var pendingConflicts=recordSyncConflicts(pending);
    if(pendingConflicts.length){
     var pendingConflictRecord=setCloudConflictRecord(pending.syncConflictLocal||pending,cloudRecord,pendingConflicts);
@@ -830,11 +863,17 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
     var mergeConflictRecord=setCloudConflictRecord(snapshot.syncConflictLocal||pending,cloudRecord,mergeConflicts);
     cloudSetMessage(studyRecordConflictSummary(rec.date,mergeConflicts,mergeConflictRecord&&mergeConflictRecord.syncConflictLocal||pending,cloudRecord),false);return false;
    }
+   if(cloudRecord&&sameStudyContent(snapshot,cloudRecord)){
+    if(!writeStoredRecord(cloudRecord))throw cloudLocalWriteError('雲端內容已一致，但本機無法確認同步狀態。');
+    updateCurrentRecordSyncMeta(rec.date,cloudRecord);pendingCloudSync.saved(scope,rec.date);
+    cloudSetMessage('已確認 '+rec.date+' 與雲端一致。',true);return true;
+   }
    var baseRevision=cloudSnapshot?Number(cloudSnapshot.revision||0):0;
    snapshot.serverRevision=baseRevision;snapshot.serverUpdatedAt=cloudSnapshot?cloudSnapshot.updatedAt:'';
    snapshot.localDirty=true;snapshot.syncConflict=false;
-   writeStoredRecord(snapshot);
-   result=await cloudRecordRepository.save(snapshot,baseRevision);
+   if(!writeStoredRecord(snapshot))throw cloudLocalWriteError('無法保存上傳前的合併紀錄，尚未上傳。');
+   result=await withOperationTimeout(cloudRecordRepository.save(snapshot,baseRevision),{timeoutMs:20000,message:rec.date+' 雲端儲存逾時；尚未確認完成，稍後重新比對。'});
+   if(!cloudSaveContextCurrent(scope,serial))return false;
    if(result.applied)break;
   }
   if(!snapshot||!result)throw new Error('雲端儲存流程未完成。');
@@ -864,27 +903,32 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
    current.syncBase=cloneRecord(saved.syncBase||stripRecordSyncMeta(saved));
    current.localDirty=true;
    current.syncConflict=false;
-   writeStoredRecord(current);
+   if(!writeStoredRecord(current))throw cloudLocalWriteError('雲端已接收前一版，但本機無法保存後續變更的同步狀態。');
    if(data&&data.date===current.date&&sameStudyContent(data,current)){
     data.serverRevision=current.serverRevision;data.serverUpdatedAt=current.serverUpdatedAt;data.localDirty=true;data.syncConflict=false;
     data.syncBase=cloneRecord(current.syncBase);
    }
    queueCloudSave(current);
   }else{
-   writeStoredRecord(saved);
+   if(!writeStoredRecord(saved))throw cloudLocalWriteError('雲端已接收，但本機無法寫回同步狀態。');
    updateCurrentRecordSyncMeta(saved.date,saved);
+   pendingCloudSync.saved(scope,saved.date);
   }
   if(cloudConflictDate===saved.date)updateCloudConflictUI('');
   cloudSetMessage('已交叉比對並同步 '+snapshot.date+' 到雲端（revision '+saved.serverRevision+'）。',true);
   return true;
  }catch(e){
-  cloudSetMessage('雲端同步失敗：'+(e&&e.message?e.message:String(e)),false);return false
+  if(!cloudSaveContextCurrent(scope,serial))return false;
+  var reason=e&&e.message?e.message:String(e);pendingCloudSync.failed(scope,rec.date,reason,e&&e.name==='LocalCloudWriteError');
+  cloudSetMessage('雲端同步失敗：'+reason,false);return false
  }
 }
 function queueCloudSave(rec,allowDuringBootstrap){
  if(!cloudClient||!cloudUser||!rec||cloudLoading||(!allowDuringBootstrap&&cloudBootstrapPending)||rec.syncConflict||!currentStorageIsUserScoped())return;
  var snap=cloneRecord(rec),date=String(rec.date||'');if(!date)return;
- cloudSaveQueue.enqueue(date,snap);
+ if(pendingCloudSync.state(STORE_PREFIX,date).phase==='paused')return;
+ pendingCloudSync.queued(STORE_PREFIX,date);
+ cloudSaveQueue.enqueue(date,{record:snap,scope:STORE_PREFIX,serial:cloudActivationSerial});
  updateCloudStatusBadge();
 }
 function queueDirtyCloudRecords(){
@@ -892,10 +936,79 @@ function queueDirtyCloudRecords(){
  var queued=0;
  localStudyDates().forEach(function(date){
   var rec=readStoredRecord(date);
-  if(!rec||!rec.localDirty||rec.syncConflict)return;
+  if(!rec||!pendingCloudSync.ready(STORE_PREFIX,rec))return;
   queueCloudSave(rec,true);queued++;
  });
  return queued;
+}
+async function pendingSyncAction(action,date){
+ if(!cloudUser||!currentStorageIsUserScoped()||!pendingSyncDialog)return;
+ if(action==='open'){
+  if(switchStudyDate(date))pendingSyncDialog.close();
+  else pendingSyncDialog.message('目前日期尚未成功儲存，已保留畫面；請先修正欄位或處理儲存問題。');
+  return;
+ }
+ if(action==='pause'){pendingCloudSync.pause(STORE_PREFIX,date);updateCloudStatusBadge();return}
+ if(action==='retry'){
+  pendingCloudSync.resume(STORE_PREFIX,date);
+  var rec=readStoredRecord(date);if(!rec)return;
+  pendingSyncDialog.message('正在重新比較 '+date+'，不會直接覆蓋不同版本。');
+  queueCloudSave(rec,true);await cloudSaveQueue.flush(date);updateCloudStatusBadge();return;
+ }
+ if(action!=='compare')return;
+ var scope=STORE_PREFIX,serial=cloudActivationSerial,local=readStoredRecord(date);
+ if(!local)return;
+ pendingSyncPreview=null;pendingSyncDialog.comparison('','');pendingSyncDialog.message('正在讀取 '+date+' 的兩端版本…');
+ try{
+  var cloud=await withOperationTimeout(cloudRecordRepository.loadDate(date),{timeoutMs:20000,message:'比較版本逾時，兩端資料保持原樣。'});
+  if(!cloudSaveContextCurrent(scope,serial))return;
+  var details=cloud?studyRecordConflictDetailsText(mergeStudyRecordsThreeWay(local,cloud.record).conflicts,local,cloud.record):'';
+  var localSummary='本機：'+local.items.length+' 個項目；完成 '+local.items.filter(function(item){return item.done}).length+' 項。';
+  var cloudSummary=cloud?'雲端：'+cloud.record.items.length+' 個項目；完成 '+cloud.record.items.filter(function(item){return item.done}).length+' 項。':'雲端尚無這一天的紀錄。';
+  var status=cloud&&sameStudyContent(local,cloud.record)?'兩端內容一致，可按「重試同步」確認本機狀態。':'兩端內容不同，可先重試安全合併；或確認後明確選擇整日版本。';
+  pendingSyncPreview={date:date,scope:scope,serial:serial,local:cloneRecord(local),cloud:cloud};
+  pendingSyncDialog.comparison(date,[localSummary,cloudSummary,status,details].filter(Boolean).join('\n'));
+  pendingSyncDialog.message('選擇整日版本前會再次確認日期與方向，並保留處理前備份。');
+ }catch(error){pendingSyncDialog.message(error&&error.message?error.message:String(error))}
+}
+async function resolvePendingSync(choice){
+ var preview=pendingSyncPreview;
+ if(!preview||!cloudSaveContextCurrent(preview.scope,preview.serial)){pendingSyncDialog.message('請先重新比較這一天的兩端版本。');return}
+ if(choice==='cloud'&&!preview.cloud){pendingSyncDialog.message('雲端尚無這一天的紀錄，未取代本機資料。');return}
+ var direction=choice==='local'?'以本機整日紀錄覆蓋雲端':'以雲端整日紀錄取代本機';
+ if(!window.confirm('確認 '+preview.date+'：'+direction+'？會先保留處理前備份；其他日期不受影響。'))return;
+ return runCloudManualSync('處理待同步紀錄',async function(){
+  try{
+   await cloudSaveQueue.flush(preview.date);
+   await withCloudDateLock(preview.date,async function(){
+    if(!cloudSaveContextCurrent(preview.scope,preview.serial))throw new Error('登入帳號已改變，請重新比較版本。');
+    var cloud=await withOperationTimeout(cloudRecordRepository.loadDate(preview.date),{timeoutMs:20000,message:'讀取比較版本逾時，未取代資料。'});
+    if(!cloudSaveContextCurrent(preview.scope,preview.serial))throw new Error('登入帳號已改變，已停止處理。');
+    var current=readStoredRecord(preview.date);
+    if(!current||!sameStudyContent(current,preview.local)||Number(cloud&&cloud.revision||0)!==Number(preview.cloud&&preview.cloud.revision||0))throw new Error('比較後資料又有更新，已停止取代；請重新比較。');
+    if(!saveCloudConflictBackup(preview.date,current,cloud&&cloud.record))throw new Error('無法保留處理前備份，未取代任何版本。');
+    var saved=cloud&&cloud.record;
+    if(choice==='local'){
+     var result=await withOperationTimeout(cloudRecordRepository.save(stripRecordSyncMeta(current.syncConflictLocal||current),cloud?cloud.revision:0),{timeoutMs:20000,message:'雲端處理逾時，尚未確認結果；請重新比較兩端版本。'});
+     if(!cloudSaveContextCurrent(preview.scope,preview.serial))throw new Error('登入帳號已改變，未套用舊帳號回應。');
+     if(!result.applied||!result.record)throw new Error('雲端版本已更新，未覆蓋；請重新比較。');
+     saved=result.record;
+     var latest=readStoredRecord(preview.date);
+     if(!latest||!sameStudyContent(latest,current))throw new Error('雲端已接收選定版本，但本機在處理期間又有更新；已保留新的本機內容，請重新比較。');
+    }
+    if(!saved||!writeStoredRecord(saved))throw cloudLocalWriteError('無法保存選擇後的本機同步狀態。');
+    pendingCloudSync.saved(preview.scope,preview.date);updateCurrentRecordSyncMeta(preview.date,saved);finishCloudConflictBackup(saved.serverRevision);
+   });
+   if(cloudConflictDate===preview.date)updateCloudConflictUI('');
+   if(data&&data.date===preview.date)load({skipCloudRead:true});
+   pendingSyncPreview=null;pendingSyncDialog.comparison('','');pendingSyncDialog.message(preview.date+' 已完成處理，其他日期未變更。');
+   cloudSetMessage(preview.date+' 已依選擇完成同步。',true);
+  }catch(error){
+   pendingSyncPreview=null;pendingSyncDialog.message(error&&error.message?error.message:String(error));
+   if(cloudSaveContextCurrent(preview.scope,preview.serial))pendingCloudSync.failed(preview.scope,preview.date,error.message,true);
+   updateCloudStatusBadge();
+  }
+ });
 }
 function prepareConflictFreePullMerge(local,cloud,compared){
  if(!cloud||!compared)return compared;
@@ -1465,7 +1578,7 @@ async function activateCloudUser(user){
  var retainedData=restoringSameAccount&&data;
  if(user&&!cloudUser&&data&&!restoringSameAccount&&!persist(false)){cloudSetMessage('登入前的訪客草稿尚未成功保存，請先確認輸入與本機儲存空間。',false);return}
  if(data&&STORE_PREFIX!==storagePrefixForUser(user&&user.id))persist(false);
- var serial=++cloudActivationSerial;cloudUser=user||null;if(!retainedData)setStorageScope(cloudUser?cloudUser.id:null);cloudBootstrapPending=!!cloudUser;cloudUpdateUI();clearCalendarRuntime();
+ var serial=++cloudActivationSerial;cloudUser=user||null;if(!retainedData)setStorageScope(cloudUser?cloudUser.id:null);pendingCloudSync.resetActivity(STORE_PREFIX);pendingSyncPreview=null;if(pendingSyncDialog)pendingSyncDialog.comparison('','');cloudBootstrapPending=!!cloudUser;cloudUpdateUI();clearCalendarRuntime();
  calendarContinuity.activate(cloudUser?cloudUser.id:null);restoreCalendarSnapshot();
  if(!cloudUser){
   cloudBootstrapPending=false;cloudSetMessage('已登出；目前使用獨立 guest 本機資料。',true);rebuildMathProgressIndex();load({skipCloudRead:true});return;
@@ -4577,10 +4690,16 @@ var connectionSettingsSummary=connectionSettingsPanel.querySelector(':scope > su
 if(connectionSettingsSummary)setupConnectionSettingsMotion(connectionSettingsPanel,connectionSettingsSummary);
 document.addEventListener('focusout',function(){setTimeout(function(){applyPendingVisibleCloudRefresh();refreshVisibleRecordFromLocalChange()},0)});
 window.addEventListener('storage',function(event){if(event.key&&event.key.indexOf(STORE_PREFIX)===0)catalogRuntimeCache=null;if(data&&event.storageArea===localStorage&&event.key===STORE_PREFIX+data.date)refreshVisibleRecordFromLocalChange()});
+window.addEventListener('storage',schedulePendingCloudSync);
+window.addEventListener('study-records-changed',schedulePendingCloudSync);
+window.addEventListener('focus',schedulePendingCloudSync);
 window.addEventListener('pageshow',function(event){if(event.persisted){localVisibleRefreshPending=true;refreshVisibleRecordFromLocalChange()}});
 window.addEventListener('online',function(){retryDirtyCloudRecordsOnReconnect().catch(function(e){cloudSetMessage('網路恢復後重試失敗：'+(e&&e.message?e.message:String(e)),false)})});
 window.addEventListener('offline',function(){cloudSetMessage('目前離線；新紀錄已保存在本機，恢復連線後會立即重試。',false)});
 window.addEventListener('pagehide',function(){if(data)persist(false)});
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&data)persist(false);else if(document.visibilityState==='visible')refreshVisibleRecordFromLocalChange()});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&data)persist(false);else if(document.visibilityState==='visible'){refreshVisibleRecordFromLocalChange();schedulePendingCloudSync()}});
+pendingSyncDialog=initializePendingSyncDialog(id('cloudPendingDialog'),pendingSyncAction,resolvePendingSync);
+id('cloudPendingDetailsBtn').addEventListener('click',function(event){event.preventDefault();event.stopPropagation();refreshPendingSyncDetails();pendingSyncDialog.open()});
 id('studyDate').value=requestedStudyDate(window.location.search)||dateString(new Date());updateImportBackupButton();initCloud();
 setInterval(periodicCloudSave,PERIODIC_CLOUD_SAVE_MS);
+setInterval(schedulePendingCloudSync,5000);

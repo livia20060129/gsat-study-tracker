@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="./page-transitions.js?v=171.6.123"></script>
+  <script src="./page-transitions.js?v=171.6.124"></script>
   <meta name="theme-color" content="#f5f8fc" />
   <link rel="icon" type="image/png" href="/book.png" />
   <link rel="apple-touch-icon" href="/book.png" />
@@ -25,7 +25,7 @@
 <details class="connection-dock" id="connectionSettings">
  <summary class="connection-status-bar" aria-label="Cloud 與 Calendar 狀態；展開連線設定">
   <span class="connection-statuses">
-   <span class="connection-status-item"><span class="connection-status-name">Cloud</span><span class="badge connection-badge" id="cloudStatusBadge" data-state="offline">本機模式</span></span>
+   <span class="connection-status-item"><span class="connection-status-name">Cloud</span><span class="badge connection-badge" id="cloudStatusBadge" data-state="offline">本機模式</span><button type="button" id="cloudPendingDetailsBtn" class="pending-sync-link" hidden>查看詳細</button></span>
    <span class="connection-divider" aria-hidden="true"></span>
    <span class="connection-status-item"><span class="connection-status-name">Calendar</span><span class="badge connection-badge" id="calendarStatusBadge" data-state="offline">需先登入</span></span>
   </span>
@@ -96,6 +96,14 @@
   <div class="dialog-message small" id="passwordRecoveryMessage" aria-live="polite"></div>
   <div class="connection-actions dialog-actions"><button id="cloudUpdatePasswordBtn" class="primary" type="submit">更新密碼</button><button id="cloudCancelPasswordBtn" type="button">取消</button></div>
  </form>
+</dialog>
+
+<dialog class="pending-sync-dialog" id="cloudPendingDialog" aria-labelledby="cloudPendingTitle">
+ <header><div><h2 id="cloudPendingTitle">待同步紀錄</h2><p data-pending-count></p></div><button type="button" data-pending-close aria-label="關閉待同步詳細">關閉</button></header>
+ <p class="small">這裡列出目前帳號尚未確認完成的日期。暫停只停止自動重試，原有紀錄會保留。</p>
+ <p data-pending-message role="status" aria-live="polite"></p>
+ <div data-pending-list></div>
+ <section data-pending-comparison hidden><h3>版本比較：<span data-pending-date></span></h3><p data-pending-diff class="pending-sync-diff"></p><div class="pending-sync-actions"><button type="button" data-pending-use="local">以本機版本為準</button><button type="button" data-pending-use="cloud">以雲端版本為準</button></div></section>
 </dialog>
 
 <section class="storage-recovery" id="storageRecoveryPanel" hidden aria-live="assertive">

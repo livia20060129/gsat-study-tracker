@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="./page-transitions.js?v=171.6.123"></script>
+  <script src="./page-transitions.js?v=171.6.124"></script>
   <meta name="theme-color" content="#f5f8fc" />
   <link rel="icon" type="image/png" href="./book.png" />
   <link rel="apple-touch-icon" href="./book.png" />
@@ -53,7 +53,17 @@
           <span>時間、計時與進度會直接回寫原紀錄；「跳過」不會視為完成。</span>
         </div>
 
-        <div id="todoList" class="todo-list" role="tabpanel"></div>
+        <div class="todo-organization-tools">
+          <label for="todoView">檢視方式<select id="todoView"><option value="full">完整檢視</option><option value="compact">精簡檢視</option></select></label>
+          <label for="todoSort">逾期排序<select id="todoSort"><option value="oldest">最久在前</option><option value="newest">最近在前</option></select></label>
+          <button type="button" id="todoBatchSkip" disabled>先選擇科目以批次跳過</button>
+          <p>近期待辦與長期逾期各自依此排序；批次跳過依目前科目、期間與查看項目篩選。</p>
+        </div>
+
+        <div id="todoList" role="tabpanel">
+          <div id="todoRecentList" class="todo-list"></div>
+          <details id="todoLongTerm" class="todo-long-term" hidden><summary><strong>長期逾期</strong><span id="todoLongTermCount"></span></summary><p>原排程超過 30 天，進度與計時資料仍保留。</p><div id="todoLongTermList" class="todo-list"></div></details>
+        </div>
         <p id="todoEmpty" class="todo-empty" hidden>目前沒有符合條件的待辦事項。</p>
         <div id="todoFeedback" class="todo-feedback" role="status" aria-live="polite" hidden>
           <span id="todoFeedbackText"></span>

@@ -11,6 +11,8 @@ import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
 import { todoStudyDisplay } from './ui/todoStudyDisplay.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
+import { normalizedOverdueSort, organizedOverdueEntries, skipOverdueRecordBatch } from './study/overdueOrganization.ts';
+import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemFilterForSubject, overdueItemOptions } from './study/overdueItemFilter.ts';
 import {
@@ -51,6 +53,9 @@ interface TodoActionTarget {
 let activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
 let activePeriod = normalizedOverduePeriod(new URLSearchParams(location.search).get('period'));
 let activeItem = normalizedOverdueItemFilter(new URLSearchParams(location.search).get('item'));
+let activeSort = normalizedOverdueSort(new URLSearchParams(location.search).get('order'));
+let compactView = new URLSearchParams(location.search).get('view') === 'compact';
+const expandedCards = new Set<string>();
 const PERIOD_LABELS: Record<OverduePeriod, string> = { all: '全部', month: '本月', week: '本週' };
 let recordPrefix = 'study-v11:guest:';
 let records: StudyRecord[] = [];
@@ -246,6 +251,14 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   const title = document.createElement('h3');
   title.textContent = display.title;
   applyStudyHeadingHierarchy(title);
+  const expand = document.createElement('button');
+  expand.type = 'button';
+  expand.className = 'todo-expand';
+  expand.dataset.todoExpand = entry.key;
+  expand.setAttribute('aria-label', `展開或收合 ${display.title}的詳細內容`);
+  expand.setAttribute('aria-expanded', String(expandedCards.has(entry.key)));
+  title.append(expand);
+  article.dataset.expanded = String(expandedCards.has(entry.key));
   main.append(title);
   const descriptionText = display.description;
   if (descriptionText) {
@@ -406,6 +419,8 @@ function render(): void {
   renderItemFilter(visibleEntries(entries));
   document.body.dataset.subject = activeSubject;
   document.body.dataset.period = activePeriod;
+  document.body.dataset.todoView = compactView ? 'compact' : 'full';
+  element<HTMLSelectElement>('todoView').value = compactView ? 'compact' : 'full';
   const switcher = element<HTMLDivElement>('subjectSwitch');
   switcher.dataset.active = String(overdueSubjectIndex(activeSubject));
   switcher.querySelectorAll<HTMLButtonElement>('[data-subject]').forEach(function updateTab(button): void {
@@ -414,12 +429,59 @@ function render(): void {
     button.tabIndex = selected ? 0 : -1;
   });
   element<HTMLElement>('todoSummary').textContent = todoSummaryText(entries.length, periodEntries.length, filtered.length);
-  updateTodoList(element<HTMLDivElement>('todoList'), filtered, createTodoCard);
+  const organized = organizedOverdueEntries(filtered, activeSort);
+  updateTodoList(element<HTMLDivElement>('todoRecentList'), organized.recent, createTodoCard);
+  updateTodoList(element<HTMLDivElement>('todoLongTermList'), organized.longTerm, createTodoCard);
+  element<HTMLDetailsElement>('todoLongTerm').hidden = organized.longTerm.length === 0;
+  element('todoLongTermCount').textContent = `${organized.longTerm.length} 項`;
+  element<HTMLSelectElement>('todoSort').value = activeSort;
+  const batchButton = element<HTMLButtonElement>('todoBatchSkip');
+  batchButton.disabled = activeSubject === 'all' || filtered.length === 0;
+  const subjectLabel = { all: '', chinese: '國文', english: '英文', math: '數學', natural: '自然', other: '其他' }[activeSubject];
+  batchButton.textContent = activeSubject === 'all' ? '先選擇科目以批次跳過' : `批次跳過${subjectLabel} ${filtered.length} 項`;
   const empty = element<HTMLParagraphElement>('todoEmpty');
   empty.hidden = filtered.length > 0;
   empty.textContent = activePeriod === 'all' ? '目前沒有符合條件的待辦事項。' : `${PERIOD_LABELS[activePeriod]}沒有符合條件的逾期未完成項目。`;
   if (activeItem) empty.textContent = '此項目在目前科目及期間內沒有待辦事項，可選擇「全部項目」或調整科目及期間。';
   renderHistory();
+}
+
+function skipFilteredSubject(): void {
+  if (activeSubject === 'all') return;
+  const today = localDateKey(), scope = recordPrefix;
+  const selected = overdueEntriesForItem(visibleEntries(overdueEntriesForPeriod(overdueTasks(records, today), activePeriod, today)), activeItem);
+  if (!selected.length) return;
+  const subject = selected[0].subjectLabel;
+  const longTerm = selected.filter(entry => entry.daysOverdue > 30).length;
+  const itemLabel = activeItem ? `／${activeItem.slice(activeItem.indexOf(':') + 1)}` : '／全部項目';
+  if (!window.confirm(`目前篩選：${subject}／${PERIOD_LABELS[activePeriod]}${itemLabel}\n將跳過 ${selected.length} 項，其中長期逾期 ${longTerm} 項。\n跳過不算完成，原有進度保留，3 天內可在「最近處理」復原。確認繼續？`)) return;
+  const targets = new Map<string, string[]>();
+  for (const entry of selected) targets.set(entry.recordDate, [...(targets.get(entry.recordDate) ?? []), entry.itemId]);
+  let skipped = 0;
+  const handledAt = new Date().toISOString();
+  try {
+    if (readMaterialProgressRecords(localStorage).prefix !== scope) throw new Error('帳號資料空間已改變，已停止批次處理。');
+    const pointer = readTimerPointer();
+    if (pointer && selected.some(entry => sameTimerTarget(pointer, entry))) pauseActiveTimer();
+    const repository = new LocalStudyRecordRepository(localStorage, scope);
+    for (const [date, ids] of targets) {
+      if (readMaterialProgressRecords(localStorage).prefix !== scope) throw new Error('帳號資料空間已改變，已停止後續處理。');
+      const loaded = repository.loadResult(date);
+      if (loaded.status !== 'ok') throw new Error(`${date} 的原始紀錄無法讀取，已停止後續處理。`);
+      let count = 0;
+      const saved = saveLocalRecordEdit(localStorage, scope, loaded.record, function skipSelected(current): StudyRecord | null {
+        const result = skipOverdueRecordBatch(current, ids, today, handledAt);
+        count = result.skipped;
+        return result.record;
+      });
+      if (saved) skipped += count;
+    }
+    load();
+    setFeedback(`已跳過${subject} ${skipped} 項。${selected.length - skipped ? `另有 ${selected.length - skipped} 項已變更，未跳過。` : ''}可在「最近處理」逐項復原。`);
+  } catch (error) {
+    load();
+    setError(`已成功跳過 ${skipped} 項，剩餘項目未處理。${error instanceof Error ? error.message : '儲存失敗，原有資料仍保留。'}`);
+  }
 }
 
 function saveRecordChange(
@@ -652,7 +714,7 @@ function load(forceCards = false): void {
   try {
     const result = readMaterialProgressRecords(localStorage);
     records = result.records;
-    if (recordPrefix !== result.prefix) { drafts.clear(); draftBases.clear(); }
+    if (recordPrefix !== result.prefix) { drafts.clear(); draftBases.clear(); expandedCards.clear(); }
     recordPrefix = result.prefix;
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
     element<HTMLSpanElement>('recordSource').textContent = `${source}｜已讀取 ${result.records.length} 天紀錄`;
@@ -693,7 +755,28 @@ function readLocationFilters(): void {
   activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
   activePeriod = normalizedOverduePeriod(new URLSearchParams(location.search).get('period'));
   activeItem = normalizedOverdueItemFilter(new URLSearchParams(location.search).get('item'));
+  activeSort = normalizedOverdueSort(new URLSearchParams(location.search).get('order'));
+  compactView = new URLSearchParams(location.search).get('view') === 'compact';
 }
+
+element<HTMLSelectElement>('todoView').addEventListener('change', function selectView(): void {
+  compactView = element<HTMLSelectElement>('todoView').value === 'compact';
+  const url = new URL(location.href);
+  if (compactView) url.searchParams.set('view', 'compact');
+  else url.searchParams.delete('view');
+  history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  render();
+});
+
+element<HTMLSelectElement>('todoSort').addEventListener('change', function selectOrder(): void {
+  activeSort = normalizedOverdueSort(element<HTMLSelectElement>('todoSort').value);
+  const url = new URL(location.href);
+  if (activeSort === 'oldest') url.searchParams.delete('order');
+  else url.searchParams.set('order', activeSort);
+  history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  render();
+});
+element('todoBatchSkip').addEventListener('click', skipFilteredSubject);
 
 function writeItemFilterLocation(): void {
   const url = new URL(location.href);
@@ -743,6 +826,15 @@ element<HTMLDivElement>('subjectSwitch').addEventListener('keydown', function mo
 });
 
 element<HTMLDivElement>('todoList').addEventListener('click', function handleTodoClick(event): void {
+  const expand = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-todo-expand]');
+  if (expand && compactView) {
+    const key = expand.dataset.todoExpand!;
+    if (expandedCards.has(key)) expandedCards.delete(key);
+    else expandedCards.add(key);
+    expand.setAttribute('aria-expanded', String(expandedCards.has(key)));
+    expand.closest<HTMLElement>('.todo-card')!.dataset.expanded = String(expandedCards.has(key));
+    return;
+  }
   const target = (event.target as HTMLElement).closest<HTMLElement>(
     '.todo-skip, .todo-complete, [data-todo-time-mode], [data-todo-timer-action]',
   );

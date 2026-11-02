@@ -1,5 +1,6 @@
 import './vocabulary-review.css';
 import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
+import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { DictionaryPreview } from './ui/dictionaryPreview.ts';
 import { VocabularySpeech, type VocabularyAccent } from './ui/vocabularySpeech.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
@@ -39,6 +40,10 @@ const editingEntryKeys = new Set<string>();
 const annotatingEntryKeys = new Set<string>();
 const dictionaryPreviews = new Set<DictionaryPreview>();
 const speech = new VocabularySpeech(document.getElementById('vocabularySpeechStatus')!);
+let vocabularyPointerActive = false;
+let vocabularyRefreshPending = false;
+let vocabularyEnrichmentPending = false;
+let vocabularyRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 window.addEventListener('pagehide', function stopSpeech(): void { speech.cancel(); });
 
 function element<T extends HTMLElement>(id: string): T {
@@ -166,6 +171,7 @@ function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits
 }
 
 function renderEnrichedEntries(): void {
+  if (vocabularyPointerActive) { vocabularyEnrichmentPending = true; return; }
   const focused = document.activeElement as HTMLInputElement | null;
   const rowKey = focused?.closest<HTMLElement>('[data-entry-key]')?.dataset.entryKey;
   const attribute = focused && [...focused.attributes].find(value => value.name.startsWith('data-vocabulary-'));
@@ -658,15 +664,25 @@ function render(): void {
   element<HTMLElement>('totalVocabularyCount').textContent = `${allEntries.length} 個不重複單字／片語`;
 }
 
-function load(): void {
+function load(options: { background?: boolean } = {}): void {
   try {
     const result = readMaterialProgressRecords(localStorage);
+    const nextEntries = vocabularyReviewEntries(result.records);
+    const scopeChanged = activeRecordPrefix !== result.prefix;
+    const changed = scopeChanged || JSON.stringify(nextEntries) !== JSON.stringify(allEntries);
+    if (options.background && changed && !scopeChanged && (vocabularyPointerActive || editingEntryKeys.size > 0)) {
+      vocabularyRefreshPending = true;
+      return;
+    }
     loadedRecords = result.records;
     activeRecordPrefix = result.prefix;
-    allEntries = vocabularyReviewEntries(loadedRecords);
+    allEntries = nextEntries;
+    if (scopeChanged) { editingEntryKeys.clear(); annotatingEntryKeys.clear(); speech.cancel(); }
+    vocabularyRefreshPending = false;
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
     element<HTMLParagraphElement>('vocabularySource').textContent = `${source}｜共讀取 ${result.records.length} 天紀錄`;
-    element<HTMLParagraphElement>('vocabularyError').hidden = true;
+    if (!options.background || scopeChanged) element<HTMLParagraphElement>('vocabularyError').hidden = true;
+    if (options.background && !changed) return;
   } catch {
     loadedRecords = [];
     activeRecordPrefix = '';
@@ -678,6 +694,28 @@ function load(): void {
   }
   render();
 }
+
+function scheduleVocabularyRefresh(): void {
+  if (vocabularyRefreshTimer) clearTimeout(vocabularyRefreshTimer);
+  vocabularyRefreshTimer = setTimeout(function applyBackgroundVocabulary(): void {
+    vocabularyRefreshTimer = undefined;
+    load({ background: true });
+  }, 180);
+}
+
+element('vocabularyList').addEventListener('pointerdown', function beginVocabularyInteraction(): void { vocabularyPointerActive = true; });
+for (const event of ['pointerup', 'pointercancel']) document.addEventListener(event, function finishVocabularyInteraction(): void {
+  setTimeout(function afterVocabularyClick(): void {
+    vocabularyPointerActive = false;
+    if (vocabularyEnrichmentPending) { vocabularyEnrichmentPending = false; renderEnrichedEntries(); }
+    if (vocabularyRefreshPending) scheduleVocabularyRefresh();
+  }, 0);
+});
+window.addEventListener('blur', function releaseVocabularyPointer(): void {
+  vocabularyPointerActive = false;
+  if (vocabularyRefreshPending) scheduleVocabularyRefresh();
+  if (vocabularyEnrichmentPending) { vocabularyEnrichmentPending = false; renderEnrichedEntries(); }
+});
 
 element<HTMLInputElement>('vocabularySearch').addEventListener('input', event => {
   searchText = (event.target as HTMLInputElement).value.trim();
@@ -800,7 +838,21 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
     const key = star.dataset.starKey;
     if (!entry || !key) return;
     const marked = entry.vocabularyStars?.[key] !== true;
-    if (saveEntryEditsResult(entry, { star: { key, marked } }) !== 'failed') updateEntryStarUI(entry.key);
+    const outcome = saveEntryEditsResult(entry, { star: { key, marked } });
+    if (outcome !== 'failed') {
+      row?.querySelector('[data-star-save-error]')?.remove();
+      updateEntryStarUI(entry.key);
+    } else if (row) {
+      let feedback = row.querySelector<HTMLParagraphElement>('[data-star-save-error]');
+      if (!feedback) {
+        feedback = document.createElement('p');
+        feedback.dataset.starSaveError = '';
+        feedback.className = 'vocabulary-star-save-error';
+        feedback.setAttribute('role', 'alert');
+        row.append(feedback);
+      }
+      feedback.textContent = `星號尚未完成儲存：${element('vocabularyError').textContent}`;
+    }
     return;
   }
   const annotate = target.closest<HTMLButtonElement>('[data-annotate-entry]');
@@ -836,6 +888,7 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
   if (editingEntryKeys.has(key)) editingEntryKeys.delete(key);
   else editingEntryKeys.add(key);
   renderEntries();
+  if (!editingEntryKeys.size && vocabularyRefreshPending) scheduleVocabularyRefresh();
   if (editingEntryKeys.has(key)) {
     element<HTMLDivElement>('vocabularyList')
       .querySelector<HTMLInputElement>(`[data-entry-key="${CSS.escape(key)}"] [data-vocabulary-content-kind]:checked`)
@@ -863,7 +916,7 @@ function updateEntryStarUI(key: string, replaceWord = false): void {
     }
   }
 }
-element<HTMLButtonElement>('refreshVocabulary').addEventListener('click', load);
+element<HTMLButtonElement>('refreshVocabulary').addEventListener('click', function refreshVocabulary(): void { load(); });
 element<HTMLButtonElement>('toggleVocabularyTranslations').addEventListener('click', () => {
   translationsVisible = !translationsVisible;
   updateTranslationVisibility();
@@ -877,5 +930,10 @@ element<HTMLSelectElement>('vocabularyExportFormat').addEventListener('change', 
     button.textContent = `匯出 ${format}（${button.dataset.exportVocabulary === 'translated' ? '有' : '無'}翻譯）`;
   }
 });
-window.addEventListener('storage', load);
+window.addEventListener('storage', function vocabularyStorageChanged(event): void {
+  if (event.storageArea && event.storageArea !== localStorage) return;
+  if (event.key === ACTIVE_RECORD_PREFIX_KEY) { load({ background: true }); return; }
+  if (event.key && (!event.key.startsWith(activeRecordPrefix) || !/^\d{4}-\d{2}-\d{2}$/.test(event.key.slice(activeRecordPrefix.length)))) return;
+  scheduleVocabularyRefresh();
+});
 load();

@@ -1,4 +1,5 @@
 import type { StudyRecord } from '../types.ts';
+import { sameStudyContent, stripRecordSyncMeta } from './recordSync.ts';
 
 export const CURRENT_STUDY_RECORD_SCHEMA_VERSION = 2;
 
@@ -86,6 +87,15 @@ export function decodeStudyRecord(
   migrated.date = date;
   migrated.schemaVersion = CURRENT_STUDY_RECORD_SCHEMA_VERSION;
   migrated.items = Array.isArray(migrated.items) ? migrated.items : [];
+  if (migrated.__localSyncBase !== undefined) {
+    if (migrated.__localSyncBase !== 'same-content-v1' || !(Number(migrated.serverRevision) > 0)) {
+      return { ok: false, error: 'invalid-record' };
+    }
+    delete migrated.__localSyncBase;
+    if (migrated.localDirty === false && !migrated.syncConflict) {
+      migrated.syncBase = stripRecordSyncMeta(migrated as unknown as StudyRecord);
+    }
+  }
   return {
     ok: true,
     record: migrated as unknown as StudyRecord,
@@ -101,4 +111,14 @@ export function encodeStudyRecord(record: StudyRecord): string {
     schemaVersion: CURRENT_STUDY_RECORD_SCHEMA_VERSION,
     items: Array.isArray(record.items) ? record.items : [],
   });
+}
+
+/** A confirmed, unchanged baseline can be reconstructed without storing the entire day twice. */
+export function encodeLocalStudyRecord(record: StudyRecord): string {
+  if (record.localDirty !== false || record.syncConflict || !(Number(record.serverRevision) > 0)
+    || !record.syncBase || !sameStudyContent(record, record.syncBase)) return encodeStudyRecord(record);
+  const stored: JsonObject = { ...record, schemaVersion: CURRENT_STUDY_RECORD_SCHEMA_VERSION };
+  delete stored.syncBase;
+  stored.__localSyncBase = 'same-content-v1';
+  return JSON.stringify(stored);
 }

@@ -147,3 +147,96 @@ test('touching the icon center or button edge toggles every star type', async ({
     }
   } finally { await context.close(); }
 });
+
+test('background record and metadata writes cannot replace a star between pointer down and click', async ({ page, context }) => {
+  await page.clock.install({ time: new Date('2026-11-02T12:00:00+08:00') });
+  await seed(page);
+  const other = await context.newPage();
+  await other.goto('/summary.html');
+  const row = page.locator('.vocabulary-row[data-entry-key="alternate"]');
+  await row.getByRole('button', { name: '個別標註', exact: true }).click();
+  for (const [index, key] of ['card', 'word:alternate:0', 'meaning:Noun:%E5%80%99%E8%A3%9C%E8%80%85:0'].entries()) {
+    await row.evaluate(node => { node.setAttribute('data-pointer-probe', 'original'); });
+    await page.evaluate(() => { (window as unknown as Window & { storageProbe: number }).storageProbe = 0;
+      window.addEventListener('storage', () => { (window as unknown as Window & { storageProbe: number }).storageProbe += 1; }, { once: true }); });
+    const button = row.locator(`[data-star-key="${key}"]`);
+    const bounds = (await button.boundingBox())!;
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.down();
+    await other.evaluate(({ index }) => {
+      const key = 'study-v11:guest:2026-11-02', record = JSON.parse(localStorage.getItem(key)!);
+      record.notes = `另一分頁更新 ${index}`;
+      if (index === 1) record.items[0].f.words[1].translation = '另一分頁的翻譯';
+      localStorage.setItem(key, JSON.stringify(record));
+      localStorage.setItem('study-v11:guest:meta:pending-sync:2026-11-02', JSON.stringify({ sequence: index }));
+    }, { index });
+    await expect.poll(() => page.evaluate(() => (window as unknown as Window & { storageProbe: number }).storageProbe)).toBeGreaterThan(0);
+    await page.clock.runFor(250);
+    await expect(row).toHaveAttribute('data-pointer-probe', 'original');
+    await page.mouse.up();
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await page.clock.runFor(250);
+  }
+  await page.reload();
+  await expect(row.locator('[data-star-key="card"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(row.locator('.is-word-starred')).toHaveText('alternate');
+  await expect(row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await other.close();
+});
+
+test('all three star controls recover from full storage by compacting confirmed baselines', async ({ page }) => {
+  await seed(page);
+  await page.evaluate(() => {
+    for (let day = 20; day < 24; day += 1) {
+      const date = `2026-10-${day}`, payload = { schemaVersion: 2, date, notes: '保留筆記'.repeat(2000), items: [] };
+      localStorage.setItem('study-v11:guest:' + date, JSON.stringify({ ...payload, localDirty: false, syncConflict: false, serverRevision: 1, syncBase: payload }));
+    }
+  });
+  await page.reload();
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    const limit = Object.keys(localStorage).reduce((total, key) => total + localStorage.getItem(key)!.length, 0) + 5;
+    Storage.prototype.setItem = function boundedStorage(key, value): void {
+      if (this === localStorage) {
+        const used = Object.keys(localStorage).reduce((total, name) => total + (name === key ? 0 : localStorage.getItem(name)!.length), value.length);
+        if (used > limit) throw new DOMException('full', 'QuotaExceededError');
+      }
+      original.call(this, key, value);
+    };
+  });
+  const row = page.locator('.vocabulary-row[data-entry-key="alternate"]');
+  await row.locator('[data-star-key="card"]').click();
+  await row.getByRole('button', { name: '個別標註', exact: true }).click();
+  await row.getByRole('button', { name: '標註英文單字「alternate」', exact: true }).click();
+  await row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true }).click();
+  await expect(row.locator('[data-star-key="card"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(row.locator('[data-star-save-error]')).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-10-20')!).__localSyncBase)).toBe('same-content-v1');
+  await page.reload();
+  await expect(row.locator('[data-star-key="card"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(row.locator('.is-word-starred')).toHaveText('alternate');
+  await expect(row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('unrecoverable star storage failures show beside the card and never claim a saved mark', async ({ page }) => {
+  await seed(page);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    (window as unknown as Window & { blockWordWrites: boolean }).blockWordWrites = true;
+    Storage.prototype.setItem = function failWordWrites(key, value): void {
+      if (this === localStorage && /^study-v11:guest:\d/.test(key) && (window as unknown as Window & { blockWordWrites: boolean }).blockWordWrites) throw new DOMException('full', 'QuotaExceededError');
+      original.call(this, key, value);
+    };
+  });
+  const row = page.locator('.vocabulary-row[data-entry-key="alternate"]');
+  await row.getByRole('button', { name: '個別標註', exact: true }).click();
+  const buttons = [row.locator('[data-star-key="card"]'), row.getByRole('button', { name: '標註英文單字「alternate」', exact: true }), row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true })];
+  for (const button of buttons) {
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    await expect(row.locator('[data-star-save-error]')).toContainText('空間不足');
+  }
+  await page.evaluate(() => { (window as unknown as Window & { blockWordWrites: boolean }).blockWordWrites = false; });
+  for (const button of buttons) { await button.click(); await expect(button).toHaveAttribute('aria-pressed', 'true'); }
+  await expect(row.locator('[data-star-save-error]')).toHaveCount(0);
+});

@@ -119,6 +119,22 @@ textarea{resize:vertical;min-height:72px}input[type=checkbox]{width:18px;height:
 .subject-natural{--subject-accent:#8eaea1;--subject-soft:#eef6f2;--subject-inner:#f6faf8;--subject-ink:#4f7164;--subject-child-accent:#9eaea7;--subject-child:#fafcfb;--subject-child-inner:#fbfcfc;--subject-child-ink:#58665f}
 .subject-other{--subject-accent:#aab3bd;--subject-soft:#f4f6f8;--subject-inner:#fafbfc;--subject-ink:#5d6874;--subject-child-accent:#aab0b7;--subject-child:#fafbfb;--subject-child-inner:#fcfcfd;--subject-child-ink:#5d636a}
 .item-title{font-weight:700}.item-desc{font-size:12px;color:var(--muted);margin-top:3px}.inner{margin-top:11px;padding:11px;border:1px solid #e7ecf3;border-radius:16px;background:var(--soft)}
+.pending-sync-link{border:0;background:transparent;padding:2px;color:#647b99;font-size:12px;font-weight:700;text-decoration:underline;cursor:pointer;white-space:nowrap}
+.pending-sync-link[hidden]{display:none}
+.pending-sync-dialog{box-sizing:border-box;width:min(760px,calc(100vw - 28px));max-height:85dvh;padding:22px;border:1px solid #d5deeb;border-radius:18px;color:#17233a;background:#fff;overflow:auto}
+.pending-sync-dialog::backdrop{background:#172a3966}
+.pending-sync-dialog>header,.pending-sync-row-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pending-sync-dialog h2,.pending-sync-dialog h3{margin:0;color:#243c5b}
+.pending-sync-dialog p{font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.pending-sync-row{padding:16px 0;border-bottom:1px solid #e1e7ef}
+.pending-sync-row-heading span,.pending-sync-row small{color:#64748b;font-size:12px}
+.pending-sync-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pending-sync-dialog button{min-height:36px;padding:7px 11px;border:1px solid #cbd8ea;border-radius:10px;background:#f7faff;color:#315481;font-weight:700;cursor:pointer}
+.pending-sync-dialog button:disabled{opacity:.45;cursor:default}
+.pending-sync-diff{white-space:pre-wrap}
+.pending-sync-dialog [data-pending-comparison]{margin-top:18px;padding-top:16px;border-top:1px solid #dbe4ef}
+.pending-sync-dialog [data-pending-comparison][hidden]{display:none}
+@media(max-width:700px){.pending-sync-dialog{padding:16px}.pending-sync-row-heading{align-items:flex-start}.pending-sync-actions>button{flex:1 1 115px}}
 .minutes-badge{margin-left:auto;display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px;color:var(--muted)}
 .time-control{margin-left:auto;display:grid;grid-template-columns:minmax(0,1fr) 116px;align-items:center;gap:6px;width:490px;max-width:100%;min-width:0}.time-mode-content{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;min-width:0;min-height:34px}.time-control .minutes-badge{margin-left:0}.time-mode-segments{position:relative;isolation:isolate;justify-self:end;display:grid;grid-template-columns:repeat(2,1fr);width:116px;min-width:116px;padding:3px;border:1px solid #d4ddeb;border-radius:11px;background:#eef2f7}.time-mode-segment-indicator{position:absolute;z-index:-1;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/2);border:1px solid #c7d4e7;border-radius:8px;background:#fff;box-shadow:0 2px 6px rgba(15,23,42,.08);transition:transform .24s cubic-bezier(.2,.78,.2,1)}.time-mode-segments[data-active="1"] .time-mode-segment-indicator{transform:translateX(100%)}.time-mode-segments button{z-index:1;min-width:0;padding:5px 4px;border-radius:8px;background:transparent;color:#64748b;font-size:12px;transition:color .16s ease}.time-mode-segments button[aria-pressed="true"]{color:#244ab5}.time-mode-segments button:focus-visible{outline:2px solid rgba(49,94,251,.35);outline-offset:-2px}.timer-display{min-width:54px;color:#244ab5;font-size:16px;font-variant-numeric:tabular-nums;text-align:center}.timer-button{padding:7px 9px;font-size:12px;white-space:nowrap}.timer-reset{padding:7px 5px;background:transparent;color:var(--muted);font-size:11px}.timer-filled{color:var(--muted);font-size:11px;white-space:nowrap}.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 button{border:0;border-radius:12px;padding:9px 13px;font-weight:650;cursor:pointer}.primary{background:var(--accent);color:#fff}.secondary{background:#edf2f7;color:#263449}.danger,.delete{background:#fee2e2;color:var(--danger)}

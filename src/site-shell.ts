@@ -2,6 +2,7 @@ import { initialRecordPrefix } from './storage/local.ts';
 import { decodeStudyRecord } from './storage/studyRecordCodec.ts';
 import { overdueTasks } from './study/overdueTasks.ts';
 import { overdueEntriesForPeriod } from './study/overduePeriod.ts';
+import { overduePreviewGroups } from './study/overdueItemFilter.ts';
 import { studyItemProgress } from './study/itemProgress.ts';
 import { siteNavigationPage } from './ui/siteNavigation.ts';
 import { initializeSidebarDate } from './ui/sidebarDate.ts';
@@ -164,7 +165,7 @@ function refreshRails(): void {
         left.querySelector('[data-rail-account]')!.textContent = prefix.includes(':user:') ? '目前帳號的本機資料' : '訪客本機資料';
         const pending = overdueEntriesForPeriod(overdueTasks(records, today), 'week', today);
         right.querySelector('[data-rail-overdue-count]')!.textContent = `${pending.length} 項`;
-        right.querySelector('[data-rail-overdue-list]')!.innerHTML = pending.length ? pending.slice(0, 5).map(entry => `<a class="site-overdue-item" href="./todo.html?period=week#${entry.subject}"><strong>${escapeText(entry.title)}</strong><small>${entry.recordDate} · ${escapeText(entry.subjectLabel)}</small></a>`).join('') : '<p class="site-overdue-empty">本週尚無逾期項目</p>';
+        right.querySelector('[data-rail-overdue-list]')!.innerHTML = pending.length ? overduePreviewGroups(pending).slice(0, 5).map(group => `<a class="site-overdue-item" href="./todo.html?period=week&amp;item=${encodeURIComponent(group.key)}#${group.subject}"><strong>${escapeText(group.title)}：${group.count} 項逾期</strong><small>${escapeText(group.subjectLabel)}</small></a>`).join('') : '<p class="site-overdue-empty">本週尚無逾期項目</p>';
         updateRailStatus();
     }
     catch {
