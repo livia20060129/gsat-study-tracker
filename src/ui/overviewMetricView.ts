@@ -1,9 +1,9 @@
-export const OVERVIEW_METRICS = ['minutes', 'mathToday', 'mathWeek'] as const;
+export const OVERVIEW_METRICS = ['pages', 'completion'] as const;
 
 export type OverviewMetric = typeof OVERVIEW_METRICS[number];
 
 export function normalizeOverviewMetric(value: unknown): OverviewMetric {
-  return OVERVIEW_METRICS.includes(value as OverviewMetric) ? value as OverviewMetric : 'minutes';
+  return OVERVIEW_METRICS.includes(value as OverviewMetric) ? value as OverviewMetric : 'pages';
 }
 
 export function overviewMetricIndex(value: unknown): number {

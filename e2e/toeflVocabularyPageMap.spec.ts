@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 test('TOEFL supplemental book uses live page lookup, persists, and charts only five large RANK/index segments', async ({ page }) => {
@@ -45,7 +46,7 @@ test('TOEFL supplemental book uses live page lookup, persists, and charts only f
   await expect(card.locator('[data-minutes]')).toHaveValue('30');
   await expect(card.locator('[data-check="progress"]')).toBeChecked();
   await expect(card.locator('[data-check="graded"],[data-check="corrected"],[data-field="reason"]')).toHaveCount(0);
-  await page.getByRole('link', { name: '教材進度圖', exact: true }).click();
+  await navigateSite(page, 'material.progress.html');
   await page.getByRole('tab', { name: '英文', exact: true }).click();
   const row = page.locator('.material-row').filter({ has: page.getByRole('heading', { name: book, exact: true }) });
   await expect(row.locator('.material-row-head strong')).toHaveText('完成 38%｜2／5 大單元已有紀錄');
@@ -87,7 +88,7 @@ test('TOEFL original and todo cards expose only progress, retain hidden legacy d
   await expect(other.locator('[data-check="graded"],[data-check="corrected"]')).toHaveCount(2);
   await expect(other.locator('[data-field="reason"]')).toHaveValue('其他教材保持原樣');
   await original.locator('[data-check="progress"]').check();
-  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  await navigateSite(page, 'todo.html');
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="toefl-progress"]') });
   await expect(todo.locator('[data-todo-progress]')).toHaveCount(1);
   await expect(todo.locator('[data-todo-progress="progress"]')).toBeChecked();

@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test, type Page } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -287,7 +288,7 @@ test('todo completion and undo check the original grouped scope after navigation
   await page.locator('#studyDate').dispatchEvent('change');
   await expect(original.locator('[data-done]')).toBeChecked();
 
-  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  await navigateSite(page, 'todo.html');
   await expect(page.locator('.todo-history-item')).toHaveCount(1);
   await page.locator('.todo-history-undo').click();
   await page.goBack();
@@ -322,7 +323,7 @@ test('returning from todo completion restores the original checkbox and completi
   await page.goto('/');
   await page.locator('#studyDate').fill(date);
   await page.locator('#studyDate').dispatchEvent('change');
-  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  await navigateSite(page, 'todo.html');
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="reliability-source"]') });
   await todo.locator('[data-todo-completion-date]').fill('2026-10-16');
   await todo.locator('.todo-complete').click();

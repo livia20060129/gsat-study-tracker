@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -74,7 +75,7 @@ test('todo Unit edits round-trip through the original card and completion withou
   await card.locator('[data-field="unitStart"]').fill('2');
   await card.locator('[data-field="unitEnd"]').fill('2');
   await card.locator('[data-field="unitEnd"]').blur();
-  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  await navigateSite(page, 'todo.html');
   await expect(todo.locator('[data-todo-range="start"]')).toHaveValue('2');
   await expect(todo.locator('[data-todo-range="end"]')).toHaveValue('2');
   await todo.locator('.todo-complete').click();

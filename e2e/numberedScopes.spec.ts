@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -79,7 +80,7 @@ test('todo round ranges edit and complete the original card without becoming pag
   await card.locator('[data-field="round"]').fill('6');
   await card.locator('[data-field="roundEnd"]').fill('7');
   await card.locator('[data-field="roundEnd"]').blur();
-  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  await navigateSite(page, 'todo.html');
   await expect(todo.locator('[data-todo-range="start"]')).toHaveValue('6');
   await expect(todo.locator('[data-todo-range="end"]')).toHaveValue('7');
   await todo.locator('.todo-complete').click();

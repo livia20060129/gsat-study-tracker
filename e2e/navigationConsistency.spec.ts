@@ -1,169 +1,90 @@
 import { expect, test } from '@playwright/test';
-import type { Locator } from '@playwright/test';
 
-async function buttonAppearance(button: Locator, includeWidth: boolean): Promise<Record<string, string>> {
-  return button.evaluate((node, includeWidth) => {
-    const style = getComputedStyle(node);
-    const properties = ['font-family', 'font-size', 'font-weight', 'font-style', 'font-synthesis', 'text-rendering',
-      'line-height', 'letter-spacing', 'color', 'background-color', 'border-top-color', 'border-top-style',
-      'border-top-width', 'border-radius', 'box-shadow', 'padding-top', 'padding-right', 'padding-bottom',
-      'padding-left', 'text-align', 'justify-content', 'align-items', 'white-space', 'text-decoration-line',
-      'height', 'outline-style', 'outline-width', 'outline-color', 'outline-offset'];
-    if (includeWidth) properties.push('width');
-    return Object.fromEntries(properties.map(property => [property, style.getPropertyValue(property)]));
-  }, includeWidth);
-}
-
-test('every page shares bold navigation, full-width mobile button rows and desktop navigation at the right', async ({ page }, testInfo) => {
-  test.setTimeout(90_000);
-  const paths = ['/', '/todo.html', '/summary.html', '/material.progress.html', '/vocabulary.review.html',
-    '/privacy.html', '/terms.html', '/support.html', '/gpt.prompt.html', '/vocabulary.sources.html'];
+test('all pages share desktop rails and accessible collapsible mobile rails without duplicate navigation', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  for (const width of [1280, 701, 700, 375, 320]) {
-    let homeHeading: Record<string, string> | undefined;
-    const destinations = new Map<string, { text: string; appearance: Record<string, string> }>();
-    const homeStates = new Map<string, Record<string, string>>();
+  for (const width of [1440, 1024, 375, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const path of paths) {
+    for (const path of ['/', '/todo.html', '/summary.html', '/material.progress.html', '/vocabulary.review.html', '/privacy.html', '/terms.html', '/support.html', '/gpt.prompt.html', '/vocabulary.sources.html']) {
       await page.goto(path);
-      await page.mouse.move(0, 0);
-      const backgrounds = await page.evaluate(() => [document.documentElement, document.body].map(node => {
-        const style = getComputedStyle(node);
-        return { color: style.backgroundColor, image: style.backgroundImage };
-      }));
-      expect(backgrounds, path + ' common page canvas').toEqual([
-        { color: 'rgb(237, 242, 248)', image: 'none' }, { color: 'rgb(237, 242, 248)', image: 'none' },
-      ]);
+      await expect(page.locator('body')).toHaveClass(/has-site-shell/);
+      const home = page.locator('.site-workspace-home');
       const title = page.locator('h1:visible').first();
-      const headingStyle = await title.evaluate(node => {
-        const style = getComputedStyle(node);
-        return Object.fromEntries(['font-family', 'font-size', 'font-weight', 'font-style', 'line-height',
-          'letter-spacing', 'text-align', 'color', 'margin-top', 'margin-bottom', 'padding-top', 'padding-left']
-          .map(property => [property, style.getPropertyValue(property)]));
-      });
-      if (path === '/') homeHeading = headingStyle;
-      else expect(headingStyle, path + ' heading matches the Tracker home page').toEqual(homeHeading);
-      expect(headingStyle['font-size']).toBe('28px');
-      expect(headingStyle['font-weight']).toBe('700');
-      const titleBounds = (await title.boundingBox())!;
-      expect(Math.abs(titleBounds.x - (Math.max(0, (width - 1120) / 2) + 14)), path + ' heading left alignment').toBeLessThan(1);
-      if (width > 700) expect(Math.abs(titleBounds.y - 22), path + ' heading top alignment').toBeLessThan(1);
-      const navigation = page.locator('.page-navigation-actions, .summary-view-controls').first();
-      await expect(navigation).toBeVisible();
-      const buttons = navigation.locator('.header-action-link');
-      expect(await buttons.count(), path).toBeGreaterThan(0);
-      for (const button of await buttons.all()) {
-        const destination = new URL((await button.getAttribute('href'))!, page.url()).pathname;
-        const isHome = destination.endsWith('/index.html');
-        if (isHome) await expect(button, path + ' return link must include the shared home marker').toHaveAttribute('data-navigation', 'home');
-        const appearance = await buttonAppearance(button, width > 700 || isHome);
-        expect(Number(appearance['font-weight']), path).toBeGreaterThanOrEqual(700);
-        expect(appearance['border-top-style'], path).toBe('solid');
-        expect(appearance['text-decoration-line'], path).toBe('none');
-        expect(appearance.height, path + ' common navigation height').toBe('44px');
-        if (isHome) {
-          const expectedWidth = width > 700 ? 136 : width - 28;
-          expect(parseFloat(appearance.width), path + ' home button keeps the same actual width on every page').toBe(expectedWidth);
-        }
-        expect(await button.evaluate(node => node.scrollHeight <= node.clientHeight), path + ' button text stays inside').toBe(true);
-        const identity = { text: (await button.innerText()).trim(), appearance };
-        const previous = destinations.get(destination);
-        if (previous) expect(identity, path + ' same destination uses the same button format').toEqual(previous);
-        else destinations.set(destination, identity);
-      }
-      if (width === 1280) {
-        const home = navigation.locator('[data-navigation="home"]');
-        if (await home.count()) {
-          expect((await buttonAppearance(home, true)).width).toBe('136px');
-          await home.hover();
-          const hover = await buttonAppearance(home, true);
-          if (homeStates.has('hover')) expect(hover, path + ' consistent home hover').toEqual(homeStates.get('hover'));
-          else homeStates.set('hover', hover);
-          await page.mouse.move(0, 0);
-          // Set keyboard modality independently of the browser's Tab order.
-          await page.keyboard.press('Tab');
-          await home.focus();
-          await expect(home).toBeFocused();
-          const focus = await buttonAppearance(home, true);
-          expect(focus['outline-style']).toBe('solid');
-          expect(focus['outline-width']).toBe('3px');
-          if (homeStates.has('focus')) expect(focus, path + ' consistent home keyboard focus').toEqual(homeStates.get('focus'));
-          else homeStates.set('focus', focus);
-          await home.evaluate(node => (node as HTMLElement).blur());
-        }
-      }
-      const lightButtons = await page.locator('button:visible').evaluateAll(nodes => nodes
-        .filter(node => Number(getComputedStyle(node).fontWeight) < 700)
-        .map(node => ({ text: node.textContent, class: node.className })));
-      expect(lightButtons, path + ' action buttons').toEqual([]);
-      let containerSelector = 'body>main';
-      if (path === '/vocabulary.sources.html') containerSelector = 'body';
-      else if (/privacy|terms|support/.test(path)) containerSelector = '.header-inner';
-      const pageContainer = page.locator(containerSelector);
-      const bounds = (await pageContainer.boundingBox())!;
-      expect(Math.abs(bounds.width - Math.min(width, 1120)), path).toBeLessThan(1);
-      const navBounds = (await navigation.boundingBox())!;
-      const home = navigation.locator('[data-navigation="home"]');
-      if (await home.count()) {
-        const homeBounds = (await home.boundingBox())!;
-        expect(Math.abs(homeBounds.y - 22), path + ' home button stays in the first navigation row').toBeLessThan(1);
-        const legacyBounds = await home.evaluate(node => {
-          node.removeAttribute('data-navigation');
-          const rect = node.getBoundingClientRect();
-          const result = { width: rect.width, height: rect.height, top: rect.top };
-          node.setAttribute('data-navigation', 'home');
-          return result;
-        });
-        expect(legacyBounds, path + ' older deployed markup keeps the same return button dimensions').toEqual({
-          width: width > 700 ? 136 : width - 28, height: 44, top: 22,
-        });
-      }
-      if (width !== 701 || path !== '/') {
-        expect(Math.abs(navBounds.y - 22), path + ' navigation stays at the same top position').toBeLessThan(1);
-      }
-      if (width <= 700) {
-        const heading = (await page.locator('h1:visible').first().boundingBox())!;
-        expect(Math.abs(navBounds.x + navBounds.width / 2 - width / 2), path).toBeLessThan(2);
-        expect(navBounds.y + navBounds.height, path).toBeLessThanOrEqual(heading.y + 1);
-        expect(Math.abs(heading.y - navBounds.y - navBounds.height - 16), path + ' heading gap below mobile navigation').toBeLessThan(1);
-        const rows = await buttons.evaluateAll(nodes => {
-          const rows: { top: number; left: number; right: number; widths: number[] }[] = [];
-          for (const node of nodes) {
-            const rect = node.getBoundingClientRect();
-            let row = rows.find(row => Math.abs(row.top - rect.top) < 1);
-            if (!row) {
-              row = { top: rect.top, left: rect.left, right: rect.right, widths: [] };
-              rows.push(row);
-            }
-            row.right = Math.max(row.right, rect.right);
-            row.widths.push(rect.width);
-          }
-          return rows;
-        });
-        for (const row of rows) {
-          expect(Math.abs(row.left - navBounds.x), path + ' row starts at the left edge').toBeLessThan(1);
-          expect(Math.abs(row.right - navBounds.x - navBounds.width), path + ' row fills the available width').toBeLessThan(1);
-          expect(Math.max(...row.widths) - Math.min(...row.widths), path + ' equal-width buttons').toBeLessThan(1);
-        }
-        const overflow = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: window.innerWidth,
-          elements: [...document.querySelectorAll('body *')].filter(node => node.getBoundingClientRect().right > window.innerWidth + 1)
-            .slice(-12).map(node => ({ tag: node.tagName, id: node.id, class: node.getAttribute('class'), right: node.getBoundingClientRect().right })),
-        }));
-        expect(overflow.width, path + JSON.stringify(overflow)).toBeLessThanOrEqual(overflow.viewport);
+      await expect(title).toBeVisible();
+      await expect(title).toHaveCSS('font-size', '28px');
+      await expect(home).toHaveCSS('color', path === '/' ? 'rgb(57, 103, 233)' : 'rgb(23, 42, 57)');
+      await expect(page.locator('.site-rail .site-connection')).toHaveCount(0);
+      await expect(page.locator('.site-rail a[href="./summary.html"]')).toHaveCount(1);
+      if (width >= 1200) {
+        await expect(page.locator('.site-rail-left')).toBeVisible();
+        await expect(page.locator('.site-rail-right')).toBeVisible();
+        expect((await title.boundingBox())!.x).toBeGreaterThanOrEqual(200);
+        await expect(page.locator('.site-mobile-bar')).toBeHidden();
       } else {
-        const contentRight = await navigation.evaluate(node => {
-          const parent = node.parentElement!;
-          const style = getComputedStyle(parent);
-          return parent.getBoundingClientRect().right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth);
-        });
-        expect(Math.abs(navBounds.x + navBounds.width - contentRight), path + ' desktop stays right aligned').toBeLessThan(1);
-        if (await buttons.count() === 1) expect(navBounds.width, path + ' desktop keeps compact navigation').toBeLessThan(bounds.width / 2);
+        await expect(page.locator('.site-rail-left')).toBeHidden();
+        await expect(page.locator('.site-rail-right')).toBeHidden();
+        await page.locator('[data-open-rail="right"]').click();
+        await expect(home).toBeVisible();
+        await expect(page.locator('.site-tools a')).toHaveCount(4);
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.site-rail-right')).toBeHidden();
+        await expect(page.locator('[data-open-rail="right"]')).toBeFocused();
+        await page.locator('[data-open-rail="left"]').click();
+        await expect(page.locator('.site-summary-link')).toBeVisible();
+        await page.locator('.site-rail-left [data-close-rail]').click();
+        await expect(page.locator('.site-rail-left')).toBeHidden();
       }
-      if ([1280, 375].includes(width) && ['/todo.html', '/summary.html', '/privacy.html', '/vocabulary.sources.html'].includes(path)) {
-        await page.screenshot({ path: testInfo.outputPath(path.slice(1) + '-' + width + '.png'), animations: 'disabled' });
-      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path + ' fits viewport').toBe(true);
+      if (path === '/' && [1440, 375].includes(width)) await page.screenshot({ path: testInfo.outputPath(`site-shell-${width}.png`), fullPage: true });
     }
   }
   expect(errors).toEqual([]);
+});
+
+test('sidebar uses saved records and current-week overdue tasks without mixing account scopes', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-05T12:00:00+08:00'));
+  await page.goto('/todo.html');
+  await page.evaluate(() => {
+    localStorage.clear(); localStorage.setItem('study-v11:meta:active-record-prefix', 'study-v11:guest:');
+    const record = { date: '2026-11-03', mood: '普通', items: [{ id: 'task', type: 'mathStudy', source: 'preset', required: true, done: false, minutes: '10', title: '數學 三角比', f: { material: '教學講義', book: '2', start: '10', end: '12' } }] };
+    localStorage.setItem('study-v11:guest:2026-11-03', JSON.stringify(record));
+    localStorage.setItem('study-v11:user:other:2026-11-04', JSON.stringify({ ...record, date: '2026-11-04' }));
+  });
+  await page.reload();
+  await expect(page.locator('[data-rail-days]')).toHaveText('1');
+  await expect(page.locator('[data-rail-overdue-count]')).toHaveText('1 項');
+  await expect(page.locator('[data-rail-overdue-list]')).toContainText('三角比');
+});
+
+test('mood slider preserves date-specific values and updates the weekly rail after saving', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-05T12:00:00+08:00'));
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.goto('/todo.html');
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('study-v11:meta:active-record-prefix', 'study-v11:guest:');
+    for (const date of ['2026-11-04', '2026-11-05']) {
+      localStorage.setItem(`study-v11:guest:${date}`, JSON.stringify({ date, items: [] }));
+    }
+  });
+  await page.goto('/');
+  await expect(page.locator('[data-rail-days]')).toHaveText('0');
+  await expect(page.locator('#routineDisclosure')).not.toHaveAttribute('open');
+  await page.getByRole('button', { name: '較疲累', exact: true }).click();
+  await expect(page.locator('#mood')).toHaveValue('較疲累');
+  await expect(page.locator('[data-rail-days]')).toHaveText('1');
+  await page.locator('#studyDate').fill('2026-11-04');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(page.getByRole('button', { name: '未填寫', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '普通', exact: true }).click();
+  await expect(page.locator('[data-rail-days]')).toHaveText('2');
+  await page.locator('#studyDate').fill('2026-11-05');
+  await page.locator('#studyDate').dispatchEvent('change');
+  await expect(page.getByRole('button', { name: '較疲累', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(page.getByRole('button', { name: '較疲累', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-rail-days]')).toHaveText('2');
+  await expect(page.locator('.connection-dock')).toBeVisible();
+  await expect(page.locator('.site-rail-right .connection-dock')).toHaveCount(0);
 });

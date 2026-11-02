@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { EnglishReviewWordEntry } from '../src/types.ts';
@@ -144,7 +145,7 @@ test('old data is read-only until edited, phrases are excluded, and source notic
   const returnToVocabulary = page.locator('.source-navigation a[href="./vocabulary.review.html"]');
   await expect(returnToVocabulary).toHaveText('英文單字複習');
   await expect(returnToVocabulary).toHaveAttribute('data-navigation', 'vocabulary');
-  await returnToVocabulary.click();
+  await navigateSite(page, 'vocabulary.review.html');
   await expect(page).toHaveURL(/\/vocabulary\.review\.html$/);
   await expect(page.locator('.vocabulary-row[data-entry-key="alternate"]')).toBeVisible();
   expect(context.pages()).toHaveLength(pageCount);

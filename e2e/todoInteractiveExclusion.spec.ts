@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -45,7 +46,7 @@ test('interactive items stay out of todo subject counts while original cards rem
   await expect(interactive.locator('[data-minutes]')).toHaveValue('25');
   await interactive.locator('[data-check="listening"]').check();
   await expect(page.locator('#notes')).toHaveValue('不要清除');
-  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  await navigateSite(page, 'todo.html');
   await expect(page.locator('[data-item-id^="excluded-"]')).toHaveCount(0);
   const saved = await page.evaluate(({ prefix, date }) => JSON.parse(localStorage.getItem(prefix + date)!).items
     .find((item: { id: string }) => item.id === 'excluded-englishPractice'), { prefix, date });

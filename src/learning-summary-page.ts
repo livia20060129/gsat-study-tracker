@@ -141,8 +141,8 @@ function subjectDonutMarkup(summary: LearningPeriodSummary): string {
   const subjectTime = groupedSummarySubjectTime(summary.timeEntries);
   const arcs = subjectTimeDonutSlices(subjectTime);
   const paths = arcs.map(slice => `<path class="summary-donut-slice" data-summary-subject-path="${slice.subject}" d="${subjectTimeArcPath(slice)}" fill="none" stroke="${slice.color}" tabindex="0" role="button" aria-label="${slice.subject} ${formatHours(slice.minutes)} 小時，占 ${slice.percent}%"></path>`).join('');
-  const labels = arcs.map(slice => {
-    const fontSize = slice.endPercent - slice.startPercent < 6 ? 9.5 : 13;
+  const labels = arcs.filter(slice => slice.endPercent - slice.startPercent >= 6).map(slice => {
+    const fontSize = 16;
     return `<button class="summary-donut-label-button" type="button" data-summary-subject="${slice.subject}" style="left:${slice.labelX / 1.6}%;top:${slice.labelY / 1.6}%;font-size:${fontSize}px" aria-label="查看${slice.subject}項目">${SUBJECT_TIME_SHORT_LABELS[slice.subject]}</button>`;
   }).join('');
   return `<div class="summary-donut-shell">

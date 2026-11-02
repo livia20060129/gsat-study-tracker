@@ -110,6 +110,7 @@ export class LocalStudyRecordRepository implements LocalStudyRecordRepositoryPor
     if (!record?.date) return false;
     try {
       this.storage.setItem(this.prefix + record.date, encodeStudyRecord(record));
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('study-records-changed'));
       return true;
     } catch {
       return false;

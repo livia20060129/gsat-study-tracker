@@ -112,7 +112,7 @@
 <section class="panel">
  <div class="panel-head"><h2>今日資訊</h2><span class="badge" id="weekdayText"></span></div>
  <div class="content">
-  <div class="grid-3">
+  <div class="grid-3 today-info-grid">
    <div class="field today-info-centered-field"><label for="studyDate">日期</label><input id="studyDate" type="date"></div>
    <div class="field today-info-centered-field"><label for="mood">今日狀態</label><select id="mood"><option value="">未填寫</option><option>精神良好</option><option>普通</option><option>較疲累</option><option>身體不適</option><option>外出</option></select></div>
    <div class="field routine-time-field" id="routineTimeField">
@@ -129,23 +129,19 @@
    </div>
   </div>
   <div class="stats overview-stats" id="overviewStats" style="margin-top:12px">
-   <div class="stat overview-metric-stat" data-metric-view="minutes">
-    <div class="metric-segments" id="overviewMetricTabs" role="tablist" aria-label="學習成果統計" data-active="0">
-     <span class="metric-segment-indicator" aria-hidden="true"></span>
-     <button type="button" role="tab" aria-selected="true" aria-controls="metricMinutesPanel" data-overview-metric="minutes">今日完成時間</button>
-     <button type="button" role="tab" aria-selected="false" aria-controls="metricMathTodayPanel" data-overview-metric="mathToday" tabindex="-1">今日數學頁數</button>
-     <button type="button" role="tab" aria-selected="false" aria-controls="metricMathWeekPanel" data-overview-metric="mathWeek" tabindex="-1">本週數學頁數</button>
-    </div>
-    <div class="metric-panel-stage">
-     <div class="metric-panel metric-minutes-panel is-active" id="metricMinutesPanel" role="tabpanel" data-metric-panel="minutes" aria-hidden="false">
+   <div class="stat overview-time-stat"><h3>今日完成時間</h3>
+     <div class="metric-minutes-panel" id="metricMinutesPanel">
       <div class="subject-time-donut" id="subjectTimeDonut" aria-live="polite"><div class="subject-time-chart is-empty"><div class="subject-time-center"><strong><span id="doneMinutes" data-subject-time-value>0</span></strong><span data-subject-time-caption>分鐘</span></div></div><div class="subject-time-empty">完成項目並填入時間後，這裡會顯示各科時間佔比。</div></div>
      </div>
-     <div class="metric-panel metric-math-panel" id="metricMathTodayPanel" role="tabpanel" data-metric-panel="mathToday" aria-hidden="true"><strong><span id="mathPagesTop">0</span> 頁</strong></div>
-     <div class="metric-panel metric-math-panel" id="metricMathWeekPanel" role="tabpanel" data-metric-panel="mathWeek" aria-hidden="true"><strong><span id="weekMathPages">0</span> / <span id="weekMathTarget">60</span> 頁</strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small"><span id="weekMathPercent">0%</span></div></div>
-    </div>
    </div>
-   <div class="stat completion-stat">
-    <div id="completionRatePanel">
+   <div class="stat overview-metric-stat" data-metric-view="pages">
+    <div class="metric-segments" id="overviewMetricTabs" role="tablist" aria-label="學習成果統計" data-active="0"><span class="metric-segment-indicator" aria-hidden="true"></span><button type="button" role="tab" aria-selected="true" aria-controls="mathPagesPanel" data-overview-metric="pages">數學頁數</button><button type="button" role="tab" aria-selected="false" aria-controls="completionRatePanel" data-overview-metric="completion" tabindex="-1">完成率</button></div>
+    <div class="metric-panel-stage">
+     <div class="metric-panel is-active" id="mathPagesPanel" role="tabpanel" data-metric-panel="pages" aria-hidden="false">
+      <div class="metric-math-panel" id="metricMathTodayPanel"><h3>今日數學頁數</h3><strong><span id="mathPagesTop">0</span> <small>頁</small></strong></div>
+      <div class="metric-math-panel" id="metricMathWeekPanel"><h3>本週數學頁數</h3><strong><span id="weekMathPages">0</span> <small>頁</small></strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small">本週目標 <span id="weekMathTarget">60</span> 頁｜<span id="weekMathPercent">0%</span></div></div>
+     </div>
+    <div class="metric-panel" id="completionRatePanel" role="tabpanel" data-metric-panel="completion" aria-hidden="true" inert>
      <div class="completion-metric">
       <div class="completion-metric-head"><span>原訂今日項目完成率</span><strong id="completionPercent">0%</strong></div>
       <div class="progress"><div id="completionBar" style="width:0"></div></div>
@@ -160,6 +156,8 @@
       <div class="settlement-row"><span id="settlementLabel">週五結算完成率</span><strong id="settlementPercent">0%</strong></div>
       <div class="settlement-comparison" id="settlementComparison" hidden>相較週五結算 <strong id="settlementDelta">±0%</strong></div>
      </div>
+     <details class="completion-notes"><summary>完成率說明</summary><p><strong>原訂今日項目完成率：</strong>只計原訂今日必做項目，補做與自行新增不列入。</p><p><strong>今日總項目完成率：</strong>計入原訂項目、補做及符合統計規則的新增工作量；合併自然卡以整項工作量計算。</p><p>已確認延期與每日選做項目不列入兩種完成率。</p></details>
+    </div>
     </div>
    </div>
   </div>

@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import { clickConnectionToggle } from './helpers/connectionMotion.ts';
 
@@ -95,7 +96,7 @@ test('overdue task page filters subjects and persists skip without marking compl
   });
 
   await page.goto('/');
-  await page.getByRole('link', { name: '待辦事項' }).click();
+  await navigateSite(page, 'todo.html');
   await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
   await expect(page.locator('.todo-card')).toHaveCount(2);
   await expect(page.getByRole('heading', { name: '英文訂正與搭配詞整理' })).toHaveCount(0);
@@ -298,7 +299,7 @@ test('todo page re-reads an original-date completion when restored from browser 
   });
 
   await page.goto('/');
-  await page.getByRole('link', { name: '待辦事項' }).click();
+  await navigateSite(page, 'todo.html');
   await expect(page.locator('.todo-card').filter({ hasText: '原日期完成同步測試' })).toHaveCount(1);
   await page.evaluate(() => {
     const record = JSON.parse(localStorage.getItem('study-v11:guest:2026-08-09') || '{}');
@@ -335,7 +336,7 @@ test('todo page preserves a focused manual-minute draft when leaving the origina
     }));
   });
   await page.goto('/');
-  await page.getByRole('link', { name: '待辦事項' }).click();
+  await navigateSite(page, 'todo.html');
   await expect(page.getByLabel('原日期時間同步測試的學習時間')).toHaveValue('');
 
   await page.goBack();
@@ -468,7 +469,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
     }));
   });
 
-  await page.getByRole('link', { name: '英文單字複習' }).click();
+  await navigateSite(page, 'vocabulary.review.html');
   await expect(page.getByRole('heading', { name: '英文單字複習' })).toBeVisible();
   await page.getByRole('button', { name: '隱藏中文', exact: true }).click();
   const links = page.locator('.vocabulary-word-link');
@@ -626,34 +627,39 @@ test('mixed writing and timed mock on one date require a persisted exclusive cho
   await expect(correction.locator('[data-minutes]')).toHaveValue('25');
 });
 
-test('both math page panels stay vertically centered and left aligned with settlement metrics', async ({ page }) => {
+test('math periods stack equally and share a centered panel with completion while the donut remains visible', async ({ page }) => {
   await page.setViewportSize({ width: 760, height: 900 });
   await page.locator('#studyDate').fill('2026-09-20');
   await page.locator('#studyDate').dispatchEvent('change');
-  await expect(page.locator('#settlementMetrics')).toBeVisible();
-
-  for (const view of ['mathToday', 'mathWeek']) {
+  for (const view of ['pages', 'completion']) {
     await page.locator(`[data-overview-metric="${view}"]`).click();
     const panel = page.locator(`[data-metric-panel="${view}"]`);
     await expect(panel).toHaveClass(/is-active/);
     await page.waitForTimeout(480);
     const position = await panel.evaluate(node => {
       const panelRect = node.getBoundingClientRect();
-      const stageRect = node.parentElement!.getBoundingClientRect();
-      const cardRect = node.closest('.overview-metric-stat')!.getBoundingClientRect();
       const children = Array.from(node.children).map(child => child.getBoundingClientRect());
       const contentTop = Math.min(...children.map(rect => rect.top));
       const contentBottom = Math.max(...children.map(rect => rect.bottom));
       return {
         centerDifference: Math.abs((contentTop + contentBottom) / 2 - (panelRect.top + panelRect.bottom) / 2),
-        stageBottomGap: Math.abs(stageRect.bottom - (cardRect.bottom - 12)),
-        leftDifference: Math.abs(children[0].left - (panelRect.left + 5)),
+        horizontalDifference: Math.abs((children[0].left + children[0].right) / 2 - (panelRect.left + panelRect.right) / 2),
       };
     });
     expect(position.centerDifference).toBeLessThan(3);
-    expect(position.stageBottomGap).toBeLessThan(3);
-    expect(position.leftDifference).toBeLessThan(3);
+    expect(position.horizontalDifference).toBeLessThan(3);
+    await expect(page.locator('#subjectTimeDonut')).toBeVisible();
   }
+  await expect(page.locator('#settlementMetrics')).toBeVisible();
+  await expect(page.locator('.completion-notes')).not.toHaveAttribute('open');
+  await page.locator('.completion-notes > summary').click();
+  await expect(page.locator('.completion-notes p').first()).toBeVisible();
+  await page.locator('[data-overview-metric="pages"]').click();
+  const today = (await page.locator('#metricMathTodayPanel').boundingBox())!;
+  const week = (await page.locator('#metricMathWeekPanel').boundingBox())!;
+  expect(week.y).toBeGreaterThan(today.y + today.height);
+  expect(await page.locator('#metricMathTodayPanel > strong').evaluate(node => getComputedStyle(node).fontSize))
+    .toBe(await page.locator('#metricMathWeekPanel > strong').evaluate(node => getComputedStyle(node).fontSize));
 });
 
 test('outside status keeps the daily schedule visible', async ({ page }) => {
@@ -886,6 +892,8 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
   }, { date });
   await page.goto('/');
   await expect(page.locator('#wakeHour')).toHaveValue(/0?7/);
+  await expect(page.locator('#routineDisclosure')).not.toHaveAttribute('open');
+  await page.locator('#routineDisclosure > summary').click();
   await expect(page.locator('#wakeMinute')).toHaveValue('20');
   await expect(page.locator('#routineTimeSummary')).toHaveCount(0);
   await expect(page.locator('#wakeHour')).not.toHaveAttribute('placeholder');
@@ -894,7 +902,7 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
   const centeredFieldOffsets = await page.locator('.today-info-centered-field').evaluateAll(nodes => nodes.map(node => {
     const field = node.getBoundingClientRect();
     const label = node.querySelector('label')?.getBoundingClientRect();
-    const control = node.querySelector('input, select')?.getBoundingClientRect();
+    const control = node.querySelector('input, .mood-segments')?.getBoundingClientRect();
     if (!label || !control) return Number.POSITIVE_INFINITY;
     const contentCenter = (label.top + control.bottom) / 2;
     const fieldCenter = (field.top + field.bottom) / 2;
@@ -1122,6 +1130,7 @@ test('ordinary completion is written immediately and survives reload', async ({ 
   const card = page.locator('#dailyItemList [data-item]').first();
   const itemId = await card.getAttribute('data-item');
   const checkbox = card.locator('[data-done]').first();
+  await page.locator('#routineDisclosure > summary').click();
   await page.locator('#wakeMinute').fill('');
   await checkbox.check();
   await expect(checkbox).toBeChecked();
@@ -1413,24 +1422,18 @@ test('learning summary uses one week/month control for the complete page', async
 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileHeader = await page.locator('.summary-header').evaluate(node => {
-    const heading = node.querySelector('h1')!.getBoundingClientRect();
-    const back = node.querySelector('.summary-back')!.getBoundingClientRect();
     const controls = node.querySelector('.summary-view-controls')!.getBoundingClientRect();
     const header = node.getBoundingClientRect();
     return {
-      headingTop: heading.top,
       headingFontSize: getComputedStyle(node.querySelector('h1')!).fontSize,
-      backBottom: back.bottom,
       controlsCenter: controls.left + controls.width / 2,
       headerCenter: header.left + header.width / 2,
-      backWidth: back.width,
-      headerWidth: header.width,
     };
   });
   expect(mobileHeader.headingFontSize).toBe('28px');
-  expect(mobileHeader.backBottom).toBeLessThanOrEqual(mobileHeader.headingTop);
+  await expect(page.locator('.summary-back')).toBeHidden();
+  await expect(page.locator('.site-mobile-bar')).toBeVisible();
   expect(Math.abs(mobileHeader.controlsCenter - mobileHeader.headerCenter)).toBeLessThan(3);
-  expect(Math.abs(mobileHeader.backWidth - mobileHeader.headerWidth)).toBeLessThan(1);
   await page.locator('[data-summary-subject="英文"]').click();
   await expect(page.locator('#summarySubjectDistribution')).toHaveClass(/animate-detail-entry/);
   await page.waitForTimeout(420);

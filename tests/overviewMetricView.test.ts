@@ -1,46 +1,18 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from '../src/ui/overviewMetricView.ts';
 
-import {
-  adjacentOverviewMetric,
-  normalizeOverviewMetric,
-  overviewMetricIndex,
-} from '../src/ui/overviewMetricView.ts';
-
-test('normalizes the three overview metric segments', () => {
-  assert.equal(normalizeOverviewMetric('minutes'), 'minutes');
-  assert.equal(normalizeOverviewMetric('mathToday'), 'mathToday');
-  assert.equal(normalizeOverviewMetric('mathWeek'), 'mathWeek');
-  assert.equal(normalizeOverviewMetric('unknown'), 'minutes');
+test('normalizes the shared pages/completion view', () => {
+  assert.equal(normalizeOverviewMetric('pages'), 'pages');
+  assert.equal(normalizeOverviewMetric('completion'), 'completion');
+  assert.equal(normalizeOverviewMetric('unknown'), 'pages');
 });
-
-test('returns the correct slider position for every segment', () => {
-  assert.equal(overviewMetricIndex('minutes'), 0);
-  assert.equal(overviewMetricIndex('mathToday'), 1);
-  assert.equal(overviewMetricIndex('mathWeek'), 2);
+test('returns the correct position of each shared metric', () => {
+  assert.equal(overviewMetricIndex('pages'), 0);
+  assert.equal(overviewMetricIndex('completion'), 1);
 });
-
-test('keyboard segment navigation wraps in both directions', () => {
-  assert.equal(adjacentOverviewMetric('minutes', 1), 'mathToday');
-  assert.equal(adjacentOverviewMetric('mathWeek', 1), 'minutes');
-  assert.equal(adjacentOverviewMetric('minutes', -1), 'mathWeek');
-});
-
-test('overview metric panels resize smoothly and keep stacked completion metrics left aligned in a centered group', () => {
-  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  const styles = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
-  const runtime = readFileSync(new URL('../src/legacy-app.ts', import.meta.url), 'utf8');
-
-  assert.match(html, /id="overviewStats"/);
-  assert.match(html, /class="metric-panel-stage"/);
-  assert.equal((html.match(/class="metric-panel metric-math-panel"/g) || []).length, 2);
-  assert.match(styles, /metric-panel-stage\{[^}]*flex:1 1 auto;[^}]*transition:min-height/);
-  assert.match(styles, /metric-panel-stage \.metric-math-panel\{align-items:flex-start;justify-content:center;padding:6px 5px;text-align:left\}/);
-  assert.match(styles, /overview-metric-stat\[data-metric-view="minutes"\]\{--metric-panel-height:282px\}/);
-  assert.match(styles, /completion-stat #completionRatePanel\{grid-template-columns:minmax\(0,420px\);justify-content:center;align-content:center/);
-  assert.match(styles, /completion-stat \.completion-metric-head\{flex-direction:row;align-items:baseline;justify-content:space-between;text-align:left\}/);
-  assert.match(styles, /completion-stat \.completion-metric \.small\{text-align:left\}/);
-  assert.match(runtime, /card\.dataset\.metricView=overviewMetricView/);
-  assert.match(runtime, /panel\.classList\.toggle\('is-active',selected\)/);
+test('keyboard navigation wraps between pages and completion in either direction', () => {
+  assert.equal(adjacentOverviewMetric('pages', 1), 'completion');
+  assert.equal(adjacentOverviewMetric('completion', 1), 'pages');
+  assert.equal(adjacentOverviewMetric('pages', -1), 'completion');
 });

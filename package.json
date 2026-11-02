@@ -1,7 +1,7 @@
 {
   "name": "gsat-study-tracker-v171",
   "private": true,
-  "version": "171.6.120",
+  "version": "171.6.121",
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
@@ -20,6 +20,7 @@
     "wrangler": "4.132.0"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.114.0"
+    "@supabase/supabase-js": "2.114.0",
+    "docx": "9.6.1"
   }
 }

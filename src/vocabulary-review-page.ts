@@ -607,7 +607,7 @@ function renderEntries(): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-export-vocabulary]')) button.disabled = entries.length === 0;
 }
 
-function exportVocabulary(withTranslations: boolean): void {
+async function exportVocabulary(withTranslations: boolean): Promise<void> {
   let entries = filteredEntries();
   if (!entries.length) return;
   if (groupingMode === 'gsatLevel') entries = vocabularyLevelGroups(entries).flatMap(group => group.entries);
@@ -615,6 +615,22 @@ function exportVocabulary(withTranslations: boolean): void {
     const ordered = VOCABULARY_PARTS_OF_SPEECH.flatMap(([, label]) => entries.filter(entry => entry.tags.includes(label)));
     ordered.push(...entries.filter(entry => entry.tags.length === 0));
     entries = [...new Map(ordered.map(entry => [entry.key, entry])).values()];
+  }
+  if (element<HTMLSelectElement>('vocabularyExportFormat').value === 'docx') {
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-export-vocabulary]')];
+    buttons.forEach(button => { button.disabled = true; });
+    try {
+      const { vocabularyDocxDocument } = await import('./study/vocabularyDocx.ts');
+      const blob = await vocabularyDocxDocument(entries, activeContentKind, withTranslations);
+      const url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href = url; link.download = `英文${activeContentKind}表_${withTranslations ? '有' : '無'}翻譯.docx`;
+      document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      element('vocabularyError').textContent = 'DOCX 匯出失敗，請稍後重試；原本的單字資料仍保留。';
+      element('vocabularyError').hidden = false;
+    } finally { buttons.forEach(button => { button.disabled = filteredEntries().length === 0; }); }
+    return;
   }
   const html = vocabularyPrintDocument(entries, activeContentKind, withTranslations);
   const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
@@ -845,5 +861,11 @@ element<HTMLButtonElement>('toggleVocabularyTranslations').addEventListener('cli
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-export-vocabulary]')) {
   button.addEventListener('click', () => exportVocabulary(button.dataset.exportVocabulary === 'translated'));
 }
+element<HTMLSelectElement>('vocabularyExportFormat').addEventListener('change', () => {
+  const format = element<HTMLSelectElement>('vocabularyExportFormat').value.toUpperCase();
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-export-vocabulary]')) {
+    button.textContent = `匯出 ${format}（${button.dataset.exportVocabulary === 'translated' ? '有' : '無'}翻譯）`;
+  }
+});
 window.addEventListener('storage', load);
 load();

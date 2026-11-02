@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -61,7 +62,7 @@ test('excluded English routines and listening material are absent from todo but 
   await expect(magazine.locator('[data-mag-field="unit"]')).toHaveValue('2');
   await magazine.locator('[data-mag-field="unit"]').fill('3');
   await magazine.locator('[data-mag-field="unit"]').blur();
-  await page.getByRole('link', { name: '待辦事項', exact: true }).click();
+  await navigateSite(page, 'todo.html');
   await expect(page.locator('[data-item-id^="excluded-"]')).toHaveCount(0);
   const stored = await page.evaluate(({ prefix, date }) => JSON.parse(localStorage.getItem(prefix + date)!), { prefix, date });
   expect(stored.items.find((item: { id: string }) => item.id === 'excluded-timed').minutes).toBe('40');

@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { goHome } from './helpers/siteNavigation.ts';
 
 test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
 const date = '2026-11-02';
@@ -76,7 +77,7 @@ async function signIn(page: Page): Promise<void> {
 }
 async function returnHome(page: Page, path: string): Promise<void> {
   await page.goto(path);
-  await page.locator('[data-navigation="home"]').click();
+  await goHome(page);
   await loggedIn(page);
   await expect(page.locator('#notes')).toHaveValue(record.notes);
 }
@@ -101,7 +102,7 @@ test('login survives every standalone page, browser history and reload on deskto
   }
   await page.reload(); await loggedIn(page);
   await page.goto('/summary.html'); await page.goBack(); await loggedIn(page);
-  await page.goForward(); await page.locator('[data-navigation="home"]').click(); await loggedIn(page);
+  await page.goForward(); await goHome(page); await loggedIn(page);
   expect(await storedSession(page)).toContain('test-refresh');
 });
 
@@ -139,7 +140,7 @@ test('legacy sessions migrate and an expired token refreshes after returning fro
   const state = await setup(page, { legacy: true, expiresAt: Math.floor(epoch / 1000) + 120 });
   await page.goto('/'); await loggedIn(page);
   await page.goto('/summary.html'); await page.clock.fastForward(180_000);
-  await page.locator('[data-navigation="home"]').click(); await loggedIn(page);
+  await goHome(page); await loggedIn(page);
   await expect.poll(() => state.refreshCalls).toBeGreaterThan(0);
   expect(await storedSession(page)).toContain('rotated-refresh');
   await expect(page.locator('#notes')).toHaveValue(record.notes);
@@ -171,7 +172,7 @@ test('explicit logout stays logged out across navigation even if a legacy token 
   await expect(page.locator('#cloudLoggedOut')).toBeVisible();
   await expect.poll(() => storedSession(page)).toBeNull();
   await page.evaluate(({ key, value }) => localStorage.setItem(key, JSON.stringify(value)), { key: authKey, value: session() });
-  await page.goto('/summary.html'); await page.locator('[data-navigation="home"]').click(); await settings(page);
+  await page.goto('/summary.html'); await goHome(page); await settings(page);
   await expect(page.locator('#cloudLoggedOut')).toBeVisible();
   await expect(page.locator('#cloudUserEmail')).toBeEmpty();
   expect(await page.evaluate(key => localStorage.getItem(key), activeKey)).toBe('study-v11:guest:');

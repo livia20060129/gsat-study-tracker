@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -73,7 +74,7 @@ test('real navigation links use the shared transition across app, legal and sour
   await page.goto('/');
   await expectEntry(page);
   for (const path of ['todo.html', 'summary.html', 'material.progress.html', 'vocabulary.review.html']) {
-    await page.locator(`header a[href="./${path}"]`).click();
+    await navigateSite(page, path);
     await expect(page).toHaveURL(new RegExp('/' + path.replaceAll('.', '\\.') + '$'));
     await expectEntry(page);
     if (path === 'vocabulary.review.html') {
@@ -81,7 +82,7 @@ test('real navigation links use the shared transition across app, legal and sour
       await expect(page).toHaveURL(/\/vocabulary\.sources\.html$/);
       await expectEntry(page);
     }
-    await page.locator('header a[href="./index.html"]').click();
+    await navigateSite(page, 'index.html');
     await expect(page).toHaveURL(/\/index\.html$/);
     await expectEntry(page);
   }
@@ -92,7 +93,7 @@ test('real navigation links use the shared transition across app, legal and sour
   await expectEntry(page);
   await page.locator('header a[href="./support.html"]').click();
   await expectEntry(page);
-  await page.locator('header a[href="./index.html"]').click();
+  await navigateSite(page, 'index.html');
   await expectEntry(page);
 });
 
@@ -113,7 +114,7 @@ test('back and forward animate while preserving pending notes, completion and mi
   await card.locator('[data-done]').check();
   await page.locator('#notes').fill('跳頁前尚在輸入的筆記');
   const before = await motion(page);
-  await page.locator('header a[href="./todo.html"]').click();
+  await navigateSite(page, 'todo.html');
   await expectEntry(page);
   await page.goBack();
   await expectEntry(page, before);
@@ -132,7 +133,7 @@ test('reduced motion keeps direct entry, links and history usable without page e
     await expect(page.locator('h1:visible')).toBeVisible();
     expect((await motion(page)).entries).toEqual([]);
   }
-  await page.locator('header a[href="./vocabulary.review.html"]').click();
+  await navigateSite(page, 'vocabulary.review.html');
   await expect(page).toHaveURL(/\/vocabulary\.review\.html$/);
   await expect(page.locator('h1')).toHaveText('英文單字複習');
   expect((await motion(page)).entries).toEqual([]);
@@ -144,7 +145,7 @@ test('reduced motion keeps direct entry, links and history usable without page e
 test('new-tab navigation and same-page anchors keep their normal behavior', async ({ page }) => {
   await page.goto('/');
   const popupPromise = page.waitForEvent('popup');
-  await page.locator('header a[href="./gpt.prompt.html"]').click();
+  await navigateSite(page, 'gpt.prompt.html');
   const popup = await popupPromise;
   await popup.waitForLoadState();
   await expectEntry(popup);

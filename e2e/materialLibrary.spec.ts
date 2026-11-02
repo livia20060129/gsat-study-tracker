@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { enableMaterialEditing } from './helpers/materialEditing.ts';
 
@@ -152,7 +153,7 @@ test('old catalog bookmarks redirect to the shared page and Tracker has only one
   await expect(page).toHaveURL(/material\.progress\.html\?from=bookmark#english$/);
   await expect(page.getByRole('heading', { name: '教材進度圖', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: '英文', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('link', { name: '回到 Tracker', exact: true }).click();
+  await navigateSite(page, 'index.html');
   await expect(page.locator('.header-actions a[href="./material.progress.html"]')).toHaveCount(1);
   await expect(page.locator('.header-actions a[href="./material.catalog.html"]')).toHaveCount(0);
 });

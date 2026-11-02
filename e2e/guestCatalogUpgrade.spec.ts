@@ -1,3 +1,4 @@
+import { navigateSite } from './helpers/siteNavigation.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { enableMaterialEditing } from './helpers/materialEditing.ts';
 import type { StudyRecord } from '../src/types.ts';
@@ -128,7 +129,7 @@ test('mobile catalog creates a page map and retains saved Tracker cards and larg
   await page.screenshot({ path: testInfo.outputPath('catalog-editor-mobile.png'), fullPage: true });
   await page.getByRole('button', { name: '取消編輯', exact: true }).click();
   await restoreSavedCatalogCard(page);
-  await page.getByRole('link', { name: '回到 Tracker', exact: true }).click();
+  await navigateSite(page, 'index.html');
   await expect(page.locator('#catalogMaterialSelect')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '加入教材項目' })).toHaveCount(0);
   await expect(page.locator('#addItemBtn')).toBeVisible();

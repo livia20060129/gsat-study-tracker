@@ -3470,7 +3470,7 @@ function renderWeeklyItems(){
  id('weeklyItemList').innerHTML=html;
  id('weeklyItemBadge').textContent=total+' 項';
 }
-var studyItemsView='today',overviewMetricView='minutes';
+var studyItemsView='today',overviewMetricView='pages';
 function updateStudyItemsView(focusSelected){
  studyItemsView=normalizeStudyItemsView(studyItemsView);
  var today=studyItemsView==='today',tabs=id('studyItemsViewTabs'),index=studyItemsViewIndex(studyItemsView);tabs.dataset.active=String(index);
@@ -4041,9 +4041,9 @@ function renderSubjectTimeDonut(summary){
  var aria=summary.slices.map(function(slice){return slice.subject+' '+slice.minutes+' 分鐘，占 '+slice.percent+'%'}).join('；');
  var arcs=subjectTimeDonutSlices(summary),circles='',labels='';
  arcs.forEach(function(slice,index){
-  var fontSize=(slice.endPercent-slice.startPercent)<6?10.5:13;
+  var fontSize=16;
   circles+='<path class="subject-time-slice" data-subject-time-index="'+index+'" d="'+subjectTimeArcPath(slice)+'" fill="none" stroke="'+slice.color+'" stroke-width="30" tabindex="0" role="button" aria-label="'+esc(slice.subject)+' '+slice.minutes+' 分鐘，占 '+slice.percent+'%"></path>';
-  labels+='<text class="subject-time-ring-label" x="'+slice.labelX+'" y="'+slice.labelY+'" font-size="'+fontSize+'">'+SUBJECT_TIME_SHORT_LABELS[slice.subject]+'</text>';
+  if(slice.endPercent-slice.startPercent>=6)labels+='<text class="subject-time-ring-label" x="'+slice.labelX+'" y="'+slice.labelY+'" font-size="'+fontSize+'">'+SUBJECT_TIME_SHORT_LABELS[slice.subject]+'</text>';
  });
  var svg='<svg class="subject-time-ring" viewBox="0 0 160 160"><circle class="subject-time-track" cx="80" cy="80" r="56" fill="none" stroke-width="30"></circle>'+circles+labels+'</svg>';
  chart.innerHTML='<div class="subject-time-chart" role="group" aria-label="今日各科完成時間佔比：'+esc(aria)+'">'+svg+center+'</div>';
@@ -4166,7 +4166,7 @@ function persist(show,options){
   relinkDailyWorkSourceItems(data.items);
  var ok=false;
  try{ok=writeStoredRecord(data)&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
- if(ok)dataLoadBase=cloneRecord(data);
+ if(ok){dataLoadBase=cloneRecord(data);window.dispatchEvent(new Event('study-records-changed'))}
  if(ok&&(changed||data.localDirty)&&!data.syncConflict)queueCloudSave(data);
  if(ok)updateCloudStatusBadge();
  if(show)id('status').textContent=ok?(cloudUser?(data.syncConflict?'已儲存本機，但此日期有同步衝突；未覆蓋雲端。':(changed?'已儲存 '+data.date+'；正在同步雲端。':'紀錄未變更，不需重新同步。')):(storagePersistent?'已儲存 '+data.date+' 的本機紀錄。':'已暫存；目前環境可能無法永久保存。')):'儲存失敗，請先不要關閉頁面。';return ok;
@@ -4497,7 +4497,7 @@ id('englishTaskChoice').addEventListener('click',function(e){
 id('studyItemsViewTabs').addEventListener('click',function(e){var button=e.target.closest('[data-study-items-view]');if(!button)return;studyItemsView=button.getAttribute('data-study-items-view');updateStudyItemsView(false)});
 id('studyItemsViewTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')studyItemsView='today';else if(e.key==='End')studyItemsView='week';else studyItemsView=adjacentStudyItemsView(studyItemsView,e.key==='ArrowRight'?1:-1);updateStudyItemsView(true)});
 id('overviewMetricTabs').addEventListener('click',function(e){var button=e.target.closest('[data-overview-metric]');if(!button)return;overviewMetricView=button.getAttribute('data-overview-metric');updateOverviewMetricView(false)});
-id('overviewMetricTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')overviewMetricView='minutes';else if(e.key==='End')overviewMetricView='mathWeek';else overviewMetricView=adjacentOverviewMetric(overviewMetricView,e.key==='ArrowRight'?1:-1);updateOverviewMetricView(true)});
+id('overviewMetricTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')overviewMetricView='pages';else if(e.key==='End')overviewMetricView='completion';else overviewMetricView=adjacentOverviewMetric(overviewMetricView,e.key==='ArrowRight'?1:-1);updateOverviewMetricView(true)});
 id('activeTimerSummary').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('change',handleWeeklyChange);
