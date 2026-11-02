@@ -6,7 +6,9 @@ import { overduePreviewGroups } from './study/overdueItemFilter.ts';
 import { studyItemProgress } from './study/itemProgress.ts';
 import { siteNavigationPage } from './ui/siteNavigation.ts';
 import { initializeSidebarDate } from './ui/sidebarDate.ts';
+import { initializeDisclosureMotion } from './ui/disclosureMotion.ts';
 import type { StudyItem, StudyRecord } from './types.ts';
+initializeDisclosureMotion();
 const cache = new Map<string, {
     raw: string;
     record: StudyRecord;

@@ -47,7 +47,9 @@ function initializeRoutineDisclosure(): void {
     const nextDay = field.querySelector('.routine-time-meta');
     if (nextDay)
         summary.insertBefore(nextDay, summary.lastElementChild);
-    details.addEventListener('toggle', () => summary.setAttribute('aria-expanded', String(details.open)));
+    details.addEventListener('toggle', function updateRoutineDisclosureState(): void {
+        summary.setAttribute('aria-expanded', String(details.open && details.dataset.disclosureMotion !== 'closing'));
+    });
     summary.setAttribute('aria-expanded', 'false');
 }
 export function initializeTrackerLayout(): void {

@@ -1,4 +1,5 @@
 import type { PendingSyncEntry } from '../application/cloud/pendingCloudSync.ts';
+import { animateVisibility } from './disclosureMotion.ts';
 
 const PHASE_LABELS = { waiting: '等待同步', queued: '已排入同步', uploading: '同步中',
   failed: '同步失敗，等待重試', blocked: '需要處理', paused: '已暫停', conflict: '版本衝突' };
@@ -30,9 +31,10 @@ export function initializePendingSyncDialog(
     close(): void { dialog.close(); },
     message(text): void { message.textContent = text; },
     comparison(date, text): void {
-      comparison.hidden = !date;
+      if (!date) animateVisibility(comparison, false);
       comparison.querySelector('[data-pending-date]')!.textContent = date;
       comparison.querySelector('[data-pending-diff]')!.textContent = text;
+      if (date) animateVisibility(comparison, true);
     },
     render(entries): void {
       dialog.querySelector('[data-pending-count]')!.textContent = entries.length ? `${entries.length} 天尚待確認或處理` : '目前沒有待同步紀錄';

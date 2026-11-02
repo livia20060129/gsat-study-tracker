@@ -36,9 +36,11 @@ async function seedVocabulary(page: Page): Promise<void> {
 }
 
 async function expectTwoColumns(rows: Locator): Promise<void> {
-  const first = (await rows.nth(0).boundingBox())!;
-  const second = (await rows.nth(1).boundingBox())!;
-  const third = (await rows.nth(2).boundingBox())!;
+  await expect.poll(() => rows.evaluateAll(nodes => nodes.every(node => !node.hasAttribute('data-disclosure-motion')))).toBe(true);
+  const [first, second, third] = await rows.evaluateAll(nodes => nodes.slice(0, 3).map(node => {
+    const rect = node.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  }));
   expect(Math.abs(first.y - second.y)).toBeLessThan(1);
   expect(second.x).toBeGreaterThanOrEqual(first.x + first.width);
   expect(third.y).toBeGreaterThanOrEqual(first.y + first.height);

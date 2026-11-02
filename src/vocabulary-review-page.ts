@@ -1,4 +1,5 @@
 import './vocabulary-review.css';
+import { animateDisclosureReplacement, captureDisclosure } from './ui/disclosureMotion.ts';
 import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { DictionaryPreview } from './ui/dictionaryPreview.ts';
@@ -885,14 +886,20 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
   if (!button) return;
   const key = button.dataset.editEntry;
   if (!key) return;
+  const before = [...element('vocabularyList').querySelectorAll<HTMLElement>('.vocabulary-row')]
+    .filter(row => row.dataset.entryKey === key).map(row => captureDisclosure(row));
   if (editingEntryKeys.has(key)) editingEntryKeys.delete(key);
   else editingEntryKeys.add(key);
   renderEntries();
+  [...element('vocabularyList').querySelectorAll<HTMLElement>('.vocabulary-row')]
+    .filter(row => row.dataset.entryKey === key).forEach(function animateEditor(row, index): void {
+      if (before[index]) animateDisclosureReplacement(row, before[index]);
+    });
   if (!editingEntryKeys.size && vocabularyRefreshPending) scheduleVocabularyRefresh();
   if (editingEntryKeys.has(key)) {
     element<HTMLDivElement>('vocabularyList')
       .querySelector<HTMLInputElement>(`[data-entry-key="${CSS.escape(key)}"] [data-vocabulary-content-kind]:checked`)
-      ?.focus();
+      ?.focus({ preventScroll: true });
   }
 });
 

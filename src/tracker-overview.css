@@ -94,6 +94,7 @@
 }
 
 .routine-disclosure-toggle i {
+  transition: transform .24s ease;
   width: 6px;
   height: 6px;
   flex: none;
@@ -433,7 +434,7 @@
 }
 
 @media (prefers-reduced-motion:reduce) {
-  .mood-segment-indicator, .overview-metric-stat .metric-panel {
+  .mood-segment-indicator, .overview-metric-stat .metric-panel, .routine-disclosure-toggle i {
     transition: none;
   }
 }

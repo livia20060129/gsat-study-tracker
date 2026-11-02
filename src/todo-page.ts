@@ -1,4 +1,5 @@
 import './todo-page.css';
+import { animateDisclosureChange, initializeDisclosureMotion } from './ui/disclosureMotion.ts';
 import { applyStudyHeadingHierarchy, studyFieldHierarchy } from './ui/studyFieldHierarchy.ts';
 
 import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
@@ -43,6 +44,7 @@ import {
   pauseStudyTimer,
 } from './study/studyTimer.ts';
 import type { StudyRecord, StudyTimerState, StudyTimeMode } from './types.ts';
+initializeDisclosureMotion();
 
 interface TodoActionTarget {
   recordDate: string;
@@ -833,8 +835,10 @@ function toggleTodoCard(card: HTMLElement): void {
   if (!key) return;
   if (expandedCards.has(key)) expandedCards.delete(key);
   else expandedCards.add(key);
-  card.dataset.expanded = String(expandedCards.has(key));
-  card.querySelector('[data-todo-expand]')?.setAttribute('aria-expanded', String(expandedCards.has(key)));
+  animateDisclosureChange(card, function applyExpandedState(): void {
+    card.dataset.expanded = String(expandedCards.has(key));
+    card.querySelector('[data-todo-expand]')?.setAttribute('aria-expanded', String(expandedCards.has(key)));
+  });
 }
 
 element<HTMLDivElement>('todoList').addEventListener('click', function handleTodoClick(event): void {
