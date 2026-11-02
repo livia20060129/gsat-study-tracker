@@ -50,6 +50,8 @@ export interface StudyItemFields {
 export type GsatVocabularyLevel = 1 | 2 | 3 | 4 | 5 | 6;
 export type EnglishReviewPartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb' | 'preposition' | 'conjunction' | 'pronoun' | 'article' | 'auxiliary';
 export type VocabularyTranslations = Partial<Record<EnglishReviewPartOfSpeech | 'unclassified', string[]>>;
+/** False is retained so clearing a star also wins over older copies of the word. */
+export type VocabularyStars = Record<string, boolean>;
 
 export interface EnglishReviewWordEntry extends Record<string, unknown> {
   /** Per-field manual choices also protect edits made while dictionary data is loading. */
@@ -60,6 +62,7 @@ export interface EnglishReviewWordEntry extends Record<string, unknown> {
   gsatLevel?: GsatVocabularyLevel;
   showGsatLevel?: boolean;
   translationsByPartOfSpeech?: VocabularyTranslations;
+  vocabularyStars?: VocabularyStars;
 }
 
 export type StudyTimeMode = 'manual' | 'timer';

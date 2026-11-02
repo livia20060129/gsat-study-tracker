@@ -42,6 +42,24 @@
 .vocabulary-meaning{display:grid}
 .vocabulary-meaning-answer,.vocabulary-meaning-mask{grid-area:1/1;min-width:0}
 .vocabulary-meaning-mask{visibility:hidden}
+.vocabulary-card-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:5px;flex:0 0 auto;max-width:100%}
+.vocabulary-star{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:5px;border:0;border-radius:8px;background:transparent;color:#94a3b8;cursor:pointer}
+.vocabulary-star svg{flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linejoin:round}
+.vocabulary-star[aria-pressed="true"]{color:#a66a08;background:#fff4d6}
+.vocabulary-star[aria-pressed="true"] svg{fill:#edb948}
+.vocabulary-star:hover{color:#946008;background:#fff8e7}
+.vocabulary-star:focus-visible{outline:2px solid #c58a28;outline-offset:2px}
+.vocabulary-card-star{width:36px;height:36px}
+.vocabulary-card-star svg{width:24px;height:24px}
+.vocabulary-row.is-card-starred{border-color:#dbb766;box-shadow:inset 3px 0 0 #dbb766}
+.vocabulary-meaning{grid-template-columns:minmax(0,1fr) 32px;align-items:center;column-gap:8px;min-height:32px}
+.vocabulary-meaning>.vocabulary-star{grid-column:2;grid-row:1}
+.is-word-starred{border-radius:3px;background:#fff0bd;box-shadow:0 1px 0 #dcae48}
+.vocabulary-token-list{line-height:2}
+.vocabulary-star.vocabulary-token{display:inline-flex;width:auto;height:auto;min-height:32px;gap:3px;margin:2px 1px;padding:2px 4px;border:1px dashed #cbd5e1;border-radius:5px;color:#35567f;font:inherit;vertical-align:baseline;overflow-wrap:anywhere;max-width:100%}
+.vocabulary-star.vocabulary-token[aria-pressed="true"]{color:#8c5a05}
+.vocabulary-token svg{width:12px;height:12px}
+@media(max-width:700px){.vocabulary-identity-head{flex-wrap:wrap}.vocabulary-card-actions{margin-left:auto}.vocabulary-star{min-height:36px}.vocabulary-meaning{grid-template-columns:minmax(0,1fr) 36px;min-height:36px}}
 .is-masked .vocabulary-meaning-answer{visibility:hidden}
 .is-masked .vocabulary-meaning-mask{visibility:visible}
 [data-export-vocabulary]{min-height:40px;padding:8px 12px;border:1px solid #cbd8ea;border-radius:10px;background:#fff;color:#315b91;font:inherit;font-size:12px;font-weight:700;cursor:pointer}

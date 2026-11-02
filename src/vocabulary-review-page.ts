@@ -22,6 +22,7 @@ import { vocabularyMeaningGroups } from './study/vocabularyMeaningGroups.ts';
 import { vocabularyPrintDocument } from './study/vocabularyPrint.ts';
 import { vocabularyReference } from './study/vocabularyAutoFill.ts';
 import { loadEcdictTranslations } from './study/ecdictLookup.ts';
+import { vocabularyMeaningStarKeys, vocabularyWordTokens } from './study/vocabularyStars.ts';
 import type { StudyRecord, VocabularyTranslations } from './types.ts';
 
 const GROUPING_MODES = ['alphabetical', 'partOfSpeech', 'gsatLevel'] as const;
@@ -36,6 +37,7 @@ let groupingMode: VocabularyGroupingMode = 'alphabetical';
 let searchText = '';
 let translationsVisible = true;
 const editingEntryKeys = new Set<string>();
+const annotatingEntryKeys = new Set<string>();
 const dictionaryPreviews = new Set<DictionaryPreview>();
 const speech = new VocabularySpeech(document.getElementById('vocabularySpeechStatus')!);
 window.addEventListener('pagehide', function stopSpeech(): void { speech.cancel(); });
@@ -75,11 +77,50 @@ function filteredEntries(): VocabularyReviewEntry[] {
   ));
 }
 
+function createStarButton(entry: VocabularyReviewEntry, key: string, label: string): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'vocabulary-star';
+  button.dataset.starKey = key;
+  button.setAttribute('aria-label', label);
+  button.setAttribute('aria-pressed', String(entry.vocabularyStars?.[key] === true));
+  button.title = label;
+  button.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"/></svg>';
+  return button;
+}
+
+function appendWordText(container: HTMLElement, entry: VocabularyReviewEntry, interactive: boolean): void {
+  let end = 0;
+  for (const token of vocabularyWordTokens(entry.text)) {
+    container.append(document.createTextNode(entry.text.slice(end, token.start)));
+    const marked = entry.vocabularyStars?.[token.key] === true;
+    if (interactive) {
+      const button = createStarButton(entry, token.key, `標註英文單字「${token.text}」`);
+      button.classList.add('vocabulary-token');
+      button.prepend(document.createTextNode(token.text));
+      container.append(button);
+    } else {
+      const span = document.createElement('span');
+      span.textContent = token.text;
+      span.classList.toggle('is-word-starred', marked);
+      container.append(span);
+    }
+    end = token.end;
+  }
+  container.append(document.createTextNode(entry.text.slice(end)));
+}
+
 function createWordLink(entry: VocabularyReviewEntry): HTMLElement {
+  if (annotatingEntryKeys.has(entry.key)) {
+    const tokens = document.createElement('span');
+    tokens.className = 'vocabulary-word-text vocabulary-token-list';
+    appendWordText(tokens, entry, true);
+    return tokens;
+  }
   if (!entry.lookupUrl) {
     const text = document.createElement('span');
     text.className = 'vocabulary-word-text';
-    text.textContent = entry.text;
+    appendWordText(text, entry, false);
     return text;
   }
   const link = document.createElement('a');
@@ -87,7 +128,7 @@ function createWordLink(entry: VocabularyReviewEntry): HTMLElement {
   link.href = entry.lookupUrl;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  link.textContent = entry.text;
+  appendWordText(link, entry, false);
   link.title = `在 Oxford Learner's Dictionaries 查詢「${entry.lookupQuery}」`;
   link.setAttribute('aria-label', `${entry.text}；在 Oxford Learner's Dictionaries 開啟查詢結果`);
   return link;
@@ -319,7 +360,8 @@ function createReadonlyTranslations(entry: VocabularyReviewEntry): HTMLElement {
       heading.textContent = partOfSpeech;
       group.append(heading);
     }
-    for (const meaning of meanings) {
+    const starKeys = vocabularyMeaningStarKeys(partOfSpeech, meanings);
+    for (const [index, meaning] of meanings.entries()) {
       const translation = document.createElement('p');
       translation.className = 'vocabulary-meaning';
       const answer = document.createElement('span');
@@ -329,6 +371,7 @@ function createReadonlyTranslations(entry: VocabularyReviewEntry): HTMLElement {
       mask.className = 'vocabulary-meaning-mask';
       mask.textContent = '－';
       translation.append(answer, mask);
+      if (meaning) translation.append(createStarButton(entry, starKeys[index], `標註 ${partOfSpeech || '中文'} 第 ${index + 1} 筆翻譯`));
       group.append(translation);
     }
     container.append(group);
@@ -362,6 +405,7 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   const article = document.createElement('article');
   article.className = 'vocabulary-row';
   article.dataset.entryKey = entry.key;
+  article.classList.toggle('is-card-starred', entry.vocabularyStars?.card === true);
 
   const identity = document.createElement('div');
   identity.className = 'vocabulary-identity';
@@ -390,7 +434,22 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
   editButton.textContent = editingEntryKeys.has(entry.key) ? '完成' : '編輯';
   editButton.setAttribute('aria-expanded', String(editingEntryKeys.has(entry.key)));
   editButton.setAttribute('aria-label', `${editButton.textContent}「${entry.text}」`);
-  identityHead.append(editButton);
+  const actions = document.createElement('div');
+  actions.className = 'vocabulary-card-actions';
+  const cardStar = createStarButton(entry, 'card', `標註整張卡片「${entry.text}」`);
+  cardStar.classList.add('vocabulary-card-star');
+  actions.append(cardStar);
+  if (vocabularyWordTokens(entry.text).length) {
+    const annotate = document.createElement('button');
+    annotate.type = 'button';
+    annotate.className = 'vocabulary-edit-button vocabulary-annotate-button';
+    annotate.dataset.annotateEntry = entry.key;
+    annotate.textContent = annotatingEntryKeys.has(entry.key) ? '結束標註' : '個別標註';
+    annotate.setAttribute('aria-pressed', String(annotatingEntryKeys.has(entry.key)));
+    actions.append(annotate);
+  }
+  actions.append(editButton);
+  identityHead.append(actions);
   identity.append(identityHead);
   const kinds = document.createElement('div');
   kinds.className = 'vocabulary-kinds';
@@ -708,6 +767,24 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
   }
 });
 element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
+  const star = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-star-key]');
+  if (star) {
+    const row = star.closest<HTMLElement>('.vocabulary-row');
+    const entry = allEntries.find(candidate => candidate.key === row?.dataset.entryKey);
+    const key = star.dataset.starKey;
+    if (!entry || !key) return;
+    const marked = entry.vocabularyStars?.[key] !== true;
+    if (saveEntryEditsResult(entry, { star: { key, marked } }) !== 'failed') updateEntryStarUI(entry.key);
+    return;
+  }
+  const annotate = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-annotate-entry]');
+  if (annotate) {
+    const key = annotate.dataset.annotateEntry!;
+    if (annotatingEntryKeys.has(key)) annotatingEntryKeys.delete(key);
+    else annotatingEntryKeys.add(key);
+    updateEntryStarUI(key, true);
+    return;
+  }
   const action = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-add-translation], [data-delete-translation]');
   if (action) {
     if (action.disabled) return;
@@ -722,7 +799,8 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
     else return;
     const groups = vocabularyTranslationGroups(entry.translation, entry.tags, entry.translationsByPartOfSpeech);
     groups[field] = values;
-    if (saveEntryEdits(entry, { translationsByPartOfSpeech: groups })) renderEntries();
+    const translationRemoval = action.hasAttribute('data-delete-translation') ? { field, index: Number(action.dataset.deleteTranslation) } : undefined;
+    if (saveEntryEdits(entry, { translationsByPartOfSpeech: groups, translationRemoval })) renderEntries();
     return;
   }
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-edit-entry]');
@@ -738,6 +816,27 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
       ?.focus();
   }
 });
+
+/** Update every POS copy in place, preserving editors, focus and pending dictionary previews. */
+function updateEntryStarUI(key: string, replaceWord = false): void {
+  const entry = allEntries.find(candidate => candidate.key === key);
+  if (!entry) return;
+  for (const row of element('vocabularyList').querySelectorAll<HTMLElement>('.vocabulary-row')) {
+    if (row.dataset.entryKey !== key) continue;
+    row.classList.toggle('is-card-starred', entry.vocabularyStars?.card === true);
+    for (const button of row.querySelectorAll<HTMLButtonElement>('[data-star-key]')) {
+      button.setAttribute('aria-pressed', String(entry.vocabularyStars?.[button.dataset.starKey!] === true));
+    }
+    const annotate = row.querySelector<HTMLButtonElement>('[data-annotate-entry]');
+    if (annotate) {
+      annotate.textContent = annotatingEntryKeys.has(key) ? '結束標註' : '個別標註';
+      annotate.setAttribute('aria-pressed', String(annotatingEntryKeys.has(key)));
+    }
+    if (replaceWord || !annotatingEntryKeys.has(key)) {
+      row.querySelector('.vocabulary-word-heading > :is(.vocabulary-word-link,.vocabulary-word-text)')?.replaceWith(createWordLink(entry));
+    }
+  }
+}
 element<HTMLButtonElement>('refreshVocabulary').addEventListener('click', load);
 element<HTMLButtonElement>('toggleVocabularyTranslations').addEventListener('click', () => {
   translationsVisible = !translationsVisible;
