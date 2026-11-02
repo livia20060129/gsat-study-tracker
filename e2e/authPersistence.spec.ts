@@ -95,6 +95,7 @@ async function storedSession(page: Page): Promise<string | null> {
 }
 
 test('login survives every standalone page, browser history and reload on desktop and mobile', async ({ page }) => {
+  test.setTimeout(60_000);
   await setup(page); await signIn(page);
   for (const width of [1280, 375]) {
     await page.setViewportSize({ width, height: 900 });

@@ -3,15 +3,17 @@ import { decodeStudyRecord } from './storage/studyRecordCodec.ts';
 import { overdueTasks } from './study/overdueTasks.ts';
 import { overdueEntriesForPeriod } from './study/overduePeriod.ts';
 import { studyItemProgress } from './study/itemProgress.ts';
+import { siteNavigationPage } from './ui/siteNavigation.ts';
+import { initializeSidebarDate } from './ui/sidebarDate.ts';
 import type { StudyItem, StudyRecord } from './types.ts';
 const cache = new Map<string, {
     raw: string;
     record: StudyRecord;
 }>();
-const currentPage = location.pathname.split('/').pop() || 'index.html';
+const currentPage = siteNavigationPage(location.pathname);
 const tools = [
-    ['todo.html', '待辦事項', '全部、本月、本週的逾期項目', '□'],
-    ['material.progress.html', '教材進度圖', '檢視範圍與管理教材目錄', '▤'],
+    ['todo.html', '待辦事項', '全部、本月、本週的逾期項目', '📅'],
+    ['material.progress.html', '教材進度圖', '檢視範圍與管理教材目錄', '📖'],
     ['vocabulary.review.html', '英文單字複習', '單字、組合與句子', 'Aa'],
     ['gpt.prompt.html', '排程建議prompt', '用於 AI 幫助 Google Calendar 排程', '✧'],
 ];
@@ -47,7 +49,7 @@ right.setAttribute('aria-label', '工具與本週逾期');
 right.innerHTML = `<div class="site-rail-top"><a class="site-workspace-home" href="./index.html"${currentPage === 'index.html' ? ' aria-current="page"' : ''}><strong>GSAT Tracker</strong><span>回到主頁 ↗</span></a><button type="button" class="site-rail-close" data-close-rail aria-label="收合右側工具欄">×</button></div><nav class="site-tools" aria-label="讀書工具">${tools.map(([href, title, caption, icon]) => `<a href="./${href}"${currentPage === href ? ' aria-current="page"' : ''}><span class="site-tool-icon" aria-hidden="true">${icon}</span><span><strong>${title}</strong><small>${caption}</small></span><span class="site-tool-arrow" aria-hidden="true">→</span></a>`).join('')}</nav><section class="site-overdue"><header><h2>本週逾期</h2><span data-rail-overdue-count>0 項</span></header><div data-rail-overdue-list></div><a class="site-overdue-all" href="./todo.html?period=all">查看全部待辦 →</a></section>`;
 const bar = document.createElement('div');
 bar.className = 'site-mobile-bar';
-bar.innerHTML = '<button type="button" data-open-rail="left" aria-controls="siteLeftRail" aria-expanded="false">☰ 紀錄</button><a href="./index.html">讀書紀錄卡</a><button type="button" data-open-rail="right" aria-controls="siteRightRail" aria-expanded="false">工具 ☷</button>';
+bar.innerHTML = '<button type="button" data-open-rail="left" aria-controls="siteLeftRail" aria-expanded="false"><span aria-hidden="true">📝</span> 紀錄</button><a href="./index.html">讀書紀錄卡</a><button type="button" data-open-rail="right" aria-controls="siteRightRail" aria-expanded="false">工具 <span aria-hidden="true">🛠️</span></button>';
 const backdrop = document.createElement('button');
 backdrop.type = 'button';
 backdrop.className = 'site-rail-backdrop';
@@ -65,6 +67,10 @@ right.querySelectorAll<HTMLAnchorElement>('.site-tools a').forEach(link => {
 });
 left.querySelector('.site-summary-link')!.setAttribute('aria-label', '週／月總結');
 document.body.append(left, right, bar, backdrop);
+const sidebarDate = initializeSidebarDate(left, dateKey(), function dateChanged(): void {
+    scheduleRefresh();
+    if (matchMedia('(max-width: 1199px)').matches) closeRail();
+});
 let opener: HTMLElement | null = null;
 function closeRail(): void {
     document.documentElement.classList.remove('site-rail-open');
@@ -147,7 +153,7 @@ function refreshRails(): void {
         for (const key of cache.keys())
             if (!keys.has(key))
                 cache.delete(key);
-        const today = dateKey(), selected = (document.getElementById('studyDate') as HTMLInputElement | null)?.value || today;
+        const today = dateKey(), selected = sidebarDate.value || today;
         const anchor = new Date(`${selected}T12:00:00`), monday = new Date(anchor);
         monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
         let count = 0;

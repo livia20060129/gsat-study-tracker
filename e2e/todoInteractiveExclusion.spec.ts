@@ -1,4 +1,4 @@
-import { navigateSite } from './helpers/siteNavigation.ts';
+import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -40,8 +40,7 @@ test('interactive items stay out of todo subject counts while original cards rem
   await expect(page.locator('.todo-card')).toHaveCount(1);
   expect(await page.evaluate(({ prefix, date }) => localStorage.getItem(prefix + date), { prefix, date })).toBe(original);
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   const interactive = page.locator('[data-item="excluded-englishPractice"]');
   await expect(interactive.locator('[data-minutes]')).toHaveValue('25');
   await interactive.locator('[data-check="listening"]').check();

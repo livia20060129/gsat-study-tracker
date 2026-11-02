@@ -1,3 +1,4 @@
+import { selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -27,13 +28,15 @@ async function openMathCalendar(page: Page, manual = false, scenario: 'condition
       event_date: recordDate, title: `${book}｜${topic}`, category: 'math', event_updated_at: null, metadata: {},
       description: `【講義版本】教學講義 【冊別】${book} 【單元進度】${topic}（${part}/${total}） ${source} 【識別碼】part${part}` };
   });
-  await page.route('https://arxbirgujbrtzhoficdf.supabase.co/**', async route => {
+  await page.context().route('https://arxbirgujbrtzhoficdf.supabase.co/**', async route => {
     const request = route.request();
+    const requestHeaders = await request.allHeaders();
     const url = new URL(request.url());
     const headers = {
-      'Access-Control-Allow-Origin': request.headers().origin || '*',
-      'Access-Control-Allow-Headers': request.headers()['access-control-request-headers'] || 'authorization,apikey,content-type,x-client-info',
+      'Access-Control-Allow-Origin': requestHeaders.origin || 'http://127.0.0.1:4173',
+      'Access-Control-Allow-Headers': requestHeaders['access-control-request-headers'] || 'authorization,apikey,content-type,x-client-info,x-supabase-api-version,x-supabase-client-platform,x-supabase-client-platform-version,x-supabase-client-runtime,x-supabase-client-runtime-version',
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Credentials': 'true',
     };
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
     if (url.pathname.endsWith('/functions/v1/google-calendar')) return route.fulfill({ json: { connected: true }, headers });
@@ -73,6 +76,7 @@ async function openMathCalendar(page: Page, manual = false, scenario: 'condition
   }, { date: recordDate, userId, prefix, parts, manual, scenario, book, recordedStart, recordedEnd });
   await page.goto('/');
   await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
 }
 
 async function source(page: Page, part: number, recordDate = date) {
@@ -109,8 +113,10 @@ test('October 29 moved math fractions repair blank page fields, merge adjacent r
     expect(saved.item.done).toBe(false);
     expect(saved.notes).toBe('保留今天的筆記');
   }
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
   await page.reload();
   await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
   await expect(card.locator('[data-field="start"]').first()).toHaveValue('151');
   await expect(card.locator('[data-field="end"]').first()).toHaveValue('174');
   await card.scrollIntoViewIfNeeded();
@@ -159,10 +165,8 @@ test('November 2 triangle source dates repair 2/5 and 3/5 ranges on desktop/mobi
     expect(saved.notes).toBe('保留今天的筆記');
   }
   await card.locator('[data-done]').first().check();
-  await page.locator('#studyDate').fill('2026-11-03');
-  await page.locator('#studyDate').dispatchEvent('change');
-  await page.locator('#studyDate').fill(recordDate);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-11-03');
+  await selectStudyDate(page, recordDate);
   await page.reload();
   await expect(card.locator('[data-field="start"]').first()).toHaveValue('228');
   await expect(card.locator('[data-field="end"]').first()).toHaveValue('245');

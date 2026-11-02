@@ -54,11 +54,15 @@
           <button type="button" data-grouping-mode="partOfSpeech" aria-pressed="false">詞性</button>
           <button type="button" data-grouping-mode="gsatLevel" aria-pressed="false">Level</button>
         </div>
+        <div class="vocabulary-reading-tools" role="group" aria-label="中文與發音">
         <button id="toggleVocabularyTranslations" type="button" aria-controls="vocabularyList" aria-pressed="false">隱藏中文</button>
         <label class="vocabulary-accent">發音口音 <select id="vocabularyAccent"><option value="en-US">美式</option><option value="en-GB">英式</option></select></label>
+        </div>
+        <div class="vocabulary-export-tools" role="group" aria-label="匯出單字表">
         <label class="vocabulary-accent">匯出格式 <select id="vocabularyExportFormat"><option value="pdf">PDF（Adobe）</option><option value="docx">Word（DOCX）</option></select></label>
         <button type="button" data-export-vocabulary="translated">匯出 PDF（有翻譯）</button>
         <button type="button" data-export-vocabulary="blank">匯出 PDF（無翻譯）</button>
+        </div>
         </div>
         <div id="vocabularyPartOfSpeechIndex" class="vocabulary-pos-index" aria-label="按詞性篩選單字" hidden></div>
         <div id="vocabularyList" class="vocabulary-list"></div>

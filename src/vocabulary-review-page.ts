@@ -19,7 +19,6 @@ import {
 } from './study/vocabularyReview.ts';
 import { vocabularyTranslationGroups } from './study/vocabularyTranslationCounts.ts';
 import { vocabularyMeaningGroups } from './study/vocabularyMeaningGroups.ts';
-import { vocabularyPrintDocument } from './study/vocabularyPrint.ts';
 import { vocabularyReference } from './study/vocabularyAutoFill.ts';
 import { loadEcdictTranslations } from './study/ecdictLookup.ts';
 import { vocabularyMeaningStarKeys, vocabularyWordTokens } from './study/vocabularyStars.ts';
@@ -138,9 +137,10 @@ function saveEntryEditsResult(entry: VocabularyReviewEntry, edits: VocabularyWor
   let changed = false;
   try {
     for (const [index, base] of loadedRecords.entries()) {
-      const edited = saveLocalRecordEdit(localStorage, activeRecordPrefix, base, function applyWordEdit(record): StudyRecord | null {
-        const draft = cloneRecord(record);
-        return updateVocabularyWordEntries(draft, entry.key, edits) ? draft : null;
+      const draft = cloneRecord(base);
+      if (!updateVocabularyWordEntries(draft, entry.key, edits)) continue;
+      const edited = saveLocalRecordEdit(localStorage, activeRecordPrefix, base, function applyWordEdit(): StudyRecord {
+        return draft;
       });
       if (!edited) continue;
       changed = true;
@@ -607,6 +607,17 @@ function renderEntries(): void {
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-export-vocabulary]')) button.disabled = entries.length === 0;
 }
 
+let pdfFontLoad: Promise<ArrayBuffer> | undefined;
+function vocabularyPdfFont(): Promise<ArrayBuffer> {
+  if (!pdfFontLoad) {
+    pdfFontLoad = fetch(new URL('./fonts/NotoSansTC-Regular.ttf', document.baseURI)).then(function readFont(response): Promise<ArrayBuffer> {
+      if (!response.ok) throw new Error('PDF font unavailable');
+      return response.arrayBuffer();
+    }).catch(function retryFont(error): never { pdfFontLoad = undefined; throw error; });
+  }
+  return pdfFontLoad;
+}
+
 async function exportVocabulary(withTranslations: boolean): Promise<void> {
   let entries = filteredEntries();
   if (!entries.length) return;
@@ -616,30 +627,27 @@ async function exportVocabulary(withTranslations: boolean): Promise<void> {
     ordered.push(...entries.filter(entry => entry.tags.length === 0));
     entries = [...new Map(ordered.map(entry => [entry.key, entry])).values()];
   }
-  if (element<HTMLSelectElement>('vocabularyExportFormat').value === 'docx') {
-    const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-export-vocabulary]')];
-    buttons.forEach(button => { button.disabled = true; });
-    try {
+  const format = element<HTMLSelectElement>('vocabularyExportFormat').value;
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-export-vocabulary]')];
+  buttons.forEach(button => { button.disabled = true; });
+  try {
+    let blob: Blob;
+    if (format === 'docx') {
       const { vocabularyDocxDocument } = await import('./study/vocabularyDocx.ts');
-      const blob = await vocabularyDocxDocument(entries, activeContentKind, withTranslations);
-      const url = URL.createObjectURL(blob), link = document.createElement('a');
-      link.href = url; link.download = `英文${activeContentKind}表_${withTranslations ? '有' : '無'}翻譯.docx`;
-      document.body.append(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch {
-      element('vocabularyError').textContent = 'DOCX 匯出失敗，請稍後重試；原本的單字資料仍保留。';
-      element('vocabularyError').hidden = false;
-    } finally { buttons.forEach(button => { button.disabled = filteredEntries().length === 0; }); }
-    return;
-  }
-  const html = vocabularyPrintDocument(entries, activeContentKind, withTranslations);
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      blob = await vocabularyDocxDocument(entries, activeContentKind, withTranslations);
+    } else {
+      const { vocabularyPdfDocument } = await import('./study/vocabularyPdf.ts');
+      const bytes = await vocabularyPdfDocument(entries, activeContentKind, withTranslations, await vocabularyPdfFont());
+      blob = new Blob([Uint8Array.from(bytes)], { type: 'application/pdf' });
+    }
+    const url = URL.createObjectURL(blob), link = document.createElement('a');
+    link.href = url; link.download = `英文${activeContentKind}表_${withTranslations ? '有' : '無'}翻譯.${format === 'docx' ? 'docx' : 'pdf'}`;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {
+    element('vocabularyError').textContent = `${format === 'docx' ? 'DOCX' : 'PDF'} 匯出失敗，請稍後重試；原本的單字資料仍保留。`;
+    element('vocabularyError').hidden = false;
+  } finally { buttons.forEach(button => { button.disabled = filteredEntries().length === 0; }); }
 }
 
 function render(): void {
@@ -783,7 +791,9 @@ element<HTMLDivElement>('vocabularyList').addEventListener('change', event => {
   }
 });
 element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
-  const star = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-star-key]');
+  const target = event.target instanceof Element ? event.target : (event.target as Node | null)?.parentElement;
+  if (!target) return;
+  const star = target.closest<HTMLButtonElement>('[data-star-key]');
   if (star) {
     const row = star.closest<HTMLElement>('.vocabulary-row');
     const entry = allEntries.find(candidate => candidate.key === row?.dataset.entryKey);
@@ -793,7 +803,7 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
     if (saveEntryEditsResult(entry, { star: { key, marked } }) !== 'failed') updateEntryStarUI(entry.key);
     return;
   }
-  const annotate = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-annotate-entry]');
+  const annotate = target.closest<HTMLButtonElement>('[data-annotate-entry]');
   if (annotate) {
     const key = annotate.dataset.annotateEntry!;
     if (annotatingEntryKeys.has(key)) annotatingEntryKeys.delete(key);
@@ -801,7 +811,7 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
     updateEntryStarUI(key, true);
     return;
   }
-  const action = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-add-translation], [data-delete-translation]');
+  const action = target.closest<HTMLButtonElement>('[data-add-translation], [data-delete-translation]');
   if (action) {
     if (action.disabled) return;
     const row = action.closest<HTMLElement>('.vocabulary-row');

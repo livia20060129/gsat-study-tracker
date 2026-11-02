@@ -1,4 +1,4 @@
-import { navigateSite } from './helpers/siteNavigation.ts';
+import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 test('TOEFL supplemental book uses live page lookup, persists, and charts only five large RANK/index segments', async ({ page }) => {
@@ -11,8 +11,7 @@ test('TOEFL supplemental book uses live page lookup, persists, and charts only f
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await page.locator('#itemType').selectOption('extra');
   await page.locator('#addItemBtn').click();
   const newCard = page.locator('#itemList > [data-item]').last();
@@ -37,8 +36,7 @@ test('TOEFL supplemental book uses live page lookup, persists, and charts only f
   await card.locator('[data-check="progress"]').check();
   await card.locator('[data-done]').check();
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(title).toHaveValue(book);
   await expect(card.locator('[data-field="start"]')).toHaveValue('1');
   await expect(card.locator('[data-field="end"]')).toHaveValue('114');
@@ -78,8 +76,7 @@ test('TOEFL original and todo cards expose only progress, retain hidden legacy d
     ] }));
   }, { date, book, unlock });
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   const original = page.locator('[data-item="toefl-progress"]');
   const other = page.locator('[data-item="unlock-controls"]');
   await expect(original.locator('[data-check]')).toHaveCount(1);
@@ -95,8 +92,7 @@ test('TOEFL original and todo cards expose only progress, retain hidden legacy d
   await expect(todo.locator('[data-todo-progress="graded"],[data-todo-progress="corrected"]')).toHaveCount(0);
   await todo.locator('[data-todo-progress="progress"]').uncheck();
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(original.locator('[data-check="progress"]')).not.toBeChecked();
   await expect(original.locator('[data-check]')).toHaveCount(1);
   await expect(original.locator('[data-field="reason"]')).toHaveCount(0);

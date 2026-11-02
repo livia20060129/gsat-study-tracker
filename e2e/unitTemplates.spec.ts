@@ -1,4 +1,4 @@
-import { navigateSite } from './helpers/siteNavigation.ts';
+import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -20,8 +20,7 @@ test('legacy Calendar Unlock with a fraction shows editable pages without losing
     }] }));
   }, { prefix, date, book });
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   const card = page.locator('[data-item="legacy-unlock-unit"]');
   await expect(card.locator('[data-field="unitStart"],[data-field="unitEnd"]')).toHaveCount(0);
   await expect(card.locator('[data-field="start"]')).toHaveValue('');
@@ -31,8 +30,7 @@ test('legacy Calendar Unlock with a fraction shows editable pages without losing
   await card.locator('[data-field="end"]').fill('24');
   await card.locator('[data-field="end"]').blur();
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(card.locator('[data-field="start"]')).toHaveValue('14');
   await expect(card.locator('[data-field="end"]')).toHaveValue('24');
   await expect(card).toContainText('Animals');
@@ -67,8 +65,7 @@ test('todo Unit edits round-trip through the original card and completion withou
   await todo.locator('[data-todo-range="end"]').fill('4');
   await todo.locator('[data-todo-range="end"]').blur();
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   const card = page.locator('[data-item="todo-unlock-unit"]');
   await expect(card.locator('[data-field="unitStart"]')).toHaveValue('3');
   await expect(card.locator('[data-field="unitEnd"]')).toHaveValue('4');
@@ -80,8 +77,7 @@ test('todo Unit edits round-trip through the original card and completion withou
   await expect(todo.locator('[data-todo-range="end"]')).toHaveValue('2');
   await todo.locator('.todo-complete').click();
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(card.locator('[data-done]')).toBeChecked();
   await expect(card.locator('[data-field="unitStart"]')).toHaveValue('2');
   const stored = await page.evaluate(({ prefix, date }) => JSON.parse(localStorage.getItem(prefix + date)!).items.find((item: { id: string }) => item.id === 'todo-unlock-unit'), { prefix, date });

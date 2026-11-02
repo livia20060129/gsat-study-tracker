@@ -1,4 +1,4 @@
-import { navigateSite } from './helpers/siteNavigation.ts';
+import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -48,8 +48,7 @@ test('excluded English routines and listening material are absent from todo but 
   await expect(page.locator('.todo-card').filter({ hasText: '雜誌補充閱讀' })).toHaveCount(1);
   expect(await page.evaluate(({ prefix, date }) => localStorage.getItem(prefix + date), { prefix, date })).toBe(original);
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(page.getByText('英文歷屆／模考：批改與訂正', { exact: true })).toBeVisible();
   await expect(page.locator('[data-item="excluded-mixed"]')).toBeVisible();
   await expect(page.locator('[data-item="excluded-listening"]')).toBeVisible();

@@ -12,6 +12,7 @@
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
 import { renderStudyReference } from './ui/studyReference.ts';
+import { requestedStudyDate } from './ui/siteNavigation.ts';
 import { studyCardDescription } from './ui/studyDescription.ts';
 import { deduplicateStudyIdentityFields } from './ui/studyIdentityFields.ts';
 import { decideRevisionSync, markRecordLocallyEdited, mergeStudyRecordsForUpload, mergeStudyRecordsThreeWay, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
@@ -4581,5 +4582,5 @@ window.addEventListener('online',function(){retryDirtyCloudRecordsOnReconnect().
 window.addEventListener('offline',function(){cloudSetMessage('目前離線；新紀錄已保存在本機，恢復連線後會立即重試。',false)});
 window.addEventListener('pagehide',function(){if(data)persist(false)});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&data)persist(false);else if(document.visibilityState==='visible')refreshVisibleRecordFromLocalChange()});
-id('studyDate').value=dateString(new Date());updateImportBackupButton();initCloud();
+id('studyDate').value=requestedStudyDate(window.location.search)||dateString(new Date());updateImportBackupButton();initCloud();
 setInterval(periodicCloudSave,PERIODIC_CLOUD_SAVE_MS);

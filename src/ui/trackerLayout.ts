@@ -35,6 +35,7 @@ function initializeMoodSlider(): void {
 }
 function initializeRoutineDisclosure(): void {
     const field = document.getElementById('routineTimeField')!;
+    const grid = field.closest('.today-info-grid')!;
     const details = document.createElement('details');
     details.id = 'routineDisclosure';
     details.className = 'routine-disclosure';
@@ -42,6 +43,7 @@ function initializeRoutineDisclosure(): void {
     summary.innerHTML = '<strong>作息時間</strong><span class="routine-disclosure-toggle"><span class="routine-expand">展開</span><span class="routine-collapse">收合</span><i aria-hidden="true"></i></span>';
     field.before(details);
     details.append(summary, field);
+    grid.prepend(details);
     const nextDay = field.querySelector('.routine-time-meta');
     if (nextDay)
         summary.insertBefore(nextDay, summary.lastElementChild);

@@ -1,3 +1,4 @@
+import { selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
 
@@ -125,9 +126,8 @@ test('sync/status errors keep same-account items, completion, ranges and minutes
   await expect(card.locator('[data-field="start"]').first()).toHaveValue('151');
   await expect(card.locator('[data-field="end"]').first()).toHaveValue('162');
   await expect(card.locator('[data-minutes]').first()).toHaveValue('33');
-  const selector = page.locator('#studyDate');
-  await selector.fill('2026-10-30'); await selector.dispatchEvent('change');
-  await selector.fill(date); await selector.dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-30');
+  await selectStudyDate(page, date);
   await expect(card.locator('[data-done]').first()).toBeChecked();
   expect(await cached(page)).toBe(snapshot);
 });

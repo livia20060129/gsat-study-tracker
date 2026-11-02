@@ -1,6 +1,6 @@
 html.site-shell-ready {
-  --rail-left: 200px;
-  --rail-right: 260px;
+  --rail-left: 240px;
+  --rail-right: 300px;
   --rail-ink: #172a39;
   --rail-blue: #3967e9;
   scroll-padding-top: 72px;
@@ -156,6 +156,43 @@ body.has-site-shell {
   font: 400 44px/1.2 Georgia,serif;
 }
 
+.site-rail-date-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 58px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.site-rail-date-control:focus-within {
+  outline: 3px solid #85a7ff;
+  outline-offset: 4px;
+}
+
+.site-rail .site-date-edit {
+  color: #afc4dc;
+  font-size: 17px;
+}
+
+.site-rail .site-date-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .site-rail-date>span:last-child {
   font-size: 13px;
   color: #afc4dc;
@@ -300,7 +337,7 @@ body.has-site-shell {
   flex: none;
   border: 1px solid #d1dcdb;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 16px;
   color: #5a7281;
 }
 
@@ -419,6 +456,13 @@ body.has-site-shell {
   box-shadow: none;
 }
 
+.site-mobile-bar button>span {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 18px;
+  line-height: 1;
+}
+
 .site-rail-backdrop {
   position: fixed;
   z-index: 1050;
@@ -458,8 +502,18 @@ html.site-rail-open {
     visibility: visible;
     transform: none;
     border-radius: 0;
-    padding: 34px 22px;
+    padding: 34px 26px;
   }
+  .site-brand strong { font-size: 17px; }
+  .site-rail-date strong { font-size: 48px; }
+  .site-week>strong { font-size: 36px; }
+  .site-summary-link { font-size: 14px; }
+  .site-workspace-home strong { font-size: 28px; }
+  .site-tools strong { font-size: 14px; }
+  .site-tools small { font-size: 12px; }
+  .site-rail h2 { font-size: 14px; }
+  .site-overdue-item strong { font-size: 13px; }
+  .site-overdue-item small, .site-overdue-all { font-size: 12px; }
   .site-rail-left {
     width: var(--rail-left);
   }
@@ -475,6 +529,21 @@ html.site-rail-open {
   .has-site-shell .connection-dock {
     top: 64px;
     max-height: calc(100dvh - 76px);
+  }
+}
+
+@media (min-width:1200px) and (max-width:1399px) {
+  .has-site-shell .summary-header {
+    grid-template-columns: minmax(0,1fr) auto;
+  }
+  .has-site-shell .summary-period-nav {
+    grid-column: 1/-1;
+    grid-row: 2;
+    min-width: 0;
+  }
+  .has-site-shell .summary-view-controls {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 

@@ -1,4 +1,4 @@
-import { navigateSite } from './helpers/siteNavigation.ts';
+import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test, type Page } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -234,8 +234,7 @@ test('the visible grouped card and its todo source control the same timer in bot
   await source.locator('[data-todo-timer-action="toggle"]').click();
   await page.clock.runFor(5_000);
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   const visible = page.locator('#dailyItemList [data-item]').filter({
     has: page.locator('input[data-field="start"][value="10"]'),
   }).last();
@@ -267,8 +266,7 @@ test('todo completion and undo check the original grouped scope after navigation
   await expect(page.locator('.todo-card')).toHaveCount(1);
 
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   const original = page.locator('#dailyItemList [data-item]').filter({
     has: page.locator('input[data-field="start"][value="10"]'),
   }).last();
@@ -279,21 +277,17 @@ test('todo completion and undo check the original grouped scope after navigation
   await expect(original.locator('[data-completion-date]')).toHaveValue('2026-10-16');
   await expect(sibling.locator('[data-done]')).not.toBeChecked();
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(original.locator('[data-done]')).toBeChecked();
-  await page.locator('#studyDate').fill('2026-10-16');
-  await page.locator('#studyDate').dispatchEvent('change');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-16');
+  await selectStudyDate(page, date);
   await expect(original.locator('[data-done]')).toBeChecked();
 
   await navigateSite(page, 'todo.html');
   await expect(page.locator('.todo-history-item')).toHaveCount(1);
   await page.locator('.todo-history-undo').click();
   await page.goBack();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(original.locator('[data-done]')).not.toBeChecked();
   await expect(sibling.locator('[data-done]')).not.toBeChecked();
 });
@@ -302,8 +296,7 @@ test('todo completion refreshes an open original card without discarding its not
   await seedTodo(page);
   const originalPage = await context.newPage();
   await originalPage.goto('/');
-  await originalPage.locator('#studyDate').fill(date);
-  await originalPage.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(originalPage, date);
   const original = originalPage.locator('[data-item="reliability-source"]');
   await expect(original.locator('[data-done]')).not.toBeChecked();
   await originalPage.locator('#notes').fill('原卡尚在編輯的筆記');
@@ -321,15 +314,13 @@ test('todo completion refreshes an open original card without discarding its not
 test('returning from todo completion restores the original checkbox and completion date', async ({ page }) => {
   await seedTodo(page);
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await navigateSite(page, 'todo.html');
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="reliability-source"]') });
   await todo.locator('[data-todo-completion-date]').fill('2026-10-16');
   await todo.locator('.todo-complete').click();
   await page.goBack();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   const original = page.locator('[data-item="reliability-source"]');
   await expect(original.locator('[data-done]')).toBeChecked();
   await expect(original.locator('[data-completion-date]')).toHaveValue('2026-10-16');

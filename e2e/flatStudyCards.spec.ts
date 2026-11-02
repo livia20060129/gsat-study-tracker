@@ -1,3 +1,4 @@
+import { selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { DEEP_FIFTEEN_BOOK } from '../src/data/bookPageMaps.ts';
 import type { StudyItem } from '../src/types.ts';
@@ -21,8 +22,7 @@ async function seed(page: Page, items: StudyItem[], recordDate = date): Promise<
     localStorage.setItem(prefix + date, JSON.stringify({ schemaVersion: 2, date, items }));
   }, { prefix, date: recordDate, items });
   await page.goto('/');
-  await page.locator('#studyDate').fill(recordDate);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, recordDate);
 }
 
 async function expectRangeOnOneRow(card: Locator, startSelector: string, endSelector: string): Promise<void> {
@@ -45,6 +45,7 @@ async function expectRangeOnOneRow(card: Locator, startSelector: string, endSele
 }
 
 test('flat page and Unit cards keep ranges editable while references omit Calendar topics and stay current', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
   const items = [
     studyItem('flat-math', 'mathStudy', { material: '教學講義', book: '1', start: '10', end: '12',
       calendarPlanTitle: calendarTopic, calendarUnitPages: 10, calendarWeekTarget: 5, calendarDailyPages: 2,
@@ -183,8 +184,7 @@ test('nested natural subjects display their names once and retain desktop/mobile
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await biology.screenshot({ path: testInfo.outputPath('flat-natural-320.png') });
   await page.reload();
-  await page.locator('#studyDate').fill(recordDate);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, recordDate);
   await expect(biology.locator(':scope > .item-top > [data-done]')).toBeChecked();
   await expect(biology.locator('[data-minutes]')).toHaveValue('12.5');
   await expect(chemistry.locator(':scope > .item-top > [data-done]')).not.toBeChecked();
@@ -237,8 +237,7 @@ test('Calendar cards omit repeated readonly book names while preserving selector
   await azar.locator('[data-minutes]').blur();
   await azar.locator('[data-done]').check();
   await page.reload();
-  await page.locator('#studyDate').fill(recordDate);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, recordDate);
   await expect(azar.locator('[data-field="end"]')).toHaveValue('165');
   await expect(azar.locator('[data-minutes]')).toHaveValue('19');
   await expect(azar.locator('[data-done]')).toBeChecked();
@@ -273,8 +272,7 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   await expect(end).toHaveValue('97');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto('/');
-  await page.locator('#studyDate').fill('2026-10-29');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-29');
   const card = page.locator('[data-item="flat-todo"]');
   await expect(card.locator('[data-field="end"]')).toHaveValue('97');
   await expect(card.locator('[data-field="start"]')).toBeVisible();

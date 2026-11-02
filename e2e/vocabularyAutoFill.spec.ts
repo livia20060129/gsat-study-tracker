@@ -1,4 +1,5 @@
-import { navigateSite } from './helpers/siteNavigation.ts';
+import { downloadVocabularyPdf } from './helpers/vocabularyPdf.ts';
+import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { EnglishReviewWordEntry } from '../src/types.ts';
@@ -28,8 +29,7 @@ test('completed English input fills official metadata locally, preserves the typ
   });
   await seedWords(page, [{ id: 'stable', text: '' }, { id: 'article', text: '' }, { id: 'auxiliary', text: '' }]);
   await page.goto('/');
-  await page.locator('#studyDate').fill('2026-10-24');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-24');
   const card = page.locator('[data-item="autofill"]');
   const input = card.locator('[data-word-text][data-index="0"]');
   const row = card.locator('.field').filter({ has: page.locator('[data-word-text][data-index="0"]') });
@@ -53,8 +53,7 @@ test('completed English input fills official metadata locally, preserves the typ
   }
   expect(await row.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.reload();
-  await page.locator('#studyDate').fill('2026-10-24');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-24');
   await expect(row.getByLabel('Noun', { exact: true })).toBeChecked();
   await expect(card.locator('[data-minutes]')).toHaveValue('15');
   await page.goto('/vocabulary.review.html');
@@ -119,17 +118,10 @@ test('old data is read-only until edited, phrases are excluded, and source notic
   await alternate.getByRole('button', { name: '完成「alternate」' }).click();
   await page.locator('#vocabularySearch').fill('alternate');
   for (const withTranslations of [true, false]) {
-    const popup = context.waitForEvent('page');
-    await page.locator(`[data-export-vocabulary="${withTranslations ? 'translated' : 'blank'}"]`).click();
-    const preview = await popup;
-    await expect(preview.locator('.source-notices')).toContainText('大學入學考試中心');
-    if (withTranslations) await expect(preview.locator('.source-notices')).toContainText('Copyright (c) 2025 Linwei');
-    else expect(await preview.content()).not.toContain('輪流');
-    if (testInfo.project.name === 'chromium') {
-      await preview.pdf({ path: testInfo.outputPath(`attributed-${withTranslations ? 'translated' : 'blank'}.pdf`),
-        preferCSSPageSize: true, printBackground: true });
-    }
-    await preview.close();
+    const result = await downloadVocabularyPdf(page, withTranslations, testInfo.outputPath(`attributed-${withTranslations ? 'translated' : 'blank'}.pdf`));
+    expect(result.text).toContain('大學入學考試中心');
+    if (withTranslations) expect(result.text).toContain('Copyright (c) 2025 Linwei');
+    else expect(result.text).not.toContain('輪流');
   }
   expect((await storedWords(page))[1]).toEqual(original[1]);
   const pageCount = context.pages().length;
@@ -153,8 +145,7 @@ test('old data is read-only until edited, phrases are excluded, and source notic
 
 async function openTrackerWord(page: Page): Promise<void> {
   await page.goto('/');
-  await page.locator('#studyDate').fill('2026-10-24');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-24');
 }
 
 for (const returnBeforeResponse of [false, true]) test(`an ECDICT word saves across date changes when returning ${returnBeforeResponse ? 'before' : 'after'} its response`, async ({ page }) => {
@@ -168,11 +159,9 @@ for (const returnBeforeResponse of [false, true]) test(`an ECDICT word saves acr
   await input.fill('novelty'); await input.press('Tab');
   await expect.poll(() => requests).toBe(1);
   await expect.poll(async () => (await storedWords(page))[0].text).toBe('novelty');
-  await page.locator('#studyDate').fill('2026-10-25');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-25');
   if (returnBeforeResponse) {
-    await page.locator('#studyDate').fill('2026-10-24');
-    await page.locator('#studyDate').dispatchEvent('change');
+    await selectStudyDate(page, '2026-10-24');
   }
   release();
   await expect.poll(async () => (await storedWords(page))[0]).toMatchObject({ noun: true,

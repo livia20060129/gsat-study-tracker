@@ -1,6 +1,22 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 
+test('pronunciation and Chinese controls use a separate row from export controls', async ({ page }) => {
+  for (const width of [1440, 375, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/vocabulary.review.html');
+    const reading = page.locator('.vocabulary-reading-tools');
+    const exporting = page.locator('.vocabulary-export-tools');
+    await expect(reading.locator('#toggleVocabularyTranslations')).toBeVisible();
+    await expect(reading.locator('#vocabularyAccent')).toBeVisible();
+    await expect(exporting.locator('#vocabularyExportFormat')).toBeVisible();
+    const first = (await reading.boundingBox())!;
+    const second = (await exporting.boundingBox())!;
+    expect(second.y).toBeGreaterThanOrEqual(first.y + first.height + 8);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
+
 async function seedVocabulary(page: Page): Promise<void> {
   await page.goto('/vocabulary.review.html');
   await page.evaluate(() => {

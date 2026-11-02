@@ -1,4 +1,4 @@
-import { navigateSite } from './helpers/siteNavigation.ts';
+import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
 const prefix = 'study-v11:guest:';
@@ -24,8 +24,7 @@ test('old cards use Unit and round templates across books and subjects, with sav
     })) }));
   }, { prefix, date });
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   for (const [id, field, value] of [['prism', 'unitStart', '4'], ['unknown', 'unitStart', '2'], ['physics', 'round', '3'], ['math', 'unitStart', '7']]) {
     const card = page.locator(`[data-item="${id}"]`);
     await expect(card.locator('[data-field="start"],[data-field="end"]')).toHaveCount(0);
@@ -37,8 +36,7 @@ test('old cards use Unit and round templates across books and subjects, with sav
     await end.blur();
   }
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   for (const id of ['prism', 'unknown', 'physics', 'math']) {
     const card = page.locator(`[data-item="${id}"]`);
     await expect(card.locator('[data-field="unitStart"],[data-field="round"]')).toHaveValue('5');
@@ -72,8 +70,7 @@ test('todo round ranges edit and complete the original card without becoming pag
   await todo.locator('[data-todo-range="end"]').fill('5');
   await todo.locator('[data-todo-range="end"]').blur();
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   const card = page.locator('[data-item="round-task"]');
   await expect(card.locator('[data-field="round"]')).toHaveValue('4');
   await expect(card.locator('[data-field="roundEnd"]')).toHaveValue('5');
@@ -85,8 +82,7 @@ test('todo round ranges edit and complete the original card without becoming pag
   await expect(todo.locator('[data-todo-range="end"]')).toHaveValue('7');
   await todo.locator('.todo-complete').click();
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(card.locator('[data-done]')).toBeChecked();
   await expect(card.locator('[data-field="roundEnd"]')).toHaveValue('7');
   const stored = await page.evaluate(({ prefix, date }) => JSON.parse(localStorage.getItem(prefix + date)!).items.find((item: { id: string }) => item.id === 'round-task'), { prefix, date });

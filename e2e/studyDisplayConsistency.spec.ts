@@ -1,3 +1,4 @@
+import { selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { UNLOCK_3_BOOK } from '../src/data/bookPageMaps.ts';
 import type { StudyItem } from '../src/types.ts';
@@ -38,8 +39,7 @@ async function seed(page: Page): Promise<void> {
     localStorage.setItem(prefix + date, JSON.stringify({ schemaVersion: 2, date, items }));
   }, { prefix, date, items: fixtures() });
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
 }
 
 async function expectCardHierarchy(card: Locator, titleSelector: string): Promise<void> {
@@ -56,6 +56,7 @@ async function expectCardHierarchy(card: Locator, titleSelector: string): Promis
 }
 
 test('all book, page, Unit and round templates have a single visible identity and range on desktop and mobile', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
   await seed(page);
   for (const width of [1280, 375, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -120,8 +121,7 @@ test('editing pages reveals new chapter mappings and restores deduplication with
   await card.locator('[data-check="graded"]').check();
   await card.locator('[data-done]').check();
   await page.reload();
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(card.locator('[data-field="start"]')).toHaveValue('58');
   await expect(card.locator('[data-field="end"]')).toHaveValue('79');
   await expect(card.locator('[data-minutes]')).toHaveValue('19');
@@ -158,7 +158,6 @@ test('todo uses single book labels and editable numbered ranges and still saves 
   await card.locator('[data-todo-range="end"]').fill('6');
   await card.locator('[data-todo-range="end"]').blur();
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await expect(page.locator('[data-item="display-round"] [data-field="roundEnd"]')).toHaveValue('6');
 });

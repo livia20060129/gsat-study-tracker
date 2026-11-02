@@ -1,5 +1,5 @@
 .today-info-grid {
-  grid-template-columns: minmax(150px,1fr) minmax(0,3fr);
+  grid-template-columns: minmax(220px,1fr) minmax(0,3fr);
   align-items: start;
 }
 
@@ -61,7 +61,8 @@
 }
 
 .routine-disclosure {
-  grid-column: 1/-1;
+  grid-column: auto;
+  align-self: start;
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 13px;
@@ -124,7 +125,7 @@
   border: 0;
   background: transparent;
   display: grid;
-  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  grid-template-columns: minmax(0,1fr);
   align-items: center;
   gap: 10px;
 }
@@ -148,6 +149,14 @@
 
 .routine-disclosure .routine-time-inputs {
   justify-content: center;
+  gap: 5px;
+}
+
+.routine-disclosure .routine-time-inputs input {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  max-width: 88px;
 }
 
 #overviewStats {
@@ -393,6 +402,11 @@
   position: static;
   grid-column: auto;
   min-height: 19px;
+  min-width: 0;
+  flex: 1 1 0;
+  max-width: 80px;
+  font-size: 9px;
+  white-space: normal;
   margin-left: auto;
   margin-right: 10px;
 }

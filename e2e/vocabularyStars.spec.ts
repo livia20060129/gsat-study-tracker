@@ -101,3 +101,49 @@ test('star clicks preserve editing inputs and meaning corrections keep the right
   await expect(row.getByRole('button', { name: '標註整張卡片「alternate」', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(row.getByRole('button', { name: '標註 Noun 第 1 筆翻譯', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('a deleted unrelated record cannot block any of the three star controls', async ({ page }) => {
+  await seed(page);
+  await page.evaluate(() => localStorage.setItem('study-v11:guest:2026-10-30', JSON.stringify({ date: '2026-10-30', items: [] })));
+  await page.reload();
+  await page.evaluate(() => localStorage.removeItem('study-v11:guest:2026-10-30'));
+  const row = page.locator('.vocabulary-row[data-entry-key="alternate"]');
+  const card = row.locator('[data-star-key="card"]');
+  await card.click();
+  await expect(card).toHaveAttribute('aria-pressed', 'true');
+  await row.getByRole('button', { name: '個別標註', exact: true }).click();
+  const word = row.getByRole('button', { name: '標註英文單字「alternate」', exact: true });
+  await word.click();
+  await expect(word).toHaveAttribute('aria-pressed', 'true');
+  const meaning = row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true });
+  await meaning.click();
+  await expect(meaning).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(card).toHaveAttribute('aria-pressed', 'true');
+  await expect(meaning).toHaveAttribute('aria-pressed', 'true');
+  await expect(row.locator('.is-word-starred')).toHaveText('alternate');
+  expect(await page.evaluate(() => localStorage.getItem('study-v11:guest:2026-10-30'))).toBeNull();
+});
+
+test('touching the icon center or button edge toggles every star type', async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: 'http://127.0.0.1:4173', viewport: { width: 375, height: 812 }, hasTouch: true });
+  try {
+    const page = await context.newPage();
+    await seed(page);
+    for (const kind of ['單字', '組合', '句子']) {
+      await page.getByRole('button', { name: kind, exact: true }).click();
+      const row = page.locator('.vocabulary-row').first();
+      await row.getByRole('button', { name: '個別標註', exact: true }).click();
+      for (const button of await row.locator('[data-star-key]').all()) {
+        await button.scrollIntoViewIfNeeded();
+        const bounds = (await button.boundingBox())!;
+        expect(bounds.width).toBeGreaterThanOrEqual(44);
+        expect(bounds.height).toBeGreaterThanOrEqual(44);
+        await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        await expect(button).toHaveAttribute('aria-pressed', 'true');
+        await page.touchscreen.tap(bounds.x + 3, bounds.y + 3);
+        await expect(button).toHaveAttribute('aria-pressed', 'false');
+      }
+    }
+  } finally { await context.close(); }
+});

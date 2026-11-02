@@ -1,4 +1,4 @@
-import { navigateSite } from './helpers/siteNavigation.ts';
+import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import { clickConnectionToggle } from './helpers/connectionMotion.ts';
 
@@ -341,8 +341,7 @@ test('todo page preserves a focused manual-minute draft when leaving the origina
 
   await page.goBack();
   const studyDate = page.locator('#studyDate');
-  await studyDate.fill('2026-08-09');
-  await studyDate.dispatchEvent('change');
+  await selectStudyDate(page, '2026-08-09');
   const minutes = page.locator('[data-item="todo-origin-minutes"] [data-minutes]').first();
   await minutes.fill('37.5');
 
@@ -372,8 +371,7 @@ test('original card accepts the same page and rejects a reversed page range', as
     }));
   });
   await page.reload();
-  await page.locator('#studyDate').fill('2026-10-14');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-14');
 
   const card = page.locator('[data-item="ordered-page-range"]').last();
   const end = card.locator('[data-field="end"]');
@@ -412,8 +410,7 @@ test('checking correction preserves every other card and saves before revealing 
       ],
     }));
   });
-  await page.locator('#studyDate').fill('2026-10-02');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-02');
 
   const target = page.locator('#itemList [data-item="correction-target"]');
   const sibling = page.locator('#itemList [data-item="correction-sibling"]');
@@ -439,8 +436,7 @@ test('checking correction preserves every other card and saves before revealing 
   ]);
 
   await page.reload();
-  await page.locator('#studyDate').fill('2026-10-02');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-10-02');
   await expect(target.locator('[data-check="corrected"]')).toBeChecked();
   await expect(sibling.locator('[data-field="progress"]')).toHaveValue('必須保留');
 });
@@ -584,8 +580,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
 });
 
 test('mixed writing and timed mock on one date require a persisted exclusive choice', async ({ page }) => {
-  await page.locator('#studyDate').fill('2026-09-25');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-25');
   const choice = page.locator('#englishTaskChoice');
   await expect(choice).toBeVisible();
   await expect(page.locator('#dailyItemList .item-title', { hasText: '英文：混合題與作文練習' })).toHaveCount(0);
@@ -597,40 +592,33 @@ test('mixed writing and timed mock on one date require a persisted exclusive cho
   await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-09-25') || '{}').englishTaskChoice)).toBe('mock');
 
   await page.reload();
-  await page.locator('#studyDate').fill('2026-09-25');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-25');
   await expect(choice.locator('[data-english-task-choice="mock"]')).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('#studyDate').fill('2026-09-26');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-26');
   await expect(page.locator('#dailyItemList .item-title', { hasText: '英文歷屆／模考：批改與訂正' })).toHaveCount(1);
   const correction = page.locator('#dailyItemList [data-item="preset-2026-09-26-sat_mock_correction"]');
   await correction.locator('[data-minutes]').fill('25');
   await correction.locator('[data-minutes]').blur();
 
-  await page.locator('#studyDate').fill('2026-09-25');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-25');
   await choice.locator('[data-english-task-choice="mixed"]').click();
   await expect(page.locator('#dailyItemList .item-title', { hasText: '英文：混合題與作文練習' })).toHaveCount(1);
   await expect(page.locator('#dailyItemList .item-title', { hasText: '英文歷屆／模考：限時作答' })).toHaveCount(0);
-  await page.locator('#studyDate').fill('2026-09-26');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-26');
   await expect(page.locator('#dailyItemList .item-title', { hasText: '英文歷屆／模考：批改與訂正' })).toHaveCount(0);
   const retained = await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-09-26') || '{}').items.find((item: { presetKey: string }) => item.presetKey === 'sat_mock_correction'));
   expect(retained.minutes).toBe('25');
   expect(retained.f.englishMockCorrectionInactive).toBe(true);
 
-  await page.locator('#studyDate').fill('2026-09-25');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-25');
   await choice.locator('[data-english-task-choice="mock"]').click();
-  await page.locator('#studyDate').fill('2026-09-26');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-26');
   await expect(correction.locator('[data-minutes]')).toHaveValue('25');
 });
 
 test('math periods stack equally and share a centered panel with completion while the donut remains visible', async ({ page }) => {
   await page.setViewportSize({ width: 760, height: 900 });
-  await page.locator('#studyDate').fill('2026-09-20');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-20');
   for (const view of ['pages', 'completion']) {
     await page.locator(`[data-overview-metric="${view}"]`).click();
     const panel = page.locator(`[data-metric-panel="${view}"]`);
@@ -663,8 +651,7 @@ test('math periods stack equally and share a centered panel with completion whil
 });
 
 test('outside status keeps the daily schedule visible', async ({ page }) => {
-  await page.locator('#studyDate').fill('2026-09-16');
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-16');
   const scheduledCards = page.locator('#dailyItemList .item');
   const countBefore = await scheduledCards.count();
   expect(countBefore).toBeGreaterThan(0);
@@ -698,8 +685,7 @@ test('mobile nested natural timer stays inside its card', async ({ page }) => {
       }],
     }));
   }, { date });
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await page.setViewportSize({ width: 393, height: 852 });
 
   const child = page.locator('[data-item="natural-integration-2026-10-15-生物"]');
@@ -908,7 +894,7 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
     const fieldCenter = (field.top + field.bottom) / 2;
     return Math.abs(contentCenter - fieldCenter);
   }));
-  expect(centeredFieldOffsets).toHaveLength(2);
+  expect(centeredFieldOffsets).toHaveLength(1);
   expect(centeredFieldOffsets.every(offset => offset < 3)).toBe(true);
 
   const inputStageBounds = await page.locator('#routineTimeField').evaluate(node => {
@@ -966,9 +952,10 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
   const afterHeight = await page.locator('#routineTimeField').evaluate(node => node.getBoundingClientRect().height);
   expect(Math.abs(afterHeight - beforeHeight)).toBeLessThan(1);
 
+  await page.locator('[data-open-rail="left"]').click();
   const dateContainment = await page.locator('#studyDate').evaluate(node => {
     const input = node.getBoundingClientRect();
-    const field = node.closest('.today-info-centered-field')?.getBoundingClientRect();
+    const field = node.closest('.site-rail-date-control')?.getBoundingClientRect();
     return {
       inputLeft: input.left,
       inputRight: input.right,
@@ -1010,8 +997,7 @@ test('cloud conflict prompt names the card, field, and both values', async ({ pa
     }));
   }, { date });
   await page.goto('/');
-  await page.locator('#studyDate').fill(date);
-  await page.locator('#studyDate').dispatchEvent('change');
+  await selectStudyDate(page, date);
   await page.locator('.connection-settings-toggle').click();
 
   await expect(page.locator('#cloudConflictText')).toContainText('數學講義：進度 › 讀書時間（分鐘）');
@@ -1187,8 +1173,7 @@ test('Calendar-backed math completion survives navigating to its completion date
   await page.reload();
 
   const studyDate = page.locator('#studyDate');
-  await studyDate.fill('2026-09-16');
-  await studyDate.dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-16');
   const groupedMathParent = page.locator('#dailyItemList > [data-item]').filter({ hasText: '數學講義：進度' }).first();
   const groupedMathChildren = groupedMathParent.locator(':scope > .inner > [data-item]');
   await expect(groupedMathChildren).toHaveCount(2);
@@ -1202,10 +1187,8 @@ test('Calendar-backed math completion survives navigating to its completion date
   await completionDate.fill('2026-09-19');
   await completionDate.blur();
 
-  await studyDate.fill('2026-09-19');
-  await studyDate.dispatchEvent('change');
-  await studyDate.fill('2026-09-16');
-  await studyDate.dispatchEvent('change');
+  await selectStudyDate(page, '2026-09-19');
+  await selectStudyDate(page, '2026-09-16');
 
   const restoredCard = page.locator(`#dailyItemsView [data-item="${itemId}"]`).last();
   await expect(restoredCard.locator('[data-done]').first()).toBeChecked();
@@ -1223,8 +1206,7 @@ test('completion on another date survives stale-tab navigation to that date and 
   await page.reload();
 
   const studyDate = page.locator('#studyDate');
-  await studyDate.fill('2026-08-16');
-  await studyDate.dispatchEvent('change');
+  await selectStudyDate(page, '2026-08-16');
   const itemId = await page.locator('#dailyItemsView [data-item] [data-done]').first().evaluate(input => (
     input.closest('[data-item]')?.getAttribute('data-item') || ''
   ));
@@ -1232,9 +1214,7 @@ test('completion on another date survives stale-tab navigation to that date and 
 
   const writer = await context.newPage();
   await writer.goto('/');
-  const writerDate = writer.locator('#studyDate');
-  await writerDate.fill('2026-08-16');
-  await writerDate.dispatchEvent('change');
+  await selectStudyDate(writer, '2026-08-16');
   const writerCard = writer.locator(`#dailyItemsView [data-item="${itemId}"]`);
   await writerCard.locator('[data-done]').first().check();
   const completionDate = writerCard.locator('[data-completion-date]').first();
@@ -1244,14 +1224,11 @@ test('completion on another date survives stale-tab navigation to that date and 
 
   // The first page still holds the old unchecked snapshot. Navigating it must
   // merge the newer stored completion instead of writing that snapshot back.
-  await studyDate.fill('2026-08-19');
-  await studyDate.dispatchEvent('change');
+  await selectStudyDate(page, '2026-08-19');
   await expect(studyDate).toHaveValue('2026-08-19');
 
-  await writerDate.fill('2026-08-19');
-  await writerDate.dispatchEvent('change');
-  await writerDate.fill('2026-08-16');
-  await writerDate.dispatchEvent('change');
+  await selectStudyDate(writer, '2026-08-19');
+  await selectStudyDate(writer, '2026-08-16');
 
   await expect(writer.locator(`#dailyItemsView [data-item="${itemId}"] [data-done]`).first()).toBeChecked();
   await expect(writer.locator(`#dailyItemsView [data-item="${itemId}"] [data-completion-date]`).first()).toHaveValue('2026-08-19');
