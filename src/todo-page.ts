@@ -54,7 +54,6 @@ let activeSubject = normalizedOverdueSubject(location.hash.replace(/^#/, ''));
 let activePeriod = normalizedOverduePeriod(new URLSearchParams(location.search).get('period'));
 let activeItem = normalizedOverdueItemFilter(new URLSearchParams(location.search).get('item'));
 let activeSort = normalizedOverdueSort(new URLSearchParams(location.search).get('order'));
-let compactView = new URLSearchParams(location.search).get('view') === 'compact';
 const expandedCards = new Set<string>();
 const PERIOD_LABELS: Record<OverduePeriod, string> = { all: '全部', month: '本月', week: '本週' };
 let recordPrefix = 'study-v11:guest:';
@@ -241,6 +240,17 @@ function createTimeEditor(entry: OverdueTaskEntry): HTMLElement {
   return editor;
 }
 
+function setTodoRangeSummary(main: HTMLElement, text: string): void {
+  let summary = main.querySelector<HTMLElement>('.todo-range-summary');
+  if (!text) { summary?.remove(); return; }
+  if (!summary) {
+    summary = document.createElement('p');
+    summary.className = 'todo-range-summary';
+    main.append(summary);
+  }
+  summary.textContent = text;
+}
+
 function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   const display = todoStudyDisplay(entry);
   const article = document.createElement('article');
@@ -257,9 +267,9 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   expand.dataset.todoExpand = entry.key;
   expand.setAttribute('aria-label', `展開或收合 ${display.title}的詳細內容`);
   expand.setAttribute('aria-expanded', String(expandedCards.has(entry.key)));
-  title.append(expand);
   article.dataset.expanded = String(expandedCards.has(entry.key));
   main.append(title);
+  setTodoRangeSummary(main, display.rangeSummary);
   const descriptionText = display.description;
   if (descriptionText) {
     const description = document.createElement('p');
@@ -330,7 +340,7 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   skip.textContent = '跳過';
   applyActionData(skip, entry);
   skip.setAttribute('aria-label', `跳過 ${entry.title}`);
-  actions.append(complete, skip);
+  actions.append(expand, complete, skip);
   controls.append(dateField, actions);
   article.append(main, controls);
   return article;
@@ -419,8 +429,6 @@ function render(): void {
   renderItemFilter(visibleEntries(entries));
   document.body.dataset.subject = activeSubject;
   document.body.dataset.period = activePeriod;
-  document.body.dataset.todoView = compactView ? 'compact' : 'full';
-  element<HTMLSelectElement>('todoView').value = compactView ? 'compact' : 'full';
   const switcher = element<HTMLDivElement>('subjectSwitch');
   switcher.dataset.active = String(overdueSubjectIndex(activeSubject));
   switcher.querySelectorAll<HTMLButtonElement>('[data-subject]').forEach(function updateTab(button): void {
@@ -649,6 +657,11 @@ function saveRange(action: TodoActionTarget, input: HTMLInputElement): void {
     if (!saved) return setError('範圍必須是 1 以上的整數，或留空。');
     drafts.remove(draftKey(action), 'start', 'end');
     if (!drafts.hasRecordEdits(action.recordDate)) draftBases.delete(action.recordDate);
+    const updatedEntry = overdueTasks(records.filter(record => record.date === action.recordDate), localDateKey())
+      .find(entry => entry.itemId === action.itemId);
+    const rangeText = updatedEntry ? todoStudyDisplay(updatedEntry).rangeSummary : '';
+    const main = card?.querySelector<HTMLElement>('.todo-card-main');
+    if (main) setTodoRangeSummary(main, rangeText);
     setError('');
     const rangeLabel = start.dataset.rangeUnit ? `${start.dataset.rangeUnit} 範圍` : '頁碼範圍';
     setFeedback(`已同步「${action.title}」的${rangeLabel}。`);
@@ -756,17 +769,7 @@ function readLocationFilters(): void {
   activePeriod = normalizedOverduePeriod(new URLSearchParams(location.search).get('period'));
   activeItem = normalizedOverdueItemFilter(new URLSearchParams(location.search).get('item'));
   activeSort = normalizedOverdueSort(new URLSearchParams(location.search).get('order'));
-  compactView = new URLSearchParams(location.search).get('view') === 'compact';
 }
-
-element<HTMLSelectElement>('todoView').addEventListener('change', function selectView(): void {
-  compactView = element<HTMLSelectElement>('todoView').value === 'compact';
-  const url = new URL(location.href);
-  if (compactView) url.searchParams.set('view', 'compact');
-  else url.searchParams.delete('view');
-  history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-  render();
-});
 
 element<HTMLSelectElement>('todoSort').addEventListener('change', function selectOrder(): void {
   activeSort = normalizedOverdueSort(element<HTMLSelectElement>('todoSort').value);
@@ -825,20 +828,28 @@ element<HTMLDivElement>('subjectSwitch').addEventListener('keydown', function mo
   selectSubject(OVERDUE_TASK_SUBJECTS[next], true);
 });
 
+function toggleTodoCard(card: HTMLElement): void {
+  const key = card.dataset.todoKey;
+  if (!key) return;
+  if (expandedCards.has(key)) expandedCards.delete(key);
+  else expandedCards.add(key);
+  card.dataset.expanded = String(expandedCards.has(key));
+  card.querySelector('[data-todo-expand]')?.setAttribute('aria-expanded', String(expandedCards.has(key)));
+}
+
 element<HTMLDivElement>('todoList').addEventListener('click', function handleTodoClick(event): void {
-  const expand = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-todo-expand]');
-  if (expand && compactView) {
-    const key = expand.dataset.todoExpand!;
-    if (expandedCards.has(key)) expandedCards.delete(key);
-    else expandedCards.add(key);
-    expand.setAttribute('aria-expanded', String(expandedCards.has(key)));
-    expand.closest<HTMLElement>('.todo-card')!.dataset.expanded = String(expandedCards.has(key));
-    return;
-  }
+  const clicked = event.target as HTMLElement;
+  const card = clicked.closest<HTMLElement>('.todo-card');
+  if (clicked.closest('[data-todo-expand]') && card) return toggleTodoCard(card);
   const target = (event.target as HTMLElement).closest<HTMLElement>(
     '.todo-skip, .todo-complete, [data-todo-time-mode], [data-todo-timer-action]',
   );
-  if (!target) return;
+  if (!target) {
+    if (!card || clicked.closest('input, select, textarea, button, a, label, fieldset, .todo-record-grid, .todo-time-editor, [contenteditable="true"]')) return;
+    if (window.getSelection()?.isCollapsed === false) return;
+    toggleTodoCard(card);
+    return;
+  }
   const action = actionFromElement(target);
   if (!action) return;
   if (target.classList.contains('todo-skip')) return skipTask(action);

@@ -1,5 +1,6 @@
 import { selectStudyDate } from './helpers/siteNavigation.ts';
 import { expectCardHierarchy } from './helpers/studyCardHierarchy.ts';
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { UNLOCK_3_BOOK } from '../src/data/bookPageMaps.ts';
 import type { StudyItem } from '../src/types.ts';
@@ -132,9 +133,11 @@ test('todo uses single book labels and editable numbered ranges and still saves 
   await page.goto('/todo.html');
   await page.locator('#todoLongTerm > summary').click();
   const unlock = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="display-unlock"]') });
+  await expandTodoCard(unlock);
   await expect(unlock).toBeVisible();
   expect((await unlock.innerText()).match(/Unlock 3/g)).toHaveLength(1);
   const card = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="display-round"]') });
+  await expandTodoCard(card);
   for (const width of [1280, 375, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(card.locator('h3')).toHaveText('英文｜自訂回次教材');

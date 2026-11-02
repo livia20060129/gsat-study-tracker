@@ -88,6 +88,7 @@ test('batch failures report partial success and leave unprocessed dates intact',
 test('batch skip includes collapsed matching long-term tasks and leaves another subject timer running', async ({ page }) => {
   await seed(page);
   const science = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="science"][data-record-date="2026-11-04"]') });
+  await science.locator('h3').click();
   await science.locator('[data-todo-time-mode="timer"]').click();
   await science.locator('[data-todo-timer-action="toggle"]').click();
   await page.getByRole('tab', { name: '英文', exact: true }).click();
@@ -105,12 +106,12 @@ test('batch skip includes collapsed matching long-term tasks and leaves another 
   expect(pointer.date).toBe('2026-11-04');
 });
 
-test('compact mode keeps only title overdue days and actions, expands editors and saves progress without losing drafts', async ({ page }, testInfo) => {
+test('all cards start compact with a scope summary and whole-card editing without a view selector', async ({ page }, testInfo) => {
   await seed(page);
   await page.clock.pauseAt(new Date('2026-11-05T12:01:00+08:00'));
   await page.getByRole('tab', { name: '自然', exact: true }).click();
   await page.locator('[data-period="week"]').click();
-  await page.locator('#todoView').selectOption('compact');
+  await expect(page.locator('#todoView')).toHaveCount(0);
   const card = page.locator('#todoRecentList .todo-card').first();
   await expect(card.locator('h3')).toContainText('物理');
   await expect(card.locator('.todo-overdue')).toBeVisible();
@@ -119,7 +120,11 @@ test('compact mode keeps only title overdue days and actions, expands editors an
   }
   await expect(card.locator('.todo-complete')).toBeVisible();
   await expect(card.locator('.todo-skip')).toBeVisible();
-  await card.locator('.todo-expand').click();
+  await expect(card.locator('.todo-range-summary')).toHaveText('p.10–12');
+  await expect(card.locator('.todo-expand')).toHaveCSS('border-top-width', '0px');
+  await expect(card.locator('.todo-expand')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  expect(await card.locator('.todo-actions').evaluate(node => node.children[0].classList.contains('todo-expand') && node.children[1].classList.contains('todo-complete'))).toBe(true);
+  await card.locator('.todo-range-summary').click();
   await expect(card.locator('[data-todo-range="end"]')).toBeEditable();
   await card.locator('[data-todo-range="end"]').fill('18');
   await card.locator('[data-todo-range="end"]').blur();
@@ -128,12 +133,17 @@ test('compact mode keeps only title overdue days and actions, expands editors an
   await card.locator('[data-todo-timer-action="reset"]').click();
   await card.locator('[data-todo-timer-action="toggle"]').click();
   await page.clock.runFor(60_000);
-  await card.locator('.todo-expand').click();
+  await card.locator('h3').click();
+  await expect(card.locator('.todo-range-summary')).toHaveText('p.10–18');
   await page.clock.runFor(60_000);
-  await card.locator('.todo-expand').click();
+  await card.click({ position: { x: 8, y: 8 } });
   await expect(card.locator('[data-todo-timer-display]')).toHaveText('02:00');
   await card.locator('[data-todo-timer-action="finish"]').click();
-  await card.locator('.todo-expand').click();
+  await card.locator('.todo-expand').focus();
+  await card.locator('.todo-expand').press('Enter');
+  await card.locator('.todo-expand').blur();
+  await page.clock.resume();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.clock.runFor(400);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -149,6 +159,19 @@ test('compact mode keeps only title overdue days and actions, expands editors an
   expect(stored.items[2].f.graded).toBe(true);
   expect(Number(stored.items[2].minutes)).toBe(2);
   await page.reload();
-  await expect(page.locator('#todoView')).toHaveValue('compact');
+  await expect(page.locator('#todoView')).toHaveCount(0);
   await expect(page.locator('#todoRecentList .todo-record-grid')).toBeHidden();
+});
+
+test('old full-view links still start compact and completing or skipping does not toggle another card', async ({ page }) => {
+  await seed(page);
+  await page.goto('/todo.html?view=full&period=week#english');
+  const cards = page.locator('#todoRecentList .todo-card');
+  await expect(cards).toHaveCount(4);
+  for (const card of await cards.all()) await expect(card).toHaveAttribute('data-expanded', 'false');
+  await cards.first().locator('.todo-complete').click();
+  await expect(cards).toHaveCount(3);
+  await cards.first().locator('.todo-skip').click();
+  await expect(cards).toHaveCount(2);
+  for (const card of await cards.all()) await expect(card).toHaveAttribute('data-expanded', 'false');
 });

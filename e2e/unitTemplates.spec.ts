@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
@@ -59,11 +60,15 @@ test('todo Unit edits round-trip through the original card and completion withou
   }, { prefix, date, book });
   await page.reload();
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="todo-unlock-unit"]') });
+  await expect(todo.locator('.todo-range-summary')).toHaveCount(0);
+  await expandTodoCard(todo);
   await expect(todo.getByLabel('Unlock Unit 待辦的起始 Unit')).toHaveValue('');
   await todo.locator('[data-todo-range="start"]').fill('3');
   await todo.locator('[data-todo-range="start"]').blur();
   await todo.locator('[data-todo-range="end"]').fill('4');
   await todo.locator('[data-todo-range="end"]').blur();
+  await todo.locator('h3').click();
+  await expect(todo.locator('.todo-range-summary')).toHaveText('Unit 3–4');
   await page.goto('/');
   await selectStudyDate(page, date);
   const card = page.locator('[data-item="todo-unlock-unit"]');

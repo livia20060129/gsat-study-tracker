@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
@@ -87,6 +88,7 @@ test('progress grading and correction sync both ways for a merged source without
     has: originalPage.locator('input[data-field="start"][value="20"]'),
   }).last();
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="progress-source-10"]') });
+  await expandTodoCard(todo);
   for (const key of ['progress', 'graded', 'corrected']) {
     await todo.locator(`[data-todo-progress="${key}"]`).check();
     await expect(original.locator(`[data-check="${key}"]`)).toBeChecked();

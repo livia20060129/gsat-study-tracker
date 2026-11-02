@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
@@ -63,6 +64,9 @@ test('todo round ranges edit and complete the original card without becoming pag
   }, { prefix, date });
   await page.reload();
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="round-task"]') });
+  await expect(todo.locator('.todo-range-summary')).toHaveText('第 2–3 回');
+  await expect(todo.locator('[data-todo-range="start"]')).toBeHidden();
+  await expandTodoCard(todo);
   await expect(todo.getByLabel('英文｜新教材回次練習的起始 回次')).toHaveValue('2');
   await expect(todo).not.toContainText('起始頁');
   await todo.locator('[data-todo-range="start"]').fill('4');

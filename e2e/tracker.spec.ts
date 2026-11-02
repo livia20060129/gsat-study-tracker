@@ -113,6 +113,7 @@ test('overdue task page filters subjects and persists skip without marking compl
   await page.getByRole('tab', { name: '英文' }).click();
   await expect(page.locator('.todo-card')).toHaveCount(1);
   await expect(page.locator('.todo-card')).toContainText('英文閱讀');
+  await page.locator('.todo-card h3').click();
   await expect(page.locator('.todo-record-grid')).toContainText('ACE Reading');
   await expect(page.locator('.todo-record-grid')).toContainText('閱讀測驗');
   await page.setViewportSize({ width: 393, height: 852 });
@@ -196,6 +197,7 @@ test('overdue task page filters subjects and persists skip without marking compl
 
   await page.getByRole('tab', { name: '數學' }).click();
   await expect(page.locator('.todo-card')).toContainText('數學講義');
+  await page.locator('.todo-card h3').click();
   const mathStart = page.getByLabel('數學講義的起始頁');
   const mathEnd = page.getByLabel('數學講義的結束頁');
   await expect(mathStart).toHaveValue('31');
@@ -262,6 +264,7 @@ test('todo timer runs for a source item duplicated inside a merged card', async 
   await page.goto('/todo.html');
   const card = page.locator('.todo-card').filter({ hasText: '合併卡片計時測試' });
   await expect(card).toHaveCount(1);
+  await card.locator('h3').click();
   await card.getByRole('button', { name: '計時', exact: true }).click();
   await expect(card.locator('[data-todo-timer-display]')).toHaveText('00:00');
   await card.getByRole('button', { name: '開始' }).click();
@@ -269,6 +272,7 @@ test('todo timer runs for a source item duplicated inside a merged card', async 
   await expect(card.locator('[data-todo-timer-display]')).not.toHaveText('00:00');
 
   await page.reload();
+  await card.locator('h3').click();
   await expect(card.getByRole('button', { name: '暫停' })).toBeVisible();
   await expect(card.locator('[data-todo-timer-display]')).not.toHaveText('00:00');
   await card.getByRole('button', { name: '暫停' }).click();

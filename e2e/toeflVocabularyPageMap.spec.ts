@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
@@ -87,6 +88,7 @@ test('TOEFL original and todo cards expose only progress, retain hidden legacy d
   await original.locator('[data-check="progress"]').check();
   await navigateSite(page, 'todo.html');
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="toefl-progress"]') });
+  await expandTodoCard(todo);
   await expect(todo.locator('[data-todo-progress]')).toHaveCount(1);
   await expect(todo.locator('[data-todo-progress="progress"]')).toBeChecked();
   await expect(todo.locator('[data-todo-progress="graded"],[data-todo-progress="corrected"]')).toHaveCount(0);

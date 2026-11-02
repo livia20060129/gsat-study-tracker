@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -112,6 +113,7 @@ test('hiding a running timer does not pause it and period switches preserve comp
   await page.clock.pauseAt(new Date('2026-10-25T12:01:00+08:00'));
   const periods = page.locator('#periodSwitch');
   const old = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="old-english"]') });
+  await expandTodoCard(old);
   await old.locator('[data-todo-completion-date]').fill('2026-10-22');
   await old.getByRole('button', { name: '計時', exact: true }).click();
   await old.getByRole('button', { name: '開始', exact: true }).click();

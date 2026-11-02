@@ -16,18 +16,21 @@
 .todo-long-term[open]>summary:before{content:'▾'}
 .todo-long-term>summary span{margin-left:auto;font-size:13px}
 .todo-long-term>p{margin:10px 0;color:#718096;font-size:12px}
-.todo-expand{display:none;vertical-align:middle;margin-left:8px;width:32px;height:32px;border:1px solid #bdcbdc;border-radius:8px;background:rgba(255,255,255,.7);color:#526f94;cursor:pointer;font-size:16px}
-body[data-todo-view="compact"] .todo-expand{display:inline-block}
-.todo-expand:before{content:'▾'}
-.todo-expand[aria-expanded="true"]{transform:rotate(180deg)}
-body[data-todo-view="compact"] .todo-card[data-expanded="false"]{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px}
-body[data-todo-view="compact"] .todo-card[data-expanded="false"] .todo-card-main{display:flex;flex-direction:column}
-body[data-todo-view="compact"] .todo-card[data-expanded="false"] h3{order:-1}
-body[data-todo-view="compact"] .todo-card[data-expanded="false"] .todo-card-meta{margin:5px 0 0}
-body[data-todo-view="compact"] .todo-card[data-expanded="false"] .todo-card-meta>span:not(.todo-overdue),
-body[data-todo-view="compact"] .todo-card[data-expanded="false"] :is(.todo-description,.todo-record-grid,.todo-progress-editor,.todo-time-editor,.todo-control-field){display:none}
-body[data-todo-view="compact"] .todo-card[data-expanded="false"] .todo-card-controls{display:block;padding:0;border:0}
-@media(max-width:650px){body[data-todo-view="compact"] .todo-card[data-expanded="false"]{grid-template-columns:minmax(0,1fr)}body[data-todo-view="compact"] .todo-expand{width:44px;height:44px}body[data-todo-view="compact"] .todo-card[data-expanded="false"] .todo-actions{justify-content:flex-end}}
+.todo-card{cursor:pointer}
+.todo-card :is(input,select,textarea){cursor:auto}
+.todo-expand{display:inline-flex;align-items:center;justify-content:center;flex:none;width:32px;height:32px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:#808b99;cursor:pointer;font-size:14px}
+.todo-expand:before{content:'▼'}
+.todo-range-summary{margin:5px 0 0;color:#64748b;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.todo-card[data-expanded="true"] .todo-range-summary{display:none}
+.todo-card[data-expanded="false"]{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px}
+.todo-card[data-expanded="false"] .todo-card-main{display:flex;flex-direction:column}
+.todo-card[data-expanded="false"] h3{order:-2}
+.todo-card[data-expanded="false"] .todo-range-summary{order:-1}
+.todo-card[data-expanded="false"] .todo-card-meta{margin:5px 0 0}
+.todo-card[data-expanded="false"] .todo-card-meta>span:not(.todo-overdue),
+.todo-card[data-expanded="false"] :is(.todo-description,.todo-record-grid,.todo-progress-editor,.todo-time-editor,.todo-control-field){display:none}
+.todo-card[data-expanded="false"] .todo-card-controls{display:block;padding:0;border:0}
+@media(max-width:650px){.todo-card[data-expanded="false"]{grid-template-columns:minmax(0,1fr)}.todo-expand{width:44px;height:44px}.todo-card[data-expanded="false"] .todo-actions{justify-content:flex-end}}
 @media(max-width:700px){.todo-organization-tools>label,.todo-organization-tools>button{flex:1 1 135px;min-width:0}.todo-organization-tools select{width:100%}}
 .todo-item-filter label{font-size:13px;font-weight:750;color:#43536a}
 .todo-item-filter select{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:44px;padding:10px 32px 10px 12px;border:1px solid #cbd8ea;border-radius:12px;background-color:#fff;color:#17233a;font:inherit;font-size:16px;text-overflow:ellipsis}

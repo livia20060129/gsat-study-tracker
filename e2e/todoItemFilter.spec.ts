@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -199,6 +200,7 @@ test('item switching preserves running timers, completion dates and pending manu
   const select = page.getByRole('combobox', { name: '查看項目', exact: true });
   await select.selectOption('english:ACE Reading');
   const old = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="ace-old"]') });
+  await expandTodoCard(old);
   await old.locator('[data-todo-completion-date]').fill('2026-10-22');
   await old.getByRole('button', { name: '計時', exact: true }).click();
   await old.getByRole('button', { name: '開始', exact: true }).click();

@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -26,6 +27,7 @@ async function seedTodo(page: Page, merged = false): Promise<void> {
   }, { prefix, date, merged });
   await page.reload();
   await expect(page.locator('.todo-card')).toHaveCount(1);
+  await expandTodoCard(page.locator('.todo-card'));
 }
 
 test('todo keeps completion-date choices and exact elapsed time through mode switches and filtering', async ({ page }) => {
@@ -129,6 +131,7 @@ test('a hidden-source timer survives navigation to Tracker and can be paused the
   await expect(page.locator('#activeTimerSummary')).toBeHidden();
   await page.goto('/todo.html');
   const card = page.locator('.todo-card').filter({ hasText: '物理計時驗證' });
+  await expandTodoCard(card);
   await expect(card.locator('[data-todo-timer-action="toggle"]')).toHaveText('繼續');
   const elapsed = await card.locator('[data-todo-timer-display]').textContent();
   await page.clock.runFor(5_000);
@@ -230,6 +233,7 @@ test('the visible grouped card and its todo source control the same timer in bot
   }, { prefix, date });
   await page.reload();
   const source = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="reliability-source"]') });
+  await expandTodoCard(source);
   await source.locator('[data-todo-time-mode="timer"]').click();
   await source.locator('[data-todo-timer-action="toggle"]').click();
   await page.clock.runFor(5_000);
@@ -243,6 +247,7 @@ test('the visible grouped card and its todo source control the same timer in bot
   await expect(page.locator('#activeTimerSummary')).toBeHidden();
   await visible.locator('[data-action="timer-toggle"]').click();
   await page.goto('/todo.html');
+  await expandTodoCard(source);
   await expect(source.locator('[data-todo-timer-action="toggle"]')).toHaveText('暫停');
   await source.locator('[data-todo-timer-action="toggle"]').click();
   expect(await page.evaluate(prefix => localStorage.getItem(prefix + 'active-timer'), prefix)).toBeNull();
@@ -261,6 +266,7 @@ test('todo completion and undo check the original grouped scope after navigation
   }, { prefix, date });
   await page.reload();
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="reliability-source"]') });
+  await expandTodoCard(todo);
   await todo.locator('[data-todo-completion-date]').fill('2026-10-16');
   await todo.locator('.todo-complete').click();
   await expect(page.locator('.todo-card')).toHaveCount(1);
@@ -317,6 +323,7 @@ test('returning from todo completion restores the original checkbox and completi
   await selectStudyDate(page, date);
   await navigateSite(page, 'todo.html');
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="reliability-source"]') });
+  await expandTodoCard(todo);
   await todo.locator('[data-todo-completion-date]').fill('2026-10-16');
   await todo.locator('.todo-complete').click();
   await page.goBack();

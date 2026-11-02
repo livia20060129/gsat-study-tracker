@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { DEEP_FIFTEEN_BOOK } from '../src/data/bookPageMaps.ts';
@@ -259,6 +260,7 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   await page.setViewportSize({ width: 320, height: 852 });
   await page.goto('/todo.html');
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="flat-todo"]') });
+  await expandTodoCard(todo);
   await expect(todo).toBeVisible();
   await expect(todo).not.toContainText('Google Calendar API');
   await expect(todo).not.toHaveCSS('background-color', 'rgb(255, 255, 255)');

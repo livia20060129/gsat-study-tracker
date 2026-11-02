@@ -1,3 +1,4 @@
+import { expandTodoCard } from './helpers/todoCard.ts';
 import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 
@@ -66,6 +67,7 @@ test('split todo pages round-trip with original cards, preserve Unit metadata, a
   }, { prefix, date });
   await page.reload();
   const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="split-todo"]') });
+  await expandTodoCard(todo);
   await expect(todo.locator('[data-todo-range="start"]')).toHaveValue('14');
   await expect(todo).toContainText('起始頁');
   await expect(todo).not.toContainText('起始 Unit');
