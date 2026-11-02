@@ -1,5 +1,6 @@
 import { selectStudyDate } from './helpers/siteNavigation.ts';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expectCardHierarchy } from './helpers/studyCardHierarchy.ts';
+import { expect, test, type Page } from '@playwright/test';
 import { UNLOCK_3_BOOK } from '../src/data/bookPageMaps.ts';
 import type { StudyItem } from '../src/types.ts';
 
@@ -40,19 +41,6 @@ async function seed(page: Page): Promise<void> {
   }, { prefix, date, items: fixtures() });
   await page.goto('/');
   await selectStudyDate(page, date);
-}
-
-async function expectCardHierarchy(card: Locator, titleSelector: string): Promise<void> {
-  const title = card.locator(titleSelector).first();
-  const range = card.locator('.study-heading-range:visible, [data-study-hierarchy="range"] :is(input,select,.fixed-book-value,.small,.inline):visible, dd[data-study-hierarchy="range"]:visible').first();
-  const detail = card.locator('.field > label:visible, .checkline label:visible, .todo-record-grid dt:visible').first();
-  const titleSize = Number.parseFloat(await title.evaluate(node => getComputedStyle(node).fontSize));
-  const rangeSize = Number.parseFloat(await range.evaluate(node => getComputedStyle(node).fontSize));
-  const detailSize = Number.parseFloat(await detail.evaluate(node => getComputedStyle(node).fontSize));
-  expect(titleSize).toBeGreaterThan(rangeSize);
-  expect(rangeSize - detailSize).toBeGreaterThanOrEqual(5);
-  expect(Number(await title.evaluate(node => getComputedStyle(node).fontWeight)))
-    .toBeGreaterThan(Number(await range.evaluate(node => getComputedStyle(node).fontWeight)));
 }
 
 test('all book, page, Unit and round templates have a single visible identity and range on desktop and mobile', async ({ page }, testInfo) => {
@@ -97,7 +85,7 @@ test('all book, page, Unit and round templates have a single visible identity an
     await expect(science.locator('[data-science-auto]')).toBeVisible();
     await expect(science.locator('[data-science-auto]')).not.toContainText(/p\.4|p\.9/);
     for (const id of ['unlock', 'azar', 'grammar', 'ace', 'gujin', 'listening', 'writing', 'unit', 'round', 'math', 'science', 'selector']) {
-      await expectCardHierarchy(page.locator(`[data-item="display-${id}"]`), ':scope > .item-top .item-title');
+      await expectCardHierarchy(page, `[data-item="display-${id}"]`, ':scope > .item-top .item-title');
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await unlock.screenshot({ path: testInfo.outputPath(`unlock-single-identity-${width}.png`) });
@@ -151,7 +139,7 @@ test('todo uses single book labels and editable numbered ranges and still saves 
     await expect(card.locator('h3')).toHaveText('英文｜自訂回次教材');
     await expect(card.locator('[data-todo-range="start"]')).toBeEditable();
     await expect(card.locator('[data-todo-range="end"]')).toBeEditable();
-    await expectCardHierarchy(card, 'h3');
+    await expectCardHierarchy(page, '.todo-card:has([data-item-id="display-round"])', 'h3');
     expect((await card.innerText()).match(/自訂回次教材/g)).toHaveLength(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }

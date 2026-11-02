@@ -1,4 +1,5 @@
 html.site-shell-ready {
+  scrollbar-gutter: stable;
   --rail-left: 240px;
   --rail-right: 300px;
   --rail-ink: #172a39;
@@ -154,6 +155,7 @@ body.has-site-shell {
 
 .site-rail-date strong {
   font: 400 44px/1.2 Georgia,serif;
+  min-height: 58px;
 }
 
 .site-rail-date-control {
@@ -233,6 +235,7 @@ body.has-site-shell {
   margin: 8px 0;
   font-size: 12px;
   color: #afc4dc;
+  min-height: 1.6em;
 }
 
 .site-week-ticks {
@@ -240,6 +243,7 @@ body.has-site-shell {
   grid-template-columns: repeat(7,minmax(0,1fr));
   gap: 5px;
   margin-top: 16px;
+  min-height: 35px;
 }
 
 .site-week-ticks span {
@@ -279,6 +283,7 @@ body.has-site-shell {
 
 .site-rail-bottom p {
   margin: 4px 0;
+  min-height: 1.6em;
 }
 
 .site-workspace-home {
@@ -499,6 +504,7 @@ html.site-rail-open {
   }
   .site-rail {
     top: 0;
+    transition: none;
     visibility: visible;
     transform: none;
     border-radius: 0;

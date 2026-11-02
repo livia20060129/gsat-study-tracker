@@ -11,12 +11,6 @@ const cache = new Map<string, {
     record: StudyRecord;
 }>();
 const currentPage = siteNavigationPage(location.pathname);
-const tools = [
-    ['todo.html', '待辦事項', '全部、本月、本週的逾期項目', '📅'],
-    ['material.progress.html', '教材進度圖', '檢視範圍與管理教材目錄', '📖'],
-    ['vocabulary.review.html', '英文單字複習', '單字、組合與句子', 'Aa'],
-    ['gpt.prompt.html', '排程建議prompt', '用於 AI 幫助 Google Calendar 排程', '✧'],
-];
 function dateKey(date = new Date()): string {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
@@ -37,36 +31,31 @@ function hasStudyInput(item: StudyItem): boolean {
 function hasRecordInput(record: StudyRecord): boolean {
     return Boolean(record.mood || record.wakeTime || record.bedtime || record.notes?.trim() || record.biggestBlock?.trim() || record.firstThingTomorrow?.trim() || record.items.some(hasStudyInput));
 }
-const left = document.createElement('aside');
-left.className = 'site-rail site-rail-left';
-left.id = 'siteLeftRail';
-left.setAttribute('aria-label', '日期與每週紀錄');
-left.innerHTML = `<div class="site-rail-top"><a class="site-brand" href="./index.html"><span aria-hidden="true">✓</span><span><strong>讀書紀錄卡</strong><small>STUDY LOG</small></span></a><button type="button" class="site-rail-close" data-close-rail aria-label="收合左側紀錄欄">×</button></div><div class="site-rail-date"><span data-rail-year></span><strong data-rail-date></strong><span data-rail-weekday></span></div><section class="site-week"><span>本週紀錄</span><strong><b data-rail-days>0</b><small>／7</small></strong><p data-rail-week-description></p><div class="site-week-ticks" aria-label="本週每日紀錄"></div></section><a class="site-summary-link" href="./summary.html"${currentPage === 'summary.html' ? ' aria-current="page"' : ''}>查看週／月總結 <span aria-hidden="true">↗</span></a><div class="site-rail-bottom"><span data-rail-storage>資料儲存於本機</span><p data-rail-account></p></div>`;
-const right = document.createElement('aside');
-right.className = 'site-rail site-rail-right';
-right.id = 'siteRightRail';
-right.setAttribute('aria-label', '工具與本週逾期');
-right.innerHTML = `<div class="site-rail-top"><a class="site-workspace-home" href="./index.html"${currentPage === 'index.html' ? ' aria-current="page"' : ''}><strong>GSAT Tracker</strong><span>回到主頁 ↗</span></a><button type="button" class="site-rail-close" data-close-rail aria-label="收合右側工具欄">×</button></div><nav class="site-tools" aria-label="讀書工具">${tools.map(([href, title, caption, icon]) => `<a href="./${href}"${currentPage === href ? ' aria-current="page"' : ''}><span class="site-tool-icon" aria-hidden="true">${icon}</span><span><strong>${title}</strong><small>${caption}</small></span><span class="site-tool-arrow" aria-hidden="true">→</span></a>`).join('')}</nav><section class="site-overdue"><header><h2>本週逾期</h2><span data-rail-overdue-count>0 項</span></header><div data-rail-overdue-list></div><a class="site-overdue-all" href="./todo.html?period=all">查看全部待辦 →</a></section>`;
-const bar = document.createElement('div');
-bar.className = 'site-mobile-bar';
-bar.innerHTML = '<button type="button" data-open-rail="left" aria-controls="siteLeftRail" aria-expanded="false"><span aria-hidden="true">📝</span> 紀錄</button><a href="./index.html">讀書紀錄卡</a><button type="button" data-open-rail="right" aria-controls="siteRightRail" aria-expanded="false">工具 <span aria-hidden="true">🛠️</span></button>';
-const backdrop = document.createElement('button');
-backdrop.type = 'button';
-backdrop.className = 'site-rail-backdrop';
-backdrop.hidden = true;
-backdrop.setAttribute('aria-label', '收合資訊欄');
-document.body.classList.add('has-site-shell');
+const left = document.getElementById('siteLeftRail')!;
+const right = document.getElementById('siteRightRail')!;
+const bar = document.getElementById('siteMobileBar')!;
+const backdrop = document.getElementById('siteRailBackdrop')!;
+const railScrollKey = 'study-v11:ui:rail-scroll';
+function saveRailScroll(): void {
+    try { sessionStorage.setItem(railScrollKey, JSON.stringify([left.scrollTop, right.scrollTop])); }
+    catch { /* Navigation still works when session storage is unavailable. */ }
+}
+function restoreRailScroll(): void {
+    try {
+        const saved: unknown = JSON.parse(sessionStorage.getItem(railScrollKey) ?? 'null');
+        if (!Array.isArray(saved) || saved.length !== 2 || !saved.every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) return;
+        left.scrollTop = saved[0];
+        right.scrollTop = saved[1];
+    } catch { /* Missing or invalid UI state does not affect study records. */ }
+}
+window.addEventListener('pagehide', saveRailScroll);
 document.querySelectorAll('[data-navigation="home"]').forEach(link => link.removeAttribute('data-navigation'));
 right.querySelector('.site-workspace-home')!.setAttribute('data-navigation', 'home');
-right.querySelectorAll<HTMLAnchorElement>('.site-tools a').forEach(link => {
-    link.setAttribute('aria-label', link.querySelector('strong')!.textContent!);
-    if (link.getAttribute('href') === './gpt.prompt.html') {
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-    }
+right.querySelectorAll<HTMLAnchorElement>('.site-tools a,.site-workspace-home').forEach(link => {
+    if (link.getAttribute('href') === `./${currentPage}`) link.setAttribute('aria-current', 'page');
 });
 left.querySelector('.site-summary-link')!.setAttribute('aria-label', '週／月總結');
-document.body.append(left, right, bar, backdrop);
+if (currentPage === 'summary.html') left.querySelector('.site-summary-link')!.setAttribute('aria-current', 'page');
 const sidebarDate = initializeSidebarDate(left, dateKey(), function dateChanged(): void {
     scheduleRefresh();
     if (matchMedia('(max-width: 1199px)').matches) closeRail();
@@ -195,3 +184,4 @@ if (badge)
     new MutationObserver(updateRailStatus).observe(badge, { childList: true, subtree: true, characterData: true });
 setInterval(scheduleRefresh, 60000);
 refreshRails();
+restoreRailScroll();

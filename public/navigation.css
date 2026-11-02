@@ -1,4 +1,3 @@
-@import "./site-shell.css";
 /* Shared by bundled app pages and standalone public pages. */
 :root{--site-page-width:1120px;--site-page-gutter:14px;--site-page-background:#edf2f8}
 @media screen{html:root,html>body{background:var(--site-page-background)}}

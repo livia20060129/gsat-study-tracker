@@ -74,13 +74,12 @@ test('real navigation stays highlighted when deployment redirects HTML links to 
       await page.reload();
       await expect(page.locator('.site-rail [aria-current="page"]')).toHaveAttribute('href', `./${name}.html`);
     }
-    const popupPromise = page.waitForEvent('popup');
+    const pageCount = context.pages().length;
     await navigateSite(page, 'gpt.prompt.html');
-    const prompt = await popupPromise;
-    await expect(prompt).toHaveURL(/\/gpt\.prompt$/);
-    await expect(prompt.locator('.site-tools [aria-current="page"]')).toHaveAttribute('href', './gpt.prompt.html');
-    await expect(prompt.locator('.site-tools [aria-current="page"]')).toHaveCSS('color', 'rgb(57, 103, 233)');
-    await prompt.close();
+    await expect(page).toHaveURL(/\/gpt\.prompt$/);
+    await expect(page.locator('.site-tools [aria-current="page"]')).toHaveAttribute('href', './gpt.prompt.html');
+    await expect(page.locator('.site-tools [aria-current="page"]')).toHaveCSS('color', 'rgb(57, 103, 233)');
+    expect(context.pages()).toHaveLength(pageCount);
   }
   } finally { await server.close(); }
 });

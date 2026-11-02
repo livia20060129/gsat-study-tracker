@@ -7,6 +7,7 @@ interface MotionEntry {
   name: string;
   duration: string;
   state: 'running' | 'finished' | 'cancelled';
+  includesShell: boolean;
 }
 interface MotionProbe { id: string; generation: number; entries: MotionEntry[] }
 declare global { interface Window { pageMotionProbe: MotionProbe } }
@@ -18,9 +19,12 @@ test.beforeEach(async ({ context }) => {
     const animate = Element.prototype.animate;
     Element.prototype.animate = function observeEntry(keyframes, options): Animation {
       const animation = animate.call(this, keyframes, options);
-      if (this === document.body && animation.id === 'study-page-entry') {
+      if (animation.id === 'study-page-entry') {
         const entry: MotionEntry = { generation: probe.generation, name: animation.id,
-          duration: String(animation.effect!.getComputedTiming().duration), state: 'running' };
+          duration: String(animation.effect!.getComputedTiming().duration), state: 'running',
+          includesShell: this === document.body || this === document.documentElement
+            || this.matches('.site-rail,.site-mobile-bar,.site-rail-backdrop')
+            || this.querySelector('.site-rail,.site-mobile-bar,.site-rail-backdrop') !== null };
         probe.entries.push(entry);
         animation.addEventListener('finish', () => { entry.state = 'finished'; });
         animation.addEventListener('cancel', () => { entry.state = 'cancelled'; });
@@ -48,6 +52,7 @@ async function expectEntry(page: Page, previous?: MotionProbe): Promise<void> {
   const entry = probe.entries.filter(entry => entry.generation === probe.generation && entry.state === 'finished').at(-1)!;
   expect(entry.name).toBe('study-page-entry');
   expect(entry.duration).toBe('200');
+  expect(probe.entries.every(value => !value.includesShell), 'Sidebars and mobile controls stay outside page animations').toBe(true);
   expect(await page.locator('body').evaluate(node => getComputedStyle(node).opacity)).toBe('1');
   expect(await page.locator('body').evaluate(node => getComputedStyle(node).transform)).toBe('none');
 }
@@ -142,17 +147,74 @@ test('reduced motion keeps direct entry, links and history usable without page e
   expect((await motion(page)).entries).toEqual([]);
 });
 
-test('new-tab navigation and same-page anchors keep their normal behavior', async ({ page }) => {
+test('schedule prompt uses the same tab and same-page anchors keep their normal behavior', async ({ page, context }) => {
   await page.goto('/');
-  const popupPromise = page.waitForEvent('popup');
+  const pageCount = context.pages().length;
   await navigateSite(page, 'gpt.prompt.html');
-  const popup = await popupPromise;
-  await popup.waitForLoadState();
-  await expectEntry(popup);
+  await expect(page).toHaveURL(/\/gpt\.prompt\.html$/);
+  await expectEntry(page);
+  expect(context.pages()).toHaveLength(pageCount);
+  const before = await motion(page);
+  await page.locator('nav a[href="#role"]').click();
+  await expect(page).toHaveURL(/#role$/);
+  expect((await motion(page)).generation).toBe(before.generation);
+  await page.goBack();
+  await page.goBack();
   await expect(page).toHaveURL(/\/$/);
-  const before = await motion(popup);
-  await popup.locator('nav a[href="#role"]').click();
-  await expect(popup).toHaveURL(/#role$/);
-  expect((await motion(popup)).generation).toBe(before.generation);
-  await popup.close();
+  await expectEntry(page);
+});
+
+test('rails render before async shell data, retain geometry through hydration, and preserve their own scroll positions', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const path of ['/todo.html', '/privacy.html', '/vocabulary.sources.html']) {
+    let release: () => void = () => {};
+    let hydrationVersion: string | null = null;
+    const hydration = new Promise<void>(resolve => { release = resolve; });
+    await page.route('**/site-shell.js*', async route => {
+      hydrationVersion = new URL(route.request().url()).searchParams.get('v');
+      await hydration;
+      await route.continue();
+    });
+    try {
+      await page.goto(path, { waitUntil: 'commit' });
+      const anchors = page.locator('.site-rail-left,.site-rail-right,.site-brand,.site-summary-link,.site-tools');
+      await expect(page.locator('.site-rail-left')).toBeVisible();
+      await expect(page.locator('.site-rail-right')).toBeVisible();
+      await expect(page.locator('#siteRecordDate')).toHaveCount(0);
+      const before = await anchors.evaluateAll(nodes => nodes.map(node => {
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, opacity: getComputedStyle(node).opacity };
+      }));
+      release();
+      await expect(page.locator('#siteRecordDate')).toHaveCount(1);
+      const bootstrapVersion = await page.locator('script[src*="page-transitions.js"]').evaluate(node => new URL((node as HTMLScriptElement).src).searchParams.get('v'));
+      expect(bootstrapVersion).toBeTruthy();
+      expect(hydrationVersion).toBe(bootstrapVersion);
+      await expectEntry(page);
+      const after = await anchors.evaluateAll(nodes => nodes.map(node => {
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, opacity: getComputedStyle(node).opacity };
+      }));
+      expect(after).toHaveLength(before.length);
+      for (let index = 0; index < before.length; index += 1) {
+        for (const property of ['x', 'y', 'width'] as const) {
+          expect(Math.abs(after[index][property] - before[index][property]), `${path} anchor ${index} ${property}`).toBeLessThan(1);
+        }
+        expect(after[index].opacity).toBe('1');
+      }
+    } finally {
+      release();
+      await page.unroute('**/site-shell.js*');
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 420 });
+  const saved = await page.locator('.site-rail').evaluateAll(rails => rails.map(rail => {
+    rail.scrollTop = 80;
+    return rail.scrollTop;
+  }));
+  expect(saved.every(value => value > 0)).toBe(true);
+  await page.goto('/todo.html');
+  await expect(page.locator('#siteRecordDate')).toHaveCount(1);
+  await expect.poll(async () => page.locator('.site-rail').evaluateAll(rails => rails.map(rail => rail.scrollTop))).toEqual(saved);
 });
