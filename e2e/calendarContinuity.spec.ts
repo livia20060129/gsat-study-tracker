@@ -151,10 +151,21 @@ test('an account cannot reuse another account snapshot or guest records after a 
   const aSnapshot = await cached(page);
   await page.goto('/summary.html');
   state.user = userB; state.status = 'fail';
-  await page.evaluate(({ session, record, date }) => {
+  await page.evaluate(async ({ session, record, date }) => {
     localStorage.setItem('sb-arxbirgujbrtzhoficdf-auth-token', JSON.stringify(session));
     localStorage.setItem('study-v11:meta:active-record-prefix', 'study-v11:user:' + session.user.id + ':');
     localStorage.setItem('study-v11:user:' + session.user.id + ':' + date, JSON.stringify(record));
+    // Update the canonical auth store too when simulating an account switch.
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('gsat-study-tracker-auth', 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result, transaction = database.transaction('sessions', 'readwrite');
+        transaction.objectStore('sessions').put({ value: JSON.stringify(session) }, 'sb-arxbirgujbrtzhoficdf-auth-token');
+        transaction.oncomplete = () => { database.close(); resolve(); };
+        transaction.onerror = () => reject(transaction.error);
+      };
+    });
   }, { session: session(userB), record: previousRecord('B 上次保存項目'), date });
   await page.goto('/');
   await expect(page.locator('#calendarMessage')).toContainText('上一次紀錄');

@@ -32,6 +32,8 @@ infrastructure repositories and gateways
 - 互動題辨識與每日選做：`src/study/interactiveTasks.ts`；新排程、舊版／Calendar 身分、主頁與週／月完成率及待辦共用同一判斷。互動題不產生完成率單位，學習時間與完成清單仍讀取原始完成紀錄。
 - 數學實際完成頁數：`src/study/mathProgress.ts`
 - Local／Supabase 讀寫：`src/infrastructure/storage/`
+- Cloud 登入持久化：`src/infrastructure/storage/browserAuthStorage.ts` 使用獨立 IndexedDB 儲存 Supabase SDK 原始工作階段；舊 LocalStorage 僅於初次缺少紀錄時原子移轉，之後作相容鏡像。移轉不得覆蓋更新的登入或登出標記，寫入完成前不得回報成功，登入儲存不可退回頁面記憶體。
+- 登入恢復事件順序：`src/application/cloud/sessionRestoration.ts` 只接受含使用者的事件、明確 SIGNED_OUT 或無錯誤的初始讀取；使用版本序號略過舊回應及排隊回呼。逾時保留待確認狀態與原本機資料，不以空值當成登出。資料空間選用與伺服器授權分開，沒有 SDK 工作階段時不發送帳號同步。
 - 主頁／待辦共用計時目標、模式切換與命令：`src/application/timer/studyTimerController.ts`
 - 儲存前載入基準比對與獨立頁面安全寫入：`src/application/records/localRecordEdits.ts`
 - 訪客登入轉存：`src/application/records/guestImport.ts`；先保存訪客畫面，再讀取帳號資料、合併新增內容、排入既有雲端上傳。每個訪客日期有持久化帳號歸屬與匯入收據，重試沿用目的 ID；保留訪客原始內容，不將已轉存資料複製到第二帳號。
@@ -48,7 +50,7 @@ infrastructure repositories and gateways
 - 數學 Calendar 分段對照：`src/calendar/mathPlan.ts`，以講義版本、冊別及單元匹配既有實際分段，檢查分母與跨冊順序，不把分數自行換算成頁數。數學行程先保留各自來源紀錄，之後由每日分組合併顯示，避免模板提前合併而丟失分鐘或手動範圍。
 - Unit／回次與分段頁碼模板選擇：`src/data/numberedScopes.ts`；分數註記判斷共用 `src/data/studyPartAnnotation.ts`。Calendar、原卡片、待辦與教材進度不得各自套用書名例外或把分數推估為已讀頁碼。
 - 單字精確比對、自動欄位所有權與手動優先：`src/study/vocabularyAutoFill.ts`；官方資料與字典中文分置 `src/data/ceecVocabulary.ts`、`src/data/ceecTranslations.ts`，來源、轉換與授權見 `VOCABULARY_SOURCES.md`。唯讀彙整不得觸發回填或改寫舊紀錄。
-- 按需字典協定、確認追加與來源：`src/study/dictionaryEntries.ts`、`dictionarySelection.ts`；查詢一律由 `localDictionaryLookup.ts` 重用本機 ECDICT 子集，暫存候選由 `src/ui/dictionaryPreview.ts` 管理，不呼叫網路。舊 `cambridgeLookup.ts`／`cambridgeEntries.ts` 保留停用相容入口；`supabase/functions/dictionary-lookup` 固定回覆 410，不讀金鑰、查詢內容或登入 token、不呼叫 API。共用協定只允許新增 ECDICT 選譯，解碼仍保留歷史來源。保存使用 `saveLocalRecordEdit` 及載入基準合併，不能用過期快照覆蓋整日紀錄。
+- 按需字典協定、確認追加與來源：`src/study/dictionaryEntries.ts`、`dictionarySelection.ts`；`ecdictLookup.ts` 共用核心 ECDICT 與按需載入的本站靜態詞庫，`localDictionaryLookup.ts` 供預覽共用已取得資料，暫存候選由 `src/ui/dictionaryPreview.ts` 管理，不呼叫外部字典 API。舊 `cambridgeLookup.ts`／`cambridgeEntries.ts` 保留停用相容入口；`supabase/functions/dictionary-lookup` 固定回覆 410，不讀金鑰、查詢內容或登入 token、不呼叫 API。共用協定只允許新增 ECDICT 選譯，解碼仍保留歷史來源。保存使用 `saveLocalRecordEdit` 及載入基準合併，不能用過期快照覆蓋整日紀錄。
 
 首頁與學習總結必須共用 `completedStudyTime.ts`，不得各自建立另一套時間計算。任何 UI 合併卡都只能代表來源項目，不能成為新的持久化資料真相。
 
