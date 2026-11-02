@@ -1,4 +1,5 @@
 import './todo-page.css';
+import { applyStudyHeadingHierarchy, studyFieldHierarchy } from './ui/studyFieldHierarchy.ts';
 
 import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import {
@@ -244,6 +245,7 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
   main.append(createMeta(entry));
   const title = document.createElement('h3');
   title.textContent = display.title;
+  applyStudyHeadingHierarchy(title);
   main.append(title);
   const descriptionText = display.description;
   if (descriptionText) {
@@ -258,6 +260,9 @@ function createTodoCard(entry: OverdueTaskEntry): HTMLElement {
     const label = document.createElement('dt');
     label.textContent = detail.label;
     const value = document.createElement('dd');
+    const hierarchy = detail.editableRange ? 'range' : studyFieldHierarchy(detail.label);
+    label.dataset.studyHierarchy = hierarchy;
+    value.dataset.studyHierarchy = hierarchy;
     if (detail.editableRange) {
       const input = document.createElement('input');
       input.className = 'todo-range-input';

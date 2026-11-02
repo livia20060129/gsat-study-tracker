@@ -222,7 +222,8 @@ test('Calendar cards omit repeated readonly book names while preserving selector
         await expect(card.locator('[data-field="start"]')).toBeEditable();
         await expect(card.locator('[data-field="end"]')).toBeEditable();
       } else {
-        await expect(card.getByText('第 76 回', { exact: true })).toBeHidden();
+        await expect(card.locator('.inner').getByText('第 76 回', { exact: true })).toBeHidden();
+        await expect(card.locator('.item-title .study-heading-range')).toHaveText('第 76 回');
       }
     }
     await expect(page.locator('[data-item="identity-editable"] select[data-field="title"]')).toBeEnabled();

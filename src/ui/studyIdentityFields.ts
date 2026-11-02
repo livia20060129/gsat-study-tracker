@@ -1,4 +1,5 @@
 import { studyBookIncludes, studyHeadingText, studyReferenceText, type StudyRangeKind } from './studyDisplayText.ts';
+import { applyStudyHeadingHierarchy, studyFieldHierarchy } from './studyFieldHierarchy.ts';
 
 const IDENTITY_LABELS = new Set(['科目', '書名', '書名／教材', '書名/教材', '講義版本', '國文項目']);
 const SCOPE_LABELS = new Set(['回數', '回次', 'Unit', 'Test', '主題']);
@@ -44,6 +45,10 @@ function rangeKinds(card: HTMLElement): StudyRangeKind[] {
 function deduplicateCard(card: HTMLElement): void {
   const kinds = rangeKinds(card);
   const fields = ownedElements(card, '.field');
+  for (const field of fields) {
+    const label = field.querySelector(':scope > label')?.textContent ?? '';
+    field.dataset.studyHierarchy = field.closest('.study-reference-details') ? 'detail' : studyFieldHierarchy(label);
+  }
   const selectedBooks = fields.flatMap(field => {
     const label = field.querySelector(':scope > label')?.textContent?.trim() ?? '';
     const select = field.querySelector<HTMLSelectElement>('select');
@@ -107,6 +112,7 @@ function deduplicateCard(card: HTMLElement): void {
     inner.classList.toggle('study-inner-empty', !visible.length);
     inner.classList.toggle('study-inner-checks-only', visible.every(child => child.matches('.checkline,[data-correction-reason]')));
   }
+  if (heading) applyStudyHeadingHierarchy(heading);
 }
 
 /** Apply the same presentation rules on initial render and after live range edits. Never change records. */
