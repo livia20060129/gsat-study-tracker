@@ -508,6 +508,7 @@ body.has-site-shell {
 }
 
 @media (max-width:1199px) {
+  html[data-mobile-slide-direction] { overflow-x: clip; }
   .site-mobile-content-hidden { display: none !important; }
   body[data-mobile-nav-hidden=true] .site-mobile-bar { transform: translateY(-100%); pointer-events: none; }
   .site-rail {

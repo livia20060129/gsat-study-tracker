@@ -32,7 +32,7 @@
       };
       const pageName = location.pathname.replace(/\/+$/, '').split('/').pop().replace(/\.html$/, '');
       const contentTitle = contentTitles[pageName] || '今日記錄';
-      bar.innerHTML = `<a class="site-mobile-home" href="./index.html">GSAT Tracker</a><nav aria-label="手機全頁分區"><button type="button" data-mobile-section="date" aria-controls="siteLeftRail" aria-pressed="false"><span aria-hidden="true">📅</span><span>日期紀錄</span></button><button type="button" data-mobile-section="content" aria-pressed="true"><span aria-hidden="true">📝</span><span>${contentTitle}</span></button><button type="button" data-mobile-section="tools" aria-controls="siteRightRail" aria-pressed="false"><span aria-hidden="true">☷</span><span>功能選單</span></button></nav>`;
+      bar.innerHTML = `<a class="site-mobile-home" href="./index.html">GSAT Tracker</a><nav aria-label="手機全頁分區"><button type="button" data-mobile-section="date" aria-controls="siteLeftRail" aria-pressed="false"><span aria-hidden="true">📅</span><span>日期紀錄</span></button><button type="button" data-mobile-section="content" aria-pressed="true"><span aria-hidden="true">📝</span><span>${contentTitle}</span></button><button type="button" data-mobile-section="tools" aria-controls="siteRightRail" aria-pressed="false"><span aria-hidden="true">☰</span><span>功能選單</span></button></nav>`;
       if (!pageName || pageName === 'index') bar.querySelector('.site-mobile-home').setAttribute('aria-current', 'page');
       const today = new Date();
       left.querySelector('[data-rail-year]').textContent = String(today.getFullYear());

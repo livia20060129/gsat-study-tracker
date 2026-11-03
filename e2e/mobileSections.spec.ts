@@ -156,6 +156,7 @@ test('a running original-card timer continues across both full-page sections and
   await card.locator('[data-time-mode="timer"]').click();
   await page.clock.runFor(300);
   await card.locator('[data-action="timer-toggle"]').click();
+  const startedAt = await page.evaluate(() => Date.now());
   const timer = await card.locator('[data-timer-display]').elementHandle();
   await showMobileSection(page, 'date');
   await page.clock.runFor(30_000);
@@ -163,7 +164,11 @@ test('a running original-card timer continues across both full-page sections and
   await page.clock.runFor(35_000);
   await showMobileSection(page, 'content');
   expect(await timer!.evaluate(node => node.isConnected)).toBe(true);
-  await expect(card.locator('[data-timer-display]')).toHaveText(/^01:0\d$/);
+  const elapsedParts = (await card.locator('[data-timer-display]').textContent())!.split(':').map(Number);
+  const elapsedSeconds = elapsedParts[0] * 60 + elapsedParts[1];
+  const observedAt = await page.evaluate(() => Date.now());
+  expect(elapsedSeconds).toBeGreaterThanOrEqual(65);
+  expect(Math.abs(elapsedSeconds - (observedAt - startedAt) / 1000)).toBeLessThan(2);
   await card.locator('[data-action="timer-toggle"]').click();
   await expect(card.locator('[data-action="timer-toggle"]')).toHaveText('繼續');
   const elapsed = await card.locator('[data-timer-display]').textContent();
