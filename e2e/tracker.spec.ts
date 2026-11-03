@@ -960,7 +960,8 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
   const afterHeight = await page.locator('#routineTimeField').evaluate(node => node.getBoundingClientRect().height);
   expect(Math.abs(afterHeight - beforeHeight)).toBeLessThan(1);
 
-  await page.locator('[data-open-rail="left"]').click();
+  await page.locator('[data-mobile-section="date"]').focus();
+  await page.locator('[data-mobile-section="date"]').click();
   const dateContainment = await page.locator('#studyDate').evaluate(node => {
     const input = node.getBoundingClientRect();
     const field = node.closest('.site-rail-date-control')?.getBoundingClientRect();

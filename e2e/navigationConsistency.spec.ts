@@ -1,8 +1,8 @@
 import { cleanUrlServer } from './helpers/cleanUrlServer.ts';
 import { expect, test } from '@playwright/test';
-import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
+import { navigateSite, selectStudyDate, showMobileSection } from './helpers/siteNavigation.ts';
 
-test('all pages share desktop rails and accessible collapsible mobile rails without duplicate navigation', async ({ page }, testInfo) => {
+test('all pages share desktop rails and three full-width mobile sections without duplicate navigation', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -11,22 +11,21 @@ test('all pages share desktop rails and accessible collapsible mobile rails with
     for (const path of ['/', '/todo.html', '/summary.html', '/material.progress.html', '/vocabulary.review.html', '/privacy.html', '/terms.html', '/support.html', '/gpt.prompt.html', '/vocabulary.sources.html']) {
       await page.goto(path);
       await expect(page.locator('body')).toHaveClass(/has-site-shell/);
-      await expect(page.locator('[data-rail-date]')).toHaveCSS('color', 'rgb(237, 243, 252)');
-      await expect(page.locator('[data-open-rail="left"] span')).toHaveText('📝');
-      await expect(page.locator('[data-open-rail="right"] span')).toHaveText('🛠️');
+      if (width >= 1200) await expect(page.locator('[data-rail-date]')).toHaveCSS('color', 'rgb(237, 243, 252)');
+      await expect(page.locator('#siteMobileBar [data-mobile-section]')).toHaveCount(3);
       const home = page.locator('.site-workspace-home');
-      const title = page.locator('h1:visible').first();
+      const title = page.locator('h1:not(.site-mobile-section-heading):visible').first();
       await expect(title).toBeVisible();
       await expect(title).toHaveCSS('font-size', '28px');
-      await expect(home).toHaveCSS('color', path === '/' ? 'rgb(57, 103, 233)' : 'rgb(23, 42, 57)');
+      await expect(width >= 1200 ? home : page.locator('.site-mobile-home')).toHaveCSS('color', path === '/' ? 'rgb(57, 103, 233)' : 'rgb(23, 42, 57)');
       const selectedTool = page.locator(`.site-tools a[href=".${path}"]`);
-      if (await selectedTool.count()) {
+      if (width >= 1200 && await selectedTool.count()) {
         await expect(selectedTool).toHaveAttribute('aria-current', 'page');
         await expect(selectedTool).toHaveCSS('color', 'rgb(57, 103, 233)');
       }
       if (path === '/summary.html') {
         await expect(page.locator('.site-summary-link')).toHaveAttribute('aria-current', 'page');
-        await expect(page.locator('.site-summary-link')).toHaveCSS('color', 'rgb(165, 199, 255)');
+        if (width >= 1200) await expect(page.locator('.site-summary-link')).toHaveCSS('color', 'rgb(165, 199, 255)');
       }
       await expect(page.locator('.site-rail .site-connection')).toHaveCount(0);
       await expect(page.locator('.site-rail a[href="./summary.html"]')).toHaveCount(1);
@@ -38,15 +37,20 @@ test('all pages share desktop rails and accessible collapsible mobile rails with
       } else {
         await expect(page.locator('.site-rail-left')).toBeHidden();
         await expect(page.locator('.site-rail-right')).toBeHidden();
-        await page.locator('[data-open-rail="right"]').click();
-        await expect(home).toBeVisible();
+        await showMobileSection(page, 'tools');
+        await expect(page.locator('.site-rail-right')).toBeVisible();
+        await expect(title).toBeHidden();
+        expect(Math.abs((await page.locator('.site-rail-right').boundingBox())!.width - width)).toBeLessThanOrEqual(16);
+        await expect(page.locator('.site-rail-backdrop')).toHaveCount(0);
         await expect(page.locator('.site-tools a')).toHaveCount(4);
+        if (await selectedTool.count()) await expect(selectedTool).toHaveCSS('color', 'rgb(57, 103, 233)');
         await page.keyboard.press('Escape');
         await expect(page.locator('.site-rail-right')).toBeHidden();
-        await expect(page.locator('[data-open-rail="right"]')).toBeFocused();
-        await page.locator('[data-open-rail="left"]').click();
+        await expect(page.locator('button[data-mobile-section="content"]')).toBeFocused();
+        await showMobileSection(page, 'date');
         await expect(page.locator('.site-summary-link')).toBeVisible();
-        await page.locator('.site-rail-left [data-close-rail]').click();
+        await expect(page.locator('[data-rail-date]')).toHaveCSS('color', 'rgb(57, 103, 233)');
+        await showMobileSection(page, 'content');
         await expect(page.locator('.site-rail-left')).toBeHidden();
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), path + ' fits viewport').toBe(true);
@@ -69,8 +73,9 @@ test('real navigation stays highlighted when deployment redirects HTML links to 
       const selected = page.locator('.site-rail [aria-current="page"]');
       await expect(selected).toHaveCount(1);
       await expect(selected).toHaveAttribute('href', `./${name}.html`);
-      await expect(selected).toHaveCSS('color', name === 'summary' ? 'rgb(165, 199, 255)' : 'rgb(57, 103, 233)');
-      if (name !== 'index') await expect(page.locator('.site-workspace-home')).toHaveCSS('color', 'rgb(23, 42, 57)');
+      if (width < 1200) await showMobileSection(page, name === 'summary' ? 'date' : 'tools');
+      await expect(selected).toHaveCSS('color', name === 'summary' && width >= 1200 ? 'rgb(165, 199, 255)' : 'rgb(57, 103, 233)');
+      if (name !== 'index') await expect(page.locator(width >= 1200 ? '.site-workspace-home' : '.site-mobile-home')).toHaveCSS('color', 'rgb(23, 42, 57)');
       await page.reload();
       await expect(page.locator('.site-rail [aria-current="page"]')).toHaveAttribute('href', `./${name}.html`);
     }
@@ -78,6 +83,7 @@ test('real navigation stays highlighted when deployment redirects HTML links to 
     await navigateSite(page, 'gpt.prompt.html');
     await expect(page).toHaveURL(/\/gpt\.prompt$/);
     await expect(page.locator('.site-tools [aria-current="page"]')).toHaveAttribute('href', './gpt.prompt.html');
+    if (width < 1200) await showMobileSection(page, 'tools');
     await expect(page.locator('.site-tools [aria-current="page"]')).toHaveCSS('color', 'rgb(57, 103, 233)');
     expect(context.pages()).toHaveLength(pageCount);
   }
@@ -151,7 +157,7 @@ test('sidebar date editing preserves drafts and routine replaces the upper date 
     await selectStudyDate(page, '2026-11-05');
     await expect(page.locator('#notes')).toHaveValue('切換前尚未離開欄位的筆記');
     await navigateSite(page, 'todo.html');
-    if (width < 1200) await page.locator('[data-open-rail="left"]').click();
+    if (width < 1200) await showMobileSection(page, 'date');
     await page.locator('#siteRecordDate').evaluate((node: HTMLInputElement) => {
       node.value = '2026-11-04';
       node.dispatchEvent(new Event('change', { bubbles: true }));

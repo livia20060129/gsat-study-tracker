@@ -140,7 +140,7 @@ test('reduced motion keeps direct entry, links and history usable without page e
   }
   await navigateSite(page, 'vocabulary.review.html');
   await expect(page).toHaveURL(/\/vocabulary\.review\.html$/);
-  await expect(page.locator('h1')).toHaveText('英文單字複習');
+  await expect(page.locator('h1:visible')).toHaveText('英文單字複習');
   expect((await motion(page)).entries).toEqual([]);
   await page.goBack();
   await expect(page).toHaveURL(/\/vocabulary\.sources\.html$/);

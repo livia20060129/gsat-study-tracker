@@ -7,6 +7,7 @@ import { studyItemProgress } from './study/itemProgress.ts';
 import { siteNavigationPage } from './ui/siteNavigation.ts';
 import { initializeSidebarDate } from './ui/sidebarDate.ts';
 import { initializeDisclosureMotion } from './ui/disclosureMotion.ts';
+import { initializeMobileSections } from './ui/mobileSections.ts';
 import type { StudyItem, StudyRecord } from './types.ts';
 initializeDisclosureMotion();
 const cache = new Map<string, {
@@ -37,7 +38,8 @@ function hasRecordInput(record: StudyRecord): boolean {
 const left = document.getElementById('siteLeftRail')!;
 const right = document.getElementById('siteRightRail')!;
 const bar = document.getElementById('siteMobileBar')!;
-const backdrop = document.getElementById('siteRailBackdrop')!;
+const mobileSections = initializeMobileSections(left, right, bar);
+if (currentPage === 'index.html') bar.querySelector('.site-mobile-home')!.setAttribute('aria-current', 'page');
 const railScrollKey = 'study-v11:ui:rail-scroll';
 function saveRailScroll(): void {
     try { sessionStorage.setItem(railScrollKey, JSON.stringify([left.scrollTop, right.scrollTop])); }
@@ -61,60 +63,8 @@ left.querySelector('.site-summary-link')!.setAttribute('aria-label', '週／月�
 if (currentPage === 'summary.html') left.querySelector('.site-summary-link')!.setAttribute('aria-current', 'page');
 const sidebarDate = initializeSidebarDate(left, dateKey(), function dateChanged(): void {
     scheduleRefresh();
-    if (matchMedia('(max-width: 1199px)').matches) closeRail();
+    mobileSections.showContent();
 });
-let opener: HTMLElement | null = null;
-function closeRail(): void {
-    document.documentElement.classList.remove('site-rail-open');
-    delete document.body.dataset.rail;
-    backdrop.hidden = true;
-    bar.querySelectorAll('[data-open-rail]').forEach(button => button.setAttribute('aria-expanded', 'false'));
-    if (opener)
-        opener.focus({ preventScroll: true });
-    opener = null;
-}
-bar.addEventListener('click', event => {
-    const button = (event.target as Element).closest<HTMLButtonElement>('[data-open-rail]');
-    if (!button)
-        return;
-    if (document.body.dataset.rail === button.dataset.openRail) {
-        closeRail();
-        return;
-    }
-    closeRail();
-    opener = button;
-    document.body.dataset.rail = button.dataset.openRail;
-    document.documentElement.classList.add('site-rail-open');
-    backdrop.hidden = false;
-    button.setAttribute('aria-expanded', 'true');
-    (button.dataset.openRail === 'left' ? left : right).querySelector<HTMLButtonElement>('[data-close-rail]')?.focus({ preventScroll: true });
-});
-backdrop.addEventListener('click', closeRail);
-for (const rail of [left, right])
-    rail.addEventListener('click', event => {
-        if ((event.target as Element).closest('[data-close-rail]'))
-            closeRail();
-    });
-document.addEventListener('keydown', event => {
-    if (!document.body.dataset.rail)
-        return;
-    if (event.key === 'Escape')
-        closeRail();
-    if (event.key !== 'Tab')
-        return;
-    const rail = document.body.dataset.rail === 'left' ? left : right;
-    const focusable = [...rail.querySelectorAll<HTMLElement>('a,button')].filter(node => node.getClientRects().length);
-    const index = focusable.indexOf(document.activeElement as HTMLElement);
-    if (event.shiftKey && index <= 0) {
-        event.preventDefault();
-        focusable.at(-1)?.focus();
-    }
-    else if (!event.shiftKey && index === focusable.length - 1) {
-        event.preventDefault();
-        focusable[0]?.focus();
-    }
-});
-matchMedia('(min-width: 1200px)').addEventListener('change', closeRail);
 function updateRailStatus(): void {
     const badge = document.getElementById('cloudStatusBadge');
     const state = badge?.textContent?.trim();
@@ -182,7 +132,7 @@ function refreshRails(): void {
         left.querySelector('[data-rail-account]')!.textContent = prefix.includes(':user:') ? '目前帳號的本機資料' : '訪客本機資料';
         const pending = overdueEntriesForPeriod(overdueTasks(records.filter(record => currentWeek.has(record.date)), today), 'week', today);
         right.querySelector('[data-rail-overdue-count]')!.textContent = `${pending.length} 項`;
-        const preview = pending.length ? overduePreviewGroups(pending).slice(0, 5).map(group => `<a class="site-overdue-item" href="./todo.html?period=week&amp;item=${encodeURIComponent(group.key)}#${group.subject}"><strong>${escapeText(group.title)}：${group.count} 項逾期</strong><small>${escapeText(group.subjectLabel)}</small></a>`).join('') : '<p class="site-overdue-empty">本週尚無逾期項目</p>';
+        const preview = pending.length ? overduePreviewGroups(pending).slice(0, 10).map(group => `<a class="site-overdue-item" href="./todo.html?period=week&amp;item=${encodeURIComponent(group.key)}#${group.subject}"><strong>${escapeText(group.title)}：${group.count} 項逾期</strong><small>${escapeText(group.subjectLabel)}</small></a>`).join('') : '<p class="site-overdue-empty">本週尚無逾期項目</p>';
         if (previousPreview !== preview) {
             right.querySelector('[data-rail-overdue-list]')!.innerHTML = preview;
             previousPreview = preview;

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { showMobileSection } from './helpers/siteNavigation.ts';
 
 test('weekly sidebar groups overdue Units and links to the same book filter without combining their saved progress', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-05T12:00:00+08:00'));
@@ -13,7 +14,7 @@ test('weekly sidebar groups overdue Units and links to the same book filter with
     })) }));
   });
   await page.reload();
-  if (await page.locator('.site-mobile-bar').isVisible()) await page.locator('[data-open-rail="right"]').click();
+  await showMobileSection(page, 'tools');
   const preview = page.locator('[data-rail-overdue-list] a');
   await expect(preview).toHaveCount(1);
   await expect(preview).toContainText('Essential Grammar in Use：4 項逾期');
