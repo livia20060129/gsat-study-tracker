@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 async function seed(page: Page): Promise<void> {
   await page.goto('/vocabulary.review.html');
@@ -148,6 +148,44 @@ test('touching the icon center or button edge toggles every star type', async ({
   } finally { await context.close(); }
 });
 
+async function beginStarPointerPress(page: Page, button: Locator): Promise<{ x: number; y: number }> {
+  // An actionable center can still leave a fractional pixel clipped at the viewport edge.
+  await button.evaluate(node => node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }));
+  await button.click({ trial: true });
+  await expect(button).toBeInViewport({ ratio: 1 });
+  await button.evaluate(node => {
+    node.addEventListener('pointerdown', function recordPointerDown(): void {
+      node.setAttribute('data-pointer-down-probe', 'received');
+    }, { once: true });
+  });
+  const bounds = (await button.boundingBox())!;
+  const point = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.down();
+  await expect(button).toHaveAttribute('data-pointer-down-probe', 'received');
+  return point;
+}
+
+test('a fractionally clipped meaning star is centered before a split pointer click', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await seed(page);
+  await page.getByRole('button', { name: '個別標註', exact: true }).click();
+  const row = page.locator('.vocabulary-row[data-entry-key="alternate"]');
+  const button = row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true });
+  await button.evaluate(node => {
+    window.scrollBy({ top: node.getBoundingClientRect().bottom - innerHeight - 0.5, behavior: 'instant' });
+  });
+  // The fixture must be partly clipped; the exact fraction depends on engine scroll rounding.
+  // beginStarPointerPress still requires 100% visibility before every actual press.
+  await expect(button).toBeInViewport();
+  await expect(button).not.toBeInViewport({ ratio: 1 });
+  await beginStarPointerPress(page, button);
+  await page.mouse.up();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+});
+
 for (const viewport of [{ width: 1280, height: 720 }, { width: 1280, height: 600 }, { width: 375, height: 812 }]) {
   test(`background record and metadata writes cannot replace a star between pointer down and click (${viewport.width}x${viewport.height})`, async ({ page, context }) => {
     await page.setViewportSize(viewport);
@@ -162,18 +200,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1280, height: 600
       await page.evaluate(() => { (window as unknown as Window & { storageProbe: number }).storageProbe = 0;
         window.addEventListener('storage', () => { (window as unknown as Window & { storageProbe: number }).storageProbe += 1; }, { once: true }); });
       const button = row.locator(`[data-star-key="${key}"]`);
-      // Split mouse actions do not scroll or perform Locator.click's actionability checks.
-      await button.click({ trial: true });
-      await expect(button).toBeInViewport({ ratio: 1 });
-      await button.evaluate(node => {
-        node.addEventListener('pointerdown', function recordPointerDown(): void {
-          node.setAttribute('data-pointer-down-probe', 'received');
-        }, { once: true });
-      });
-      const bounds = (await button.boundingBox())!;
-      await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-      await page.mouse.down();
-      await expect(button).toHaveAttribute('data-pointer-down-probe', 'received');
+      const point = await beginStarPointerPress(page, button);
       await other.evaluate(({ index }) => {
         const key = 'study-v11:guest:2026-11-02', record = JSON.parse(localStorage.getItem(key)!);
         record.notes = `另一分頁更新 ${index}`;
@@ -188,7 +215,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1280, height: 600
       expect(await button.evaluate((node, point) => {
         const hit = document.elementFromPoint(point.x, point.y);
         return hit === node || Boolean(hit && node.contains(hit));
-      }, { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 })).toBe(true);
+      }, point)).toBe(true);
       await page.mouse.up();
       await expect(button).toHaveAttribute('aria-pressed', 'true');
       await page.clock.runFor(250);
