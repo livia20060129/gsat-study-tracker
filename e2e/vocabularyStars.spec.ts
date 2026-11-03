@@ -148,41 +148,61 @@ test('touching the icon center or button edge toggles every star type', async ({
   } finally { await context.close(); }
 });
 
-test('background record and metadata writes cannot replace a star between pointer down and click', async ({ page, context }) => {
-  await page.clock.install({ time: new Date('2026-11-02T12:00:00+08:00') });
-  await seed(page);
-  const other = await context.newPage();
-  await other.goto('/summary.html');
-  const row = page.locator('.vocabulary-row[data-entry-key="alternate"]');
-  await row.getByRole('button', { name: '個別標註', exact: true }).click();
-  for (const [index, key] of ['card', 'word:alternate:0', 'meaning:Noun:%E5%80%99%E8%A3%9C%E8%80%85:0'].entries()) {
-    await row.evaluate(node => { node.setAttribute('data-pointer-probe', 'original'); });
-    await page.evaluate(() => { (window as unknown as Window & { storageProbe: number }).storageProbe = 0;
-      window.addEventListener('storage', () => { (window as unknown as Window & { storageProbe: number }).storageProbe += 1; }, { once: true }); });
-    const button = row.locator(`[data-star-key="${key}"]`);
-    const bounds = (await button.boundingBox())!;
-    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-    await page.mouse.down();
-    await other.evaluate(({ index }) => {
-      const key = 'study-v11:guest:2026-11-02', record = JSON.parse(localStorage.getItem(key)!);
-      record.notes = `另一分頁更新 ${index}`;
-      if (index === 1) record.items[0].f.words[1].translation = '另一分頁的翻譯';
-      localStorage.setItem(key, JSON.stringify(record));
-      localStorage.setItem('study-v11:guest:meta:pending-sync:2026-11-02', JSON.stringify({ sequence: index }));
-    }, { index });
-    await expect.poll(() => page.evaluate(() => (window as unknown as Window & { storageProbe: number }).storageProbe)).toBeGreaterThan(0);
-    await page.clock.runFor(250);
-    await expect(row).toHaveAttribute('data-pointer-probe', 'original');
-    await page.mouse.up();
-    await expect(button).toHaveAttribute('aria-pressed', 'true');
-    await page.clock.runFor(250);
-  }
-  await page.reload();
-  await expect(row.locator('[data-star-key="card"]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(row.locator('.is-word-starred')).toHaveText('alternate');
-  await expect(row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await other.close();
-});
+for (const viewport of [{ width: 1280, height: 720 }, { width: 1280, height: 600 }, { width: 375, height: 812 }]) {
+  test(`background record and metadata writes cannot replace a star between pointer down and click (${viewport.width}x${viewport.height})`, async ({ page, context }) => {
+    await page.setViewportSize(viewport);
+    await page.clock.install({ time: new Date('2026-11-02T12:00:00+08:00') });
+    await seed(page);
+    const other = await context.newPage();
+    await other.goto('/summary.html');
+    const row = page.locator('.vocabulary-row[data-entry-key="alternate"]');
+    await row.getByRole('button', { name: '個別標註', exact: true }).click();
+    for (const [index, key] of ['card', 'word:alternate:0', 'meaning:Noun:%E5%80%99%E8%A3%9C%E8%80%85:0'].entries()) {
+      await row.evaluate(node => { node.setAttribute('data-pointer-probe', 'original'); });
+      await page.evaluate(() => { (window as unknown as Window & { storageProbe: number }).storageProbe = 0;
+        window.addEventListener('storage', () => { (window as unknown as Window & { storageProbe: number }).storageProbe += 1; }, { once: true }); });
+      const button = row.locator(`[data-star-key="${key}"]`);
+      // Split mouse actions do not scroll or perform Locator.click's actionability checks.
+      await button.click({ trial: true });
+      await expect(button).toBeInViewport({ ratio: 1 });
+      await button.evaluate(node => {
+        node.addEventListener('pointerdown', function recordPointerDown(): void {
+          node.setAttribute('data-pointer-down-probe', 'received');
+        }, { once: true });
+      });
+      const bounds = (await button.boundingBox())!;
+      await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+      await page.mouse.down();
+      await expect(button).toHaveAttribute('data-pointer-down-probe', 'received');
+      await other.evaluate(({ index }) => {
+        const key = 'study-v11:guest:2026-11-02', record = JSON.parse(localStorage.getItem(key)!);
+        record.notes = `另一分頁更新 ${index}`;
+        if (index === 1) record.items[0].f.words[1].translation = '另一分頁的翻譯';
+        localStorage.setItem(key, JSON.stringify(record));
+        localStorage.setItem('study-v11:guest:meta:pending-sync:2026-11-02', JSON.stringify({ sequence: index }));
+      }, { index });
+      await expect.poll(() => page.evaluate(() => (window as unknown as Window & { storageProbe: number }).storageProbe)).toBeGreaterThan(0);
+      await page.clock.runFor(250);
+      await expect(row).toHaveAttribute('data-pointer-probe', 'original');
+      await expect(button).toHaveAttribute('data-pointer-down-probe', 'received');
+      expect(await button.evaluate((node, point) => {
+        const hit = document.elementFromPoint(point.x, point.y);
+        return hit === node || Boolean(hit && node.contains(hit));
+      }, { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 })).toBe(true);
+      await page.mouse.up();
+      await expect(button).toHaveAttribute('aria-pressed', 'true');
+      await page.clock.runFor(250);
+    }
+    await page.reload();
+    await expect(row.locator('[data-star-key="card"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(row.locator('.is-word-starred')).toHaveText('alternate');
+    await expect(row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    const concurrentRecord = await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-11-02')!));
+    expect(concurrentRecord.notes).toBe('另一分頁更新 2');
+    expect(concurrentRecord.items[0].f.words[1].translation).toBe('另一分頁的翻譯');
+    await other.close();
+  });
+}
 
 test('all three star controls recover from full storage by compacting confirmed baselines', async ({ page }) => {
   await seed(page);
