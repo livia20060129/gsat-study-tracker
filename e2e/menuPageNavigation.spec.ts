@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { cleanUrlServer } from './helpers/cleanUrlServer.ts';
 import { showMobileSection } from './helpers/siteNavigation.ts';
+import { dispatchSectionSwipe } from './helpers/sectionSwipe.ts';
 
 interface MenuMotionEntry { id: string; from: number; to: number; duration: number; opacity: boolean; includesShell: boolean }
 declare global { interface Window { menuPageMotionProbe: { entries: MenuMotionEntry[]; animations: Animation[]; legacyEntries: number } } }
@@ -29,7 +30,7 @@ async function installMenuProbe(page: Page, pause: boolean): Promise<void> {
 }
 
 for (const destination of ['todo.html', 'material.progress.html', 'vocabulary.review.html', 'gpt.prompt.html']) {
-  test(`mobile menu moves left into ${destination} without moving navigation or losing saved notes`, async ({ page }, testInfo) => {
+  test(`mobile menu moves right and ${destination} enters from the left without moving navigation or losing saved notes`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await installMenuProbe(page, true);
     await page.goto('/');
@@ -42,15 +43,15 @@ for (const destination of ['todo.html', 'material.progress.html', 'vocabulary.re
     await page.locator(`.site-tools a[href="./${destination}"]`).click();
     await expect.poll(() => page.evaluate(() => window.menuPageMotionProbe.entries.some(entry => entry.id === 'study-menu-page-out'))).toBe(true);
     const outgoing = await page.evaluate(() => window.menuPageMotionProbe.entries.find(entry => entry.id === 'study-menu-page-out')!);
-    expect(outgoing).toEqual({ id: 'study-menu-page-out', from: 0, to: -width, duration: 240, opacity: false, includesShell: false });
-    expect((await page.locator('#siteRightRail').boundingBox())!.x).toBeLessThan(0);
+    expect(outgoing).toEqual({ id: 'study-menu-page-out', from: 0, to: width, duration: 240, opacity: false, includesShell: false });
+    expect((await page.locator('#siteRightRail').boundingBox())!.x).toBeGreaterThan(0);
     expect(await page.locator('#siteMobileBar').boundingBox()).toEqual(header);
     await page.evaluate(() => { for (const animation of window.menuPageMotionProbe.animations) animation.finish(); });
     await expect(page).toHaveURL(new RegExp('/' + destination.replaceAll('.', '\\.') + '$'));
     await expect.poll(() => page.evaluate(() => window.menuPageMotionProbe.entries.some(entry => entry.id === 'study-menu-page-in'))).toBe(true);
     const incoming = await page.evaluate(() => window.menuPageMotionProbe.entries.filter(entry => entry.id === 'study-menu-page-in'));
     expect(incoming.length).toBeGreaterThan(0);
-    expect(incoming.every(entry => entry.from === width && entry.to === 0 && entry.duration === 240 && !entry.opacity && !entry.includesShell)).toBe(true);
+    expect(incoming.every(entry => entry.from === -width && entry.to === 0 && entry.duration === 240 && !entry.opacity && !entry.includesShell)).toBe(true);
     expect(await page.evaluate(() => window.menuPageMotionProbe.legacyEntries)).toBe(0);
     expect(await page.locator('#siteMobileBar').boundingBox()).toEqual(header);
     expect(await page.evaluate(() => sessionStorage.getItem('study-v11:ui:menu-page-entry'))).toBeNull();
@@ -100,7 +101,8 @@ test('Escape cancels departure without leaving a shifted or disabled menu', asyn
   expect((await page.locator('#siteRightRail').boundingBox())!.x).toBe(0);
 });
 
-test('switching sections during arrival clears page motion before the section motion starts', async ({ page }) => {
+for (const method of ['button', 'swipe']) {
+test(`switching sections by ${method} during arrival clears page motion before the section motion starts`, async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await installMenuProbe(page, true);
   await page.goto('/');
@@ -110,7 +112,8 @@ test('switching sections during arrival clears page motion before the section mo
   await expect(page).toHaveURL(/\/todo\.html$/);
   await expect(page.locator('html')).toHaveAttribute('data-menu-page-entry', 'animating');
   await expect(page.locator('body')).toHaveAttribute('data-mobile-section', 'content');
-  await showMobileSection(page, 'tools');
+  if (method === 'swipe') await dispatchSectionSwipe(page, 'main', { x: 280, y: 300 }, { x: 90, y: 302 });
+  else await showMobileSection(page, 'tools');
   await expect(page.locator('body')).toHaveAttribute('data-mobile-section', 'tools');
   await expect(page.locator('html')).not.toHaveAttribute('data-menu-page-entry');
   await expect(page.locator('html')).not.toHaveAttribute('data-mobile-slide-direction');
@@ -120,6 +123,7 @@ test('switching sections during arrival clears page motion before the section mo
   await expect(page.locator('main')).toHaveCSS('position', 'static');
   expect((await page.locator('main').boundingBox())!.x).toBe(0);
 });
+}
 
 test('reduced motion and unavailable session storage keep menu navigation usable', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="./page-transitions.js?v=171.6.134"></script>
+  <script src="./page-transitions.js?v=171.6.135"></script>
   <meta name="theme-color" content="#f5f8fc" />
   <link rel="icon" type="image/png" href="/book.png" />
   <link rel="apple-touch-icon" href="/book.png" />
@@ -142,14 +142,14 @@
       <div class="subject-time-donut" id="subjectTimeDonut" aria-live="polite"><div class="subject-time-chart is-empty"><div class="subject-time-center"><strong><span id="doneMinutes" data-subject-time-value>0</span></strong><span data-subject-time-caption>分鐘</span></div></div><div class="subject-time-empty">完成項目並填入時間後，這裡會顯示各科時間佔比。</div></div>
      </div>
    </div>
-   <div class="stat overview-metric-stat" data-metric-view="pages">
-    <div class="metric-segments" id="overviewMetricTabs" role="tablist" aria-label="學習成果統計" data-active="0"><span class="metric-segment-indicator" aria-hidden="true"></span><button type="button" role="tab" aria-selected="true" aria-controls="mathPagesPanel" data-overview-metric="pages">數學頁數</button><button type="button" role="tab" aria-selected="false" aria-controls="completionRatePanel" data-overview-metric="completion" tabindex="-1">完成率</button></div>
+   <div class="stat overview-metric-stat" data-metric-view="completion">
+    <div class="metric-segments" id="overviewMetricTabs" role="tablist" aria-label="學習成果統計" data-active="0"><span class="metric-segment-indicator" aria-hidden="true"></span><button type="button" role="tab" aria-selected="true" aria-controls="completionRatePanel" data-overview-metric="completion">完成率</button><button type="button" role="tab" aria-selected="false" aria-controls="mathPagesPanel" data-overview-metric="pages" tabindex="-1">數學頁數</button></div>
     <div class="metric-panel-stage">
-     <div class="metric-panel is-active" id="mathPagesPanel" role="tabpanel" data-metric-panel="pages" aria-hidden="false">
+     <div class="metric-panel" id="mathPagesPanel" role="tabpanel" data-metric-panel="pages" aria-hidden="true" inert>
       <div class="metric-math-panel" id="metricMathTodayPanel"><h3>今日數學頁數</h3><strong><span id="mathPagesTop">0</span> <small>頁</small></strong></div>
       <div class="metric-math-panel" id="metricMathWeekPanel"><h3>本週數學頁數</h3><strong><span id="weekMathPages">0</span> <small>頁</small></strong><div class="progress"><div id="weekMathBar" style="width:0"></div></div><div class="small">本週目標 <span id="weekMathTarget">60</span> 頁｜<span id="weekMathPercent">0%</span></div></div>
      </div>
-    <div class="metric-panel" id="completionRatePanel" role="tabpanel" data-metric-panel="completion" aria-hidden="true" inert>
+    <div class="metric-panel is-active" id="completionRatePanel" role="tabpanel" data-metric-panel="completion" aria-hidden="false">
      <div class="completion-metric">
       <div class="completion-metric-head"><span>原訂今日項目完成率</span><strong id="completionPercent">0%</strong></div>
       <div class="progress"><div id="completionBar" style="width:0"></div></div>

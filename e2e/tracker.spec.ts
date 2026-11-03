@@ -624,29 +624,46 @@ test('mixed writing and timed mock on one date require a persisted exclusive cho
   await expect(correction.locator('[data-minutes]')).toHaveValue('25');
 });
 
-test('math periods stack equally and share a centered panel with completion while the donut remains visible', async ({ page }) => {
-  await page.setViewportSize({ width: 760, height: 900 });
+for (const width of [375, 760, 1440]) {
+test(`completion opens on the left and both metrics stay vertically centered and left aligned (${width}px)`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  const tabs = page.locator('#overviewMetricTabs');
+  const completion = tabs.locator('[data-overview-metric="completion"]');
+  const pages = tabs.locator('[data-overview-metric="pages"]');
+  await expect(tabs.getByRole('tab').first()).toHaveText('完成率');
+  await expect(completion).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#completionRatePanel')).toHaveClass(/is-active/);
+  await expect(page.locator('#mathPagesPanel')).toHaveAttribute('inert', '');
   await selectStudyDate(page, '2026-09-20');
-  for (const view of ['pages', 'completion']) {
+  for (const view of ['completion', 'pages', 'completion']) {
     await page.locator(`[data-overview-metric="${view}"]`).click();
     const panel = page.locator(`[data-metric-panel="${view}"]`);
     await expect(panel).toHaveClass(/is-active/);
+    await expect(tabs).toHaveAttribute('data-active', view === 'completion' ? '0' : '1');
     await page.waitForTimeout(480);
     const position = await panel.evaluate(node => {
       const panelRect = node.getBoundingClientRect();
-      const children = Array.from(node.children).map(child => child.getBoundingClientRect());
+      const children = Array.from(node.children).filter(child => child.getClientRects().length)
+        .map(child => child.getBoundingClientRect());
       const contentTop = Math.min(...children.map(rect => rect.top));
       const contentBottom = Math.max(...children.map(rect => rect.bottom));
+      const contentLeft = panelRect.left + parseFloat(getComputedStyle(node).paddingLeft);
+      const labels = Array.from(node.querySelectorAll('h3, .metric-math-panel > strong, .completion-metric-head > *, .completion-metric > .small, .completion-notes > summary'));
+      const indicator = document.querySelector('.metric-segment-indicator')!.getBoundingClientRect();
+      const selectedTab = document.querySelector('#overviewMetricTabs [aria-selected="true"]')!.getBoundingClientRect();
       return {
         centerDifference: Math.abs((contentTop + contentBottom) / 2 - (panelRect.top + panelRect.bottom) / 2),
-        horizontalDifference: Math.abs((children[0].left + children[0].right) / 2 - (panelRect.left + panelRect.right) / 2),
+        leftDifferences: labels.map(label => Math.abs(label.getBoundingClientRect().left - contentLeft)),
+        indicatorDifference: Math.abs(indicator.left - selectedTab.left),
       };
     });
     expect(position.centerDifference).toBeLessThan(3);
-    expect(position.horizontalDifference).toBeLessThan(3);
+    for (const difference of position.leftDifferences) expect(difference).toBeLessThan(1);
+    expect(position.indicatorDifference).toBeLessThan(1);
     await expect(page.locator('#subjectTimeDonut')).toBeVisible();
   }
   await expect(page.locator('#settlementMetrics')).toBeVisible();
+  await page.locator('#overviewStats').screenshot({ path: testInfo.outputPath(`overview-left-aligned-${width}.png`) });
   await expect(page.locator('.completion-notes')).not.toHaveAttribute('open');
   await page.locator('.completion-notes > summary').click();
   await expect(page.locator('.completion-notes p').first()).toBeVisible();
@@ -656,7 +673,22 @@ test('math periods stack equally and share a centered panel with completion whil
   expect(week.y).toBeGreaterThan(today.y + today.height);
   expect(await page.locator('#metricMathTodayPanel > strong').evaluate(node => getComputedStyle(node).fontSize))
     .toBe(await page.locator('#metricMathWeekPanel > strong').evaluate(node => getComputedStyle(node).fontSize));
+  await pages.focus();
+  await page.keyboard.press('Home');
+  await expect(completion).toBeFocused();
+  await expect(completion).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('End');
+  await expect(pages).toBeFocused();
+  await expect(pages).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('ArrowRight');
+  await expect(completion).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(pages).toBeFocused();
+  await page.reload();
+  await expect(completion).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#completionRatePanel')).toHaveClass(/is-active/);
 });
+}
 
 test('outside status keeps the daily schedule visible', async ({ page }) => {
   await selectStudyDate(page, '2026-09-16');

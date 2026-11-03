@@ -230,11 +230,11 @@
   width: calc((100% - 8px)/2);
 }
 
-.overview-metric-stat[data-metric-view=completion] .metric-segment-indicator {
+.overview-metric-stat[data-metric-view=pages] .metric-segment-indicator {
   transform: translateX(100%);
 }
 
-.overview-metric-stat[data-metric-view=pages] .metric-segment-indicator {
+.overview-metric-stat[data-metric-view=completion] .metric-segment-indicator {
   transform: translateX(0);
 }
 
@@ -254,8 +254,9 @@
   padding: 16px 4px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  text-align: left;
   visibility: hidden;
   opacity: 0;
   pointer-events: none;
@@ -278,7 +279,7 @@
   position: static;
   display: flex !important;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   visibility: visible;
   opacity: 1;
@@ -317,7 +318,7 @@
 
 #completionRatePanel {
   gap: 15px;
-  text-align: center;
+  text-align: left;
 }
 
 #completionRatePanel .completion-metric {
@@ -325,13 +326,13 @@
   max-width: 340px;
   padding: 0;
   display: grid;
-  justify-items: center;
+  justify-items: start;
   gap: 6px;
 }
 
 #completionRatePanel .completion-metric-head {
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: 4px;
   width: 100%;
@@ -375,14 +376,14 @@
 .completion-notes p {
   font-size: 11px;
   color: #74849a;
-  text-align: center;
+  text-align: left;
   line-height: 1.7;
   margin: 8px 0 0;
 }
 
 .settlement-metrics {
   width: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 .summary-donut-label-button {

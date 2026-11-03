@@ -132,7 +132,7 @@
           });
         }
         document.documentElement.dataset.menuPageEntry = 'animating';
-        entryAnimations.push(content.animate([{ left: `${document.body.getBoundingClientRect().width}px` }, { left: '0px' }], {
+        entryAnimations.push(content.animate([{ left: `${-document.body.getBoundingClientRect().width}px` }, { left: '0px' }], {
           id: 'study-menu-page-in', duration: 240, easing: 'cubic-bezier(.2,.75,.25,1)',
         }));
       } else {
@@ -192,11 +192,16 @@
       if (!hadStyle && !panel.style.length) panel.removeAttribute('style');
     };
     document.documentElement.dataset.menuPageDeparture = 'animating';
-    departureAnimation = panel.animate([{ left: '0px' }, { left: `${-document.body.getBoundingClientRect().width}px` }], {
+    departureAnimation = panel.animate([{ left: '0px' }, { left: `${document.body.getBoundingClientRect().width}px` }], {
       id: 'study-menu-page-out', duration: 240, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'forwards',
     });
     departureAnimation.finished.then(finishNavigation, function cancelledDeparture() {});
   }, true);
+
+  document.addEventListener('study-mobile-section-change', function stopPageMotionBeforeSectionChange() {
+    cancelEntry();
+    cancelDeparture();
+  });
 
   document.addEventListener('keydown', function cancelMenuNavigation(event) {
     if (event.key === 'Escape') cancelDeparture();
