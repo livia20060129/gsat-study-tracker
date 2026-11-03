@@ -521,6 +521,8 @@ body.has-site-shell {
 }
 
 @media (max-width:1199px) {
+  html[data-menu-page-entry], html[data-menu-page-departure] { overflow-x: clip; }
+  html[data-menu-page-entry=pending] body > :is(main,header,footer,section) { visibility: hidden; }
   html[data-mobile-slide-direction] { overflow-x: clip; }
   .site-mobile-content-hidden { display: none !important; }
   body[data-mobile-nav-hidden=true] .site-mobile-bar { transform: translateY(-100%); pointer-events: none; }
