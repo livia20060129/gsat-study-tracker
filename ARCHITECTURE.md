@@ -41,7 +41,8 @@ infrastructure repositories and gateways
 - `src/material-progress-page.ts` 提供目前帳號／訪客的教材進度及管理，讀取同一份紀錄、目錄及科目選擇；每張教材卡共用進度與管理操作。`src/ui/materialCatalogEditor.ts` 負責共用編輯表單及保存接線，沿用 catalogEdits；`src/material-catalog-page.ts` 只處理舊網址相容導向。`builtInMaterialCatalog()` 揭露內建細章節。進度圖按大單元合併，小主題留在紀錄卡輸入對照；停用不刪既有卡片，還原內建也是一筆有版本的變更。
 - 單字朗讀：`src/ui/vocabularySpeech.ts` 使用瀏覽器 SpeechSynthesis，按下才朗讀，依裝置可用語音及指定美式／英式語系選擇；不新增音檔庫或伺服器發音 API。
 - 待辦編輯草稿：`src/ui/todoDrafts.ts`；依帳號、日期與項目保存，離開欄位後才寫入紀錄。
-- 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`
+- 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`；首次建立使用 DocumentFragment 批次插入，後續以節點游標調整順序，保留相同卡片、輸入焦點及計時節點。
+- 大清單中文排序：`src/study/textOrder.ts` 重用原本 zh-Hant 與 zh-TW numeric 規則的 Intl.Collator。`studyPartAnnotation.ts` 先排除不含半形／全形斜線的輸入，再依既有日期排除與有效分數規則判斷，不保存可過期的教材辨識快取。
 - 待辦期間篩選：`src/study/overduePeriod.ts`；沿用 `learningSummary.ts` 的曆月與週一至週日邊界，只依原排程日期篩選顯示，不修改紀錄。待辦資格仍由 `overdueTasks.ts` 決定，最近處理獨立按 72 小時計算。
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`
 - 字典前後端共用的純資料協定位於 `supabase/functions/_shared/dictionaryEntries.ts`，由 `src/study/dictionaryEntries.ts` 轉出給前端；不包含 secrets 或 Deno 執行期程式，後端不跨出 functions 目錄引用前端檔案。

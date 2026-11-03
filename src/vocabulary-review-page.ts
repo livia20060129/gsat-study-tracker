@@ -141,8 +141,10 @@ function createWordLink(entry: VocabularyReviewEntry): HTMLElement {
 
 function saveEntryEditsResult(entry: VocabularyReviewEntry, edits: VocabularyWordEdits): 'saved' | 'unchanged' | 'failed' {
   let changed = false;
+  const sourceDates = new Set(entry.sourceDates);
   try {
     for (const [index, base] of loadedRecords.entries()) {
+      if (!sourceDates.has(base.date)) continue;
       const draft = cloneRecord(base);
       if (!updateVocabularyWordEntries(draft, entry.key, edits)) continue;
       const edited = saveLocalRecordEdit(localStorage, activeRecordPrefix, base, function applyWordEdit(): StudyRecord {

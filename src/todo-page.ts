@@ -14,7 +14,7 @@ import { todoStudyDisplay } from './ui/todoStudyDisplay.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
 import { normalizedOverdueSort, organizedOverdueEntries, skipOverdueRecordBatch } from './study/overdueOrganization.ts';
 import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository.ts';
-import { readMaterialProgressRecords } from './study/materialProgress.ts';
+import { activeStudyRecordPrefix, readMaterialProgressRecords } from './study/materialProgress.ts';
 import { normalizedOverdueItemFilter, overdueEntriesForItem, overdueItemFilterForSubject, overdueItemOptions } from './study/overdueItemFilter.ts';
 import {
   normalizedOverduePeriod, OVERDUE_PERIODS, overdueEntriesForPeriod, overduePeriodIndex, overduePeriodRange,
@@ -482,12 +482,12 @@ function skipFilteredSubject(): void {
   let skipped = 0;
   const handledAt = new Date().toISOString();
   try {
-    if (readMaterialProgressRecords(localStorage).prefix !== scope) throw new Error('帳號資料空間已改變，已停止批次處理。');
+    if (activeStudyRecordPrefix(localStorage) !== scope) throw new Error('帳號資料空間已改變，已停止批次處理。');
     const pointer = readTimerPointer();
     if (pointer && selected.some(entry => sameTimerTarget(pointer, entry))) pauseActiveTimer();
     const repository = new LocalStudyRecordRepository(localStorage, scope);
     for (const [date, ids] of targets) {
-      if (readMaterialProgressRecords(localStorage).prefix !== scope) throw new Error('帳號資料空間已改變，已停止後續處理。');
+      if (activeStudyRecordPrefix(localStorage) !== scope) throw new Error('帳號資料空間已改變，已停止後續處理。');
       const loaded = repository.loadResult(date);
       if (loaded.status !== 'ok') throw new Error(`${date} 的原始紀錄無法讀取，已停止後續處理。`);
       let count = 0;

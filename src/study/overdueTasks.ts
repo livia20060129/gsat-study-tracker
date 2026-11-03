@@ -23,6 +23,7 @@ import { STUDY_PROGRESS_FIELDS, studyItemProgress } from './itemProgress.ts';
 import { studyItemSubject } from './subjectOrder.ts';
 import { normalizeStudyTimerState } from './studyTimer.ts';
 import { validatePageRange } from './pageRangeValidation.ts';
+import { compareTraditionalChinese } from './textOrder.ts';
 
 export const OVERDUE_TASK_SUBJECTS = ['all', 'chinese', 'english', 'math', 'natural', 'other'] as const;
 export type OverdueTaskSubject = typeof OVERDUE_TASK_SUBJECTS[number];
@@ -359,8 +360,8 @@ export function overdueTasks(records: StudyRecord[], today: string): OverdueTask
 
   return entries.sort((left, right) => (
     left.recordDate.localeCompare(right.recordDate)
-    || left.subjectLabel.localeCompare(right.subjectLabel, 'zh-Hant')
-    || left.title.localeCompare(right.title, 'zh-Hant')
+    || compareTraditionalChinese(left.subjectLabel, right.subjectLabel)
+    || compareTraditionalChinese(left.title, right.title)
   ));
 }
 
