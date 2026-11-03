@@ -1,5 +1,36 @@
 # 最新更新
 
+版本：v171.6.138
+
+日期：2026-11-04（自用版）
+
+## 個人版 Google OAuth 權限修正
+
+- 核對 2026-10-06 的 Google 核准通知，個人版專案核准的是 calendar.events.readonly；正式網站仍使用該專案的 Client ID，但線上 google-calendar 函式要求 calendar.readonly，超出核准範圍。
+- 將實際授權請求改為 https://www.googleapis.com/auth/calendar.events.readonly，對應既有 events.list 唯讀讀取功能。
+- include_granted_scopes 改為 false，避免重新連線時自動合併過去曾授予但未核准的其他權限；保留 prompt=consent、access_type=offline、Client ID 驗證及 HMAC state 流程。
+- 將授權網址組合抽成無環境依賴的小模組，讓單元測試直接檢查實際產生的 scope、合併設定、callback、Client ID 與 state，防止再次要求過大的權限。
+- 中英文隱私權政策及 README 的現行權限說明改為事件唯讀。歷史 migration 未改寫；callback 每次明確寫入實際回傳 scope 或新的預設值，不需資料庫遷移。
+
+## 部署重點
+
+- 必須重新部署 Supabase 的 google-calendar 與 google-calendar-callback，讓兩個函式都包含更新的共用模組；原有 GitHub Actions 部署流程已涵蓋兩者。
+- 前端正式建置與隱私權政策一起部署；僅覆蓋前端無法改變 Supabase 產生的 Google 授權網址。
+- 部署完成後從個人版網站重新按「連接 Google Calendar」，重新取得授權網址，勿沿用本次已開啟的舊授權分頁。沿用原有 Client ID／Client Secret，不需重建專案。
+- 未自動部署、推送、改動 Google Cloud 設定、撤銷授權或刪除個人紀錄。
+
+## 驗證
+
+- 766 項完整單元測試、30 項 Chromium／WebKit 相關 E2E 通過，涵蓋登入保存、Calendar 中斷時的紀錄保留及中英文政策切換。
+- 應用程式型別檢查與正式建置通過；使用 Deno 2.9.6 及凍結 lockfile 檢查 google-calendar、google-calendar-callback 兩個實際入口均通過。
+- 在無網路權限的 Deno 執行測試中，使用假環境設定呼叫真正的授權網址包裝器，核對已核准 scope、不合併舊權限、state 保留與無效 Client ID 拒絕；未向 Google 發出授權請求。
+- 尚未部署至 Supabase，無法在本次本機測試中宣稱線上 Google 警告已消失；部署後須重新連線驗證。
+
+Suggested commit: `fix: align Calendar OAuth with the verified event-read scope`
+
+---
+# v171.6.137 更新紀錄
+
 版本：v171.6.137
 
 日期：2026-11-04（自用版）

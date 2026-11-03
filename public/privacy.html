@@ -36,7 +36,7 @@
       <h3>帳號與讀書紀錄</h3>
       <ul><li>登入電子郵件、Supabase 使用者識別碼、登入與同步狀態。</li><li>每日讀書項目、完成狀態、完成率、讀書時間、學習進度及使用者自行輸入的備註。</li></ul>
       <h3>Google Calendar 資料</h3>
-      <p>使用者主動授權後，本網站以 <code>calendar.readonly</code> 唯讀權限讀取主要 Calendar 中指定期間內的資料。目前同步範圍約為過去 60 天至未來 240 天，可能包含：</p>
+      <p>使用者主動授權後，本網站以 <code>calendar.events.readonly</code> 唯讀權限讀取主要 Calendar 中指定期間內的資料。目前同步範圍約為過去 60 天至未來 240 天，可能包含：</p>
       <ul><li>行程標題、說明及地點。</li><li>開始與結束日期、時間及全天行程狀態。</li><li>事件識別碼、更新時間、重複行程資訊及 Calendar 行程連結。</li></ul>
       <p>本網站不會透過 Calendar API 新增、修改或刪除 Google Calendar 內的原始行程。</p>
       <p>為在 Calendar 連線或讀取失敗時保留排程，本網站會在此瀏覽器按 Tracker 帳號保存最後成功讀取的排程快照。快照只包含上述排程欄位及讀取時間，不包含 OAuth 憑證；錯誤期間優先保留同帳號既有 Tracker 項目。下一次完整成功讀取會替換快照，成功手動解除 Calendar 連線或清除瀏覽器網站資料會刪除本機快照；先前已保存的 Tracker 紀錄依原保存流程處理。</p>
@@ -91,7 +91,7 @@
       <h3>Account and study records</h3>
       <ul><li>Sign-in email address, Supabase user identifier, and sign-in and synchronization status.</li><li>Daily study items, completion status, completion rates, study time, learning progress, and notes entered by the user.</li></ul>
       <h3>Google Calendar data</h3>
-      <p>After a user provides authorization, the Service uses the read-only <code>calendar.readonly</code> scope to read events from the user’s primary calendar within a defined period. The current synchronization window is approximately 60 days in the past through 240 days in the future. Data may include:</p>
+      <p>After a user provides authorization, the Service uses the read-only <code>calendar.events.readonly</code> scope to read events from the user’s primary calendar within a defined period. The current synchronization window is approximately 60 days in the past through 240 days in the future. Data may include:</p>
       <ul><li>Event title, description, and location.</li><li>Start and end dates and times, including all-day status.</li><li>Event identifiers, update timestamps, recurrence information, and the Google Calendar event link.</li></ul>
       <p>The Service does not create, modify, or delete original Google Calendar events through the Calendar API.</p>
       <p>To retain schedules when Calendar connection or reading fails, the Service stores the last successfully read schedule snapshot in this browser, separately for each Tracker account. The snapshot contains only the schedule fields above and the read time, without OAuth credentials. Existing Tracker items for the same account take priority during failures. A complete successful read replaces the snapshot; successful manual Calendar disconnection or clearing browser site data removes the local snapshot. Previously saved Tracker records follow the existing retention flow.</p>
