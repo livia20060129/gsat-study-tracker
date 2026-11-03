@@ -308,7 +308,8 @@
 }
 
 #mathPagesPanel .progress {
-  width: min(100%,220px);
+  width: 80%;
+  margin-inline: auto;
   height: 5px;
 }
 
@@ -323,7 +324,6 @@
 
 #completionRatePanel .completion-metric {
   width: 100%;
-  max-width: 340px;
   padding: 0;
   display: grid;
   justify-items: start;
@@ -344,7 +344,8 @@
 }
 
 #completionRatePanel .progress {
-  width: min(100%,240px);
+  width: 80%;
+  margin-inline: auto;
   height: 5px;
 }
 
