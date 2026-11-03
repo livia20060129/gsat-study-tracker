@@ -15,9 +15,7 @@ export function initializeMobileSections(left: HTMLElement, right: HTMLElement, 
   let previous = 0;
   let direction = 0;
   let distance = 0;
-  let switching = false;
   let scrollFrame = 0;
-  let switchFrame = 0;
   let animation: Animation | undefined;
 
   function scrollTop(): number {
@@ -58,8 +56,8 @@ export function initializeMobileSections(left: HTMLElement, right: HTMLElement, 
     positions.set(section, scrollTop());
     const changed = next !== section;
     section = next;
-    switching = true;
-    cancelAnimationFrame(switchFrame);
+    cancelAnimationFrame(scrollFrame);
+    scrollFrame = 0;
     animation?.cancel();
     document.body.dataset.mobileSection = section;
     left.inert = section !== 'date';
@@ -67,6 +65,7 @@ export function initializeMobileSections(left: HTMLElement, right: HTMLElement, 
     for (const button of buttons) button.setAttribute('aria-pressed', String(button.dataset.mobileSection === section));
     updateContentVisibility();
     if (changed) window.scrollTo({ top: positions.get(section) ?? 0, behavior: 'instant' });
+    // Read the restored position now; later frames must still process a user's first scroll.
     revealNavigation();
     let target: HTMLElement | undefined;
     if (section === 'date') target = left;
@@ -75,17 +74,11 @@ export function initializeMobileSections(left: HTMLElement, right: HTMLElement, 
     if (changed && target && !reducedMotion.matches) {
       animation = target.animate([{ opacity: 0.4 }, { opacity: 1 }], { id: 'study-mobile-section', duration: 180, easing: 'ease-out' });
     }
-    switchFrame = requestAnimationFrame(function settleSwitch(): void {
-      switchFrame = requestAnimationFrame(function resumeScrollObservation(): void {
-        switching = false;
-        previous = scrollTop();
-      });
-    });
   }
 
   function observeScroll(): void {
     scrollFrame = 0;
-    if (!compact.matches || switching) return;
+    if (!compact.matches) return;
     const current = scrollTop();
     const delta = current - previous;
     previous = current;

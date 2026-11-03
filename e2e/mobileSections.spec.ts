@@ -1,6 +1,50 @@
 import { expect, test } from '@playwright/test';
 import { navigateSite, showMobileSection } from './helpers/siteNavigation.ts';
 
+declare global {
+  interface Window {
+    mobileScrollFrameGate: { release(): void; scrollEvents(): number };
+  }
+}
+
+test('a scroll before the first initialization frames is processed after rendering resumes', async ({ page }) => {
+  await page.addInitScript(() => {
+    const request = window.requestAnimationFrame.bind(window);
+    const cancel = window.cancelAnimationFrame.bind(window);
+    const pending = new Map<number, FrameRequestCallback>();
+    let frozen = true;
+    let nextId = -1;
+    let scrolls = 0;
+    window.requestAnimationFrame = function holdInitialFrames(callback): number {
+      if (!frozen) return request(callback);
+      const id = nextId--;
+      pending.set(id, callback);
+      return id;
+    };
+    window.cancelAnimationFrame = function cancelHeldFrame(id): void {
+      if (id < 0) pending.delete(id);
+      else cancel(id);
+    };
+    window.addEventListener('scroll', () => { scrolls += 1; }, { passive: true });
+    window.mobileScrollFrameGate = {
+      release(): void {
+        frozen = false;
+        for (const callback of pending.values()) request(callback);
+        pending.clear();
+      },
+      scrollEvents(): number { return scrolls; },
+    };
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.locator('body')).toHaveAttribute('data-mobile-section', 'content');
+  await page.evaluate(() => scrollTo({ top: 350, behavior: 'instant' }));
+  await expect.poll(() => page.evaluate(() => window.mobileScrollFrameGate.scrollEvents())).toBeGreaterThan(0);
+  await page.evaluate(() => window.mobileScrollFrameGate.release());
+  await expect(page.locator('body')).toHaveAttribute('data-mobile-nav-hidden', 'true');
+  expect(await page.evaluate(() => scrollY)).toBe(350);
+});
+
 test('mobile sections fill the page and preserve the original draft nodes and scroll positions', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/');
@@ -26,6 +70,8 @@ test('mobile sections fill the page and preserve the original draft nodes and sc
   await expect(page.locator('#notes')).toHaveValue('三區切換前尚未離開欄位的草稿');
   expect(await notes!.evaluate(node => node === document.getElementById('notes'))).toBe(true);
   await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(contentScroll, 0);
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(page.locator('body')).toHaveAttribute('data-mobile-nav-hidden', 'false');
   await expect(page.locator('main')).not.toHaveAttribute('inert');
   await page.screenshot({ path: testInfo.outputPath('mobile-content.png') });
   await showMobileSection(page, 'tools');
