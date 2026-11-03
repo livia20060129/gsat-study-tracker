@@ -80,6 +80,10 @@ test('prompt contents keep their cards, copy action and anchors while full-page 
   expect(copied).not.toContain('功能選單');
   await page.getByRole('link', { name: '角色與目標', exact: true }).click();
   await expect(page).toHaveURL(/#role$/);
+  // URL changes precede the native smooth scroll; finish it before setting the test position.
+  await expect.poll(() => page.locator('#role').evaluate(node => Math.abs(
+    node.getBoundingClientRect().top - parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+  ))).toBeLessThan(1);
   await page.evaluate(() => scrollTo({ top: 650, behavior: 'instant' }));
   const scroll = await page.evaluate(() => scrollY);
   await showMobileSection(page, 'tools');
