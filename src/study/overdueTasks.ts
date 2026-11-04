@@ -101,7 +101,7 @@ const ITEM_TYPE_LABELS: Record<string, string> = {
 };
 
 const DETAIL_FIELDS: Array<[string, string]> = [
-  ['subject', '科目'], ['material', '講義'], ['book', '書名／冊別'], ['title', '教材'],
+  ['subject', '科目'], ['material', '講義版本'], ['book', '書名／冊別'], ['title', '教材'],
   ['start', '起始頁'], ['end', '結束頁'], ['unit', '單元'], ['unitStart', '起始單元'],
   ['unitEnd', '結束單元'], ['chapter', '章節'], ['topic', '主題'], ['round', '回次'],
   ['year', '年份'], ['exam', '考試'], ['status', '狀態'], ['level', '級別'],

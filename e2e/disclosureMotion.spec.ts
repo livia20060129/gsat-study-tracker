@@ -134,7 +134,7 @@ test('todo cards and long-term overdue sections animate both ways and preserve p
     await card.locator('[data-todo-range="end"]').fill('18');
     await card.locator('[data-todo-range="end"]').blur();
     expectSmooth(await sampleMotion(page, selector, card.locator('.todo-expand')), false);
-    await expect(card.locator('.todo-range-summary')).toHaveText('p.10–18');
+    await expect(card.locator('.todo-range-summary')).toHaveText('新關鍵｜p.10–18');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   expectSmooth(await sampleMotion(page, '#todoLongTerm', page.locator('#todoLongTerm > summary')), true);

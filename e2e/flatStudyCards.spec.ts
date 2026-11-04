@@ -282,3 +282,49 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   await expect(card.locator('.study-reference-details')).toHaveAttribute('open', '');
   await expect(card).not.toContainText('Google Calendar API');
 });
+
+test('lecture versions remain explicit once in Tracker and compact todo cards on desktop and mobile', async ({ page }) => {
+  test.setTimeout(60_000);
+  const recordDate = '2026-08-09';
+  const definitions = [
+    { id: 'version-teaching', material: '教學講義', book: '3A', start: '1', end: '10' },
+    { id: 'version-newkey', material: '新關鍵', book: '1~2', start: '117', end: '121' },
+  ];
+  await seed(page, definitions.map(entry => ({
+    ...studyItem(entry.id, 'mathStudy', { ...entry, calendarMathMaterialLocked: true }),
+    title: entry.material === '教學講義' ? '數學講義：進度' : `數學｜${entry.material}`,
+    presetKey: `cal_math_${entry.id}`, source: 'preset', required: true,
+  })), recordDate);
+  for (const width of [1280, 375, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const entry of definitions) {
+      const card = page.locator(`[data-item="${entry.id}"]`);
+      const version = card.locator('.field').filter({ has: page.getByText('講義版本', { exact: true }) });
+      await expect(version.locator('.fixed-book-value')).toHaveText(entry.material);
+      await expect(version).toBeVisible();
+      expect((await card.innerText()).split(entry.material).length - 1).toBe(1);
+      await expect(card.locator('[data-field="start"]')).toBeEditable();
+      await expect(card.locator('[data-field="end"]')).toBeEditable();
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.goto('/todo.html');
+  await page.locator('#todoLongTerm > summary').click();
+  for (const entry of definitions) {
+    const card = page.locator('.todo-card').filter({ has: page.locator(`[data-item-id="${entry.id}"]`) });
+    await expect(card).toContainText(entry.material);
+    expect((await card.innerText()).split(entry.material).length - 1).toBe(1);
+  }
+  const todo = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="version-teaching"]') });
+  await expect(todo.locator('.todo-range-summary')).toHaveText('教學講義｜第 3A 冊｜p.1–10');
+  await expandTodoCard(todo);
+  await expect(todo.locator('dt').filter({ hasText: /^講義版本$/ })).toBeVisible();
+  expect((await todo.innerText()).split('教學講義').length - 1).toBe(1);
+  await todo.locator('[data-todo-range="end"]').fill('11');
+  await todo.locator('[data-todo-range="end"]').blur();
+  await page.goto('/');
+  await selectStudyDate(page, recordDate);
+  const original = page.locator('[data-item="version-teaching"]');
+  await expect(original.locator('[data-field="end"]')).toHaveValue('11');
+  await expect(original.locator('.fixed-book-value').filter({ hasText: /^教學講義$/ })).toBeVisible();
+});

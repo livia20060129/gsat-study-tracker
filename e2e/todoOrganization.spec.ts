@@ -120,7 +120,7 @@ test('all cards start compact with a scope summary and whole-card editing withou
   }
   await expect(card.locator('.todo-complete')).toBeVisible();
   await expect(card.locator('.todo-skip')).toBeVisible();
-  await expect(card.locator('.todo-range-summary')).toHaveText('p.10–12');
+  await expect(card.locator('.todo-range-summary')).toHaveText('新關鍵｜p.10–12');
   await expect(card.locator('.todo-expand')).toHaveCSS('border-top-width', '0px');
   await expect(card.locator('.todo-expand')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   expect(await card.locator('.todo-actions').evaluate(node => node.children[0].classList.contains('todo-expand') && node.children[1].classList.contains('todo-complete'))).toBe(true);
@@ -134,7 +134,7 @@ test('all cards start compact with a scope summary and whole-card editing withou
   await card.locator('[data-todo-timer-action="toggle"]').click();
   await page.clock.runFor(60_000);
   await card.locator('h3').click();
-  await expect(card.locator('.todo-range-summary')).toHaveText('p.10–18');
+  await expect(card.locator('.todo-range-summary')).toHaveText('新關鍵｜p.10–18');
   await page.clock.runFor(60_000);
   await card.click({ position: { x: 8, y: 8 } });
   await expect(card.locator('[data-todo-timer-display]')).toHaveText('02:00');
