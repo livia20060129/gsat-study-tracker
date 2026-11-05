@@ -1,4 +1,4 @@
-import { CEEC_TRANSLATIONS } from '../data/ceecTranslations.ts';
+import { ceecCoreTranslations } from './ceecCoreTranslations.ts';
 import { dictionaryQuery } from './dictionaryEntries.ts';
 import type { VocabularyTranslations } from '../types.ts';
 
@@ -21,7 +21,9 @@ export function createEcdictLookup(fetchShard: DictionaryFetch, baseUrl: string)
     const word = dictionaryQuery(value);
     if (!word) return null;
     const shard = shards.get(bucket(word));
-    const table = Object.hasOwn(CEEC_TRANSLATIONS, word) ? CEEC_TRANSLATIONS : shard;
+    const core = ceecCoreTranslations(word);
+    if (core) return core;
+    const table = shard;
     if (!table || !Object.hasOwn(table, word)) return null;
     return JSON.parse(JSON.stringify(table[word])) as VocabularyTranslations;
   }

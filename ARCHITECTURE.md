@@ -42,6 +42,10 @@ infrastructure repositories and gateways
 - 單字朗讀：`src/ui/vocabularySpeech.ts` 使用瀏覽器 SpeechSynthesis，按下才朗讀，依裝置可用語音及指定美式／英式語系選擇；不新增音檔庫或伺服器發音 API。
 - 待辦編輯草稿：`src/ui/todoDrafts.ts`；依帳號、日期與項目保存，離開欄位後才寫入紀錄。
 - 待辦清單局部更新與焦點恢復：`src/ui/keyedTodoList.ts`；首次建立使用 DocumentFragment 批次插入，後續以節點游標調整順序，保留相同卡片、輸入焦點及計時節點。
+- 長期逾期首次開啟前僅保留資料與計數，不建立卡片；由 summary 事件在共用動畫測量前建立內容。開啟後沿用同一組卡片與草稿，批次跳過不可依 DOM 判斷範圍。
+- 唯讀歷史快照：`src/infrastructure/storage/localRecordHistory.ts`，與 repository 寫入交易分開；只快取目前帳號完整日期資料，深層凍結避免計算流程改動快取。成功寫入、移除、容量壓縮及跨分頁事件按鍵值失效，帳號切換、復原、聚焦及手動重讀重新核對。交易讀取不可走唯讀快取。
+- 單字清單局部更新：`src/ui/patchChildOrder.ts` 與 vocabulary page 的 row/group cache，依單字、群組、內容及編輯狀態保留節點。DictionaryPreview 隨所屬卡片釋放，不能在每次搜尋時清除其他卡片的查詢候選；搜尋合併 100ms 內輸入，pointer 操作期間延後刷新。
+- 核心詞庫：`scripts/build_compact_vocabulary.py` 由保留的官方／ECDICT 來源產生 `ceecCompactIndex.ts`、`ceecCompactTranslations.ts`；`ceecReferenceIndex.ts` 按需建立拼字索引，`ceecCoreTranslations.ts` 只解析當次單字的翻譯並保存最多 256 字的獨立結果。完整原始表只供產生與測試，不進入前端 bundle；核心文字仍隨程式供離線使用，擴充詞庫維持原分片按需下載。
 - 大清單中文排序：`src/study/textOrder.ts` 重用原本 zh-Hant 與 zh-TW numeric 規則的 Intl.Collator。`studyPartAnnotation.ts` 先排除不含半形／全形斜線的輸入，再依既有日期排除與有效分數規則判斷，不保存可過期的教材辨識快取。
 - 待辦期間篩選：`src/study/overduePeriod.ts`；沿用 `learningSummary.ts` 的曆月與週一至週日邊界，只依原排程日期篩選顯示，不修改紀錄。待辦資格仍由 `overdueTasks.ts` 決定，最近處理獨立按 72 小時計算。
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`

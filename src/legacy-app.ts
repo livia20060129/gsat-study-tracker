@@ -104,6 +104,7 @@ import {
   UNLOCK_3_BOOK,
 } from './data/bookPageMaps';
 import { LocalStudyRecordRepository } from './infrastructure/storage/localStudyRecordRepository';
+import { readBrowserRecordHistory } from './infrastructure/storage/localRecordHistory.ts';
 import { SupabaseStudyRecordRepository } from './infrastructure/storage/supabaseStudyRecordRepository';
 import { loadAllCalendarTaskRows } from './infrastructure/storage/supabaseCalendarTaskReader';
 import { buildCalendarStudyTaskPlan } from './application/calendar/calendarStudyTaskService';
@@ -1123,8 +1124,7 @@ async function cloudPullDateLocked(date,force){
 }
 function localStudyDates(){return recordDatesForPrefix(STORE_PREFIX)}
 function rebuildMathProgressIndex(){
- var records=[];
- localStudyDates().forEach(function(date){var rec=readStoredRecord(date);if(rec)records.push(rec)});
+ var records=studyRecordsForOverview();
  mathProgressIndex.replaceAll(records);
 }
 function legacyLocalDates(){
@@ -4181,12 +4181,7 @@ function renderSubjectTimeDonut(summary){
 }
 
 function studyRecordsForOverview(){
- var records=[];
- localStudyDates().forEach(function(recordDate){
-  var rec=readStoredRecord(recordDate);
-  if(rec)records.push(rec);
- });
- return records;
+ return readBrowserRecordHistory(store,STORE_PREFIX);
 }
 function updateSummary(){
  mathProgressIndex.upsert(data);

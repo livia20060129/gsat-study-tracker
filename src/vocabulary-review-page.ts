@@ -4,6 +4,7 @@ import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { DictionaryPreview } from './ui/dictionaryPreview.ts';
 import { VocabularySpeech, type VocabularyAccent } from './ui/vocabularySpeech.ts';
+import { patchChildOrder } from './ui/patchChildOrder.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   normalizedGsatVocabularyLevel,
@@ -39,7 +40,13 @@ let searchText = '';
 let translationsVisible = true;
 const editingEntryKeys = new Set<string>();
 const annotatingEntryKeys = new Set<string>();
-const dictionaryPreviews = new Set<DictionaryPreview>();
+const dictionaryPreviews = new WeakMap<HTMLElement, DictionaryPreview>();
+const rowCache = new Map<string, { signature: string; node: HTMLElement }>();
+const groupCache = new Map<string, HTMLElement>();
+let nextRowKeys = new Set<string>();
+let nextGroupKeys = new Set<string>();
+let searchRenderTimer: ReturnType<typeof setTimeout> | undefined;
+const searchIndex = new WeakMap<VocabularyReviewEntry, string>();
 const speech = new VocabularySpeech(document.getElementById('vocabularySpeechStatus')!);
 let vocabularyPointerActive = false;
 let vocabularyRefreshPending = false;
@@ -59,14 +66,18 @@ function cloneRecord(record: StudyRecord): StudyRecord {
 
 function entryMatchesSearch(entry: VocabularyReviewEntry): boolean {
   if (!searchText) return true;
-  const searchable = [
+  let searchable = searchIndex.get(entry);
+  if (!searchable) {
+    searchable = [
     entry.text,
     entry.lookupQuery,
     entry.translation,
     ...(activeContentKind === '單字' ? entry.tags : []),
     ...entry.contentKinds,
-  ].join(' ').toLocaleLowerCase('en-US');
-  return searchable.includes(searchText.toLocaleLowerCase('en-US'));
+    ].join(' ').toLocaleLowerCase('en-US');
+    searchIndex.set(entry, searchable);
+  }
+  return searchable.includes(searchText);
 }
 
 function filteredEntries(): VocabularyReviewEntry[] {
@@ -402,8 +413,9 @@ function setTranslationVisibility(container: HTMLElement): void {
 function updateTranslationVisibility(): void {
   element<HTMLButtonElement>('toggleVocabularyTranslations').textContent = translationsVisible ? '隱藏中文' : '顯示中文';
   element<HTMLButtonElement>('toggleVocabularyTranslations').setAttribute('aria-pressed', String(!translationsVisible));
+  const entries = new Map(allEntries.map(entry => [entry.key, entry]));
   for (const row of element<HTMLDivElement>('vocabularyList').querySelectorAll<HTMLElement>('.vocabulary-row')) {
-    const entry = allEntries.find(candidate => candidate.key === row.dataset.entryKey);
+    const entry = entries.get(row.dataset.entryKey ?? '');
     if (!entry || editingEntryKeys.has(entry.key)) continue;
     const existing = row.querySelector<HTMLElement>('.vocabulary-readonly-translations');
     if (existing) setTranslationVisibility(existing);
@@ -507,7 +519,7 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
         if (outcome === 'saved') renderEntries();
         return outcome;
       } });
-      dictionaryPreviews.add(preview);
+      dictionaryPreviews.set(article, preview);
       editors.append(preview.element);
     } else {
       editors.classList.add('is-translation-only');
@@ -525,16 +537,33 @@ function createVocabularyGroup(
   label: string,
   entries: VocabularyReviewEntry[],
 ): HTMLElement {
-  const section = document.createElement('section');
-  section.className = 'vocabulary-letter-group';
-  section.id = `vocabulary-group-${key}`;
-  const heading = document.createElement('h2');
-  heading.textContent = label;
-  const list = document.createElement('div');
-  list.className = 'vocabulary-letter-list';
-  list.append(...entries.map(createVocabularyRow));
-  section.append(heading, list);
+  nextGroupKeys.add(key);
+  let section = groupCache.get(key);
+  if (!section) {
+    section = document.createElement('section');
+    section.className = 'vocabulary-letter-group';
+    section.id = `vocabulary-group-${key}`;
+    const heading = document.createElement('h2');
+    heading.textContent = label;
+    const list = document.createElement('div');
+    list.className = 'vocabulary-letter-list';
+    section.append(heading, list);
+    groupCache.set(key, section);
+  }
+  patchChildOrder(section.querySelector<HTMLElement>('.vocabulary-letter-list')!, entries.map(entry => retainedVocabularyRow(entry, key)));
   return section;
+}
+
+function retainedVocabularyRow(entry: VocabularyReviewEntry, group = ''): HTMLElement {
+  const key = `${group}:${entry.key}`;
+  nextRowKeys.add(key);
+  const signature = JSON.stringify([entry, editingEntryKeys.has(entry.key), annotatingEntryKeys.has(entry.key), activeContentKind]);
+  const previous = rowCache.get(key);
+  if (previous?.signature === signature) return previous.node;
+  if (previous) dictionaryPreviews.get(previous.node)?.dispose();
+  const node = createVocabularyRow(entry);
+  rowCache.set(key, { signature, node });
+  return node;
 }
 
 function renderPartOfSpeechIndex(): void {
@@ -589,8 +618,8 @@ function renderContentKindSwitch(): void {
 function renderEntries(): void {
   element('vocabularyLegacySources').hidden = !allEntries.some(entry => entry.dictionarySources?.some(source => source.provider === 'cambridge'));
   speech.cancel();
-  for (const preview of dictionaryPreviews) preview.dispose();
-  dictionaryPreviews.clear();
+  nextRowKeys = new Set();
+  nextGroupKeys = new Set();
   const entries = filteredEntries();
   const list = element<HTMLDivElement>('vocabularyList');
   const empty = element<HTMLParagraphElement>('vocabularyEmpty');
@@ -605,9 +634,15 @@ function renderEntries(): void {
       rows = vocabularyLevelGroups(entries).map(group => createVocabularyGroup(`level-${group.level}`, group.label, group.entries));
       break;
     default:
-      rows = entries.map(createVocabularyRow);
+      rows = entries.map(entry => retainedVocabularyRow(entry));
   }
-  list.replaceChildren(...rows);
+  patchChildOrder(list, rows);
+  for (const [key, row] of rowCache) {
+    if (nextRowKeys.has(key)) continue;
+    dictionaryPreviews.get(row.node)?.dispose();
+    rowCache.delete(key);
+  }
+  for (const key of groupCache.keys()) if (!nextGroupKeys.has(key)) groupCache.delete(key);
   empty.hidden = entries.length > 0;
   if (!allEntries.length) empty.textContent = '目前尚未在 Tracker 新增英文單字。';
   else if (groupingMode === 'gsatLevel' && !searchText) empty.textContent = '目前沒有勾選顯示學測級數的單字。';
@@ -669,7 +704,7 @@ function render(): void {
 
 function load(options: { background?: boolean } = {}): void {
   try {
-    const result = readMaterialProgressRecords(localStorage);
+    const result = readMaterialProgressRecords(localStorage, !options.background);
     const nextEntries = vocabularyReviewEntries(result.records);
     const scopeChanged = activeRecordPrefix !== result.prefix;
     const changed = scopeChanged || JSON.stringify(nextEntries) !== JSON.stringify(allEntries);
@@ -721,8 +756,13 @@ window.addEventListener('blur', function releaseVocabularyPointer(): void {
 });
 
 element<HTMLInputElement>('vocabularySearch').addEventListener('input', event => {
-  searchText = (event.target as HTMLInputElement).value.trim();
-  renderEntries();
+  searchText = (event.target as HTMLInputElement).value.trim().toLocaleLowerCase('en-US');
+  if (searchRenderTimer) clearTimeout(searchRenderTimer);
+  searchRenderTimer = setTimeout(function applySearch(): void {
+    searchRenderTimer = undefined;
+    if (vocabularyPointerActive) { vocabularyEnrichmentPending = true; return; }
+    renderEntries();
+  }, 100);
 });
 element<HTMLDivElement>('vocabularyContentKind').addEventListener('click', event => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-content-kind]');

@@ -18,19 +18,20 @@ async function seed(page: Page): Promise<void> {
     }
   }, { prefix });
   await page.reload();
-  await expect(page.locator('.todo-card')).toHaveCount(18);
+  await expect(page.locator('.todo-card')).toHaveCount(12);
 }
 
 test('30-day tasks stay visible, older tasks collapse by default and both groups support persistent date sorting', async ({ page }) => {
   await seed(page);
   await expect(page.locator('#todoRecentList .todo-card')).toHaveCount(12);
-  await expect(page.locator('#todoLongTermList .todo-card')).toHaveCount(6);
+  await expect(page.locator('#todoLongTermList .todo-card')).toHaveCount(0);
+  await expect(page.locator('#todoLongTermCount')).toHaveText('6 項');
   await expect(page.locator('#todoLongTerm')).not.toHaveAttribute('open', '');
-  await expect(page.locator('#todoLongTermList .todo-card').first()).toBeHidden();
   await expect(page.locator('#todoRecentList .todo-card').first().locator('.todo-overdue')).toHaveText('逾期 30 天');
   await page.locator('#todoSort').selectOption('newest');
   await expect(page.locator('#todoRecentList .todo-card').first().locator('.todo-overdue')).toHaveText('逾期 1 天');
   await page.locator('#todoLongTerm > summary').click();
+  await expect(page.locator('#todoLongTermList .todo-card')).toHaveCount(6);
   await expect(page.locator('#todoLongTermList .todo-card').first().locator('.todo-overdue')).toHaveText('逾期 31 天');
   await page.reload();
   await expect(page.locator('#todoSort')).toHaveValue('newest');
@@ -93,8 +94,8 @@ test('batch skip includes collapsed matching long-term tasks and leaves another 
   await science.locator('[data-todo-timer-action="toggle"]').click();
   await page.getByRole('tab', { name: '英文', exact: true }).click();
   await page.locator('#todoItemFilter').selectOption('english:Essential Grammar in Use');
-  await expect(page.locator('#todoLongTermList .todo-card')).toHaveCount(2);
-  await expect(page.locator('#todoLongTermList .todo-card').first()).toBeHidden();
+  await expect(page.locator('#todoLongTermList .todo-card')).toHaveCount(0);
+  await expect(page.locator('#todoLongTermCount')).toHaveText('2 項');
   page.once('dialog', async dialog => { expect(dialog.message()).toContain('將跳過 6 項，其中長期逾期 2 項'); await dialog.accept(); });
   await page.locator('#todoBatchSkip').click();
   await expect(page.locator('.todo-card')).toHaveCount(0);

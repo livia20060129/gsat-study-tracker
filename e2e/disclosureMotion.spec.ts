@@ -71,7 +71,8 @@ async function seedTodo(page: Page): Promise<void> {
     }] }));
   });
   await page.reload();
-  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+  await expect(page.locator('#todoLongTermCount')).toHaveText('1 項');
 }
 
 test('routine and completion explanations visibly expand and collapse without changing recorded input', async ({ page }) => {

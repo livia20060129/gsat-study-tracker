@@ -65,6 +65,8 @@ const draftBases = new Map<string, StudyRecord>();
 let displayedTimers = new Map<string, StudyTimerState>();
 let displayedEntries = new Map<string, OverdueTaskEntry>();
 let renderedDate = localDateKey();
+let longTermEntries: OverdueTaskEntry[] = [];
+let longTermLoaded = false;
 
 function draftKey(action: TodoActionTarget): string {
   return `${action.recordDate}:${action.itemId}`;
@@ -453,7 +455,11 @@ function render(): void {
   element<HTMLElement>('todoSummary').textContent = todoSummaryText(entries.length, periodEntries.length, filtered.length);
   const organized = organizedOverdueEntries(filtered, activeSort);
   updateTodoList(element<HTMLDivElement>('todoRecentList'), organized.recent, createTodoCard);
-  updateTodoList(element<HTMLDivElement>('todoLongTermList'), organized.longTerm, createTodoCard);
+  longTermEntries = organized.longTerm;
+  if (longTermLoaded || element<HTMLDetailsElement>('todoLongTerm').open) {
+    updateTodoList(element<HTMLDivElement>('todoLongTermList'), longTermEntries, createTodoCard);
+    longTermLoaded = true;
+  }
   element<HTMLDetailsElement>('todoLongTerm').hidden = organized.longTerm.length === 0;
   element('todoLongTermCount').textContent = `${organized.longTerm.length} 項`;
   element<HTMLSelectElement>('todoSort').value = activeSort;
@@ -547,7 +553,11 @@ function writeTimerPointer(pointer: StudyTimerPointer | null): void {
 function sameTimerTarget(pointer: StudyTimerPointer | null, action: TodoActionTarget): boolean {
   if (!pointer || pointer.entryId || pointer.date !== action.recordDate) return false;
   const record = records.find(record => record.date === action.recordDate);
-  return Boolean(record && sameStudyTimerTarget(record, pointer, { date: action.recordDate, itemId: action.itemId }));
+  if (!record) return false;
+  if (pointer.itemId === action.itemId) return true;
+  // Alias resolution relinks grouped sources; keep the cached history snapshot untouched.
+  const comparison = JSON.parse(JSON.stringify(record)) as StudyRecord;
+  return sameStudyTimerTarget(comparison, pointer, { date: action.recordDate, itemId: action.itemId });
 }
 
 function currentTimer(action: TodoActionTarget): StudyTimerState | null {
@@ -739,9 +749,13 @@ function refreshTimerDisplays(): void {
 
 function load(forceCards = false): void {
   try {
-    const result = readMaterialProgressRecords(localStorage);
+    const result = readMaterialProgressRecords(localStorage, forceCards);
     records = result.records;
-    if (recordPrefix !== result.prefix) { drafts.clear(); draftBases.clear(); expandedCards.clear(); }
+    if (recordPrefix !== result.prefix) {
+      drafts.clear(); draftBases.clear(); expandedCards.clear();
+      longTermLoaded = false;
+      element('todoLongTermList').replaceChildren();
+    }
     recordPrefix = result.prefix;
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
     element<HTMLSpanElement>('recordSource').textContent = `${source}｜已讀取 ${result.records.length} 天紀錄`;
@@ -784,6 +798,19 @@ function readLocationFilters(): void {
   activeItem = normalizedOverdueItemFilter(new URLSearchParams(location.search).get('item'));
   activeSort = normalizedOverdueSort(new URLSearchParams(location.search).get('order'));
 }
+
+function loadLongTermCards(): void {
+  if (longTermLoaded) return;
+  updateTodoList(element<HTMLDivElement>('todoLongTermList'), longTermEntries, createTodoCard);
+  longTermLoaded = true;
+}
+
+element('todoLongTerm').addEventListener('click', function prepareLongTerm(event): void {
+  if ((event.target as Element).closest('summary')?.parentElement === event.currentTarget) loadLongTermCards();
+});
+element<HTMLDetailsElement>('todoLongTerm').addEventListener('toggle', function programmaticOpening(): void {
+  if (element<HTMLDetailsElement>('todoLongTerm').open) loadLongTermCards();
+});
 
 element<HTMLSelectElement>('todoSort').addEventListener('change', function selectOrder(): void {
   activeSort = normalizedOverdueSort(element<HTMLSelectElement>('todoSort').value);

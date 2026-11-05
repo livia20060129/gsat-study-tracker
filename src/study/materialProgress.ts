@@ -1,3 +1,4 @@
+import { readBrowserRecordHistory } from '../infrastructure/storage/localRecordHistory.ts';
 import {
   BOOK_PAGE_MAPS,
   canonicalPageMappedBook,
@@ -682,11 +683,16 @@ export function activeStudyRecordPrefix(storage: Pick<Storage, 'length' | 'key' 
   return userPrefix ?? 'study-v11:guest:';
 }
 
-export function readMaterialProgressRecords(storage: Pick<Storage, 'length' | 'key' | 'getItem'>): {
+export function readMaterialProgressRecords(storage: Pick<Storage, 'length' | 'key' | 'getItem'>, fresh = false): {
   prefix: string;
   records: StudyRecord[];
 } {
   const prefix = activeStudyRecordPrefix(storage);
+  try {
+    if (typeof window !== 'undefined' && storage === window.localStorage) {
+      return { prefix, records: readBrowserRecordHistory(storage, prefix, fresh) };
+    }
+  } catch { /* Use the supplied fallback storage when browser storage is inaccessible. */ }
   const records: StudyRecord[] = [];
   for (let index = 0; index < storage.length; index += 1) {
     const key = storage.key(index) ?? '';

@@ -1,6 +1,5 @@
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, VocabularyTranslations } from '../types.ts';
-import { CEEC_VOCABULARY } from '../data/ceecVocabulary.ts';
-import { CEEC_TRANSLATIONS } from '../data/ceecTranslations.ts';
+import { ceecReferenceMetadata } from './ceecReferenceIndex.ts';
 import { ecdictTranslations } from './ecdictLookup.ts';
 import { VOCABULARY_PARTS_OF_SPEECH, vocabularyTranslationText } from './vocabularyTranslationCounts.ts';
 
@@ -29,9 +28,9 @@ function normalizedReferenceWord(value: unknown): string {
 /** Exact listed spelling only: no prefix, stemming, sentence or fuzzy matching. */
 export function vocabularyReference(value: unknown): VocabularyReference | null {
   const word = normalizedReferenceWord(value);
-  if (!Object.hasOwn(CEEC_VOCABULARY, word)) return null;
-  const entry = CEEC_VOCABULARY[word];
-  const translations = Object.hasOwn(CEEC_TRANSLATIONS, word) ? CEEC_TRANSLATIONS[word] : {};
+  const entry = ceecReferenceMetadata(word);
+  if (!entry) return null;
+  const translations = ecdictTranslations(word) ?? {};
   return { word, level: entry.level as GsatVocabularyLevel, levels: [...entry.levels], parts: [...entry.parts],
     translations: JSON.parse(JSON.stringify(translations)) as VocabularyTranslations };
 }
@@ -73,7 +72,7 @@ export function applyVocabularyAutoFill(word: EnglishReviewWordEntry, dictionary
       delete word.vocabularyAutoFill;
     }
   }
-  const reference = vocabularyReference(word.text);
+  const reference = ceecReferenceMetadata(normalizedReferenceWord(word.text));
   const translations = dictionaryTranslations ?? ecdictTranslations(word.text);
   const defaults: Record<string, unknown> = {};
   for (const field of blocked) {
@@ -116,7 +115,7 @@ export function applyVocabularyAutoFill(word: EnglishReviewWordEntry, dictionary
 
 export function vocabularyAutoFillStatus(word: EnglishReviewWordEntry): string {
   if (!snapshot(word.vocabularyAutoFill)) return '';
-  const reference = vocabularyReference(word.text);
+  const reference = ceecReferenceMetadata(normalizedReferenceWord(word.text));
   if (word.fixedCombination === true || word.beautifulSentences === true) return '';
   if (!reference) return 'ECDICT｜中文翻譯與詞性';
   const level = reference.levels.map(value => `Level ${value}`).join('／');
@@ -139,6 +138,6 @@ export function vocabularyAutoFillSources(word: EnglishReviewWordEntry): { ceec:
   const data = snapshot(word.vocabularyAutoFill);
   const dictionary = word.vocabularyTranslationSource === 'ECDICT' || data?.dictionary === true;
   if (!data && !dictionary) return undefined;
-  return { ceec: Boolean(data && data.word === normalizedReferenceWord(word.text) && vocabularyReference(word.text)
+  return { ceec: Boolean(data && data.word === normalizedReferenceWord(word.text) && ceecReferenceMetadata(normalizedReferenceWord(word.text))
     && !word.fixedCombination && !word.beautifulSentences), ecdict: dictionary };
 }

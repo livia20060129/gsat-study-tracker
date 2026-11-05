@@ -53,7 +53,8 @@ async function seedHistory(page: Page): Promise<void> {
 test('batch skipping reads only each affected day and mounts new lists in batches', async ({ page }, testInfo) => {
   await seedHistory(page);
   await page.goto('/todo.html#natural');
-  await expect(page.locator('.todo-card')).toHaveCount(DAYS * 4);
+  await expect(page.locator('.todo-card')).toHaveCount(30 * 4);
+  await expect(page.locator('#todoLongTermCount')).toHaveText(`${(DAYS - 30) * 4} 項`);
   const initial = await page.evaluate(() => window.runtimeWork);
   await page.evaluate(() => { window.runtimeWork.dateReads = 0; });
   page.once('dialog', dialog => dialog.accept());
