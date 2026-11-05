@@ -1,3 +1,4 @@
+import { synchronizeRangeCompletion } from './application/records/synchronizeRangeCompletion.ts';
 import './todo-page.css';
 import { animateDisclosureChange, initializeDisclosureMotion } from './ui/disclosureMotion.ts';
 import { applyStudyHeadingHierarchy, studyFieldHierarchy } from './ui/studyFieldHierarchy.ts';
@@ -522,7 +523,7 @@ function saveRecordChange(
   const base = useDraftBase ? draftBases.get(action.recordDate) ?? records[index] : records[index];
   const edited = saveLocalRecordEdit(localStorage, recordPrefix, base, update);
   if (!edited) return false;
-  records[index] = edited;
+  records = readMaterialProgressRecords(localStorage).records;
   return true;
 }
 
@@ -749,7 +750,9 @@ function refreshTimerDisplays(): void {
 
 function load(forceCards = false): void {
   try {
-    const result = readMaterialProgressRecords(localStorage, forceCards);
+    let result = readMaterialProgressRecords(localStorage, forceCards);
+    const rangeSync = synchronizeRangeCompletion(localStorage, result.prefix);
+    if (rangeSync.saved.length) result = readMaterialProgressRecords(localStorage);
     records = result.records;
     if (recordPrefix !== result.prefix) {
       drafts.clear(); draftBases.clear(); expandedCards.clear();
@@ -759,7 +762,7 @@ function load(forceCards = false): void {
     recordPrefix = result.prefix;
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
     element<HTMLSpanElement>('recordSource').textContent = `${source}｜已讀取 ${result.records.length} 天紀錄`;
-    setError('');
+    setError(rangeSync.failedDates.length ? `以下日期尚未完成範圍同步：${rangeSync.failedDates.join('、')}。請確認儲存空間後重新讀取。` : '');
     setFeedback('');
     if (forceCards) element<HTMLDivElement>('todoList').querySelectorAll<HTMLElement>('.todo-card')
       .forEach(card => { delete card.dataset.todoSignature; });

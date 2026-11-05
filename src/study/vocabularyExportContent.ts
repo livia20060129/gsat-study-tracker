@@ -13,5 +13,7 @@ export function vocabularyExportNotices(entries: readonly VocabularyReviewEntry[
     }
     if (withTranslations && entries.some(entry => entry.dictionarySources?.some(source => source.provider === 'cambridge')))
         notices.push('歷史保存釋義來源：Cambridge Dictionary（線上服務已停用）。只保留既有資料的出處，不將舊內容改標為 ECDICT；內容使用與匯出範圍仍依原字典授權辦理。');
+    if (withTranslations && entries.some(entry => entry.referenceSources?.google))
+        notices.push('Translated by Google — Google Translate 自動翻譯：https://translate.google.com/ 。手動修改內容不代表 Google 認可。');
     return notices;
 }

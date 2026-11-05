@@ -1,3 +1,4 @@
+import type { VocabularyDefaultSource } from './vocabularyDefaults.ts';
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, StudyItem, StudyRecord, VocabularyStars, VocabularyTranslations } from '../types.ts';
 import { isVocabularyStarKey, normalizedVocabularyStars, remapVocabularyMeaningStars } from './vocabularyStars.ts';
 import { applyVocabularyAutoFill, markVocabularyManualFields, vocabularyAutoFillSources } from './vocabularyAutoFill.ts';
@@ -31,6 +32,7 @@ export interface VocabularyWordEdits {
   translationRemoval?: { field: keyof VocabularyTranslations; index: number };
   autoFill?: boolean;
   autoFillTranslations?: VocabularyTranslations;
+  autoFillSource?: VocabularyDefaultSource;
   dictionarySelection?: DictionaryLookupResult;
   contentKind?: VocabularyContentKind;
   partsOfSpeech?: ReadonlySet<VocabularyPartOfSpeechField>;
@@ -56,7 +58,7 @@ export interface VocabularyReviewEntry {
   translationsByPartOfSpeech: VocabularyTranslations;
   sourceDates: string[];
   occurrenceCount: number;
-  referenceSources?: { ceec: boolean; ecdict: boolean };
+  referenceSources?: { ceec: boolean; ecdict: boolean; google?: boolean };
   dictionarySources?: DictionarySourceReference[];
 }
 
@@ -182,6 +184,7 @@ function collectItemWords(
       if (referenceSources) entry.referenceSources = {
         ceec: entry.referenceSources?.ceec === true || referenceSources.ceec,
         ecdict: entry.referenceSources?.ecdict === true || referenceSources.ecdict,
+        ...(entry.referenceSources?.google || referenceSources.google ? { google: true } : {}),
       };
       if (date) entry.sourceDates.add(date);
       const translation = normalizedTranslation(word.translation);
@@ -291,7 +294,7 @@ function updateItemWords(
           changed = true;
         }
       }
-      if ((edits.text !== undefined || edits.autoFill) && applyVocabularyAutoFill(word, edits.autoFillTranslations)) changed = true;
+      if ((edits.text !== undefined || edits.autoFill) && applyVocabularyAutoFill(word, edits.autoFillTranslations, edits.autoFillSource)) changed = true;
       if (edits.partsOfSpeech) {
         markVocabularyManualFields(word, VOCABULARY_PARTS_OF_SPEECH.map(([field]) => field));
         for (const [field] of VOCABULARY_PARTS_OF_SPEECH) {

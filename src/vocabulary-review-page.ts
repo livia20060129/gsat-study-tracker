@@ -1,3 +1,4 @@
+import { googleTranslationAttributionHtml } from './ui/googleTranslationAttribution.ts';
 import './vocabulary-review.css';
 import { animateDisclosureReplacement, captureDisclosure } from './ui/disclosureMotion.ts';
 import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
@@ -23,7 +24,7 @@ import {
 import { vocabularyTranslationGroups } from './study/vocabularyTranslationCounts.ts';
 import { vocabularyMeaningGroups } from './study/vocabularyMeaningGroups.ts';
 import { vocabularyReference } from './study/vocabularyAutoFill.ts';
-import { loadEcdictTranslations } from './study/ecdictLookup.ts';
+import { loadVocabularyDefaults } from './study/vocabularyDefaults.ts';
 import { vocabularyMeaningStarKeys, vocabularyWordTokens } from './study/vocabularyStars.ts';
 import type { StudyRecord, VocabularyTranslations } from './types.ts';
 
@@ -202,12 +203,13 @@ function renderEnrichedEntries(): void {
 async function fillEcdictEntry(key: string): Promise<void> {
   const prefix = activeRecordPrefix;
   try {
-    const translations = await loadEcdictTranslations(key);
+    const result = await loadVocabularyDefaults(key);
+    const translations = result?.translations;
     if (!translations || prefix !== activeRecordPrefix) return;
     const entry = allEntries.find(candidate => candidate.key === key);
-    if (entry && saveEntryEdits(entry, { autoFill: true, autoFillTranslations: translations })) renderEnrichedEntries();
-  } catch {
-    if (prefix === activeRecordPrefix) element('vocabularySaveStatus').textContent = '英文已儲存；ECDICT 暫時無法載入，可稍後重試或手動編輯。';
+    if (entry && saveEntryEdits(entry, { autoFill: true, autoFillTranslations: translations, autoFillSource: result?.source })) renderEnrichedEntries();
+  } catch (error) {
+    if (prefix === activeRecordPrefix) element('vocabularySaveStatus').textContent = error instanceof Error && error.message.includes('Google Translate') ? error.message : '英文已儲存；ECDICT 暫時無法載入，可稍後重試或手動編輯。';
   }
 }
 
@@ -486,6 +488,12 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     kinds.append(levelBadge);
   }
   identity.append(kinds);
+  if (entry.referenceSources?.google) {
+    const source = document.createElement('div');
+    source.className = 'vocabulary-occurrence';
+    source.innerHTML = googleTranslationAttributionHtml();
+    identity.append(source);
+  }
   if (entry.referenceSources?.ceec) {
     const reference = vocabularyReference(entry.text);
     if (reference && reference.levels.length > 1) {

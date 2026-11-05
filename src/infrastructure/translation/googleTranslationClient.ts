@@ -1,0 +1,41 @@
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../../config/supabase.ts';
+import { browserAuthPersistence, createPersistentAuthStorage } from '../storage/browserAuthStorage.ts';
+import { initialRecordPrefix, storagePrefixForUser } from '../../storage/local.ts';
+
+const pending = new Map<string, Promise<string | null>>();
+const cache = new Map<string, string>();
+
+/** Reads the existing persisted login; it cannot create a guest session or change account scope. */
+export async function translateMissingWord(word: string): Promise<string | null> {
+  if (typeof window === 'undefined' || !/^[a-z]+(?:['’-][a-z]+)*$/i.test(word) || word.length > 80) return null;
+  const prefix = initialRecordPrefix(localStorage);
+  if (!prefix.startsWith('study-v11:user:')) return null;
+  const auth = createPersistentAuthStorage(browserAuthPersistence(window.indexedDB), localStorage);
+  const authKey = `sb-${new URL(SUPABASE_URL).hostname.split('.')[0]}-auth-token`;
+  const raw = await auth.getItem(authKey);
+  if (!raw) return null;
+  const session = JSON.parse(raw) as { access_token?: string; user?: { id?: string } };
+  if (!session.access_token || !session.user?.id || storagePrefixForUser(session.user.id) !== prefix) return null;
+  const key = `${prefix}${word}`;
+  if (cache.has(key)) return cache.get(key)!;
+  const existing = pending.get(key);
+  if (existing) return existing;
+  const task = (async function requestTranslation(): Promise<string | null> {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/google-translation`, {
+      method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, apikey: SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json' }, body: JSON.stringify({ word }), signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new Error(response.status === 503
+      ? 'Google Translate 尚未設定；英文已保存，可手動填寫中文。'
+      : 'Google Translate 暫時無法使用；英文已保存，可稍後重試或手動填寫中文。');
+    const result = await response.json();
+    if (initialRecordPrefix(localStorage) !== prefix || result.provider !== 'google' || result.word !== word) return null;
+    if (typeof result.translation !== 'string' || !result.translation.trim()) throw new Error('Google Translate 未回傳有效翻譯。');
+    cache.set(key, result.translation);
+    if (cache.size > 256) cache.delete(cache.keys().next().value!);
+    return result.translation;
+  })();
+  pending.set(key, task);
+  try { return await task; }
+  finally { if (pending.get(key) === task) pending.delete(key); }
+}

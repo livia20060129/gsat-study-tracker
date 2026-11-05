@@ -48,7 +48,13 @@ python scripts/build_ecdict_lookup.py --dictionary "完整路徑/ecdict.csv" --p
 - Tracker 輸入完整單字並離開欄位，或於英文單字複習頁修改英文後，自動帶入 ECDICT 中文與詞性，不需先按「取得翻譯」或確認。組合／句子維持手動整理。
 - 先保存英文，再完成按需查詢。回應時重新比對資料空間、日期及單字；延遲回應不替換已改掉的英文，切換日期後只更新原紀錄。載入失敗不刪除輸入，仍可手動填寫與稍後重試。
 - `vocabularyAutoFill` 追蹤自動填值；`vocabularyManualFields` 的各欄位布林標記保護手動修改、取消及刻意清空，也避免兩台裝置修改不同欄位時只因標記產生衝突。
-- 使用既有詞性、`translation`、`translationsByPartOfSpeech`、`gsatLevel`、`showGsatLevel` 與 JSON 儲存格式，沿用匯出／匯入、合併及帳號同步。不新增資料庫欄位或字典 API，不在唯讀載入時批次重寫舊紀錄。
+- 使用既有詞性、`translation`、`translationsByPartOfSpeech`、`gsatLevel`、`showGsatLevel` 與 JSON 儲存格式，沿用匯出／匯入、合併及帳號同步。不新增資料庫欄位，不在唯讀載入時批次重寫舊紀錄。
 - 編輯模式的字典預覽仍可勾選意思再追加，保留既有中文。來源集中於單字複習頁標題下方；舊紀錄中的歷史來源繼續保留，不將其他字典釋義改標為 ECDICT。
 
 執行完整單元、型別、正式建置與 Chromium／WebKit 測試，涵蓋表外字、詞性差異、手動優先、延遲回應、載入失敗重試、範圍／日期跳轉、JSON round-trip、合併與 PDF 授權。資料版本見 `public/vocabulary-reference-manifest.json` 及詞庫目錄內的 manifest。
+
+## 5. Google Translate 備援（v171.6.145）
+
+ECDICT 確認未收錄中文後，僅已登入且列入伺服器白名單的帳號使用 Google Cloud Translation Basic v2。只翻譯單一英文詞並填入未分詞性，來源保留為 Google Translate，不冒稱 ECDICT，不猜詞性／Level。手動修改優先。訪客及 ECDICT 網路錯誤不發出此付費備援請求。
+
+Google 結果在卡片旁顯示官方原始標章，連結至 https://translate.google.com/ ；PDF／DOCX 保留來源。`public/google-translate-attribution.png` 來自 Google 官方 [標章套件](https://docs.cloud.google.com/static/translate/images/google-translate-attribution.zip)，屬 Google 品牌資產，不受 ECDICT MIT 授權涵蓋。完整設定見 [GOOGLE_TRANSLATION_SETUP.md](./GOOGLE_TRANSLATION_SETUP.md)，處理資料見中英隱私權政策。

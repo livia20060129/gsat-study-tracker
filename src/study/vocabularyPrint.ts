@@ -26,6 +26,7 @@ export function vocabularyPrintDocument(
   if (withTranslations && entries.some(entry => entry.dictionarySources?.some(source => source.provider === 'cambridge'))) {
     notices.push('<p>歷史保存釋義來源：Cambridge Dictionary（線上服務已停用）。只保留既有資料的出處，不將舊內容改標為 ECDICT；內容使用與匯出範圍仍依原字典授權辦理。</p>');
   }
+  if (withTranslations && entries.some(entry => entry.referenceSources?.google)) notices.push('<p>Translated by Google — https://translate.google.com/</p>');
   const tables = entries.map(function entryRows(entry): string {
     const groups = vocabularyMeaningGroups(entry, kind);
     const rowCount = groups.reduce((total, group) => total + group.meanings.length, 0);

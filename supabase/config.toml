@@ -9,3 +9,7 @@ verify_jwt = false
 
 [functions.google-calendar-callback]
 verify_jwt = false
+
+[functions.google-translation]
+# The handler verifies the user through Auth and enforces a server-side personal account allowlist.
+verify_jwt = false

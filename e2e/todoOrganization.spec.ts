@@ -7,13 +7,17 @@ async function seed(page: Page): Promise<void> {
   await page.evaluate(({ prefix }) => {
     localStorage.clear();
     localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
-    for (const date of ['2026-09-01', '2026-10-05', '2026-10-06', '2026-11-01', '2026-11-02', '2026-11-04']) {
+    for (const [index, date] of ['2026-09-01', '2026-10-05', '2026-10-06', '2026-11-01', '2026-11-02', '2026-11-04'].entries()) {
+      // Organization tests need distinct work; identical completed ranges now intentionally check other dates.
+      const unit = date === '2026-11-02' ? 1 : 10 + index * 2;
+      const start = date === '2026-11-02' ? 10 : 30 + index * 20;
+      const round = date === '2026-11-02' ? 5 : 10 + index;
       localStorage.setItem(prefix + date, JSON.stringify({ schemaVersion: 2, date, notes: '保留筆記', items: [
         { id: 'grammar', type: 'extra', title: '英文｜Essential Grammar in Use', source: 'preset', required: true, done: false, minutes: '15',
-          f: { title: 'Essential Grammar in Use', scopeKind: 'unit', unitStart: '1', unitEnd: '2' } },
-        { id: 'ace', type: 'extra', title: '英文｜ACE Reading', source: 'preset', required: true, done: false, minutes: '20', f: { title: 'ACE Reading', round: '5' } },
+          f: { title: 'Essential Grammar in Use', scopeKind: 'unit', unitStart: String(unit), unitEnd: String(unit + 1) } },
+        { id: 'ace', type: 'extra', title: '英文｜ACE Reading', source: 'preset', required: true, done: false, minutes: '20', f: { title: 'ACE Reading', round: String(round) } },
         { id: 'science', type: 'scienceReview', title: '物理讀書', source: 'preset', required: true, done: false, minutes: '25',
-          f: { subject: '物理', material: '新關鍵', start: '10', end: '12', progress: true, graded: false, corrected: false } },
+          f: { subject: '物理', material: '新關鍵', start: String(start), end: String(start + 2), progress: true, graded: false, corrected: false } },
       ] }));
     }
   }, { prefix });
