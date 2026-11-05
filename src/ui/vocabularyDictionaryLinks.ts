@@ -10,6 +10,6 @@ export function vocabularyDictionary(value: unknown): VocabularyDictionary {
 
 export function vocabularyDictionaryLink(value: unknown, provider: VocabularyDictionary): { url: string; name: string } {
   const query = dictionaryQuery(value);
-  if (provider === 'cambridge') return { url: query ? cambridgeDictionaryUrl(query) : '', name: '劍橋中英字典' };
+  if (provider === 'cambridge') return { url: query ? cambridgeDictionaryUrl(query) : '', name: '劍橋英漢辭典' };
   return { url: oxfordSearchUrl(value), name: 'Oxford Learner\'s Dictionaries' };
 }

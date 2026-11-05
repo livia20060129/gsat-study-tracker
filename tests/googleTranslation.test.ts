@@ -45,8 +45,53 @@ function setup(overrides: Record<string, string> = {}, user = userId, anonymous 
       method: 'POST', headers: { authorization: 'Bearer session' }, body: JSON.stringify({ word }),
     }));
   }
-  return { handler, request, calls, balances, failures, restart, advance() { time += 60_000; } };
+  function requestText(text: string, extras: Record<string, unknown> = {}): Promise<Response> {
+    return handler(new Request('https://example/functions/v1/google-translation', {
+      method: 'POST', headers: { authorization: 'Bearer session' }, body: JSON.stringify({ text, ...extras }),
+    }));
+  }
+  return { handler, request, requestText, calls, balances, failures, restart, advance() { time += 60_000; } };
 }
+
+test('phrases and sentences are sent intact and debit server-counted English words', async () => {
+  const proxy = setup();
+  for (const [text, count] of [['look after', 2], ['Practice makes perfect.', 3]] as const) {
+    const result = await (await proxy.requestText(text, { words: 0, userId: 'forged' })).json();
+    assert.equal(result.text, text);
+    assert.equal(result.wordCount, count);
+    assert.equal(JSON.parse(String(proxy.calls.at(-1)?.options?.body)).q, text);
+  }
+  assert.equal(proxy.balances.get(userId), 5);
+  assert.equal((await (await proxy.requestText('look after')).json()).cached, true);
+  assert.equal(proxy.balances.get(userId), 5);
+});
+
+test('a whole text needs sufficient remaining allowance and quota retries charge it once', async () => {
+  const proxy = setup();
+  proxy.balances.set(userId, 4998);
+  assert.equal((await proxy.requestText('Practice makes perfect.')).status, 429);
+  assert.equal(proxy.balances.get(userId), 4998);
+  assert.equal(proxy.calls.filter(call => call.url.includes('googleapis')).length, 0);
+  proxy.failures.loseQuotaReply = true;
+  assert.equal((await proxy.requestText('look after')).status, 200);
+  assert.equal(proxy.balances.get(userId), 5000);
+  assert.equal((await proxy.requestText('look after')).status, 200);
+});
+
+test('invalid whole texts and ambiguous inputs never spend quota or contact Google', async () => {
+  const proxy = setup();
+  for (const text of ['', '1234', '<script>English</script>', 'English 中文', 'a'.repeat(1001), 'a '.repeat(201)]) {
+    assert.equal((await proxy.requestText(text)).status, 400);
+  }
+  assert.equal((await proxy.requestText('look after', { word: 'word' })).status, 400);
+  assert.equal(proxy.calls.filter(call => call.url.includes('/rpc/') || call.url.includes('googleapis')).length, 0);
+});
+
+test('failed whole-text translations retain their full word debit', async () => {
+  const proxy = setup(); proxy.failures.google = true;
+  assert.equal((await proxy.requestText('Practice makes perfect.')).status, 502);
+  assert.equal(proxy.balances.get(userId), 3);
+});
 
 test('all registered users can translate with server credentials and an authoritative word allowance', async () => {
   const { request, calls } = setup();

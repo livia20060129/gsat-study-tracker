@@ -1,3 +1,5 @@
+import { translationText } from './translationText.ts';
+
 export type DictionaryProvider = 'ecdict';
 /** Includes confirmed Google previews and the retired provider's historical attribution. */
 export type DictionarySourceProvider = DictionaryProvider | 'cambridge' | 'google';
@@ -34,10 +36,13 @@ export function cambridgeDictionaryUrl(word: string): string {
 export function dictionarySource(value: unknown): DictionarySourceReference | null {
   if (!value || typeof value !== 'object') return null;
   const source = value as Partial<DictionarySourceReference>;
+  if (source.provider === 'google') {
+    const input = translationText(source.word);
+    return input ? { provider: 'google', word: input.text, sourceUrl: 'https://translate.google.com/' } : null;
+  }
   const word = dictionaryQuery(source.word);
-  if (!word || (source.provider !== 'ecdict' && source.provider !== 'cambridge' && source.provider !== 'google')) return null;
+  if (!word || (source.provider !== 'ecdict' && source.provider !== 'cambridge')) return null;
   if (source.provider === 'ecdict') return { provider: 'ecdict', word, sourceUrl: ECDICT_SOURCE_URL };
-  if (source.provider === 'google') return { provider: 'google', word, sourceUrl: 'https://translate.google.com/' };
   if (typeof source.sourceUrl !== 'string') return null;
   try {
     const url = new URL(source.sourceUrl);

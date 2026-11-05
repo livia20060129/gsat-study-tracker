@@ -3,15 +3,18 @@ import { localDictionaryLookup } from '../study/localDictionaryLookup.ts';
 import { loadEcdictTranslations } from '../study/ecdictLookup.ts';
 import { VOCABULARY_PARTS_OF_SPEECH } from '../study/vocabularyTranslationCounts.ts';
 import type { VocabularyTranslations } from '../types.ts';
-import type { GoogleTranslationSelection } from '../study/googleTranslationSelection.ts';
+import type { GoogleTranslationContentKind, GoogleTranslationSelection } from '../study/googleTranslationSelection.ts';
+import { translationText } from '../../supabase/functions/_shared/translationText.ts';
 
 type SelectionOutcome = 'saved' | 'unchanged' | 'failed';
 
 export interface DictionaryPreviewOptions {
   word: string;
+  local?: boolean;
   apply: (selection: DictionaryLookupResult) => SelectionOutcome;
   google?: {
     enabled: boolean;
+    contentKind?: GoogleTranslationContentKind;
     lookup: () => Promise<GoogleTranslationSelection | null>;
     apply: (selection: GoogleTranslationSelection) => SelectionOutcome;
   };
@@ -41,17 +44,18 @@ export class DictionaryPreview {
     query.dataset.dictionaryLookup = '';
     query.textContent = '取得翻譯';
     query.disabled = !dictionaryQuery(options.word);
-    controls.append(source, query);
+    if (options.local !== false) controls.append(source, query);
     const googleQuery = document.createElement('button');
     googleQuery.type = 'button';
     googleQuery.dataset.googleTranslate = '';
     googleQuery.textContent = 'Google 翻譯';
     const word = dictionaryQuery(options.word);
-    const googleWord = word !== null && /^[a-z]+(?:['-][a-z]+)*$/.test(word);
+    const googleWord = options.google?.contentKind && options.google.contentKind !== '單字'
+      ? translationText(options.word) !== null : word !== null && /^[a-z]+(?:['-][a-z]+)*$/.test(word);
     const googleEnabled = options.google?.enabled === true && googleWord;
     googleQuery.disabled = !googleEnabled;
     if (!options.google?.enabled) googleQuery.title = '登入 Tracker 帳號後可使用';
-    else if (!googleWord) googleQuery.title = 'Google 翻譯目前只支援單一英文單字';
+    else if (!googleWord) googleQuery.title = '請填入有效英文，每次最多 200 個單字、1,000 個字元';
     else googleQuery.title = '使用每月 5,000 個單字額度，快取不扣；預覽後確認追加';
     if (options.google) controls.append(googleQuery);
     this.status = document.createElement('p');
@@ -61,6 +65,7 @@ export class DictionaryPreview {
     this.status.textContent = query.disabled
       ? '請先將英文內容改為有效的英文單字或短語。'
       : '使用 ECDICT，更多單字按需載入。可勾選意思追加填入，保留既有手動修改。';
+    if (options.local === false) this.status.textContent = 'Google 翻譯整段英文，預覽後確認追加中文，保留既有手動修改；按英文單字數計入月額度。';
     if (options.google && !options.google.enabled) this.status.textContent += ' Google 翻譯需先登入 Tracker。';
     this.output = document.createElement('div');
     this.output.className = 'dictionary-preview-results';
@@ -116,7 +121,8 @@ export class DictionaryPreview {
     checkbox.type = 'checkbox';
     checkbox.dataset.googleMeaning = '';
     const part = VOCABULARY_PARTS_OF_SPEECH.find(([field]) => field === selection.partOfSpeech)?.[1] ?? '未分詞性';
-    label.append(checkbox, document.createTextNode(`${part}｜${selection.text}`));
+    const text = selection.contentKind && selection.contentKind !== '單字' ? selection.text : `${part}｜${selection.text}`;
+    label.append(checkbox, document.createTextNode(text));
     const confirm = document.createElement('button');
     confirm.type = 'button';
     confirm.dataset.googleApply = '';

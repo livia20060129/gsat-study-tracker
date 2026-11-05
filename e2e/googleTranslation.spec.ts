@@ -215,6 +215,7 @@ for (const width of [1280, 375]) test(`dictionary choice changes links in place,
   const editor = await row.locator('[data-vocabulary-text]').elementHandle();
   const before = await words(page);
   await page.locator('#vocabularyDictionary').selectOption('cambridge');
+  await expect(page.locator('#vocabularyDictionary option:checked')).toHaveText('劍橋英漢辭典');
   await expect(row.locator('.vocabulary-word-link')).toHaveAttribute('href', /dictionary\.cambridge\.org\/dictionary\/english-chinese-traditional\/ability$/);
   expect(await editor!.evaluate(node => node.isConnected)).toBe(true);
   expect(await words(page)).toEqual(before);
@@ -269,7 +270,7 @@ test('the explicit Google button previews an ECDICT-listed word, confirms an add
   await expect(row).toContainText('Google 候選能力');
 });
 
-test('guests see a disabled Google button and combinations do not expose paid translation controls', async ({ page }) => {
+test('guests see disabled Google buttons for words, combinations and sentences without paid requests', async ({ page }) => {
   await seed(page, false); await page.reload();
   const requests: string[] = [];
   page.on('request', request => { if (request.url().endsWith('/google-translation')) requests.push(request.url()); });
@@ -278,9 +279,59 @@ test('guests see a disabled Google button and combinations do not expose paid tr
   await expect(row.getByRole('button', { name: 'Google 翻譯', exact: true })).toBeDisabled();
   await expect(row.locator('.dictionary-preview-status')).toContainText('需先登入');
   await row.getByLabel('組合', { exact: true }).check();
-  await expect(row.locator('[data-google-translate]')).toHaveCount(0);
+  await page.locator('[data-content-kind="組合"]').click();
+  await expect(row.locator('[data-google-translate]')).toBeDisabled();
+  await expect(row.locator('[data-dictionary-lookup]')).toHaveCount(0);
+  await row.getByLabel('句子', { exact: true }).check();
+  await page.locator('[data-content-kind="句子"]').click();
+  await expect(row.locator('[data-google-translate]')).toBeDisabled();
   expect(requests).toEqual([]);
 });
+
+for (const width of [1280, 375]) for (const kind of ['組合', '句子'] as const) {
+  test(`manual ${kind} Google translation previews whole text, appends Chinese and persists (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 812 });
+    await seed(page);
+    const text = kind === '組合' ? 'look after' : 'Practice makes perfect.';
+    await page.evaluate(({ prefix, date, kind, text }) => {
+      const key = prefix + date, record = JSON.parse(localStorage.getItem(key)!);
+      record.items[0].f.words.push({ id: 'phrase', text, translation: '原有中文',
+        fixedCombination: kind === '組合', beautifulSentences: kind === '句子' });
+      localStorage.setItem(key, JSON.stringify(record));
+    }, { prefix, date, kind, text });
+    const requests: unknown[] = [];
+    await page.route('**/functions/v1/google-translation', route => {
+      requests.push(route.request().postDataJSON());
+      return route.fulfill({ json: { provider: 'google', text, wordCount: kind === '組合' ? 2 : 3, translation: '追加中文' } });
+    });
+    await page.reload();
+    await page.locator(`[data-content-kind="${kind}"]`).click();
+    const row = page.locator(`.vocabulary-row[data-entry-key="${text.toLowerCase()}"]`);
+    await row.getByRole('button', { name: `編輯「${text}」`, exact: true }).click();
+    await expect(row.locator('[data-dictionary-lookup]')).toHaveCount(0);
+    await expect(row.getByLabel('Noun', { exact: true })).toHaveCount(0);
+    const before = await words(page);
+    await row.locator('[data-google-translate]').click();
+    await expect(row.locator('[data-google-meaning]')).toBeVisible();
+    await expect(row.locator('.dictionary-preview-results')).not.toContainText('未分詞性');
+    expect(await words(page)).toEqual(before);
+    await row.locator('[data-google-meaning]').check();
+    await row.locator('[data-google-apply]').click();
+    await expect.poll(async () => (await words(page)).find(word => word.id === 'phrase')?.translation).toBe('原有中文\n追加中文');
+    expect(requests).toEqual([{ text }]);
+    expect((await words(page)).find(word => word.id === 'phrase')?.dictionarySources).toEqual([
+      { provider: 'google', word: text, sourceUrl: 'https://translate.google.com/' },
+    ]);
+    await page.reload();
+    await page.locator(`[data-content-kind="${kind}"]`).click();
+    await expect(row).toContainText('原有中文');
+    await expect(row).toContainText('追加中文');
+    const bounds = await row.evaluate(node => ({ left: node.getBoundingClientRect().left,
+      right: node.getBoundingClientRect().right, width: innerWidth }));
+    expect(bounds.left).toBeGreaterThanOrEqual(0);
+    expect(bounds.right).toBeLessThanOrEqual(bounds.width);
+  });
+}
 
 test('explicit Google quota errors keep the editor and saved word unchanged and allow retry', async ({ page }) => {
   await seed(page); await page.reload();

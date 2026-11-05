@@ -39,10 +39,22 @@ export function applyDictionarySelection(word: EnglishReviewWordEntry, selection
 }
 
 export function applyGoogleTranslationSelection(word: EnglishReviewWordEntry, selection: GoogleTranslationSelection): boolean {
-  const result = googleTranslationSelection(selection, String(word.text ?? ''));
-  if (!result || word.fixedCombination || word.beautifulSentences) return false;
+  let kind: '單字' | '組合' | '句子' = '單字';
+  if (word.beautifulSentences) kind = '句子';
+  else if (word.fixedCombination) kind = '組合';
+  const result = googleTranslationSelection(selection, String(word.text ?? ''), kind);
+  if (!result) return false;
   const before = JSON.stringify(word);
-  appendMeanings(word, [{ partOfSpeech: result.partOfSpeech, text: result.text }]);
+  if (kind === '單字') appendMeanings(word, [{ partOfSpeech: result.partOfSpeech, text: result.text }]);
+  else {
+    const existing = String(word.translation ?? '').trim();
+    if (!`\n${existing.replace(/\r\n/g, '\n')}\n`.includes(`\n${result.text.replace(/\r\n/g, '\n')}\n`)) {
+      word.translation = [existing, result.text].filter(Boolean).join('\n');
+      const groups = normalizedVocabularyTranslations(word.translationsByPartOfSpeech) ?? {};
+      groups.unclassified = [...new Set([...(groups.unclassified ?? []), result.text])];
+      word.translationsByPartOfSpeech = groups;
+    }
+  }
   word.dictionarySources = dictionarySources([...dictionarySources(word.dictionarySources), {
     provider: 'google', word: result.word, sourceUrl: 'https://translate.google.com/',
   }]);

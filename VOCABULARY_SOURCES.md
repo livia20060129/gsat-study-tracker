@@ -45,7 +45,7 @@ python scripts/build_ecdict_lookup.py --dictionary "完整路徑/ecdict.csv" --p
 
 - v171.6.144：擴充詞庫查詢及預覽直接使用每次查詢完成的回應，避免 8 組分片快取淘汰後漏填；Tracker 回填核對沿用既有訪客預設資料空間，缺少顯式標記不再使合法訪客回應被略過。明確切換其他帳號仍拒絕延遲回應，未更動詞庫內容、來源或授權。
 
-- Tracker 輸入完整單字並離開欄位，或於英文單字複習頁修改英文後，自動帶入 ECDICT 中文與詞性，不需先按「取得翻譯」或確認。組合／句子維持手動整理。
+- Tracker 輸入完整單字並離開欄位，或於英文單字複習頁修改英文後，自動帶入 ECDICT 中文與詞性，不需先按「取得翻譯」或確認。組合／句子不自動查詢；編輯時可手動使用 Google 預覽。
 - 先保存英文，再完成按需查詢。回應時重新比對資料空間、日期及單字；延遲回應不替換已改掉的英文，切換日期後只更新原紀錄。載入失敗不刪除輸入，仍可手動填寫與稍後重試。
 - `vocabularyAutoFill` 追蹤自動填值；`vocabularyManualFields` 的各欄位布林標記保護手動修改、取消及刻意清空，也避免兩台裝置修改不同欄位時只因標記產生衝突。
 - 使用既有詞性、`translation`、`translationsByPartOfSpeech`、`gsatLevel`、`showGsatLevel` 與 JSON 儲存格式，沿用匯出／匯入、合併及帳號同步。不新增資料庫欄位，不在唯讀載入時批次重寫舊紀錄。
@@ -55,7 +55,7 @@ python scripts/build_ecdict_lookup.py --dictionary "完整路徑/ecdict.csv" --p
 
 ## 5. Google Translate 備援（v171.6.145）
 
-ECDICT 確認未收錄中文後，所有已登入 Tracker 的正式帳號使用 Google Cloud Translation Basic v2。只翻譯單一英文詞。中文來源保留為 Google Translate；v171.6.146 起詞性可另外對照既有 ECDICT／大考中心同拼法資料，不使用 Natural Language API。只有一種詞性時放入該組，多詞性時譯文保留未分詞性而不重複複製；無資料時保留手動，不猜詞性／Level。手動修改優先。訪客及 ECDICT 網路錯誤不發出此付費備援請求。
+ECDICT 確認未收錄中文後，所有已登入 Tracker 的正式帳號使用 Google Cloud Translation Basic v2。自動流程只翻譯單一英文詞；手動 Google 預覽另可整段翻譯組合及句子。中文來源保留為 Google Translate；v171.6.146 起詞性可另外對照既有 ECDICT／大考中心同拼法資料，不使用 Natural Language API。只有一種詞性時放入該組，多詞性時譯文保留未分詞性而不重複複製；無資料時保留手動，不猜詞性／Level。手動修改優先。訪客及 ECDICT 網路錯誤不發出此付費備援請求。
 
 Google 翻譯支援集中在複習頁上方顯示官方原始標章，連結至 https://translate.google.com/ ；PDF／DOCX 保留來源。`public/google-translate-attribution.png` 來自 Google 官方 [標章套件](https://docs.cloud.google.com/static/translate/images/google-translate-attribution.zip)，屬 Google 品牌資產，不受 ECDICT MIT 授權涵蓋。完整設定見 [GOOGLE_TRANSLATION_SETUP.md](./GOOGLE_TRANSLATION_SETUP.md)，處理資料見中英隱私權政策。
 
@@ -66,10 +66,14 @@ v171.6.146 起取消 UUID 白名單，依 Supabase Auth 帳號按月計算最多
 
 `scripts/build_ecdict_fallback_parts.py` 從同一份 ECDICT CSV 的明示詞性標籤擷取 11,331 筆中文不可用詞的詞性，來源 SHA-256 寫入 `src/data/ecdictFallbackParts.ts`，沿用 MIT 授權。僅在 Google 回傳中文後才按需載入；詞性與中文保存各自出處，手動取消／修改不會被重設。
 
-複習頁可選擇牛津辭典或劍橋英語－繁體中文辭典的外部連結，選擇保存在本機。切換只更新英文連結，不替換編輯器、不改讀書資料，也不擷取外站釋義。Google 翻譯支援只在頁首顯示一次。
+複習頁可選擇牛津辭典或劍橋英漢辭典的外部連結，選擇保存在本機。切換只更新英文連結，不替換編輯器、不改讀書資料，也不擷取外站釋義。Google 翻譯支援只在頁首顯示一次。
 
 ## 7. 手動 Google 預覽（v171.6.147）
 
 單字編輯區提供獨立「Google 翻譯」按鈕，登入後可直接查詢；自動流程仍只在 ECDICT 確認未收錄中文時備援。Google 預覽不修改紀錄，確認後追加意思，保留手動中文及原 Level。每筆新增來源存為 google，與原 ECDICT／歷史來源並存；匯出同時列出實際來源，不將 Google 內容標為 ECDICT。
 
 使用同一個每月 5,000 個英文單字額度；查詢時扣額，快取命中免費。單字改寫、帳號變更或編輯關閉後的過期結果不可填入；切換查詢來源時較舊回應不替換目前預覽。
+
+## 8. 組合／句子（v171.6.148）
+
+編輯區的 Google 按鈕可整段取得翻譯，確認後才追加，不替換原有中文，也不推測詞性。保留英文大小寫、標點與 Google 出處，沿用匯出／匯入及 Cloud。查詢時依實際英文單字數扣除共用月額度：look after 計 2、Practice makes perfect. 計 3，縮寫與連字複合詞各計 1。單次最多 200 個單字、1,000 個字元；額度不足整筆拒絕，快取命中不扣。

@@ -1,4 +1,5 @@
 import { translationQuota, type TranslationQuota } from './translationQuota.ts';
+import { translationText } from './translationText.ts';
 
 interface TranslationOptions {
   env(name: string): string | undefined;
@@ -61,7 +62,7 @@ export function createGoogleTranslationHandler(options: TranslationOptions): (re
       if (!auth.ok) return json({ error: 'Invalid user session' }, 401);
       const user = await auth.json();
       if (typeof user?.id !== 'string' || user.is_anonymous === true) return json({ error: 'Registered sign-in required', code: 'translation_sign_in_required' }, 401);
-      if (Number(request.headers.get('content-length') ?? 0) > 1024) return json({ error: 'Word is too long' }, 413);
+      if (Number(request.headers.get('content-length') ?? 0) > 4096) return json({ error: 'Text is too long' }, 413);
       // Stream with an actual byte bound: Content-Length can be absent or untrusted.
       const reader = request.body?.getReader();
       if (!reader) return json({ error: 'Word required' }, 400);
@@ -71,26 +72,36 @@ export function createGoogleTranslationHandler(options: TranslationOptions): (re
         const chunk = await reader.read();
         if (chunk.done) break;
         size += chunk.value.byteLength;
-        if (size > 1024) { await reader.cancel(); return json({ error: 'Word is too long' }, 413); }
+        if (size > 4096) { await reader.cancel(); return json({ error: 'Text is too long' }, 413); }
         chunks.push(chunk.value);
       }
       const bytes = new Uint8Array(size);
       let offset = 0;
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-      let body: { word?: unknown };
+      let body: { word?: unknown; text?: unknown };
       try { body = JSON.parse(new TextDecoder().decode(bytes)); }
       catch { return json({ error: 'Invalid JSON' }, 400); }
-      const word = typeof body?.word === 'string' ? body.word.normalize('NFKC').trim().toLowerCase() : '';
-      if (word.length > 80 || !/^[a-z]+(?:['’-][a-z]+)*$/.test(word)) return json({ error: 'One English word required' }, 400);
+      if (!body || typeof body !== 'object' || Array.isArray(body)
+        || ('word' in body && 'text' in body)) return json({ error: 'One translation input required' }, 400);
+      const wholeText = 'text' in body;
+      if (!wholeText && size > 1024) return json({ error: 'Word is too long' }, 413);
+      const input = wholeText ? translationText(body.text) : null;
+      let word = input?.text ?? '';
+      if (!wholeText && typeof body.word === 'string') word = body.word.normalize('NFKC').trim().toLowerCase();
+      if (wholeText ? !input : word.length > 80 || !/^[a-z]+(?:['’-][a-z]+)*$/.test(word)) {
+        return json({ error: 'Valid English required (up to 200 words and 1000 characters)', code: 'translation_invalid_text' }, 400);
+      }
+      const wordCount = input?.words ?? 1;
+      const identity = wholeText ? { text: word, wordCount } : { word };
       const cached = cache.get(word);
-      if (cached) return json({ provider: 'google', word, translation: cached, cached: true });
+      if (cached) return json({ provider: 'google', ...identity, translation: cached, cached: true });
       const current = now();
       for (const [id, window] of usage) if (current - window.start >= 60_000) usage.delete(id);
       const window = usage.get(user.id) ?? { start: current, count: 0 };
       if (window.count >= 20) return json({ error: 'Please retry in a minute', code: 'translation_rate_limited' }, 429);
       window.count += 1;
       usage.set(user.id, window);
-      try { quota = await quotaFor(user.id, 1); }
+      try { quota = await quotaFor(user.id, wordCount); }
       catch { return json({ error: 'Translation quota is unavailable', code: 'translation_quota_unavailable' }, 503); }
       if (!quota.allowed) return json({ error: 'Monthly translation limit reached', code: 'translation_monthly_limit', quota }, 429);
       const response = await options.fetch('https://translation.googleapis.com/language/translate/v2', {
@@ -105,7 +116,7 @@ export function createGoogleTranslationHandler(options: TranslationOptions): (re
       const translation = translated.trim();
       cache.set(word, translation);
       if (cache.size > 256) cache.delete(cache.keys().next().value!);
-      return json({ provider: 'google', word, translation, cached: false, quota });
+      return json({ provider: 'google', ...identity, translation, cached: false, quota });
     } catch {
       // Do not return upstream responses, request tokens, words or credentials in errors.
       return json({ error: 'Translation is temporarily unavailable', ...(quota ? { quota } : {}) }, 502);

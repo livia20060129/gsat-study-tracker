@@ -525,37 +525,39 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
       editors.append(createPartsOfSpeechEditor(entry));
       editors.append(createWordTranslationEditor(entry));
       editors.append(createGsatLevelEditor(entry));
-      const previewScope = activeRecordPrefix;
-      const preview = new DictionaryPreview({ word: entry.text, apply: function applySelection(selection): 'saved' | 'unchanged' | 'failed' {
-        const current = allEntries.find(candidate => candidate.key === entry.key);
-        if (!current || !editingEntryKeys.has(current.key) || !current.contentKinds.includes('單字')) return 'failed';
-        const outcome = saveEntryEditsResult(current, { dictionarySelection: selection });
-        if (outcome === 'saved') renderEntries();
-        return outcome;
-      }, google: {
-        enabled: previewScope.startsWith('study-v11:user:'),
-        lookup: async function lookupGoogle() {
-          if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return null;
-          const { loadGoogleVocabularyPreview } = await import('./infrastructure/translation/googleVocabularyPreview.ts');
-          const result = await loadGoogleVocabularyPreview(entry.text, entry.tags);
-          if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return null;
-          return result;
-        },
-        apply: function applyGoogleSelection(selection): 'saved' | 'unchanged' | 'failed' {
-          if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return 'failed';
-          const current = allEntries.find(candidate => candidate.key === entry.key);
-          if (!current || !editingEntryKeys.has(current.key) || !current.contentKinds.includes('單字')) return 'failed';
-          const outcome = saveEntryEditsResult(current, { googleSelection: selection });
-          if (outcome === 'saved') renderEntries();
-          return outcome;
-        },
-      } });
-      dictionaryPreviews.set(article, preview);
-      editors.append(preview.element);
     } else {
       editors.classList.add('is-translation-only');
       editors.append(createTranslationEditor(entry));
     }
+    const previewScope = activeRecordPrefix;
+    const previewKind = activeContentKind;
+    const preview = new DictionaryPreview({ word: entry.text, local: previewKind === '單字', apply: function applySelection(selection): 'saved' | 'unchanged' | 'failed' {
+      const current = allEntries.find(candidate => candidate.key === entry.key);
+      if (!current || !editingEntryKeys.has(current.key) || !current.contentKinds.includes('單字')) return 'failed';
+      const outcome = saveEntryEditsResult(current, { dictionarySelection: selection });
+      if (outcome === 'saved') renderEntries();
+      return outcome;
+    }, google: {
+      enabled: previewScope.startsWith('study-v11:user:'),
+      contentKind: previewKind,
+      lookup: async function lookupGoogle() {
+        if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return null;
+        const { loadGoogleVocabularyPreview } = await import('./infrastructure/translation/googleVocabularyPreview.ts');
+        const result = await loadGoogleVocabularyPreview(entry.text, entry.tags, previewKind);
+        if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return null;
+        return result;
+      },
+      apply: function applyGoogleSelection(selection): 'saved' | 'unchanged' | 'failed' {
+        if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return 'failed';
+        const current = allEntries.find(candidate => candidate.key === entry.key);
+        if (!current || !editingEntryKeys.has(current.key) || activeContentKind !== previewKind || !current.contentKinds.includes(previewKind)) return 'failed';
+        const outcome = saveEntryEditsResult(current, { googleSelection: selection });
+        if (outcome === 'saved') renderEntries();
+        return outcome;
+      },
+    } });
+    dictionaryPreviews.set(article, preview);
+    editors.append(preview.element);
     article.append(identity, editors);
   } else {
     article.append(identity, createReadonlyTranslations(entry));

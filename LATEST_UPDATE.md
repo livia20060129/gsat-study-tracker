@@ -1,5 +1,32 @@
 # 最新更新
 
+版本：v171.6.148
+
+日期：2026-11-06（自用版）
+
+## 組合與句子的 Google 翻譯
+
+- 單字／組合／句子編輯時皆顯示「Google 翻譯」，未登入停用。組合與句子整段查詢，不顯示詞性；自動帶入仍限單字、優先 ECDICT。
+- 預覽、勾選及確認後才追加中文，保留原手動意思、詞性旗標、Level 與其他讀書紀錄。Google 出處隨本機、匯出／匯入、Cloud 與 PDF／DOCX 保存。
+- 每月仍限 5,000 個英文單字，look after 計 2、Practice makes perfect. 計 3；縮寫與連字複合詞各算 1，純數字不計。單次整段上限 200 個單字、1,000 個字元，保留大小寫與標點。伺服器計算詞數；額度不足整筆拒絕、不扣額，快取免費，扣額重試不重複計數。
+- 「劍橋中英字典」統一改為「劍橋英漢辭典」，仍為外部查詢連結。
+- 新 migration 20261105222824_google_translation_phrase_word_quota.sql 擴充原有單詞扣額；需 migration → google-translation 函式 → 前端依序部署。沿用既有金鑰與登入限制；未接 Natural Language API。
+
+## 驗證
+
+- 843 項完整單元測試通過，包含 PGlite 實際 PostgreSQL 的新舊 migration、角色權限、多詞原子扣額、重試與跨月相容。
+- 132 項單字編輯、翻譯、星號、手機排版、PDF／DOCX Chromium／WebKit E2E 通過；另 2 項 Tracker 單字整理與保存相容性通過，共 134 項相關 E2E。
+- 應用程式及本次測試的 TypeScript 型別檢查、google-translation／dictionary-lookup 的 Deno 型別檢查、正式建置通過。
+- 驗證正式登入限制、整段大小寫與標點、多詞扣額、額度不足不送出、確認才追加、原中文與來源保存、手機顯示、劍橋新名稱及舊單字自動流程。
+- 翻譯回應使用受控測試，未呼叫真實付費 API；未建立 commit、推送、部署或修改正式資料。
+- 必要覆蓋檔案僅含相對 v171.6.147 更新的 33 個檔案，SHA-256 一致。
+
+Suggested commit: `feat: translate vocabulary phrases and sentences`
+
+---
+
+# v171.6.147 更新紀錄
+
 版本：v171.6.147
 
 日期：2026-11-06（自用版）

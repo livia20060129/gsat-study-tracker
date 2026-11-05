@@ -70,3 +70,33 @@ test('a stale Google selection cannot apply after English spelling or content ki
     assert.equal(JSON.stringify(word), before);
   }
 });
+
+for (const kind of ['組合', '句子'] as const) test(`manual ${kind} translation preserves plain Chinese, flags and attribution through storage and export`, () => {
+  const text = kind === '組合' ? 'look after' : 'Practice makes perfect.';
+  const word: EnglishReviewWordEntry = { text, fixedCombination: kind === '組合', beautifulSentences: kind === '句子',
+    translation: '手動中文', noun: true, gsatLevel: 4, translationsByPartOfSpeech: { noun: ['舊詞性中文'] } };
+  const result = { word: text, text: '新的中文', partOfSpeech: 'unclassified', contentKind: kind } as const;
+  const source = record(word);
+  assert.equal(updateVocabularyWordEntries(source, text.toLowerCase(), { googleSelection: result }), true);
+  assert.equal(word.translation, '手動中文\n新的中文');
+  assert.equal(word.noun, true);
+  assert.equal(word.gsatLevel, 4);
+  assert.deepEqual(word.translationsByPartOfSpeech, { noun: ['舊詞性中文'], unclassified: ['新的中文'] });
+  assert.equal(applyGoogleTranslationSelection(word, result), false);
+  assert.deepEqual(word.dictionarySources, [{ provider: 'google', word: text, sourceUrl: 'https://translate.google.com/' }]);
+  const entries = vocabularyReviewEntries([source]);
+  assert.ok(vocabularyExportNotices(entries, true).some(value => value.includes('Translated by Google')));
+  const decoded = decodeStudyRecord(encodeStudyRecord(source));
+  assert.equal(decoded.ok, true);
+  if (decoded.ok) assert.deepEqual(decoded.record.items[0].f.words, [word]);
+  assert.equal(googleTranslationSelection(result, 'other', kind), null);
+  assert.equal(googleTranslationSelection(result, text, kind === '組合' ? '句子' : '組合'), null);
+});
+
+test('confirming the same multiline sentence translation twice does not duplicate the block', () => {
+  const word = { text: 'A sentence.', beautifulSentences: true, translation: '手動中文' };
+  const result = { word: word.text, text: '第一行\n第二行', contentKind: '句子', partOfSpeech: 'unclassified' } as const;
+  assert.equal(applyGoogleTranslationSelection(word, result), true);
+  assert.equal(applyGoogleTranslationSelection(word, result), false);
+  assert.equal(word.translation, '手動中文\n第一行\n第二行');
+});

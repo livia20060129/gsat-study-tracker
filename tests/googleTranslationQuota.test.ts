@@ -17,6 +17,7 @@ before(async () => {
     insert into auth.users values ('${owner}'), ('${another}');
   `);
   await db.exec(readFileSync(new URL('../supabase/migrations/20261105141732_google_translation_monthly_quota.sql', import.meta.url), 'utf8'));
+  await db.exec(readFileSync(new URL('../supabase/migrations/20261105222824_google_translation_phrase_word_quota.sql', import.meta.url), 'utf8'));
 });
 after(async () => { await db?.close(); });
 beforeEach(async () => {
@@ -108,7 +109,7 @@ test('browser roles cannot invoke the counter or read and reset another account 
 });
 
 test('invalid debits fail without consuming anything and receipt retention removes only this user old receipts', async () => {
-  for (const words of [-1, 2, 81]) await assert.rejects(quota(owner, words), /Invalid translation quota request/);
+  for (const words of [-1, 201, 5001]) await assert.rejects(quota(owner, words), /Invalid translation quota request/);
   await assert.rejects(quota(owner, 1, null), /request ID required/);
   assert.equal((await quota()).used, 0);
   await quota(owner, 1);
@@ -118,4 +119,18 @@ test('invalid debits fail without consuming anything and receipt retention remov
   const receipts = await db.query<{ user_id: string }>('select user_id from translation_private.google_translation_receipts order by user_id');
   assert.deepEqual(receipts.rows.map(row => row.user_id), [owner, another]);
   assert.equal((await quota()).used, 2);
+});
+
+test('whole-text debits are atomic, exact-fit and replayable without changing earlier one-word receipts', async () => {
+  await quota(owner, 1);
+  const receipt = randomUUID();
+  assert.equal((await quota(owner, 200, receipt)).used, 201);
+  assert.equal((await quota(owner, 200, receipt)).used, 201);
+  await assert.rejects(quota(owner, 2, receipt), /request ID mismatch/);
+  await seedUsage(another, 4998);
+  assert.equal((await quota(another, 3)).allowed, false);
+  assert.equal((await quota(another)).used, 4998);
+  const results = await Promise.all([quota(another, 2), quota(another, 2)]);
+  assert.equal(results.filter(value => value.allowed).length, 1);
+  assert.equal((await quota(another)).used, 5000);
 });
