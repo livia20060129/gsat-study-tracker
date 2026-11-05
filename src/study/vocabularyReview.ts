@@ -3,7 +3,8 @@ import { isVocabularyLookupPending, markVocabularyLookupPending } from './vocabu
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, StudyItem, StudyRecord, VocabularyStars, VocabularyTranslations } from '../types.ts';
 import { isVocabularyStarKey, normalizedVocabularyStars, remapVocabularyMeaningStars } from './vocabularyStars.ts';
 import { applyVocabularyAutoFill, markVocabularyManualFields, vocabularyAutoFillSources } from './vocabularyAutoFill.ts';
-import { applyDictionarySelection, dictionarySources } from './dictionarySelection.ts';
+import { applyDictionarySelection, applyGoogleTranslationSelection, dictionarySources } from './dictionarySelection.ts';
+import type { GoogleTranslationSelection } from './googleTranslationSelection.ts';
 import type { DictionaryLookupResult, DictionarySourceReference } from './dictionaryEntries.ts';
 import {
   normalizedVocabularyTranslations,
@@ -36,6 +37,7 @@ export interface VocabularyWordEdits {
   autoFillSource?: VocabularyDefaultSource;
   autoFillParts?: import('./vocabularyFallbackParts.ts').VocabularyFallbackParts;
   dictionarySelection?: DictionaryLookupResult;
+  googleSelection?: GoogleTranslationSelection;
   contentKind?: VocabularyContentKind;
   partsOfSpeech?: ReadonlySet<VocabularyPartOfSpeechField>;
   text?: string;
@@ -347,7 +349,12 @@ function updateItemWords(
         changed = true;
       }
       if (edits.dictionarySelection && applyDictionarySelection(word, edits.dictionarySelection)) changed = true;
-      if (edits.translation !== undefined || edits.translationsByPartOfSpeech !== undefined || edits.dictionarySelection) {
+      if (edits.googleSelection && applyGoogleTranslationSelection(word, edits.googleSelection)) {
+        markVocabularyManualFields(word, ['translation', 'translationsByPartOfSpeech']);
+        if (edits.googleSelection.partOfSpeech !== 'unclassified') markVocabularyManualFields(word, [edits.googleSelection.partOfSpeech]);
+        changed = true;
+      }
+      if (edits.translation !== undefined || edits.translationsByPartOfSpeech !== undefined || edits.dictionarySelection || edits.googleSelection) {
         delete word.vocabularyLookupPending;
       }
       if (word.vocabularyStars && (edits.translation !== undefined || edits.translationsByPartOfSpeech !== undefined)) {

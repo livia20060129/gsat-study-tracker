@@ -1,6 +1,7 @@
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, VocabularyTranslations } from '../types.ts';
 import type { VocabularyDefaultSource } from './vocabularyDefaults.ts';
 import type { VocabularyFallbackParts } from './vocabularyFallbackParts.ts';
+import { dictionarySource } from './dictionaryEntries.ts';
 import { ceecReferenceMetadata } from './ceecReferenceIndex.ts';
 import { ecdictTranslations } from './ecdictLookup.ts';
 import { VOCABULARY_PARTS_OF_SPEECH, vocabularyTranslationText } from './vocabularyTranslationCounts.ts';
@@ -152,8 +153,11 @@ export function markVocabularyManualFields(word: EnglishReviewWordEntry, fields:
 
 export function vocabularyAutoFillSources(word: EnglishReviewWordEntry): { ceec: boolean; ecdict: boolean; google?: boolean } | undefined {
   const data = snapshot(word.vocabularyAutoFill);
-  const google = word.vocabularyTranslationSource === 'Google Translate' || data?.provider === 'Google Translate';
-  const dictionary = data?.partsSource === 'ECDICT' || (!google && (word.vocabularyTranslationSource === 'ECDICT' || data?.dictionary === true));
+  const sources = Array.isArray(word.dictionarySources) ? word.dictionarySources.map(dictionarySource) : [];
+  const google = word.vocabularyTranslationSource === 'Google Translate' || data?.provider === 'Google Translate'
+    || sources.some(source => source?.provider === 'google');
+  const dictionary = data?.partsSource === 'ECDICT' || word.vocabularyTranslationSource === 'ECDICT'
+    || sources.some(source => source?.provider === 'ecdict') || (!google && data?.dictionary === true);
   if (!data && !dictionary && !google) return undefined;
   return { ceec: Boolean(data && data.word === normalizedReferenceWord(word.text) && ceecReferenceMetadata(normalizedReferenceWord(word.text))
     && !word.fixedCombination && !word.beautifulSentences), ecdict: dictionary, ...(google ? { google: true } : {}) };

@@ -1,8 +1,10 @@
 # GSAT Study Tracker
 
-目前版本：**v171.6.146**
+目前版本：**v171.6.147**
 
 個人版學測讀書追蹤器，整合每日／每週項目、逾期待辦、Google Calendar 唯讀排程、Supabase 跨裝置同步、計時、完成率、教材進度與週／月總結。
+
+v171.6.147 在單字編輯區加入獨立「Google 翻譯」按鈕。登入後可直接取得預覽，勾選並確認才追加中文，保留既有翻譯與 Level；未登入時按鈕停用。手動查詢即使 ECDICT 已收錄也會呼叫 Google，沿用每月 5,000 個英文單字額度與免費快取。自動填入仍優先 ECDICT，Google 支援標章維持集中於頁首。
 
 v171.6.146 開放 Google 備援給所有正式登入帳號，不再需要 UUID 白名單。每個帳號每月限 5,000 個英文單字，每次送出一個詞扣 1，不以字母／字元數扣額；每月 1 日台北時間重置，ECDICT 與快取命中免費。額度由資料庫原子扣除，跨裝置共用，網路重試不重複扣額。需部署新 migration 與 google-translation 函式，設定見 [GOOGLE_TRANSLATION_SETUP.md](./GOOGLE_TRANSLATION_SETUP.md)。
 

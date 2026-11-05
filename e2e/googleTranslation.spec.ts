@@ -229,3 +229,146 @@ for (const width of [1280, 375]) test(`dictionary choice changes links in place,
   await expect(row.locator('.vocabulary-word-link')).toHaveAttribute('href', /oxford.*q=ability/);
   expect(await page.locator('.vocabulary-reading-tools').evaluate(node => node.getBoundingClientRect().right <= innerWidth)).toBe(true);
 });
+
+test('the explicit Google button previews an ECDICT-listed word, confirms an addition and preserves manual meanings and Level', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await seed(page);
+  await page.evaluate(({ prefix, date }) => {
+    const key = prefix + date, record = JSON.parse(localStorage.getItem(key)!);
+    Object.assign(record.items[0].f.words[1], { noun: true, translation: '手動能力',
+      translationsByPartOfSpeech: { noun: ['手動能力'] }, vocabularyTranslationSource: 'ECDICT', gsatLevel: 4, showGsatLevel: false });
+    localStorage.setItem(key, JSON.stringify(record));
+  }, { prefix, date });
+  let requests = 0;
+  await page.route('**/functions/v1/google-translation', route => {
+    requests++;
+    return route.fulfill({ json: { provider: 'google', word: 'ability', translation: 'Google 候選能力' } });
+  });
+  await page.reload();
+  const row = page.locator('.vocabulary-row[data-entry-key="ability"]');
+  await row.getByRole('button', { name: '編輯「ability」', exact: true }).click();
+  const before = await words(page);
+  await row.getByRole('button', { name: 'Google 翻譯', exact: true }).click();
+  await expect(row.locator('[data-google-meaning]')).toBeVisible();
+  await expect(row.locator('.dictionary-preview-results')).toContainText('Google 候選能力');
+  expect(await words(page)).toEqual(before);
+  await row.locator('[data-google-meaning]').check();
+  await row.locator('[data-google-apply]').click();
+  const saved = (await words(page))[1];
+  expect(saved.translationsByPartOfSpeech).toEqual({ noun: ['手動能力', 'Google 候選能力'] });
+  expect(saved).toMatchObject({ id: 'existing', gsatLevel: 4, showGsatLevel: false });
+  expect(saved.dictionarySources).toContainEqual({ provider: 'google', word: 'ability', sourceUrl: 'https://translate.google.com/' });
+  await row.getByRole('button', { name: 'Google 翻譯', exact: true }).click();
+  await row.locator('[data-google-meaning]').check();
+  await row.locator('[data-google-apply]').click();
+  expect((await words(page))[1].translationsByPartOfSpeech).toEqual(saved.translationsByPartOfSpeech);
+  expect(requests).toBe(1);
+  expect(await row.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.reload();
+  await expect(row).toContainText('手動能力');
+  await expect(row).toContainText('Google 候選能力');
+});
+
+test('guests see a disabled Google button and combinations do not expose paid translation controls', async ({ page }) => {
+  await seed(page, false); await page.reload();
+  const requests: string[] = [];
+  page.on('request', request => { if (request.url().endsWith('/google-translation')) requests.push(request.url()); });
+  const row = page.locator('.vocabulary-row[data-entry-key="ability"]');
+  await row.getByRole('button', { name: '編輯「ability」', exact: true }).click();
+  await expect(row.getByRole('button', { name: 'Google 翻譯', exact: true })).toBeDisabled();
+  await expect(row.locator('.dictionary-preview-status')).toContainText('需先登入');
+  await row.getByLabel('組合', { exact: true }).check();
+  await expect(row.locator('[data-google-translate]')).toHaveCount(0);
+  expect(requests).toEqual([]);
+});
+
+test('explicit Google quota errors keep the editor and saved word unchanged and allow retry', async ({ page }) => {
+  await seed(page); await page.reload();
+  await page.route('**/functions/v1/google-translation', route => route.fulfill({ status: 429, json: {
+    code: 'translation_monthly_limit', quota: { allowed: false, unit: 'words', month: '2026-11', used: 5000,
+      limit: 5000, remaining: 0, resetsAt: '2026-11-30T16:00:00Z' },
+  } }));
+  const row = page.locator('.vocabulary-row[data-entry-key="ability"]');
+  await row.getByRole('button', { name: '編輯「ability」', exact: true }).click();
+  const before = await words(page);
+  const button = row.getByRole('button', { name: 'Google 翻譯', exact: true });
+  await button.click();
+  await expect(row.locator('.dictionary-preview-status')).toContainText('5,000 個單字');
+  await expect(button).toBeEnabled();
+  await expect(row.locator('[data-vocabulary-text]')).toHaveValue('ability');
+  expect(await words(page)).toEqual(before);
+});
+
+test('an old explicit Google preview cannot apply after the English editor changes', async ({ page }) => {
+  await seed(page); await page.reload();
+  let release = function (): void {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let requested = false;
+  await page.route('**/functions/v1/google-translation', async route => {
+    requested = true; await gate;
+    await route.fulfill({ json: { provider: 'google', word: 'ability', translation: '舊 Google 候選' } });
+  });
+  const row = page.locator('.vocabulary-row[data-entry-key="ability"]');
+  await row.getByRole('button', { name: '編輯「ability」', exact: true }).click();
+  await row.getByRole('button', { name: 'Google 翻譯', exact: true }).click();
+  await expect.poll(() => requested).toBe(true);
+  await row.locator('[data-vocabulary-text]').fill('abandon');
+  await row.locator('[data-vocabulary-text]').blur();
+  const response = page.waitForResponse('**/functions/v1/google-translation'); release(); await response;
+  const current = page.locator('.vocabulary-row[data-entry-key="abandon"]');
+  await expect(current).toBeVisible();
+  await expect(current.locator('[data-google-meaning]')).toHaveCount(0);
+  expect((await words(page))[1].text).toBe('abandon');
+  expect((await words(page))[1].translation).not.toContain('舊 Google 候選');
+});
+
+test('a late local preview cannot replace a newer Google preview', async ({ page }) => {
+  await seed(page);
+  await page.evaluate(({ prefix, date }) => {
+    const key = prefix + date, record = JSON.parse(localStorage.getItem(key)!);
+    record.items[0].f.words[1] = { id: 'existing', text: 'afflation' };
+    localStorage.setItem(key, JSON.stringify(record));
+  }, { prefix, date });
+  let release = function (): void {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let requested = false;
+  await page.route('**/dictionaries/ecdict-v1/*.json', async route => {
+    requested = true; await gate;
+    await route.fulfill({ json: { afflation: { noun: ['過期本機意思'] } } });
+  });
+  await page.route('**/functions/v1/google-translation', route => route.fulfill({ json: {
+    provider: 'google', word: 'afflation', translation: '新的 Google 意思',
+  } }));
+  await page.reload();
+  const row = page.locator('.vocabulary-row[data-entry-key="afflation"]');
+  await row.getByRole('button', { name: '編輯「afflation」', exact: true }).click();
+  await row.getByRole('button', { name: '取得翻譯', exact: true }).click();
+  await expect.poll(() => requested).toBe(true);
+  await row.getByRole('button', { name: 'Google 翻譯', exact: true }).click();
+  await expect(row.locator('[data-google-meaning]')).toBeVisible();
+  const response = page.waitForResponse('**/dictionaries/ecdict-v1/*.json'); release(); await (await response).finished();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(row.locator('[data-google-meaning]')).toBeVisible();
+  await expect(row.locator('[data-dictionary-meaning]')).toHaveCount(0);
+  await expect(row.locator('.dictionary-preview-results')).toContainText('新的 Google 意思');
+});
+
+test('a confirmed Google preview cannot write after the active account changes', async ({ page }) => {
+  await seed(page); await page.reload();
+  await page.route('**/functions/v1/google-translation', route => route.fulfill({ json: {
+    provider: 'google', word: 'ability', translation: '舊帳號候選',
+  } }));
+  const row = page.locator('.vocabulary-row[data-entry-key="ability"]');
+  await row.getByRole('button', { name: '編輯「ability」', exact: true }).click();
+  const before = await words(page);
+  await row.getByRole('button', { name: 'Google 翻譯', exact: true }).click();
+  await row.locator('[data-google-meaning]').check();
+  await page.evaluate(date => {
+    localStorage.setItem('study-v11:meta:active-record-prefix', 'study-v11:user:another:');
+    localStorage.setItem('study-v11:user:another:' + date, JSON.stringify({ date, items: [], notes: '另一帳號原內容' }));
+  }, date);
+  await row.locator('[data-google-apply]').click();
+  await expect(row.locator('.dictionary-preview-status')).toContainText('尚未填入');
+  expect(await words(page)).toEqual(before);
+  expect(await page.evaluate(date => JSON.parse(localStorage.getItem('study-v11:user:another:' + date)!).notes, date)).toBe('另一帳號原內容');
+});

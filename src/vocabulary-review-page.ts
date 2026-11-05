@@ -2,7 +2,7 @@ import { googleTranslationAttributionHtml } from './ui/googleTranslationAttribut
 import './vocabulary-review.css';
 import { animateDisclosureReplacement, captureDisclosure } from './ui/disclosureMotion.ts';
 import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
-import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
+import { ACTIVE_RECORD_PREFIX_KEY, initialRecordPrefix } from './storage/local.ts';
 import { DictionaryPreview } from './ui/dictionaryPreview.ts';
 import { VocabularySpeech, type VocabularyAccent } from './ui/vocabularySpeech.ts';
 import { VOCABULARY_DICTIONARY_KEY, vocabularyDictionary, vocabularyDictionaryLink, type VocabularyDictionary } from './ui/vocabularyDictionaryLinks.ts';
@@ -525,12 +525,30 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
       editors.append(createPartsOfSpeechEditor(entry));
       editors.append(createWordTranslationEditor(entry));
       editors.append(createGsatLevelEditor(entry));
+      const previewScope = activeRecordPrefix;
       const preview = new DictionaryPreview({ word: entry.text, apply: function applySelection(selection): 'saved' | 'unchanged' | 'failed' {
         const current = allEntries.find(candidate => candidate.key === entry.key);
         if (!current || !editingEntryKeys.has(current.key) || !current.contentKinds.includes('單字')) return 'failed';
         const outcome = saveEntryEditsResult(current, { dictionarySelection: selection });
         if (outcome === 'saved') renderEntries();
         return outcome;
+      }, google: {
+        enabled: previewScope.startsWith('study-v11:user:'),
+        lookup: async function lookupGoogle() {
+          if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return null;
+          const { loadGoogleVocabularyPreview } = await import('./infrastructure/translation/googleVocabularyPreview.ts');
+          const result = await loadGoogleVocabularyPreview(entry.text, entry.tags);
+          if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return null;
+          return result;
+        },
+        apply: function applyGoogleSelection(selection): 'saved' | 'unchanged' | 'failed' {
+          if (activeRecordPrefix !== previewScope || initialRecordPrefix(localStorage) !== previewScope) return 'failed';
+          const current = allEntries.find(candidate => candidate.key === entry.key);
+          if (!current || !editingEntryKeys.has(current.key) || !current.contentKinds.includes('單字')) return 'failed';
+          const outcome = saveEntryEditsResult(current, { googleSelection: selection });
+          if (outcome === 'saved') renderEntries();
+          return outcome;
+        },
       } });
       dictionaryPreviews.set(article, preview);
       editors.append(preview.element);
@@ -986,7 +1004,7 @@ function updateEntryStarUI(key: string, replaceWord = false): void {
   }
 }
 element<HTMLButtonElement>('refreshVocabulary').addEventListener('click', function refreshVocabulary(): void { resumedLookups.clear(); load(); });
-element('googleTranslationSupport').innerHTML = 'Google 翻譯支援（登入後備援） ' + googleTranslationAttributionHtml();
+element('googleTranslationSupport').innerHTML = 'Google 翻譯支援（登入後使用） ' + googleTranslationAttributionHtml();
 element<HTMLSelectElement>('vocabularyDictionary').value = selectedDictionary;
 element<HTMLSelectElement>('vocabularyDictionary').addEventListener('change', function selectDictionary(): void {
   selectedDictionary = vocabularyDictionary(element<HTMLSelectElement>('vocabularyDictionary').value);

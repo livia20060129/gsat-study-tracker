@@ -1,6 +1,8 @@
 import type { EnglishReviewWordEntry } from '../types.ts';
 import { dictionaryResult, dictionarySource, type DictionaryLookupResult, type DictionarySourceReference } from './dictionaryEntries.ts';
 import { normalizedVocabularyTranslations, VOCABULARY_PARTS_OF_SPEECH, vocabularyTranslationText, vocabularyTranslationGroups } from './vocabularyTranslationCounts.ts';
+import { googleTranslationSelection, type GoogleTranslationSelection } from './googleTranslationSelection.ts';
+import type { DictionaryMeaning } from './dictionaryEntries.ts';
 
 export function dictionarySources(value: unknown): DictionarySourceReference[] {
   if (!Array.isArray(value)) return [];
@@ -12,14 +14,10 @@ export function dictionarySources(value: unknown): DictionarySourceReference[] {
   return [...unique.values()].slice(-8);
 }
 
-/** Confirmation appends selected senses per occurrence; never replaces manual meanings or GSAT Level. */
-export function applyDictionarySelection(word: EnglishReviewWordEntry, selection: DictionaryLookupResult): boolean {
-  const result = dictionaryResult(selection, String(word.text ?? ''));
-  if (!result || word.fixedCombination || word.beautifulSentences) return false;
-  const before = JSON.stringify(word);
+function appendMeanings(word: EnglishReviewWordEntry, meanings: readonly DictionaryMeaning[]): void {
   const tags = VOCABULARY_PARTS_OF_SPEECH.filter(([field]) => word[field] === true).map(([, label]) => label);
   const groups = vocabularyTranslationGroups(String(word.translation ?? ''), tags, normalizedVocabularyTranslations(word.translationsByPartOfSpeech));
-  for (const meaning of result.meanings) {
+  for (const meaning of meanings) {
     const values = (groups[meaning.partOfSpeech] ?? []).filter(value => value.trim());
     if (!values.some(value => value.trim() === meaning.text)) values.push(meaning.text);
     groups[meaning.partOfSpeech] = values;
@@ -27,7 +25,26 @@ export function applyDictionarySelection(word: EnglishReviewWordEntry, selection
   }
   word.translationsByPartOfSpeech = groups;
   word.translation = vocabularyTranslationText(groups);
+}
+
+/** Confirmation appends selected senses per occurrence; never replaces manual meanings or GSAT Level. */
+export function applyDictionarySelection(word: EnglishReviewWordEntry, selection: DictionaryLookupResult): boolean {
+  const result = dictionaryResult(selection, String(word.text ?? ''));
+  if (!result || word.fixedCombination || word.beautifulSentences) return false;
+  const before = JSON.stringify(word);
+  appendMeanings(word, result.meanings);
   const source = { provider: result.provider, word: result.word, sourceUrl: result.sourceUrl };
   word.dictionarySources = dictionarySources([...dictionarySources(word.dictionarySources), source]);
+  return JSON.stringify(word) !== before;
+}
+
+export function applyGoogleTranslationSelection(word: EnglishReviewWordEntry, selection: GoogleTranslationSelection): boolean {
+  const result = googleTranslationSelection(selection, String(word.text ?? ''));
+  if (!result || word.fixedCombination || word.beautifulSentences) return false;
+  const before = JSON.stringify(word);
+  appendMeanings(word, [{ partOfSpeech: result.partOfSpeech, text: result.text }]);
+  word.dictionarySources = dictionarySources([...dictionarySources(word.dictionarySources), {
+    provider: 'google', word: result.word, sourceUrl: 'https://translate.google.com/',
+  }]);
   return JSON.stringify(word) !== before;
 }
