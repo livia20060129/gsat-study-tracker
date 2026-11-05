@@ -1,6 +1,7 @@
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '../../config/supabase.ts';
 import { browserAuthPersistence, createPersistentAuthStorage } from '../storage/browserAuthStorage.ts';
 import { initialRecordPrefix, storagePrefixForUser } from '../../storage/local.ts';
+import { translationQuota } from '../../../supabase/functions/_shared/translationQuota.ts';
 
 const pending = new Map<string, Promise<string | null>>();
 const cache = new Map<string, string>();
@@ -23,13 +24,23 @@ export async function translateMissingWord(word: string): Promise<string | null>
   const task = (async function requestTranslation(): Promise<string | null> {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/google-translation`, {
       method: 'POST', headers: { authorization: `Bearer ${session.access_token}`, apikey: SUPABASE_PUBLISHABLE_KEY,
-        'Content-Type': 'application/json' }, body: JSON.stringify({ word }), signal: AbortSignal.timeout(15_000),
+      'Content-Type': 'application/json' }, body: JSON.stringify({ word }), signal: AbortSignal.timeout(30_000),
     });
-    if (!response.ok) throw new Error(response.status === 503
-      ? 'Google Translate 尚未設定；英文已保存，可手動填寫中文。'
-      : 'Google Translate 暫時無法使用；英文已保存，可稍後重試或手動填寫中文。');
     const result = await response.json();
-    if (initialRecordPrefix(localStorage) !== prefix || result.provider !== 'google' || result.word !== word) return null;
+    if (initialRecordPrefix(localStorage) !== prefix) return null;
+    if (!response.ok) {
+      const quota = translationQuota(result.quota);
+      if (result.code === 'translation_monthly_limit' && quota) {
+        const reset = new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric' }).format(new Date(quota.resetsAt));
+        throw new Error(`Google Translate 本月額度不足：已使用 ${quota.used.toLocaleString('en-US')}／5,000 個單字，剩餘 ${quota.remaining} 個單字；${reset} 台北時間 00:00 重置。英文已保存，可手動填寫中文。`);
+      }
+      if (result.code === 'translation_quota_unavailable') throw new Error('Google Translate 暫時無法確認本月額度；英文已保存，請稍後重試或手動填寫中文。');
+      if (response.status === 401) throw new Error('Google Translate 需要有效登入；英文已保存，請回 Tracker 確認登入後重試。');
+      if (result.code === 'translation_rate_limited') throw new Error('Google Translate 查詢過於頻繁；英文已保存，請稍後重試。');
+      if (response.status === 503) throw new Error('Google Translate 尚未設定；英文已保存，可手動填寫中文。');
+      throw new Error(`Google Translate 暫時無法使用${quota ? `（本月剩餘 ${quota.remaining} 個單字；已送出的單字已計入額度）` : ''}；英文已保存，可稍後重試或手動填寫中文。`);
+    }
+    if (result.provider !== 'google' || result.word !== word) return null;
     if (typeof result.translation !== 'string' || !result.translation.trim()) throw new Error('Google Translate 未回傳有效翻譯。');
     cache.set(key, result.translation);
     if (cache.size > 256) cache.delete(cache.keys().next().value!);
@@ -37,5 +48,10 @@ export async function translateMissingWord(word: string): Promise<string | null>
   })();
   pending.set(key, task);
   try { return await task; }
+  catch (error) {
+    if (initialRecordPrefix(localStorage) !== prefix) return null;
+    if (error instanceof Error && error.message.includes('Google Translate')) throw error;
+    throw new Error('Google Translate 暫時無法連線；英文已保存，可稍後重試或手動填寫中文。');
+  }
   finally { if (pending.get(key) === task) pending.delete(key); }
 }

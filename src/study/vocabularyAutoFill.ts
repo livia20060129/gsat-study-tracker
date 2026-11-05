@@ -1,5 +1,6 @@
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, VocabularyTranslations } from '../types.ts';
 import type { VocabularyDefaultSource } from './vocabularyDefaults.ts';
+import type { VocabularyFallbackParts } from './vocabularyFallbackParts.ts';
 import { ceecReferenceMetadata } from './ceecReferenceIndex.ts';
 import { ecdictTranslations } from './ecdictLookup.ts';
 import { VOCABULARY_PARTS_OF_SPEECH, vocabularyTranslationText } from './vocabularyTranslationCounts.ts';
@@ -13,6 +14,7 @@ interface AutoFillSnapshot {
   defaults: Record<string, unknown>;
   dictionary: boolean;
   provider?: VocabularyDefaultSource;
+  partsSource?: VocabularyFallbackParts['source'];
 }
 
 export interface VocabularyReference {
@@ -56,7 +58,7 @@ function empty(value: unknown): boolean {
 }
 
 /** Own only the fields actually filled automatically; later manual changes always win. */
-export function applyVocabularyAutoFill(word: EnglishReviewWordEntry, dictionaryTranslations?: VocabularyTranslations, source: VocabularyDefaultSource = 'ECDICT'): boolean {
+export function applyVocabularyAutoFill(word: EnglishReviewWordEntry, dictionaryTranslations?: VocabularyTranslations, source: VocabularyDefaultSource = 'ECDICT', knownParts?: VocabularyFallbackParts): boolean {
   if (word.fixedCombination === true || word.beautifulSentences === true) return false;
   const before = JSON.stringify(word);
   const key = normalizedReferenceWord(word.text);
@@ -96,7 +98,8 @@ export function applyVocabularyAutoFill(word: EnglishReviewWordEntry, dictionary
 
   const hasManualPart = VOCABULARY_PARTS_OF_SPEECH.some(([field]) => word[field] === true && !owned.has(field));
   if (!hasManualPart) {
-    if (translations) for (const [field] of VOCABULARY_PARTS_OF_SPEECH) setDefault(field, Object.hasOwn(translations, field), true);
+    const parts = knownParts?.parts;
+    if (translations) for (const [field] of VOCABULARY_PARTS_OF_SPEECH) setDefault(field, parts ? parts.includes(field) : Object.hasOwn(translations, field), true);
   }
   if (reference) {
     setDefault('gsatLevel', reference.level);
@@ -110,9 +113,15 @@ export function applyVocabularyAutoFill(word: EnglishReviewWordEntry, dictionary
     setDefault('translation', vocabularyTranslationText(translations));
     word.vocabularyTranslationSource = source;
   }
+  if (translations && Object.values(translations).some(meanings => meanings?.some(meaning => meaning.trim()))) {
+    delete word.vocabularyLookupPending;
+  }
+  let partsSource = knownParts?.source;
+  if (!partsSource && previous?.word === key && !dictionaryTranslations) partsSource = previous.partsSource;
   word.vocabularyAutoFill = { version: 1, word: key, defaults,
     dictionary: Object.hasOwn(defaults, 'translationsByPartOfSpeech') || previous?.dictionary === true,
-    provider: word.vocabularyTranslationSource === 'Google Translate' ? 'Google Translate' : 'ECDICT' } satisfies AutoFillSnapshot;
+    provider: word.vocabularyTranslationSource === 'Google Translate' ? 'Google Translate' : 'ECDICT',
+    ...(partsSource ? { partsSource } : {}) } satisfies AutoFillSnapshot;
   return JSON.stringify(word) !== before;
 }
 
@@ -120,7 +129,10 @@ export function vocabularyAutoFillStatus(word: EnglishReviewWordEntry): string {
   if (!snapshot(word.vocabularyAutoFill)) return '';
   const reference = ceecReferenceMetadata(normalizedReferenceWord(word.text));
   if (word.fixedCombination === true || word.beautifulSentences === true) return '';
-  if (word.vocabularyTranslationSource === 'Google Translate') return 'Google Translate｜自動翻譯（未推測詞性或 Level）';
+  if (word.vocabularyTranslationSource === 'Google Translate') {
+    const partsSource = snapshot(word.vocabularyAutoFill)?.partsSource;
+    return partsSource ? `Google Translate｜中文；${partsSource}｜詞性（可手動修改）` : 'Google Translate｜自動翻譯；詞性可手動填寫';
+  }
   if (!reference) return 'ECDICT｜中文翻譯與詞性';
   const level = reference.levels.map(value => `Level ${value}`).join('／');
   return `大考中心 ${level}${reference.levels.length > 1 ? '（自動帶入較低級）' : ''}｜ECDICT 中文翻譯與詞性`;
@@ -141,7 +153,7 @@ export function markVocabularyManualFields(word: EnglishReviewWordEntry, fields:
 export function vocabularyAutoFillSources(word: EnglishReviewWordEntry): { ceec: boolean; ecdict: boolean; google?: boolean } | undefined {
   const data = snapshot(word.vocabularyAutoFill);
   const google = word.vocabularyTranslationSource === 'Google Translate' || data?.provider === 'Google Translate';
-  const dictionary = !google && (word.vocabularyTranslationSource === 'ECDICT' || data?.dictionary === true);
+  const dictionary = data?.partsSource === 'ECDICT' || (!google && (word.vocabularyTranslationSource === 'ECDICT' || data?.dictionary === true));
   if (!data && !dictionary && !google) return undefined;
   return { ceec: Boolean(data && data.word === normalizedReferenceWord(word.text) && ceecReferenceMetadata(normalizedReferenceWord(word.text))
     && !word.fixedCombination && !word.beautifulSentences), ecdict: dictionary, ...(google ? { google: true } : {}) };

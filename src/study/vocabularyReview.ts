@@ -1,4 +1,5 @@
 import type { VocabularyDefaultSource } from './vocabularyDefaults.ts';
+import { isVocabularyLookupPending, markVocabularyLookupPending } from './vocabularyLookupLifecycle.ts';
 import type { EnglishReviewWordEntry, GsatVocabularyLevel, StudyItem, StudyRecord, VocabularyStars, VocabularyTranslations } from '../types.ts';
 import { isVocabularyStarKey, normalizedVocabularyStars, remapVocabularyMeaningStars } from './vocabularyStars.ts';
 import { applyVocabularyAutoFill, markVocabularyManualFields, vocabularyAutoFillSources } from './vocabularyAutoFill.ts';
@@ -33,6 +34,7 @@ export interface VocabularyWordEdits {
   autoFill?: boolean;
   autoFillTranslations?: VocabularyTranslations;
   autoFillSource?: VocabularyDefaultSource;
+  autoFillParts?: import('./vocabularyFallbackParts.ts').VocabularyFallbackParts;
   dictionarySelection?: DictionaryLookupResult;
   contentKind?: VocabularyContentKind;
   partsOfSpeech?: ReadonlySet<VocabularyPartOfSpeechField>;
@@ -44,6 +46,7 @@ export interface VocabularyWordEdits {
 }
 
 export interface VocabularyReviewEntry {
+  lookupPending?: boolean;
   vocabularyStars?: VocabularyStars;
   key: string;
   text: string;
@@ -177,6 +180,7 @@ function collectItemWords(
         entries.set(key, entry);
       }
       entry.occurrenceCount += 1;
+      if (isVocabularyLookupPending(word)) entry.lookupPending = true;
       if (word.vocabularyStars) entry.vocabularyStars = { ...entry.vocabularyStars, ...normalizedVocabularyStars(word.vocabularyStars) };
       const sources = dictionarySources(word.dictionarySources);
       if (sources.length) entry.dictionarySources = dictionarySources([...(entry.dictionarySources ?? []), ...sources]);
@@ -279,6 +283,7 @@ function updateItemWords(
         const nextText = normalizedWordText(edits.text);
         if (nextText && word.text !== nextText) {
           word.text = nextText;
+          markVocabularyLookupPending(word);
           changed = true;
         }
       }
@@ -293,8 +298,9 @@ function updateItemWords(
           word.beautifulSentences = beautifulSentences;
           changed = true;
         }
+        if (fixedCombination || beautifulSentences) delete word.vocabularyLookupPending;
       }
-      if ((edits.text !== undefined || edits.autoFill) && applyVocabularyAutoFill(word, edits.autoFillTranslations, edits.autoFillSource)) changed = true;
+      if ((edits.text !== undefined || edits.autoFill) && applyVocabularyAutoFill(word, edits.autoFillTranslations, edits.autoFillSource, edits.autoFillParts)) changed = true;
       if (edits.partsOfSpeech) {
         markVocabularyManualFields(word, VOCABULARY_PARTS_OF_SPEECH.map(([field]) => field));
         for (const [field] of VOCABULARY_PARTS_OF_SPEECH) {
@@ -341,6 +347,9 @@ function updateItemWords(
         changed = true;
       }
       if (edits.dictionarySelection && applyDictionarySelection(word, edits.dictionarySelection)) changed = true;
+      if (edits.translation !== undefined || edits.translationsByPartOfSpeech !== undefined || edits.dictionarySelection) {
+        delete word.vocabularyLookupPending;
+      }
       if (word.vocabularyStars && (edits.translation !== undefined || edits.translationsByPartOfSpeech !== undefined)) {
         const removal = edits.translationRemoval;
         const partOfSpeech = VOCABULARY_PARTS_OF_SPEECH.find(([field]) => field === removal?.field)?.[1] ?? '未分詞性';

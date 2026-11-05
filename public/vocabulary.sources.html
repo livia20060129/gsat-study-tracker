@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>單字資料來源與授權｜GSAT Study Tracker</title>
-<script src="./page-transitions.js?v=171.6.145"></script>
+<script src="./page-transitions.js?v=171.6.146"></script>
 <link rel="stylesheet" href="./navigation.css?v=171.6.135">
 <link rel="stylesheet" href="./site-shell.css?v=171.6.135">
 <style>
@@ -24,10 +24,10 @@ section{margin:20px 0;padding:18px;border:1px solid #d7e0ec;border-radius:14px;b
 <p>來源：<a href="https://github.com/skywind3000/ECDICT" target="_blank" rel="noopener noreferrer">ECDICT — Free English to Chinese Dictionary Database</a>（skywind3000/ECDICT）。依本次下載版本所附 MIT License 使用，Copyright (c) 2025 Linwei。</p>
 <p><a href="./licenses/ECDICT-MIT.txt">完整 MIT 授權及免責聲明</a>　<a href="./vocabulary-reference-manifest.json">資料版本、轉換紀錄與 SHA-256</a></p>
 <p>中文翻譯與詞性依 ECDICT 的同拼法資料帶入，不再限於學測詞彙表。排除人名補充項、依標點分列意思，使用 OpenCC（opencc-python-reimplemented 0.1.7，Apache License 2.0）轉為繁體。沒有可對應詞性時保留未分詞性，沒有中文時不猜填。字典內容不是大考中心提供，也不是逐字人工審訂；使用者可手動修改。</p>
-<p>此版沒有採用 Oxford 的釋義，Oxford 只保留外部查詢連結。參考資料由本站提供並在瀏覽器比對，ECDICT 比對不將輸入內容傳給外部字典；Google Translate 備援另如下方說明。常用資料可直接使用，其餘詞庫首次使用時需要連線載入。</p></section>
+<p>牛津與劍橋中英字典可切換作為外部查詢連結；此選項不擷取或匯入這兩個網站的釋義。參考資料由本站提供並在瀏覽器比對，ECDICT 比對不將輸入內容傳給外部字典；Google Translate 備援另如下方說明。常用資料可直接使用，其餘詞庫首次使用時需要連線載入。</p></section>
 <section><h2>本機 ECDICT 預覽與確認填入</h2>
 <p>輸入單字後離開英文欄位，即自動帶入查到的 ECDICT 中文翻譯與詞性，不必先按「取得翻譯」。後續仍可修改詞性、新增或刪除各個中文意思；手動內容不會被自動查詢覆蓋。在編輯模式也可按「取得翻譯」查看候選意思，再選擇要追加的內容。未收錄或暫時無法載入時保留英文與手動編輯功能。</p>
 <p>參考來源集中於「英文單字複習」頁面標題下方。</p></section>
-<section><h2>Google Translate 備援</h2><p>已登入且列入自用白名單的帳號，於 ECDICT 確認未收錄中文時，會透過 Supabase 將單一英文單字交由 <a href="https://cloud.google.com/translate/docs">Google Cloud Translation API</a> 翻成繁體中文。結果以官方 Google Translate 標章標明出處，不推測詞性或 Level，仍可手動更改。訪客、組合、句子、ECDICT 命中或下載失敗時不使用此備援。Google API 金鑰只設於伺服器；來源及保存方式見 <a href="./privacy.html">隱私權政策</a>。</p><p><a href="https://translate.google.com/"><img src="./google-translate-attribution.png" alt="Powered by Google Translate" width="176" height="16"></a></p></section>
+<section><h2>Google Translate 備援</h2><p>所有已登入 Tracker 的正式帳號，於 ECDICT 確認未收錄中文時，會透過 Supabase 將單一英文單字交由 <a href="https://cloud.google.com/translate/docs">Google Cloud Translation API</a> 翻成繁體中文。每帳號每月限 5,000 個英文單字，一個單字算一次，每月 1 日台北時間重置，ECDICT 與快取不扣額度。結果以官方 Google Translate 標章標明出處，Google 僅提供中文，詞性可依 ECDICT／大考中心同拼法資料帶入，沒有資料時保留手動設定，不使用 Natural Language API，也不推測 Level。Google 翻譯支援標章集中在複習頁上方，字卡不重複顯示，原始來源仍隨資料及匯出保存。訪客、組合、句子、ECDICT 命中或下載失敗時不使用此備援。Google API 金鑰只設於伺服器；來源及保存方式見 <a href="./privacy.html">隱私權政策</a>。</p><p><a href="https://translate.google.com/"><img src="./google-translate-attribution.png" alt="Powered by Google Translate" width="176" height="16"></a></p></section>
 <section><h2>使用者資料</h2><p>自動帶入只在完整單字輸入完成、離開英文欄位時執行，組合與句子不套用。手動修改優先，既有紀錄不會在開啟頁面時被批次重寫。自動帶入及使用者修改皆沿用原本的本機保存、匯出／匯入與帳號同步流程。</p></section>
 </body></html>

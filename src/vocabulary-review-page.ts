@@ -5,6 +5,7 @@ import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { DictionaryPreview } from './ui/dictionaryPreview.ts';
 import { VocabularySpeech, type VocabularyAccent } from './ui/vocabularySpeech.ts';
+import { VOCABULARY_DICTIONARY_KEY, vocabularyDictionary, vocabularyDictionaryLink, type VocabularyDictionary } from './ui/vocabularyDictionaryLinks.ts';
 import { patchChildOrder } from './ui/patchChildOrder.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
@@ -39,6 +40,8 @@ let activePartOfSpeech = '全部';
 let groupingMode: VocabularyGroupingMode = 'alphabetical';
 let searchText = '';
 let translationsVisible = true;
+let selectedDictionary: VocabularyDictionary = 'oxford';
+try { selectedDictionary = vocabularyDictionary(localStorage.getItem(VOCABULARY_DICTIONARY_KEY)); } catch { /* Optional display preference. */ }
 const editingEntryKeys = new Set<string>();
 const annotatingEntryKeys = new Set<string>();
 const dictionaryPreviews = new WeakMap<HTMLElement, DictionaryPreview>();
@@ -49,6 +52,7 @@ let nextGroupKeys = new Set<string>();
 let searchRenderTimer: ReturnType<typeof setTimeout> | undefined;
 const searchIndex = new WeakMap<VocabularyReviewEntry, string>();
 const speech = new VocabularySpeech(document.getElementById('vocabularySpeechStatus')!);
+const resumedLookups = new Set<string>();
 let vocabularyPointerActive = false;
 let vocabularyRefreshPending = false;
 let vocabularyEnrichmentPending = false;
@@ -142,13 +146,20 @@ function createWordLink(entry: VocabularyReviewEntry): HTMLElement {
   }
   const link = document.createElement('a');
   link.className = 'vocabulary-word-link';
-  link.href = entry.lookupUrl;
+  link.dataset.dictionaryQuery = entry.lookupQuery;
+  updateDictionaryLink(link);
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   appendWordText(link, entry, false);
-  link.title = `在 Oxford Learner's Dictionaries 查詢「${entry.lookupQuery}」`;
-  link.setAttribute('aria-label', `${entry.text}；在 Oxford Learner's Dictionaries 開啟查詢結果`);
   return link;
+}
+
+function updateDictionaryLink(link: HTMLAnchorElement): void {
+  const query = link.dataset.dictionaryQuery ?? '';
+  const destination = vocabularyDictionaryLink(query, selectedDictionary);
+  link.href = destination.url;
+  link.title = `在 ${destination.name} 查詢「${query}」`;
+  link.setAttribute('aria-label', `${link.textContent || query}；在 ${destination.name} 開啟查詢結果`);
 }
 
 function saveEntryEditsResult(entry: VocabularyReviewEntry, edits: VocabularyWordEdits): 'saved' | 'unchanged' | 'failed' {
@@ -207,7 +218,7 @@ async function fillEcdictEntry(key: string): Promise<void> {
     const translations = result?.translations;
     if (!translations || prefix !== activeRecordPrefix) return;
     const entry = allEntries.find(candidate => candidate.key === key);
-    if (entry && saveEntryEdits(entry, { autoFill: true, autoFillTranslations: translations, autoFillSource: result?.source })) renderEnrichedEntries();
+    if (entry && saveEntryEdits(entry, { autoFill: true, autoFillTranslations: translations, autoFillSource: result?.source, autoFillParts: result?.parts })) renderEnrichedEntries();
   } catch (error) {
     if (prefix === activeRecordPrefix) element('vocabularySaveStatus').textContent = error instanceof Error && error.message.includes('Google Translate') ? error.message : '英文已儲存；ECDICT 暫時無法載入，可稍後重試或手動編輯。';
   }
@@ -488,12 +499,6 @@ function createVocabularyRow(entry: VocabularyReviewEntry): HTMLElement {
     kinds.append(levelBadge);
   }
   identity.append(kinds);
-  if (entry.referenceSources?.google) {
-    const source = document.createElement('div');
-    source.className = 'vocabulary-occurrence';
-    source.innerHTML = googleTranslationAttributionHtml();
-    identity.append(source);
-  }
   if (entry.referenceSources?.ceec) {
     const reference = vocabularyReference(entry.text);
     if (reference && reference.levels.length > 1) {
@@ -723,7 +728,7 @@ function load(options: { background?: boolean } = {}): void {
     loadedRecords = result.records;
     activeRecordPrefix = result.prefix;
     allEntries = nextEntries;
-    if (scopeChanged) { editingEntryKeys.clear(); annotatingEntryKeys.clear(); speech.cancel(); }
+    if (scopeChanged) { editingEntryKeys.clear(); annotatingEntryKeys.clear(); resumedLookups.clear(); speech.cancel(); }
     vocabularyRefreshPending = false;
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
     element<HTMLParagraphElement>('vocabularySource').textContent = `${source}｜共讀取 ${result.records.length} 天紀錄`;
@@ -739,6 +744,13 @@ function load(options: { background?: boolean } = {}): void {
     error.hidden = false;
   }
   render();
+  for (const entry of allEntries) {
+    if (!entry.lookupPending) continue;
+    const job = `${activeRecordPrefix}${entry.key}`;
+    if (resumedLookups.has(job)) continue;
+    resumedLookups.add(job);
+    void fillEcdictEntry(entry.key);
+  }
 }
 
 function scheduleVocabularyRefresh(): void {
@@ -973,7 +985,16 @@ function updateEntryStarUI(key: string, replaceWord = false): void {
     }
   }
 }
-element<HTMLButtonElement>('refreshVocabulary').addEventListener('click', function refreshVocabulary(): void { load(); });
+element<HTMLButtonElement>('refreshVocabulary').addEventListener('click', function refreshVocabulary(): void { resumedLookups.clear(); load(); });
+element('googleTranslationSupport').innerHTML = 'Google 翻譯支援（登入後備援） ' + googleTranslationAttributionHtml();
+element<HTMLSelectElement>('vocabularyDictionary').value = selectedDictionary;
+element<HTMLSelectElement>('vocabularyDictionary').addEventListener('change', function selectDictionary(): void {
+  selectedDictionary = vocabularyDictionary(element<HTMLSelectElement>('vocabularyDictionary').value);
+  try { localStorage.setItem(VOCABULARY_DICTIONARY_KEY, selectedDictionary); } catch { /* Keep the current page usable without preference storage. */ }
+  for (const row of rowCache.values()) {
+    row.node.querySelectorAll<HTMLAnchorElement>('[data-dictionary-query]').forEach(updateDictionaryLink);
+  }
+});
 element<HTMLButtonElement>('toggleVocabularyTranslations').addEventListener('click', () => {
   translationsVisible = !translationsVisible;
   updateTranslationVisibility();

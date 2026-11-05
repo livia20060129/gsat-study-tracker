@@ -22,6 +22,64 @@ async function storedWords(page: Page): Promise<EnglishReviewWordEntry[]> {
     .find((item: { id: string }) => item.id === 'autofill').f.words);
 }
 
+test('a newly added Tracker row fills intriguing from its real ECDICT shard without Google', async ({ page }) => {
+  await seedWords(page, [{ id: 'existing', text: 'ability' }]);
+  const paid: string[] = [];
+  page.on('request', request => { if (request.url().includes('/google-translation')) paid.push(request.url()); });
+  await page.goto('/'); await selectStudyDate(page, '2026-10-24');
+  const card = page.locator('[data-item="autofill"]');
+  await card.getByRole('button', { name: '新增單字', exact: true }).click();
+  const input = card.locator('[data-word-text][data-index="1"]');
+  await input.fill('intriguing'); await input.press('Tab');
+  await expect.poll(async () => (await storedWords(page))[1].translationsByPartOfSpeech).toEqual({ adjective: ['吸引人的', '有趣的'] });
+  await expect(card.locator('[data-word-reference]').nth(1)).toContainText('ECDICT');
+  expect((await storedWords(page))[1].adjective).toBe(true);
+  await page.reload(); await selectStudyDate(page, '2026-10-24');
+  await expect(input).toHaveValue('intriguing');
+  expect((await storedWords(page))[1].translationsByPartOfSpeech).toEqual({ adjective: ['吸引人的', '有趣的'] });
+  expect(paid).toEqual([]);
+});
+
+test('an unfinished Tracker lookup resumes after navigating to review without touching old unedited words', async ({ page }) => {
+  await seedWords(page, [{ id: 'pending', text: '' }, { id: 'old', text: 'novelty' }]);
+  let release = function (): void {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let requested = 0;
+  await page.route('**/dictionaries/ecdict-v1/f9.json', async route => {
+    requested++;
+    if (requested === 1) await gate;
+    try { await route.fulfill({ json: { intriguing: { adjective: ['吸引人的', '有趣的'] } } }); } catch { /* The first page was closed. */ }
+  });
+  await page.goto('/'); await selectStudyDate(page, '2026-10-24');
+  const input = page.locator('[data-item="autofill"] [data-word-text][data-index="0"]');
+  await input.fill('intriguing'); await input.press('Tab');
+  await expect.poll(() => requested).toBe(1);
+  await page.goto('/vocabulary.review.html');
+  release();
+  await expect(page.locator('.vocabulary-row[data-entry-key="intriguing"]')).toContainText('吸引人的');
+  expect((await storedWords(page))[0].adjective).toBe(true);
+  expect((await storedWords(page))[1].translation).toBeUndefined();
+});
+
+test('replacing an active word input without a native change event still finishes its lookup', async ({ page }) => {
+  await seedWords(page, [{ id: 'pending', text: '' }]);
+  await page.goto('/'); await selectStudyDate(page, '2026-10-24');
+  const card = page.locator('[data-item="autofill"]');
+  await card.locator('[data-word-text][data-index="0"]').fill('intriguing');
+  // Some touch/keyboard actions do not transfer focus before replacing this input.
+  await card.getByRole('button', { name: '新增單字', exact: true }).dispatchEvent('click');
+  await expect.poll(async () => (await storedWords(page))[0].translationsByPartOfSpeech).toEqual({ adjective: ['吸引人的', '有趣的'] });
+});
+
+test('an existing blank intriguing row retries on focus and blur without retyping or manual dictionary selection', async ({ page }) => {
+  await seedWords(page, [{ id: 'old-blank', text: 'intriguing' }]);
+  await page.goto('/'); await selectStudyDate(page, '2026-10-24');
+  expect((await storedWords(page))[0].translation).toBeUndefined();
+  const input = page.locator('[data-item="autofill"] [data-word-text]');
+  await input.focus(); await input.press('Tab');
+  await expect.poll(async () => (await storedWords(page))[0].translationsByPartOfSpeech).toEqual({ adjective: ['吸引人的', '有趣的'] });
+});
+
 test('completed English input fills official metadata locally, preserves the typing node and survives tracker/review reloads', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   const externalLookups: string[] = [];

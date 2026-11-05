@@ -11,6 +11,8 @@
  */
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
+import { WordLookupFeedback } from './ui/wordLookupFeedback.ts';
+import { WordInputCommitGate } from './ui/wordInputCommitGate.ts';
 import { googleTranslationAttributionHtml } from './ui/googleTranslationAttribution.ts';
 import { renderStudyReference } from './ui/studyReference.ts';
 import { requestedStudyDate } from './ui/siteNavigation.ts';
@@ -61,6 +63,7 @@ import {
 import { formatStudyTimer, normalizeStudyTimerState, pauseStudyTimer } from './study/studyTimer';
 import { markCalendarNaturalCompletionByUser, markCalendarNaturalProgressByUser, reconcileCalendarNaturalPriorCoverage } from './study/calendarNaturalCompletion';
 import { ensureEnglishReviewWordEntryIds } from './study/englishReview';
+import { isVocabularyLookupPending, markVocabularyLookupPending } from './study/vocabularyLookupLifecycle.ts';
 import { applyVocabularyAutoFill, markVocabularyManualFields, vocabularyAutoFillStatus } from './study/vocabularyAutoFill.ts';
 import { loadVocabularyDefaults } from './study/vocabularyDefaults.ts';
 import { updateVocabularyWordEntries, vocabularyEntryKey } from './study/vocabularyReview.ts';
@@ -3478,7 +3481,7 @@ function renderEnglishReview(x){
  var a=x.f.words;if(!Array.isArray(a))a=x.f.words=[];
  var primaryTags=VOCABULARY_PARTS_OF_SPEECH;
  var h='<div><label>今日單字</label>';if(!a.length)h+='<div class="small">尚未新增今日單字。</div>';
- for(var i=0;i<a.length;i++){var w=typeof a[i]==='string'?{text:a[i]}:(a[i]||{});h+='<div class="field" style="margin-top:8px"><div class="inline"><input data-word-text data-index="'+i+'" value="'+esc(w.text||'')+'" placeholder="輸入今天整理的單字／搭配詞"><button class="delete" data-action="word-delete" data-index="'+i+'">刪除</button></div><div class="small" data-word-reference>'+esc(vocabularyAutoFillStatus(w))+(w.vocabularyTranslationSource==='Google Translate'?' '+googleTranslationAttributionHtml():'')+'</div><div class="word-review-controls">'+renderEnglishReviewWordTagRow(w,i,primaryTags,'word-pos-primary')+renderEnglishReviewWordKind(w,i)+'</div></div>'}
+ for(var i=0;i<a.length;i++){var w=typeof a[i]==='string'?{text:a[i]}:(a[i]||{});h+='<div class="field" style="margin-top:8px"><div class="inline"><input data-word-text data-index="'+i+'" value="'+esc(w.text||'')+'" placeholder="輸入今天整理的單字／搭配詞"><button class="delete" data-action="word-delete" data-index="'+i+'">刪除</button></div><div class="small" data-word-reference>'+esc(englishWordFeedbackMessage(x,w,i)||vocabularyAutoFillStatus(w))+(w.vocabularyTranslationSource==='Google Translate'?' '+googleTranslationAttributionHtml():'')+'</div><div class="word-review-controls">'+renderEnglishReviewWordTagRow(w,i,primaryTags,'word-pos-primary')+renderEnglishReviewWordKind(w,i)+'</div></div>'}
  return h+'</div><button class="secondary" data-action="word-add" style="margin-top:8px">新增單字</button>';
 }
 function renderNestedEntry(x,kind){
@@ -3629,6 +3632,7 @@ function render(){
  filterDisabledCatalogOptions();
  updateStudyItemsView();updateOverviewMetricView(false);
  refreshTimerUI();
+ resumePendingEnglishLookups();
 }
 function findRecursive(list,target){
  if(!Array.isArray(list))return null;
@@ -3750,6 +3754,22 @@ function runTimerAction(item,control,action){
  render();
 }
 
+var englishWordFeedback=new WordLookupFeedback();
+var wordInputCommits=new WordInputCommitGate();
+var resumedEnglishLookups=new Set();
+function resumePendingEnglishLookups(){
+ document.querySelectorAll('[data-word-text]').forEach(function(control){
+  if(control===document.activeElement)return;
+  var card=control.closest('[data-item]'),item=card&&findItem(card.getAttribute('data-item')),index=Number(control.getAttribute('data-index'));
+  var word=item&&item.f.words&&item.f.words[index];if(!word||!isVocabularyLookupPending(word))return;
+  var job=JSON.stringify([STORE_PREFIX,data.date,item.id,word.id,word.vocabularyLookupPending]);
+  if(resumedEnglishLookups.has(job))return;
+  resumedEnglishLookups.add(job);if(resumedEnglishLookups.size>256)resumedEnglishLookups.delete(resumedEnglishLookups.values().next().value);
+  loadEnglishWordDefaults(control,item,index);
+ });
+}
+function englishWordFeedbackKey(prefix,date,itemId,wordId){return JSON.stringify([prefix,date,itemId,wordId])}
+function englishWordFeedbackMessage(item,word,index){return englishWordFeedback.message(englishWordFeedbackKey(STORE_PREFIX,data.date,item.id,word.id||index),vocabularyEntryKey(word.text))}
 function refreshEnglishWordControls(target,word,itemId,index){
  if(!target.isConnected&&itemId){
   var current=Array.from(document.querySelectorAll('[data-word-text]')).find(function(control){
@@ -3760,36 +3780,44 @@ function refreshEnglishWordControls(target,word,itemId,index){
  if(target.value!==word.text)return;
  var row=target.isConnected&&target.closest('.field');if(!row)return;
  row.querySelectorAll('[data-word-pos]').forEach(function(control){control.checked=word[control.getAttribute('data-word-pos')]===true});
- var note=row.querySelector('[data-word-reference]');if(note){note.textContent=vocabularyAutoFillStatus(word);if(word.vocabularyTranslationSource==='Google Translate')note.insertAdjacentHTML('beforeend',' '+googleTranslationAttributionHtml())}
+ var note=row.querySelector('[data-word-reference]');if(note){var feedbackItem=itemId&&findItem(itemId);note.textContent=(feedbackItem&&englishWordFeedbackMessage(feedbackItem,word,index))||vocabularyAutoFillStatus(word);if(word.vocabularyTranslationSource==='Google Translate')note.insertAdjacentHTML('beforeend',' '+googleTranslationAttributionHtml())}
 }
 function loadEnglishWordDefaults(target,item,index){
  var record=data,prefix=STORE_PREFIX,text=target.value,key=vocabularyEntryKey(text),word=item.f.words[index],wordId=word&&word.id;
  if(!key||word.fixedCombination||word.beautifulSentences)return;
+ var feedbackKey=englishWordFeedbackKey(prefix,record.date,item.id,wordId||index),attempt=englishWordFeedback.begin(feedbackKey,key);
+ refreshEnglishWordControls(target,word,item.id,index);
  loadVocabularyDefaults(text).then(function(result){
   var translations=result&&result.translations,source=result&&result.source;
   if(!translations||STORE_PREFIX!==prefix||initialRecordPrefix(store)!==prefix)return;
+  englishWordFeedback.succeed(feedbackKey,attempt);
   if(data&&data.date===record.date){
    var current=findItem(item.id),entries=current&&current.f.words;
    var entry=entries&&entries.find(function(candidate){return candidate&&candidate.id===wordId});
    if(!entry||vocabularyEntryKey(entry.text)!==key)return;
-   if(applyVocabularyAutoFill(entry,translations,source)){propagateDailyWorkField(current,'words',current.f.words);persist(false)}
+   if(applyVocabularyAutoFill(entry,translations,source,result.parts)){propagateDailyWorkField(current,'words',current.f.words);persist(false)}
    refreshEnglishWordControls(target,entry,current.id,entries.indexOf(entry));return;
   }
   var stored=readStoredRecord(record.date);if(!stored)return;
   try{
    var saved=saveLocalRecordEdit(localStorage,prefix,stored,function(latest){
-    var draft=cloneRecord(latest);return updateVocabularyWordEntries(draft,key,{autoFill:true,autoFillTranslations:translations,autoFillSource:source})?draft:null;
+    var draft=cloneRecord(latest);return updateVocabularyWordEntries(draft,key,{autoFill:true,autoFillTranslations:translations,autoFillSource:source,autoFillParts:result.parts})?draft:null;
    });
    if(saved&&!saved.syncConflict)queueCloudSave(saved,true);
   }catch(error){id('status').textContent='單字已保存，ECDICT 資料尚未寫入：'+error.message}
  }).catch(function(error){
-  if(target.isConnected&&target.value===text){var note=target.closest('.field').querySelector('[data-word-reference]');if(note)note.textContent=error&&error.message&&error.message.includes('Google Translate')?error.message:'ECDICT 暫時無法載入；單字已保存，可稍後重試或手動編輯。'}
+  if(STORE_PREFIX!==prefix||initialRecordPrefix(store)!==prefix||!data||data.date!==record.date)return;
+  var current=findItem(item.id),entries=current&&current.f.words,entry=entries&&entries.find(function(candidate){return candidate&&candidate.id===wordId});
+  if(!entry||vocabularyEntryKey(entry.text)!==key)return;
+  var message=error&&error.message&&error.message.includes('Google Translate')?error.message:'ECDICT 暫時無法載入；單字已保存，可稍後重試或手動編輯。';
+  if(englishWordFeedback.fail(feedbackKey,attempt,message))refreshEnglishWordControls(target,entry,current.id,entries.indexOf(entry));
  });
 }
 function updateEnglishReviewWordText(target,item,completeWord){
  var words=item.f.words||(item.f.words=[]),index=Number(target.getAttribute('data-index'));
  if(!words[index]||typeof words[index]!=='object')words[index]={};
  words[index].text=target.value;
+ markVocabularyLookupPending(words[index]);
  if(completeWord){
   applyVocabularyAutoFill(words[index]);
   refreshEnglishWordControls(target,words[index]);
@@ -3804,6 +3832,7 @@ function selectEnglishReviewWordKind(item,control){
  var kind=control.getAttribute('data-word-kind');
  if(['word','combination','sentence'].indexOf(kind)<0)return;
  current.fixedCombination=kind==='combination';current.beautifulSentences=kind==='sentence';
+ if(kind!=='word')delete current.vocabularyLookupPending;
  propagateDailyWorkField(item,'words',words);persist(false);
  var switcher=control.closest('[data-word-kind-switch]');if(!switcher)return;
  switcher.dataset.active=kind==='word'?'0':(kind==='combination'?'1':'2');
@@ -3891,7 +3920,7 @@ function handleChange(e){
  }
  if(t.matches('[data-minutes]')&&x){propagateDailyWorkMinutes(x,t.value);updateSummary();persist(false);return}
  if(t.matches('[data-mag-field]')&&x){updateMagazineField(t,x);persist(false);return}
- if(t.matches('[data-word-text]')&&x){updateEnglishReviewWordText(t,x,true);persist(false);return}
+ if(t.matches('[data-word-text]')&&x){wordInputCommits.change(t);updateEnglishReviewWordText(t,x,true);persist(false);return}
  if(t.matches('[data-deferred]')&&x){
   var isDeferred=confirmedDeferred(x);
   if(t.checked&&!isDeferred){
@@ -4699,6 +4728,16 @@ var connectionSettingsPanel=id('connectionSettings');
 var connectionSettingsSummary=connectionSettingsPanel.querySelector(':scope > summary');
 if(connectionSettingsSummary)setupConnectionSettingsMotion(connectionSettingsPanel,connectionSettingsSummary);
 document.addEventListener('focusout',function(){setTimeout(function(){applyPendingVisibleCloudRefresh();refreshVisibleRecordFromLocalChange()},0)});
+document.addEventListener('focusin',function(e){if(e.target.matches&&e.target.matches('[data-word-text]'))wordInputCommits.focus(e.target,{prefix:STORE_PREFIX,date:data.date})});
+document.addEventListener('focusout',function(e){
+ var control=e.target;if(!control.matches||!control.matches('[data-word-text]'))return;
+ if(!wordInputCommits.leave(control,{prefix:STORE_PREFIX,date:data.date})||!control.isConnected)return;
+ var card=control.closest('[data-item]'),item=card&&findItem(card.getAttribute('data-item')),word=item&&item.f.words&&item.f.words[Number(control.getAttribute('data-index'))];
+ if(!word)return;
+ var groups=word.translationsByPartOfSpeech||{},hasChinese=String(word.translation||'').trim()||Object.values(groups).some(function(values){return Array.isArray(values)&&values.some(function(value){return String(value).trim()})});
+ if(!isVocabularyLookupPending(word)&&hasChinese)return;
+ updateEnglishReviewWordText(control,item,true);persist(false);
+});
 window.addEventListener('storage',function(event){if(event.key&&event.key.indexOf(STORE_PREFIX)===0)catalogRuntimeCache=null;if(data&&event.storageArea===localStorage&&event.key===STORE_PREFIX+data.date)refreshVisibleRecordFromLocalChange()});
 window.addEventListener('storage',schedulePendingCloudSync);
 window.addEventListener('study-records-changed',schedulePendingCloudSync);

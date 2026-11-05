@@ -11,5 +11,5 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.google-translation]
-# The handler verifies the user through Auth and enforces a server-side personal account allowlist.
+# The handler verifies registered Auth users and enforces the shared database monthly allowance.
 verify_jwt = false

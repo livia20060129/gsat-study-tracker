@@ -1,52 +1,61 @@
-# Google Cloud Translation 備援設定（自用版）
+# Google Cloud Translation 備援設定（自用版 v171.6.146）
 
-本功能已完成程式串接；需啟用 Google Cloud Translation API、設定伺服器憑證及部署函式後才能使用真實翻譯。這份文件不包含金鑰。
+所有已登入 Tracker 的正式帳號皆可使用，不再需要逐一設定 UUID 白名單。訪客及 Supabase 匿名登入帳號不使用 Google 備援。API 金鑰只設於伺服器。
 
-## 使用方式
+## 每人每月 5,000 個英文單字
 
-輸入完整英文單字並離開欄位後，先查 ECDICT。確認沒有中文結果，而且目前是已登入且獲准的帳號時，才透過 Supabase 的 `google-translation` 函式使用 Cloud Translation Basic v2，將單一英文單字翻成繁體中文 `zh-TW`。
-
-- Tracker 與單字複習頁改英文共用這個流程。
-- ECDICT 命中時不呼叫 Google；ECDICT 分片下載失敗時也不改向 Google 收費查詢。
-- 訪客、組合與句子繼續使用原本流程，不發出備援請求。
-- Google 僅提供中文，自動存為「未分詞性」。不推測詞性或 Level，不覆蓋手動中文與手動詞性。
-- 沿用現有帳號、本機保存、Cloud、匯出／匯入與 JSON 欄位。Google 來源會保留，頁面使用官方標章，有翻譯的 PDF／DOCX 附出處。
+- 以英文單字的次數計算，不按字母或字元長度計算：`apple` 算 1，`extraordinary` 也算 1。每次請求仍限一個單字，最多 80 個字元；組合與句子不送往此 API。
+- 每個 Supabase Auth 帳號每月最多 5,000 個單字，每月 1 日台北時間 00:00 自動使用新月份額度，不需排程重置。
+- ECDICT 查到結果時不呼叫 Google、不扣額度；ECDICT 載入失敗時也不改向 Google 查詢。瀏覽器或伺服器快取命中不扣額度。
+- 每次要送出 Google 查詢前，先在資料庫原子扣除 1；同筆扣額 RPC 的網路重試使用同一識別碼，不重複扣除。已送往 Google 的單字即使服務回覆失敗或逾時，仍計入用量，不按成功結果計算。
+- 同帳號的不同裝置、頁籤、Edge Function 執行個體共用資料庫額度。清除瀏覽器資料、重新整理及切換裝置不能重置。
+- 第 5,000 個單字可以送出，下一個會被拒絕並顯示已用、剩餘及下月重置日期。英文仍保存，可手動填中文或繼續使用 ECDICT。
+- Google 僅補中文。詞性依既有 ECDICT／大考中心的同拼法資料帶入，不使用 Natural Language API，也不從中文猜測詞性或 Level；查不到時保留手動設定。
+- 只有一種已知詞性時，Google 中文放入該詞性；有多種詞性時自動勾選已有詞性，但該筆中文暫存未分詞性，避免將同一譯文錯配為多個意思。手動修改優先。
+- 詞性補充索引包含 11,331 筆 ECDICT 明示標籤，僅在 Google 確認有翻譯後按需載入（正式建置約 44 kB gzip），不增加第三方 API、金鑰或額度扣款。
 
 ## 1. Google Cloud
 
-1. 選擇自己的 Google Cloud 專案，啟用計費與 Cloud Translation API。
-2. 建立供伺服器使用的 API key，將 API 限制為 **Cloud Translation API**。不要使用 Google OAuth Client ID 代替 API key。
-3. 在 Google Cloud 設定適合自己的 API 配額與預算通知。本機快取及單一函式執行個體的每帳號每分鐘 20 次限制，只是減少重複與突發請求，不是跨所有執行個體的帳務上限。
+啟用 Cloud Translation API 與計費，建立 API key，將 API 限制為 Cloud Translation API。Google 供應商的計價與配額規則另依官方設定；網站的每月 5,000 個單字是本應用程式的帳號額度。
 
-[Google 官方設定說明](https://docs.cloud.google.com/translate/docs/setup) · [Basic v2 請求格式](https://docs.cloud.google.com/translate/docs/reference/rest/v2/translate)
+建議同時設定 Google Cloud 專案總配額與預算通知。每帳號每分鐘 20 次的記憶體突發限制是輔助；每月上限由資料庫執行，不依賴單一執行個體或瀏覽器。
 
-## 2. Supabase 伺服器 Secrets
+[Google 官方設定](https://docs.cloud.google.com/translate/docs/setup) · [官方配額說明](https://docs.cloud.google.com/translate/quotas)
 
-在專案 `arxbirgujbrtzhoficdf` 的 Edge Functions → Secrets 加入：
+## 2. Supabase Secrets
+
+在專案 `arxbirgujbrtzhoficdf` → Edge Functions → Secrets 設定：
 
 | 名稱 | 值 |
 | --- | --- |
-| `GOOGLE_TRANSLATION_API_KEY` | 上一步建立的 Google API key |
-| `GOOGLE_TRANSLATION_ALLOWED_USER_IDS` | 允許使用翻譯的 Supabase Auth 使用者 UUID；多個帳號用半形逗號分開 |
+| `GOOGLE_TRANSLATION_API_KEY` | 你的 Google Cloud Translation API key |
 
-UUID 可由 Supabase Authentication → Users 取得。此設定使用經 Supabase Auth 驗證後的使用者 ID，不相信請求中自行提供的帳號資料。未設定白名單或金鑰時會拒絕翻譯。
+`GOOGLE_TRANSLATION_ALLOWED_USER_IDS` 已不再讀取。可以移除，也可以保留舊設定；它不再限制帳號，不需填入 `*` 或任何 UUID。
 
-`SUPABASE_URL`、`SUPABASE_ANON_KEY` 使用 Edge Functions 既有環境變數；不需把 Google 金鑰填進前端或任何 `VITE_` 變數。不要將真實金鑰放入 `.env.example`、GitHub 原始碼或本文件。
+`SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY` 沿用 Supabase Edge Functions 內建環境變數，不需在前端新增。不要把 Google API key 或 service-role key 填入任何 `VITE_` 變數、`.env.example` 或 Git repository。
 
-[Supabase 官方 Secrets 說明](https://supabase.com/docs/guides/functions/secrets)
+[Supabase Secrets 說明](https://supabase.com/docs/guides/functions/secrets)
 
-## 3. 覆蓋與部署
+## 3. Migration 與部署
 
-將必要覆蓋檔案合併到原專案，推送自己的 GitHub repository，使用既有部署流程。工作流程已加入 `google-translation` 的部署與入口檢查；仍沿用已固定的 Supabase CLI v2.116.0。Google 金鑰在 Supabase Secrets 設定，無須在前端建置提供。
+將覆蓋檔案合併到原專案並推送 GitHub，使用既有部署流程。流程已先執行資料庫 migration，再部署 Edge Functions，最後部署前端。
 
-函式使用獨立的伺服器憑證，不會增加 Google Calendar 的 OAuth 同意範圍，也不需資料庫 migration。
+本次新增 `supabase/migrations/20261105141732_google_translation_monthly_quota.sql`。必須成功套用這份 migration，並部署新版 `google-translation` 函式，所有登入帳號與每月額度才會生效。只更新前端無法變更伺服器限制。
 
-本次程式驗證以受控測試代替真實付費翻譯，沒有自動啟用計費、建立金鑰、設定線上 Secrets 或部署線上網站。
+額度資料在未對外暴露的 `translation_private` schema。瀏覽器角色不能讀寫或重置用量，也不能呼叫服務端扣額 RPC。Edge Function 先向 Supabase Auth 驗證使用者，再使用服務端憑證呼叫 RPC；不相信請求自行提供的帳號、月份或扣額數字。
+
+若 migration、資料庫連線或扣額確認失敗，函式停止付費查詢並保留英文。不要把 `translation_private` 加入 Data API 的 exposed schemas。
 
 ## 4. 上線確認
 
-登入白名單帳號，輸入一個確實不在 ECDICT 的英文單字並離開欄位。若成功，中文保存於未分詞性，來源為 Google Translate；在單字複習頁可修改並重新整理確認。若顯示「尚未設定」，檢查 Secrets 與函式部署；若顯示暫時無法使用，檢查登入是否有效、白名單、Google API 啟用與配額。英文與原紀錄仍保留。
+登入任一正式 Tracker 帳號，輸入 ECDICT 未提供中文的英文單字並離開欄位，確認中文、已有對照的詞性及各自來源保存。Google 翻譯支援標章集中在單字複習頁上方；字卡不重複標章，匯出仍保留來源。若已達上限，會顯示「5,000 個單字」及下次重置日期。
 
-只有該英文單字送到 Google，不傳送整份讀書紀錄、備註、Calendar 行程或 Calendar OAuth 憑證。Google 查詢結果在瀏覽器及函式記憶體保留有限筆數；已填入的中文及來源沿用使用者紀錄保存，手動刪除紀錄時一併移除。
+只有單一英文單字送到 Google，不傳送整份讀書紀錄、Calendar 行程或 Calendar OAuth 憑證。額度資料表只存帳號、月份、用量與時間，不存原文或中文；另保存短期扣額識別碼防止重試重複扣額。超過 7 天的識別碼會在該帳號後續成功扣額時清理；刪除帳號時一併移除相關額度資料。
 
-[Google 來源標示規範](https://docs.cloud.google.com/translate/attribution)
+SQL 自動測試使用 PGlite 實際執行 migration、權限及扣額查詢，僅屬開發測試依賴，不打包到網站。
+
+本次只提供本機程式與部署檔案，不會自行套用正式資料庫 migration、修改 Secrets、建立 commit 或部署，也不會自動執行真實付費 Google 翻譯。
+
+## 5. 查詢中斷與重試
+
+Tracker 明確輸入的單字會保存待查標記。查詢尚未完成就跳到單字頁或輸入列被畫面更新取代時，會接續該筆工作；其他未編輯歷史不批次查詢。手動填寫中文（含刻意清空）或改為組合／句子會取消工作。已存在但尚無中文的單字，可在 Tracker 點入英文欄位再離開重試；原生 change 與 focusout 不會重複提交同次輸入。

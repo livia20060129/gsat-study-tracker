@@ -55,6 +55,15 @@ python scripts/build_ecdict_lookup.py --dictionary "完整路徑/ecdict.csv" --p
 
 ## 5. Google Translate 備援（v171.6.145）
 
-ECDICT 確認未收錄中文後，僅已登入且列入伺服器白名單的帳號使用 Google Cloud Translation Basic v2。只翻譯單一英文詞並填入未分詞性，來源保留為 Google Translate，不冒稱 ECDICT，不猜詞性／Level。手動修改優先。訪客及 ECDICT 網路錯誤不發出此付費備援請求。
+ECDICT 確認未收錄中文後，所有已登入 Tracker 的正式帳號使用 Google Cloud Translation Basic v2。只翻譯單一英文詞。中文來源保留為 Google Translate；v171.6.146 起詞性可另外對照既有 ECDICT／大考中心同拼法資料，不使用 Natural Language API。只有一種詞性時放入該組，多詞性時譯文保留未分詞性而不重複複製；無資料時保留手動，不猜詞性／Level。手動修改優先。訪客及 ECDICT 網路錯誤不發出此付費備援請求。
 
-Google 結果在卡片旁顯示官方原始標章，連結至 https://translate.google.com/ ；PDF／DOCX 保留來源。`public/google-translate-attribution.png` 來自 Google 官方 [標章套件](https://docs.cloud.google.com/static/translate/images/google-translate-attribution.zip)，屬 Google 品牌資產，不受 ECDICT MIT 授權涵蓋。完整設定見 [GOOGLE_TRANSLATION_SETUP.md](./GOOGLE_TRANSLATION_SETUP.md)，處理資料見中英隱私權政策。
+Google 翻譯支援集中在複習頁上方顯示官方原始標章，連結至 https://translate.google.com/ ；PDF／DOCX 保留來源。`public/google-translate-attribution.png` 來自 Google 官方 [標章套件](https://docs.cloud.google.com/static/translate/images/google-translate-attribution.zip)，屬 Google 品牌資產，不受 ECDICT MIT 授權涵蓋。完整設定見 [GOOGLE_TRANSLATION_SETUP.md](./GOOGLE_TRANSLATION_SETUP.md)，處理資料見中英隱私權政策。
+
+
+v171.6.146 起取消 UUID 白名單，依 Supabase Auth 帳號按月計算最多 5,000 個英文單字，一次送出一個詞扣 1，不按字母／字元數計算。每月 1 日台北時間自動改用新月份額度。ECDICT 或快取命中不扣；已送出查詢即使失敗仍計入用量。資料庫原子扣額與短期識別碼避免並行及傳輸重試超額，不影響原本讀書紀錄、手動修改、Level 或來源保存。詳見設定文件的 migration 與權限說明。
+
+## 6. 補充詞性與外部辭典（v171.6.146）
+
+`scripts/build_ecdict_fallback_parts.py` 從同一份 ECDICT CSV 的明示詞性標籤擷取 11,331 筆中文不可用詞的詞性，來源 SHA-256 寫入 `src/data/ecdictFallbackParts.ts`，沿用 MIT 授權。僅在 Google 回傳中文後才按需載入；詞性與中文保存各自出處，手動取消／修改不會被重設。
+
+複習頁可選擇牛津辭典或劍橋英語－繁體中文辭典的外部連結，選擇保存在本機。切換只更新英文連結，不替換編輯器、不改讀書資料，也不擷取外站釋義。Google 翻譯支援只在頁首顯示一次。

@@ -1,7 +1,7 @@
 {
   "name": "gsat-study-tracker-v171",
   "private": true,
-  "version": "171.6.145",
+  "version": "171.6.146",
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
@@ -15,6 +15,7 @@
     "benchmark:runtime": "node --experimental-strip-types scripts/benchmark_runtime.ts"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
     "@playwright/test": "1.63.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",
