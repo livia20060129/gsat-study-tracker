@@ -46,6 +46,7 @@ infrastructure repositories and gateways
 - 唯讀歷史快照：`src/infrastructure/storage/localRecordHistory.ts`，與 repository 寫入交易分開；只快取目前帳號完整日期資料，深層凍結避免計算流程改動快取。成功寫入、移除、容量壓縮及跨分頁事件按鍵值失效，帳號切換、復原、聚焦及手動重讀重新核對。交易讀取不可走唯讀快取。
 - 單字清單局部更新：`src/ui/patchChildOrder.ts` 與 vocabulary page 的 row/group cache，依單字、群組、內容及編輯狀態保留節點。DictionaryPreview 隨所屬卡片釋放，不能在每次搜尋時清除其他卡片的查詢候選；搜尋合併 100ms 內輸入，pointer 操作期間延後刷新。
 - 核心詞庫：`scripts/build_compact_vocabulary.py` 由保留的官方／ECDICT 來源產生 `ceecCompactIndex.ts`、`ceecCompactTranslations.ts`；`ceecReferenceIndex.ts` 按需建立拼字索引，`ceecCoreTranslations.ts` 只解析當次單字的翻譯並保存最多 256 字的獨立結果。完整原始表只供產生與測試，不進入前端 bundle；核心文字仍隨程式供離線使用，擴充詞庫維持原分片按需下載。
+- 擴充詞庫每個 pending promise 必須回傳並保留該次 DictionaryShard；翻譯與預覽使用自己的完成回應，不能 await 後再次依賴可能已淘汰的全域分片快取。Tracker 以既有 initialRecordPrefix 規則核對資料空間，缺少標記時的合法訪客預設可回填，明確不同帳號仍拒絕舊回應。
 - 大清單中文排序：`src/study/textOrder.ts` 重用原本 zh-Hant 與 zh-TW numeric 規則的 Intl.Collator。`studyPartAnnotation.ts` 先排除不含半形／全形斜線的輸入，再依既有日期排除與有效分數規則判斷，不保存可過期的教材辨識快取。
 - 待辦期間篩選：`src/study/overduePeriod.ts`；沿用 `learningSummary.ts` 的曆月與週一至週日邊界，只依原排程日期篩選顯示，不修改紀錄。待辦資格仍由 `overdueTasks.ts` 決定，最近處理獨立按 72 小時計算。
 - 前端公開環境變數白名單：`src/config/publicEnvironment.ts`

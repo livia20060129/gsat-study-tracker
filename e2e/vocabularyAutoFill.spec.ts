@@ -3,6 +3,7 @@ import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { EnglishReviewWordEntry } from '../src/types.ts';
+import { ceecCoreTranslations } from '../src/study/ceecCoreTranslations.ts';
 
 async function seedWords(page: Page, words: EnglishReviewWordEntry[]): Promise<void> {
   await page.goto('/vocabulary.review.html');
@@ -238,4 +239,78 @@ test('lookup failures keep English saved and let a later edit retry ECDICT', asy
   await input.dispatchEvent('change');
   await expect.poll(async () => (await storedWords(page))[0].translation).toContain('新奇');
   expect(requests).toBe(2);
+});
+
+test('a newly added Tracker word receives extended ECDICT meanings after leaving its input', async ({ page }) => {
+  await seedWords(page, []);
+  await openTrackerWord(page);
+  const card = page.locator('[data-item="autofill"]');
+  await card.getByRole('button', { name: '新增單字', exact: true }).click();
+  await card.locator('[data-word-text]').fill('novelty');
+  await card.locator('[data-word-text]').press('Tab');
+  await expect.poll(async () => (await storedWords(page))[0]).toMatchObject({ text: 'novelty', noun: true,
+    translationsByPartOfSpeech: { noun: ['新奇', '新鮮', '新奇的事物'] } });
+  await expect(card.locator('[data-word-pos="noun"]')).toBeChecked();
+});
+
+test('Tracker extended translations work when a guest record has no explicit active-prefix metadata', async ({ page }) => {
+  await seedWords(page, []);
+  await openTrackerWord(page);
+  const card = page.locator('[data-item="autofill"]');
+  await card.getByRole('button', { name: '新增單字', exact: true }).click();
+  await page.evaluate(() => localStorage.removeItem('study-v11:meta:active-record-prefix'));
+  await card.locator('[data-word-text]').fill('novelty');
+  await card.locator('[data-word-text]').press('Tab');
+  await expect.poll(async () => (await storedWords(page))[0]).toMatchObject({ text: 'novelty', noun: true,
+    translationsByPartOfSpeech: { noun: ['新奇', '新鮮', '新奇的事物'] } });
+});
+
+test('Tracker fills every extended word when more than eight dictionary buckets return after rapid typing', async ({ page }) => {
+  const words = ['novelty', 'practitioner', 'adored', 'adulation', 'rigidity', 'intergenerational',
+    'perpetuation', 'impregnable', 'counterproductive', 'unfathomable', 'palatable', 'exorbitant']
+    .filter(word => !ceecCoreTranslations(word));
+  await seedWords(page, words.map((_, index) => ({ id: `extended-${index}`, text: '' })));
+  let release = function (): void {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const buckets = new Set<string>();
+  await page.route('**/dictionaries/ecdict-v1/*.json', async route => {
+    buckets.add(route.request().url());
+    await gate;
+    await route.continue();
+  });
+  await openTrackerWord(page);
+  for (const [index, word] of words.entries()) {
+    const input = page.locator(`[data-item="autofill"] [data-word-text][data-index="${index}"]`);
+    await input.fill(word);
+    await input.press('Tab');
+  }
+  await expect.poll(() => buckets.size).toBeGreaterThan(8);
+  release();
+  await expect.poll(async () => (await storedWords(page)).filter(word => Object.keys(word.translationsByPartOfSpeech ?? {}).length).length).toBe(words.length);
+  const saved = await storedWords(page);
+  expect(saved.map(word => word.text)).toEqual(words);
+  for (const word of saved) expect(word.gsatLevel).toBeUndefined();
+  await page.reload();
+  expect(await storedWords(page)).toEqual(saved);
+});
+
+test('a delayed Tracker dictionary reply cannot write after the active record scope changes', async ({ page }) => {
+  await seedWords(page, [{ id: 'extended', text: '' }]);
+  let release = function (): void {};
+  let requests = 0;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/dictionaries/ecdict-v1/*.json', async route => { requests++; await gate; await route.continue(); });
+  await openTrackerWord(page);
+  const input = page.locator('[data-item="autofill"] [data-word-text]');
+  await input.fill('novelty'); await input.press('Tab');
+  await expect.poll(() => requests).toBe(1);
+  await page.evaluate(() => {
+    localStorage.setItem('study-v11:meta:active-record-prefix', 'study-v11:user:another:');
+    localStorage.setItem('study-v11:user:another:2026-10-24', JSON.stringify({ date: '2026-10-24', items: [], notes: '保留另一帳號' }));
+  });
+  const response = page.waitForResponse(response => response.url().includes('/dictionaries/ecdict-v1/') && response.ok());
+  release(); await response;
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect((await storedWords(page))[0].translationsByPartOfSpeech).toBeUndefined();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:user:another:2026-10-24')!).notes)).toBe('保留另一帳號');
 });

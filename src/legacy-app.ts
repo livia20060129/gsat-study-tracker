@@ -3763,7 +3763,7 @@ function loadEnglishWordDefaults(target,item,index){
  var record=data,prefix=STORE_PREFIX,text=target.value,key=vocabularyEntryKey(text),word=item.f.words[index],wordId=word&&word.id;
  if(!key||word.fixedCombination||word.beautifulSentences)return;
  loadEcdictTranslations(text).then(function(translations){
-  if(!translations||STORE_PREFIX!==prefix||localStorage.getItem(ACTIVE_RECORD_PREFIX_KEY)!==prefix)return;
+  if(!translations||STORE_PREFIX!==prefix||initialRecordPrefix(store)!==prefix)return;
   if(data&&data.date===record.date){
    var current=findItem(item.id),entries=current&&current.f.words;
    var entry=entries&&entries.find(function(candidate){return candidate&&candidate.id===wordId});

@@ -2,6 +2,7 @@ import { dictionaryQuery, type DictionaryLookupResult } from '../study/dictionar
 import { localDictionaryLookup } from '../study/localDictionaryLookup.ts';
 import { loadEcdictTranslations } from '../study/ecdictLookup.ts';
 import { VOCABULARY_PARTS_OF_SPEECH } from '../study/vocabularyTranslationCounts.ts';
+import type { VocabularyTranslations } from '../types.ts';
 
 export interface DictionaryPreviewOptions {
   word: string;
@@ -52,13 +53,14 @@ export class DictionaryPreview {
 
   private async lookup(): Promise<void> {
     this.output.replaceChildren();
-    try { await loadEcdictTranslations(this.options.word); }
+    let translations: VocabularyTranslations | null;
+    try { translations = await loadEcdictTranslations(this.options.word); }
     catch {
       if (!this.disposed) this.status.textContent = 'ECDICT 暫時無法載入，可稍後重試或手動輸入中文。';
       return;
     }
     if (this.disposed) return;
-    const result = localDictionaryLookup(this.options.word);
+    const result = localDictionaryLookup(this.options.word, translations);
     if (result) this.showResult(result);
     else this.status.textContent = '本機 ECDICT 未收錄此拼法的翻譯，可手動輸入中文。';
   }
