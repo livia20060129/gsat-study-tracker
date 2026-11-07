@@ -1,3 +1,4 @@
+import { fetchCompleteCalendarEvents } from './calendarFetch.ts';
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.114.0';
 import { staleCalendarEventKeys } from './calendarSyncDiff.ts';
 import { readableErrorMessage } from './functionResponse.ts';
@@ -273,38 +274,6 @@ function plainCalendarDescription(value: string): string {
     .trim();
 }
 
-async function fetchCalendarEvents(accessToken: string, calendarId: string) {
-  const timeMin = new Date(Date.now() - 60 * 86_400_000);
-  const timeMax = new Date(Date.now() + 240 * 86_400_000);
-  const events: GoogleEvent[] = [];
-  let pageToken = '';
-  do {
-    const params = new URLSearchParams({
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      singleEvents: 'true',
-      showDeleted: 'true',
-      maxResults: '2500',
-      timeZone: 'Asia/Taipei',
-    });
-    if (pageToken) params.set('pageToken', pageToken);
-    const response = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(readableErrorMessage(data.error ?? data, 'Google Calendar events.list failed'));
-    }
-    events.push(...(data.items ?? []));
-    pageToken = data.nextPageToken ?? '';
-  } while (pageToken);
-  return {
-    events,
-    timeMinDate: dateInTimezone(timeMin.toISOString()),
-    timeMaxDate: dateInTimezone(timeMax.toISOString()),
-  };
-}
 
 export async function syncCalendarForUser(admin: SupabaseClient, userId: string) {
   const { data: connection, error: connectionError } = await admin
@@ -313,9 +282,16 @@ export async function syncCalendarForUser(admin: SupabaseClient, userId: string)
   if (!connection) return { connected: false, synced: 0, removed: 0 };
 
   try {
+    const { error: startedError } = await admin.from('google_calendar_connections').update({
+      sync_error: 'Calendar sync in progress', updated_at: new Date().toISOString(),
+    }).eq('user_id', userId);
+    if (startedError) throw startedError;
     const accessToken = await validAccessToken(admin, connection as CalendarConnection);
     const calendarId = connection.calendar_id || 'primary';
-    const { events, timeMinDate, timeMaxDate } = await fetchCalendarEvents(accessToken, calendarId);
+    const { data: earliest, error: earliestError } = await admin.from('calendar_tasks').select('event_date')
+      .eq('user_id', userId).eq('calendar_id', calendarId).order('event_date', { ascending: true }).limit(1);
+    if (earliestError) throw earliestError;
+    const { events, timeMinDate, timeMaxDate } = await fetchCompleteCalendarEvents<GoogleEvent>(accessToken, calendarId, earliest?.[0]?.event_date || null);
     const fetchedKeys = new Set<string>();
     const rows: Record<string, unknown>[] = [];
 
@@ -361,7 +337,7 @@ export async function syncCalendarForUser(admin: SupabaseClient, userId: string)
         let query = admin
           .from('calendar_tasks').select('event_key')
           .eq('user_id', userId).eq('calendar_id', calendarId)
-          .gte('event_date', timeMinDate).lte('event_date', timeMaxDate);
+          .gte('event_date', timeMinDate).lt('event_date', timeMaxDate);
         if (after) query = query.gt('event_key', after);
         const { data, error } = await query.order('event_key', { ascending: true }).limit(pageSize);
         if (error) throw error;

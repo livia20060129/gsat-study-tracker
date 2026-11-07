@@ -1,0 +1,174 @@
+import { expect, test, type Page } from '@playwright/test';
+import { calendarItemsByDate } from '../src/application/calendar/reconcileCalendarSchedule.ts';
+import type { CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
+import { selectStudyDate } from './helpers/siteNavigation.ts';
+
+test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
+const userId = '00000000-0000-0000-0000-000000000071';
+const prefix = `study-v11:user:${userId}:`;
+const date = '2026-11-02';
+function row(id: string, round: number, day = date): CalendarTaskRow {
+  return { event_key: `primary:${id}`, source_event_id: id, calendar_id: 'primary', event_date: day,
+    title: `英文｜ACE Reading 第 ${round} 回`, description: '', category: 'english' };
+}
+interface State { rows: CalendarTaskRow[] | object; failed: boolean; stamp: string; owner: string; requests: number;
+  statusReads?: number; changeDuringRead?: boolean; syncError?: string }
+async function seed(page: Page): Promise<State> {
+  const oldRows = [row('kept', 3), row('deleted', 4), row('revised', 5)];
+  const items = JSON.parse(JSON.stringify(calendarItemsByDate(oldRows).get(date)!));
+  items[0].done = true; items[0].checkedOn = date; items[0].minutes = '20';
+  items[2].done = true; items[2].checkedOn = date; items[2].minutes = '15';
+  items[2].f.words = [{ text: 'intriguing', translation: '有趣的' }];
+  const state: State = { rows: [row('kept', 3), row('revised', 6), row('new', 7)], failed: false, stamp: '2026-11-07T02:00:00Z', owner: userId, requests: 0 };
+  const cloud = new Map<string, Record<string, unknown>>();
+  await page.context().route('https://arxbirgujbrtzhoficdf.supabase.co/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/functions/v1/google-calendar')) {
+      state.statusReads = (state.statusReads || 0) + 1;
+      return route.fulfill({ status: state.failed ? 503 : 200,
+        json: { userId: state.owner, connected: true, last_synced_at: state.stamp, sync_error: state.syncError || null } });
+    }
+    if (url.pathname.endsWith('/rest/v1/calendar_tasks')) {
+      state.requests++;
+      if (state.changeDuringRead) { state.changeDuringRead = false; state.stamp = '2026-11-07T05:00:00Z'; }
+      return route.fulfill({ json: state.rows });
+    }
+    if (url.pathname.endsWith('/auth/v1/user')) return route.fulfill({ json: { id: userId, aud: 'authenticated', email: 'test@example.com' } });
+    if (url.pathname.endsWith('/rest/v1/rpc/upsert_study_record')) {
+      const body = route.request().postDataJSON();
+      const result = { study_date: body.p_study_date, payload: body.p_payload,
+        revision: Number(cloud.get(body.p_study_date)?.revision || 0) + 1, updated_at: state.stamp };
+      cloud.set(body.p_study_date, result);
+      return route.fulfill({ json: { applied: true, ...result } });
+    }
+    if (url.pathname.endsWith('/rest/v1/study_records')) {
+      const requested = url.searchParams.get('study_date')?.replace(/^eq\./, '');
+      return route.fulfill({ json: [...cloud.values()].filter(record => !requested || record.study_date === requested) });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.clock.setFixedTime(new Date('2026-11-07T12:00:00+08:00'));
+  await page.goto('/summary.html');
+  await page.evaluate(({ prefix, date, userId, items }) => {
+    localStorage.clear();
+    localStorage.setItem('study-v11:meta:active-record-prefix', prefix);
+    localStorage.setItem('sb-arxbirgujbrtzhoficdf-auth-token', JSON.stringify({
+      access_token: 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYXV0aGVudGljYXRlZCJ9.signature', refresh_token: 'test-refresh',
+      expires_at: 1893456000, token_type: 'bearer', user: { id: userId, aud: 'authenticated', email: 'test@example.com' },
+    }));
+    localStorage.setItem(prefix + date, JSON.stringify({ date, notes: '保留筆記', items }));
+  }, { prefix, date, userId, items });
+  return state;
+}
+async function saved(page: Page) {
+  return page.evaluate(key => JSON.parse(localStorage.getItem(key)!), prefix + date);
+}
+
+test('opening todo directly applies the latest Actions schedule, removes deleted reminders and preserves real time and words', async ({ page }) => {
+  await seed(page);
+  await page.goto('/todo.html');
+  await expect.poll(async () => (await saved(page)).items.filter((item: any) => item.f.calendarScheduleArchived).length).toBe(2);
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await expect(page.locator('.todo-card')).not.toContainText(['第 4 回', '第 5 回']);
+  await page.goto('/summary.html');
+  await expect(page.locator('#summaryTotalCompletion')).toHaveText('33%');
+  await expect(page.locator('#summaryComparison')).toContainText('0.6 hr');
+  await page.goto('/vocabulary.review.html');
+  await expect(page.locator('.vocabulary-row[data-entry-key="intriguing"]')).toContainText('有趣的');
+});
+
+test('summary can update a historical completion denominator before Tracker has been opened', async ({ page }) => {
+  const state = await seed(page);
+  state.rows = [row('kept', 3)];
+  await page.reload();
+  await expect(page.locator('#summaryTotalCompletion')).toHaveText('100%');
+  expect((await saved(page)).notes).toBe('保留筆記');
+  await page.reload();
+  await expect(page.locator('#summaryTotalCompletion')).toHaveText('100%');
+  expect((await saved(page)).items.filter((item: any) => item.f.calendarScheduleArchived).length).toBe(2);
+});
+
+test('a moved old event leaves its original date and a genuine successful empty schedule retires all reminders', async ({ page }) => {
+  const state = await seed(page);
+  state.rows = [row('deleted', 4, '2026-11-06')];
+  await page.goto('/todo.html');
+  await expect.poll(async () => (await saved(page)).items.every((item: any) => item.f.calendarScheduleArchived)).toBe(true);
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+  state.rows = []; state.stamp = '2026-11-07T03:00:00Z';
+  await page.locator('#refreshTodo').click();
+  await expect(page.locator('.todo-card')).toHaveCount(0);
+});
+
+test('failed, malformed and cross-account responses retain the existing records rather than treating them as deletions', async ({ page }) => {
+  const state = await seed(page);
+  const original = await saved(page);
+  state.failed = true;
+  await page.goto('/todo.html');
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+  expect(await saved(page)).toEqual(original);
+  state.failed = false; state.rows = { invalid: true };
+  await page.reload();
+  await expect.poll(() => state.requests).toBe(1);
+  expect(await saved(page)).toEqual(original);
+  state.rows = []; state.owner = 'another-account';
+  await page.reload();
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+  expect(await saved(page)).toEqual(original);
+});
+
+test('Tracker uses the updated schedule on the original date and a reload cannot restore a deleted checkbox', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await selectStudyDate(page, date);
+  await expect.poll(async () => (await saved(page)).items.filter((item: any) => item.f.calendarScheduleArchived).length).toBe(2);
+  await page.goto('/todo.html');
+  await page.getByRole('combobox', { name: '查看項目', exact: true }).selectOption({ label: '英文｜ACE Reading' });
+  await expect(page.locator('.todo-card')).toHaveCount(2);
+  await page.goto('/'); await selectStudyDate(page, date);
+  await expect(page.locator('[data-item]')).not.toContainText(['第 4 回', '第 5 回']);
+  await page.goto('/summary.html');
+  await expect(page.locator('#summaryTotalCompletion')).not.toHaveText('100%');
+});
+
+test('a peer todo refresh replaces the open Tracker runtime before revised records arrive', async ({ page, context }) => {
+  const state = await seed(page);
+  state.rows = [row('kept', 3), row('deleted', 4), row('revised', 5)];
+  await page.goto('/'); await selectStudyDate(page, date);
+  await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
+  await expect(page.getByRole('group', { name: /今日各科完成時間佔比：英文 35 分鐘/ })).toBeVisible();
+  const peer = await context.newPage();
+  await peer.clock.setFixedTime(new Date('2026-11-07T12:01:00+08:00'));
+  state.rows = [row('kept', 3), row('revised', 6), row('new', 7)];
+  state.stamp = '2026-11-07T03:00:00Z';
+  await peer.goto('/todo.html');
+  await expect.poll(async () => (await saved(peer)).items.filter((item: any) => item.f.calendarScheduleArchived).length).toBe(2);
+  await selectStudyDate(page, '2026-11-03'); await selectStudyDate(page, date);
+  const rounds = await page.evaluate(key => {
+    function collect(items: any[]): string[] {
+      return items.flatMap(item => {
+        if (item.f?.calendarScheduleArchived) return [];
+        const children = item.f?.dailyWorkSourceItems || item.f?.groupedWorkEntries;
+        if (children?.length) return collect(children);
+        return item.f?.title === 'ACE Reading' ? [String(item.f.round)] : [];
+      });
+    }
+    return collect(JSON.parse(localStorage.getItem(key)!).items).sort();
+  }, prefix + date);
+  expect(rounds).toEqual(['3', '6', '7']);
+  await expect(page.getByRole('group', { name: /今日各科完成時間佔比：英文 35 分鐘/ })).toBeVisible();
+});
+
+test('an Actions update during download or an in-progress status never applies a partial schedule', async ({ page }) => {
+  const state = await seed(page), original = await saved(page);
+  state.changeDuringRead = true; state.statusReads = 0;
+  await page.goto('/todo.html');
+  await expect.poll(() => state.statusReads).toBe(2);
+  expect(await saved(page)).toEqual(original);
+  state.syncError = 'Calendar sync in progress';
+  await page.reload();
+  await expect(page.locator('.todo-card')).toHaveCount(1);
+  expect(await saved(page)).toEqual(original);
+  state.syncError = undefined;
+  await page.reload();
+  await expect.poll(async () => (await saved(page)).items.filter((item: any) => item.f.calendarScheduleArchived).length).toBe(2);
+});

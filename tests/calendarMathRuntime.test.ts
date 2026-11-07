@@ -79,17 +79,18 @@ test('two Calendar math events on one day keep New Key as a separate visible car
     assert.equal(context.cloudMathPlanByDate[date].title, '2｜數列與求和');
 
     const calendarDefinitions = context.cloudCalendarDefsForDate(date);
-    assert.equal(calendarDefinitions.length, 1);
+    assert.equal(calendarDefinitions.length, 2);
+    const newKeyDefinition = calendarDefinitions.find((definition: { f: { material: string } }) => definition.f.material === '新關鍵');
     assert.deepEqual(
       [
-        calendarDefinitions[0].f.material,
-        calendarDefinitions[0].f.book,
-        calendarDefinitions[0].f.start,
-        calendarDefinitions[0].f.end,
+        newKeyDefinition.f.material,
+        newKeyDefinition.f.book,
+        newKeyDefinition.f.start,
+        newKeyDefinition.f.end,
       ],
       ['新關鍵', '1~2', '2', '5'],
     );
-    assert.equal(calendarDefinitions[0].f.calendarPreserveSeparate, true);
+    assert.equal(newKeyDefinition.f.calendarPreserveSeparate, true);
 
     const builtIn = context.presetDef(
       'weekday_math_study', 'mathStudy', '數學講義：進度', 'built in', true,

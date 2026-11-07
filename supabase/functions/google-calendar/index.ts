@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
         .eq('user_id', userId)
         .maybeSingle();
       if (error) throw error;
-      return json({ connected: Boolean(data), ...(data ?? {}) });
+      return json({ userId, connected: Boolean(data), ...(data ?? {}) });
     }
     if (action === 'sync') return json(await syncCalendarForUser(admin, userId));
     if (action === 'disconnect') {

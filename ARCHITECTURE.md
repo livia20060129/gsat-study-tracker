@@ -77,7 +77,15 @@ infrastructure repositories and gateways
 
 1. 抽離 Cloud／Calendar controller，讓登入、同步與畫面訊息分開。
 2. 依卡片種類拆分 renderer 與事件綁定，縮小 `legacy-app.ts` 的 DOM 責任。
-3. 將仍位於 runtime 的固定自然科建議排程移至 `src/data/`。
+3. 固定自然科與文法參考排程已移至 `src/data/calendarReferencePlans.ts`；繼續縮減 Calendar renderer 的相容層責任。
 4. 再拆分較大的 Calendar parser、教材進度與每日合併模組；每次只移動一個可驗證責任。
 
 這些工作採漸進式進行，不以一次重寫或更換框架為目標。
+
+## Calendar 更新與歷史紀錄（v171.6.149）
+
+- `calendarFetch.ts` 讀取完整歷史同步區間的 Google 分頁，完成前不允許判斷刪除；上限使用台北日期的排他邊界。伺服器同步期間以連線狀態標明進行中，成功後才更新 last_synced_at。
+- `calendarScheduleItems.ts` 將解析結果轉為可對照的教材範圍；`reconcileCalendarSchedule.ts` 統一處理原日期的新增、變更、刪除、完成範圍及群組來源。只有成功的完整帳號快照可進入此邊界。
+- 刪除或替換的實際紀錄以 `calendarScheduleArchived` 保存在原日期，排程分母、待辦及可見卡片排除；時間與單字讀取保留。改範圍不繼承舊完成勾選，已完成範圍確實涵蓋新版時沿用既有範圍對照。手動卡片獨立。
+- `storedCalendarSchedule.ts` 透過本機 repository 與既有 syncBase 保存，標記待上傳，保留衝突；不直接從獨立頁面改 Auth 或呼叫 Google 同步。
+- `browserCalendarSchedule.ts` 僅使用現有登入，於待辦／總結載入、回到頁面及每分鐘讀取 Actions 已完成的版本；下載前後的帳號與同步時間必須一致。Tracker 使用同一個對照規則，Calendar 失敗時仍沿用上次紀錄。
