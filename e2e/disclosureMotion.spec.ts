@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expandTodoCard } from './helpers/todoCard.ts';
 
 interface Samples { start: number; middle: number; end: number; error?: string; openAtMiddle?: boolean }
 declare global { interface Window { disclosureSamples?: Promise<Samples> } }
@@ -141,6 +142,43 @@ test('todo cards and long-term overdue sections animate both ways and preserve p
   expectSmooth(await sampleMotion(page, '#todoLongTerm', page.locator('#todoLongTerm > summary')), true);
   expectSmooth(await sampleMotion(page, '#todoLongTerm', page.locator('#todoLongTerm > summary')), false);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-11-04')!).items[0].f.end)).toBe('18');
+});
+
+test('todo editor content exists during opening, and mobile bounds are checked after motion cleanup', async ({ page }) => {
+  await seedTodo(page);
+  await page.setViewportSize({ width: 393, height: 852 });
+  const card = page.locator('#todoRecentList .todo-card');
+  await card.evaluate(node => {
+    node.ownerDocument.addEventListener('click', function holdOpening(): void {
+      queueMicrotask(() => {
+        for (const animation of node.getAnimations({ subtree: true })) {
+          if (animation.id.startsWith('study-disclosure-')) {
+            animation.pause(); animation.currentTime = 80;
+          }
+        }
+      });
+    }, { once: true });
+  });
+  await card.locator('h3').click();
+  await expect(card.locator('.todo-record-grid')).toContainText('新關鍵');
+  await expect(card.locator('[data-todo-completion-date]')).toHaveCount(1);
+  await expect(card).toHaveAttribute('data-disclosure-motion', 'opening');
+  expect(await card.evaluate(node => node.getAnimations()
+    .some(animation => animation.id === 'study-disclosure-height' && animation.playState === 'paused'))).toBe(true);
+  await card.evaluate(node => node.getAnimations({ subtree: true })
+    .filter(animation => animation.id.startsWith('study-disclosure-')).forEach(animation => animation.finish()));
+  await expandTodoCard(card);
+  const bounds = await card.evaluate(node => {
+    const date = node.querySelector('[data-todo-completion-date]')!.getBoundingClientRect();
+    const actions = node.querySelector('.todo-actions')!.getBoundingClientRect();
+    const controls = node.querySelector('.todo-card-controls')!.getBoundingClientRect();
+    return { dateBottom: date.bottom, actionsTop: actions.top, actionsRight: actions.right,
+      controlsRight: controls.right, clientWidth: node.clientWidth, scrollWidth: node.scrollWidth };
+  });
+  expect(bounds.actionsTop).toBeGreaterThanOrEqual(bounds.dateBottom);
+  expect(bounds.actionsRight).toBeLessThanOrEqual(bounds.controlsRight + 1);
+  expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.clientWidth);
+  await expect(card.locator('[data-todo-range="end"]')).toHaveValue('12');
 });
 
 test('catalog editor opening and management closing animate while retaining the unsaved draft', async ({ page }) => {

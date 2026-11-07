@@ -114,10 +114,18 @@ test('overdue task page filters subjects and persists skip without marking compl
   await page.getByRole('tab', { name: '英文' }).click();
   await expect(page.locator('.todo-card')).toHaveCount(1);
   await expect(page.locator('.todo-card')).toContainText('英文閱讀');
-  await page.locator('.todo-card h3').click();
+  const englishCard = page.locator('.todo-card');
+  await expandTodoCard(englishCard);
   await expect(page.locator('.todo-record-grid')).toContainText('ACE Reading');
   await expect(page.locator('.todo-record-grid')).toContainText('閱讀測驗');
   await page.setViewportSize({ width: 393, height: 852 });
+  await expect(englishCard).not.toHaveAttribute('data-disclosure-motion');
+  await expect.poll(() => page.evaluate(() => innerWidth)).toBe(393);
+  await expect.poll(async () => englishCard.evaluate(node => {
+    const date = node.querySelector('[data-todo-completion-date]')!.getBoundingClientRect();
+    const actions = node.querySelector('.todo-actions')!.getBoundingClientRect();
+    return actions.top >= date.bottom;
+  })).toBe(true);
   const mobileControlBounds = await page.locator('.todo-card').evaluate(node => {
     const date = node.querySelector<HTMLInputElement>('[data-todo-completion-date]')?.getBoundingClientRect();
     const actions = node.querySelector<HTMLElement>('.todo-actions')?.getBoundingClientRect();
