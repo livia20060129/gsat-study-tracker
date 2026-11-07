@@ -12,7 +12,7 @@ function row(id: string, round: number, day = date): CalendarTaskRow {
     title: `英文｜ACE Reading 第 ${round} 回`, description: '', category: 'english' };
 }
 interface State { rows: CalendarTaskRow[] | object; failed: boolean; stamp: string; owner: string; requests: number;
-  statusReads?: number; changeDuringRead?: boolean; syncError?: string }
+  statusReads?: number; changeDuringRead?: boolean; syncError?: string; cloud?: Map<string, Record<string, unknown>> }
 async function seed(page: Page): Promise<State> {
   const oldRows = [row('kept', 3), row('deleted', 4), row('revised', 5)];
   const items = JSON.parse(JSON.stringify(calendarItemsByDate(oldRows).get(date)!));
@@ -21,6 +21,7 @@ async function seed(page: Page): Promise<State> {
   items[2].f.words = [{ text: 'intriguing', translation: '有趣的' }];
   const state: State = { rows: [row('kept', 3), row('revised', 6), row('new', 7)], failed: false, stamp: '2026-11-07T02:00:00Z', owner: userId, requests: 0 };
   const cloud = new Map<string, Record<string, unknown>>();
+  state.cloud = cloud;
   await page.context().route('https://arxbirgujbrtzhoficdf.supabase.co/**', route => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/functions/v1/google-calendar')) {
@@ -36,6 +37,10 @@ async function seed(page: Page): Promise<State> {
     if (url.pathname.endsWith('/auth/v1/user')) return route.fulfill({ json: { id: userId, aud: 'authenticated', email: 'test@example.com' } });
     if (url.pathname.endsWith('/rest/v1/rpc/upsert_study_record')) {
       const body = route.request().postDataJSON();
+      const previous = cloud.get(body.p_study_date);
+      if (previous && Number(previous.revision) !== Number(body.p_base_revision)) {
+        return route.fulfill({ json: { applied: false, ...previous } });
+      }
       const result = { study_date: body.p_study_date, payload: body.p_payload,
         revision: Number(cloud.get(body.p_study_date)?.revision || 0) + 1, updated_at: state.stamp };
       cloud.set(body.p_study_date, result);
@@ -63,6 +68,71 @@ async function seed(page: Page): Promise<State> {
 async function saved(page: Page) {
   return page.evaluate(key => JSON.parse(localStorage.getItem(key)!), prefix + date);
 }
+
+async function makeUnrecordedConflict(page: Page): Promise<void> {
+  await page.evaluate(key => {
+    const local = JSON.parse(localStorage.getItem(key)!);
+    local.notes = '';
+    for (const item of local.items) {
+      item.done = false; item.minutes = ''; delete item.checkedOn; delete item.f.words;
+    }
+    local.serverRevision = 2;
+    local.localDirty = true;
+    local.syncConflict = true;
+    local.syncConflictLocal = structuredClone(local);
+    local.syncConflictCloud = structuredClone(local);
+    local.syncConflictDetails = [{ path: '$.items', kind: 'unknown-base', baseExists: false, localExists: true, cloudExists: true }];
+    localStorage.setItem(key, JSON.stringify(local));
+  }, prefix + date);
+}
+
+test('an unrecorded Actions mismatch clears an old schedule conflict on todo and remains resolved after Tracker navigation', async ({ page }) => {
+  await seed(page); await makeUnrecordedConflict(page);
+  await page.goto('/todo.html');
+  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+  await expect(page.locator('.todo-card')).toHaveCount(3);
+  await page.goto('/'); await selectStudyDate(page, date);
+  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+  expect((await saved(page)).syncConflictDetails).toBeUndefined();
+  await page.reload();
+  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+});
+
+test('a verified cloud record replaces an untouched local Calendar conflict without uploading the old schedule', async ({ page }) => {
+  const state = await seed(page); await makeUnrecordedConflict(page);
+  state.failed = true;
+  const cloud = { date, notes: '', items: calendarItemsByDate([row('cloud', 9)]).get(date)! };
+  state.cloud!.set(date, { study_date: date, payload: cloud, revision: 5, updated_at: state.stamp });
+  await page.goto('/'); await selectStudyDate(page, date);
+  await expect.poll(async () => (await saved(page)).serverRevision).toBe(5);
+  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+  expect(JSON.stringify((await saved(page)).items)).toContain('第 9 回');
+  expect((state.cloud!.get(date)!.payload as any).items[0].f.round).toBe('9');
+  await page.reload();
+  expect(JSON.stringify((await saved(page)).items)).toContain('第 9 回');
+});
+
+test('recorded dates retain actual input through the normal merge instead of whole-day cloud replacement', async ({ page }) => {
+  const state = await seed(page); await makeUnrecordedConflict(page);
+  await page.evaluate(key => {
+    const local = JSON.parse(localStorage.getItem(key)!);
+    local.syncBase = structuredClone(local.syncConflictCloud);
+    local.notes = '這天已經記錄'; local.items[0].done = true; local.items[0].minutes = '25';
+    local.syncConflictLocal = structuredClone(local);
+    localStorage.setItem(key, JSON.stringify(local));
+  }, prefix + date);
+  state.failed = true;
+  state.cloud!.set(date, { study_date: date, payload: { date, notes: '雲端版本', items: calendarItemsByDate([row('cloud', 9)]).get(date)! },
+    revision: 5, updated_at: state.stamp });
+  await page.goto('/'); await selectStudyDate(page, date);
+  await expect.poll(async () => (await saved(page)).notes).toBe('這天已經記錄');
+  await expect(page.getByRole('group', { name: /今日各科完成時間佔比：英文 25 分鐘/ })).toBeVisible();
+  expect(JSON.stringify(await saved(page))).toContain('"done":true');
+  await page.reload();
+  await selectStudyDate(page, date);
+  await expect.poll(async () => (await saved(page)).notes).toBe('這天已經記錄');
+  await expect(page.getByRole('group', { name: /今日各科完成時間佔比：英文 25 分鐘/ })).toBeVisible();
+});
 
 test('opening todo directly applies the latest Actions schedule, removes deleted reminders and preserves real time and words', async ({ page }) => {
   await seed(page);
@@ -119,6 +189,7 @@ test('failed, malformed and cross-account responses retain the existing records 
 test('Tracker uses the updated schedule on the original date and a reload cannot restore a deleted checkbox', async ({ page }) => {
   await seed(page);
   await page.goto('/');
+  await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
   await selectStudyDate(page, date);
   await expect.poll(async () => (await saved(page)).items.filter((item: any) => item.f.calendarScheduleArchived).length).toBe(2);
   await page.goto('/todo.html');
@@ -133,7 +204,9 @@ test('Tracker uses the updated schedule on the original date and a reload cannot
 test('a peer todo refresh replaces the open Tracker runtime before revised records arrive', async ({ page, context }) => {
   const state = await seed(page);
   state.rows = [row('kept', 3), row('deleted', 4), row('revised', 5)];
-  await page.goto('/'); await selectStudyDate(page, date);
+  await page.goto('/');
+  await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
+  await selectStudyDate(page, date);
   await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
   await expect(page.getByRole('group', { name: /今日各科完成時間佔比：英文 35 分鐘/ })).toBeVisible();
   const peer = await context.newPage();

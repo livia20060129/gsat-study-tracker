@@ -89,3 +89,7 @@ infrastructure repositories and gateways
 - 刪除或替換的實際紀錄以 `calendarScheduleArchived` 保存在原日期，排程分母、待辦及可見卡片排除；時間與單字讀取保留。改範圍不繼承舊完成勾選，已完成範圍確實涵蓋新版時沿用既有範圍對照。手動卡片獨立。
 - `storedCalendarSchedule.ts` 透過本機 repository 與既有 syncBase 保存，標記待上傳，保留衝突；不直接從獨立頁面改 Auth 或呼叫 Google 同步。
 - `browserCalendarSchedule.ts` 僅使用現有登入，於待辦／總結載入、回到頁面及每分鐘讀取 Actions 已完成的版本；下載前後的帳號與同步時間必須一致。Tracker 使用同一個對照規則，Calendar 失敗時仍沿用上次紀錄。
+
+### Unrecorded Calendar preference (v171.6.150)
+
+`study/recordedActivity.ts` distinguishes user input from generated Calendar fields and local sync metadata, including nested source cards and timers. `recordSync.canUseCloudCalendarRecord` is used only for confirmed remote reads, never for local-to-local draft merges. It accepts cloud content for untouched schedule dates, including old schedule-only conflicts, while requiring a matching date and a non-stale remote revision. Existing input, cleared input in the common base, damaged storage, and recoverable drafts keep the normal merge path. A complete successful Calendar snapshot may clear an empty schedule-only conflict; its persistence path must save that metadata change even when visible fields already match.

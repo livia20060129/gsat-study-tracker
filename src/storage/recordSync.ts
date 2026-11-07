@@ -1,5 +1,6 @@
 import type { StudyRecord, StudyRecordSyncConflict } from '../types';
 import { ensureEnglishReviewWordEntryIds } from '../study/englishReview.ts';
+import { hasCalendarSchedule, hasProtectedStudyInput } from '../study/recordedActivity.ts';
 
 export interface CloudStudyRecordRow {
   study_date: string;
@@ -375,13 +376,21 @@ export function sameStudyContent(a: StudyRecord | null | undefined, b: StudyReco
   return JSON.stringify(canonicalize(a)) === JSON.stringify(canonicalize(b));
 }
 
-/** Pure revision decision; the save path performs the field-level merge. */
+/** Only a verified remote record may replace an untouched Calendar schedule. */
+export function canUseCloudCalendarRecord(local: StudyRecord | null, cloud: StudyRecord | null): boolean {
+  return Boolean(local && cloud && local.date === cloud.date && !local.storageIssue && !cloud.storageIssue
+    && !cloud.localDirty && Number(cloud.serverRevision || 0) >= Number(local.serverRevision || 0)
+    && (hasCalendarSchedule(local) || hasCalendarSchedule(cloud)) && !hasProtectedStudyInput(local));
+}
+
+/** Pure revision decision; dates with input retain the existing field-level merge. */
 export function decideRevisionSync(local: StudyRecord | null, cloud: StudyRecord | null): RevisionSyncDecision {
   if (!local && cloud) return 'use-cloud';
   if (local && !cloud) return 'push-local';
   if (!local && !cloud) return 'equal';
   if (sameStudyContent(local, cloud)) return 'equal';
   if (!local || !cloud) return 'conflict';
+  if (canUseCloudCalendarRecord(local, cloud)) return 'use-cloud';
   const localRevision = Number(local.serverRevision ?? 0);
   const cloudRevision = Number(cloud.serverRevision ?? 0);
   if (local.syncConflict) return 'conflict';

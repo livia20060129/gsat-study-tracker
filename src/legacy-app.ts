@@ -21,7 +21,7 @@ import { renderStudyReference } from './ui/studyReference.ts';
 import { requestedStudyDate } from './ui/siteNavigation.ts';
 import { studyCardDescription } from './ui/studyDescription.ts';
 import { deduplicateStudyIdentityFields } from './ui/studyIdentityFields.ts';
-import { decideRevisionSync, markRecordLocallyEdited, mergeStudyRecordsForUpload, mergeStudyRecordsThreeWay, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
+import { canUseCloudCalendarRecord, decideRevisionSync, markRecordLocallyEdited, mergeStudyRecordsForUpload, mergeStudyRecordsThreeWay, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { studyRecordConflictDetailsText, studyRecordConflictSummary } from './storage/conflictPresentation';
 import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, initialRecordPrefix, storagePrefixForUser } from './storage/local';
 import { browserAuthPersistence, createPersistentAuthStorage } from './infrastructure/storage/browserAuthStorage.ts';
@@ -648,6 +648,13 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
    var cloudSnapshot=await withOperationTimeout(cloudRecordRepository.loadDate(rec.date),{timeoutMs:20000,message:rec.date+' 雲端讀取逾時；保留本機紀錄，稍後重試。'}),cloudRecord=cloudSnapshot?cloudSnapshot.record:null;
    if(!cloudSaveContextCurrent(scope,serial))return false;
    var afterRead=readStoredRecord(rec.date);if(afterRead)pending=mergeStudyRecordsForUpload(afterRead,pending);
+   if(canUseCloudCalendarRecord(pending,cloudRecord)){
+    if(!writeStoredRecord(cloudRecord))throw cloudLocalWriteError('已採用雲端排程，但本機無法確認儲存。');
+    updateCurrentRecordSyncMeta(rec.date,cloudRecord);pendingCloudSync.saved(scope,rec.date);
+    if(data&&data.date===rec.date&&!sameStudyContent(data,cloudRecord))refreshVisibleDataAfterBackgroundSync();
+    if(cloudConflictDate===rec.date)updateCloudConflictUI('');
+    cloudSetMessage('已採用 '+rec.date+' 的雲端排程；當日尚無實際紀錄。',true);return true;
+   }
    var pendingConflicts=recordSyncConflicts(pending);
    if(pendingConflicts.length){
     var pendingConflictRecord=setCloudConflictRecord(pending.syncConflictLocal||pending,cloudRecord,pendingConflicts);
@@ -2300,7 +2307,7 @@ function reconcileActiveCalendarRecord(rec,date,progressSourceItems){
  var wanted=calendarItemsByDate(calendarContinuity.snapshot.rows).get(date)||[];
  var updated=reconcileCalendarRecord(rec,wanted,progressSourceItems);
  if(!updated)return false;
- rec.items=updated.items;return true;
+ Object.assign(rec,updated);return true;
 }
 
 function dailyMessageForDate(date){

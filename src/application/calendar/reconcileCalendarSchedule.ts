@@ -6,6 +6,7 @@ import { groupDailyWorkItems, ungroupDailyWorkItems } from '../../study/dailyWor
 import { completedRangeIndex, reconcileRangeCompletion } from '../../study/rangeCompletion.ts';
 import { pauseStudyTimer, normalizeStudyTimerState, timerMinutesValue } from '../../study/studyTimer.ts';
 import { canonicalPageMappedBook } from '../../data/bookPageMaps.ts';
+import { clearUnrecordedCalendarConflict } from '../../study/recordedActivity.ts';
 
 export function isArchivedCalendarItem(item: StudyItem): boolean {
   return item.f?.calendarScheduleArchived === true;
@@ -98,6 +99,8 @@ export function calendarItemsByDate(rows: CalendarTaskRow[]): Map<string, StudyI
 
 /** Fresh successful snapshots alone are authoritative. Failed/offline fetches never call this function. */
 export function reconcileCalendarRecord(record: StudyRecord, wanted: readonly StudyItem[], progressSourceItems: StudyItem[] = record.items): StudyRecord | null {
+  const originalRecord = record;
+  record = clearUnrecordedCalendarConflict(record);
   if (record.syncConflict || record.storageIssue) return null;
   const original = JSON.stringify(record.items);
   const sources = flatSources(clone(record.items || []));
@@ -159,7 +162,7 @@ export function reconcileCalendarRecord(record: StudyRecord, wanted: readonly St
   const kept = ordinary.filter(item => !used.has(item)
     && (item.source === 'custom' || !suppressed.has(item.presetKey || '') || activePresets.has(item.presetKey)));
   const next = { ...record, items: [...groupDailyWorkItems([...kept, ...active]), ...archived] };
-  if (JSON.stringify(next.items) === original) return null;
+  if (JSON.stringify(next.items) === original && record === originalRecord) return null;
   return next;
 }
 
