@@ -1,8 +1,10 @@
 # GSAT Study Tracker
 
-目前版本：**v171.6.154**
+目前版本：**v171.6.155**
 
 個人版學測讀書追蹤器，整合每日／每週項目、逾期待辦、Google Calendar 唯讀排程、Supabase 跨裝置同步、計時、完成率、教材進度與週／月總結。
+
+v171.6.155 將主頁上下兩個儲存按鈕改為僅顯示 Save 圖示，保留無障礙名稱、滑鼠提示、儲存狀態與原保存流程；狀態切換時不再移除圖示。本版僅需更新前端。
 
 v171.6.154 完成安全檢查與圖示整合：Calendar 權杖改存 Vault、一次性 OAuth state、資料庫同步租約／冷卻、輸入與逾時限制、固定安全錯誤、CSP／HTTP 標頭及 Action SHA；導覽與重複操作改用自管 Lucide SVG。**本版必須部署新 migration 及 google-calendar、google-calendar-callback 函式，再部署前端。** 無新套件或必填 Secrets；完整項目、保留的登入儲存限制及仍需服務端設定的部分見 [安全檢查紀錄](SECURITY_REVIEW.md)。
 

@@ -21,6 +21,9 @@ for (const width of [360, 1440]) test(`home information and reflection retain da
   await page.locator('#notes').fill('今日心得');
   await page.locator('#biggestBlock').fill('三角比');
   await page.locator('[data-home-save]').click();
+  await expect(page.locator('#saveBtn')).toHaveAttribute('data-state','local');
+  await expect(page.locator('#saveBtn,[data-home-save]')).toHaveText(['','']);
+  await expect(page.locator('#saveBtn [data-ui-icon="save"] svg')).toBeVisible();
   await page.reload();
   await expect(page.locator('#notes')).toHaveValue('今日心得');
   await expect(page.locator('#biggestBlock')).toHaveValue('三角比');

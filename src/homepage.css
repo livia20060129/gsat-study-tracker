@@ -88,6 +88,8 @@
 .tracker-home .home-reflection textarea { min-height: 88px; }
 .tracker-home .home-save-row { display: flex; justify-content: flex-end; margin-top: 16px; }
 .tracker-home .home-save-row button { padding: 8px 14px; }
+.tracker-home button.home-save-icon { min-width:36px; min-height:36px; padding:8px; gap:0; }
+@media(pointer:coarse) { .tracker-home button.home-save-icon { min-width:44px; min-height:44px; } }
 @media(max-width:720px) {
   .tracker-home main { padding: 12px 10px 30px; }
   .tracker-home .home-brand h1 { font-size: 20px; }

@@ -4488,7 +4488,8 @@ function setSaveButtonState(state){
  button.dataset.state=state||'idle';
  button.disabled=state==='saving';
  button.setAttribute('aria-busy',state==='saving'?'true':'false');
- button.textContent=state==='saving'?'儲存中…':state==='local'?'已存本機 ✓':state==='success'?'Cloud 已同步 ✓':state==='error'?'同步失敗':'儲存紀錄';
+ var label=state==='saving'?'儲存中…':state==='local'?'已存本機 ✓':state==='success'?'Cloud 已同步 ✓':state==='error'?'同步失敗':'儲存紀錄';
+ button.setAttribute('aria-label',label);button.title=label;
  if(state==='local'||state==='success'||state==='error')saveFeedbackTimer=setTimeout(function(){setSaveButtonState('idle')},state==='error'?4000:3000);
 }
 function saveCurrentRecord(){
