@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { calendarSyncWindow, fetchCompleteCalendarEvents } from '../supabase/functions/_shared/calendarFetch.ts';
+import { calendarSyncWindow, fetchCompleteCalendarEvents, MAX_CALENDAR_SYNC_EVENTS } from '../supabase/functions/_shared/calendarFetch.ts';
 
 test('full Calendar sync includes all previously tracked dates and has an exclusive Taipei-day upper bound', () => {
   const window = calendarSyncWindow(Date.parse('2026-11-07T06:00:00Z'), '2026-07-01');
@@ -31,4 +31,12 @@ test('HTTP failures, malformed pages and looping cursors never produce a partial
   await assert.rejects(fetchCompleteCalendarEvents('token', 'primary', null, async () => ++calls === 1
     ? Response.json({ items: [{ id: 'first' }], nextPageToken: 'next' }) : new Response('', { status: 503 })));
   await assert.rejects(fetchCompleteCalendarEvents('token', 'primary', null, async () => Response.json({ items: [], nextPageToken: 'same' })), /did not advance/);
+});
+
+test('oversized or expired Calendar downloads fail before an authoritative schedule can be returned', async () => {
+  const items=Array.from({length:MAX_CALENDAR_SYNC_EVENTS+1},(_,index)=>({id:String(index)}));
+  await assert.rejects(fetchCompleteCalendarEvents('token','primary',null,async()=>Response.json({items})),/event limit exceeded/);
+  let fetched=false;
+  await assert.rejects(fetchCompleteCalendarEvents('token','primary',null,async()=>{fetched=true;return Response.json({items:[]});},Date.now(),Date.now()-1),/deadline exceeded/);
+  assert.equal(fetched,false);
 });

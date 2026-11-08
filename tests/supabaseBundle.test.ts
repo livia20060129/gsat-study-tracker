@@ -39,7 +39,7 @@ test('deployment CI type-checks both Supabase Edge Function entrypoints', () => 
   const packageJson = JSON.parse(readFileSync(new URL('package.json', projectUrl), 'utf8')) as {
     scripts?: Record<string, string>;
   };
-  assert.match(workflow, /denoland\/setup-deno@v2/);
+  assert.match(workflow, /denoland\/setup-deno@[0-9a-f]{40}/);
   assert.match(workflow, /deno-version:\s*v2\.9\.5/);
   assert.match(workflow, /npm run typecheck:edge/);
   assert.match(packageJson.scripts?.['typecheck:edge'] ?? '', /google-calendar\/index\.ts/);
@@ -54,7 +54,7 @@ test('production release deploys Supabase before publishing the prepared Pages a
   const calendarDeploy = workflow.indexOf('supabase functions deploy google-calendar --project-ref');
   const callbackDeploy = workflow.indexOf('supabase functions deploy google-calendar-callback --project-ref');
   const smokeTest = workflow.indexOf('Smoke-test deployed functions');
-  const pagesDeploy = workflow.indexOf('uses: actions/deploy-pages@v4');
+  const pagesDeploy = workflow.indexOf('uses: actions/deploy-pages@');
 
   assert.match(workflow, /pull_request:\s*[\s\S]*branches:\s*[\s\S]*- main/);
   assert.match(workflow, /cancel-in-progress:\s*false/);

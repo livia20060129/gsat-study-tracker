@@ -475,7 +475,16 @@ function saveRecordSyncWatermark(value){
 }
 function setConnectionBadge(elementId,text,state){
  var badge=id(elementId);if(!badge)return;
- badge.textContent=text;badge.setAttribute('data-state',state||'offline');
+ var nextState=state||'offline';
+ if(badge.getAttribute('data-state')===nextState&&badge.textContent===text&&(elementId!=='cloudStatusBadge'||badge.querySelector('[data-cloud-status-icon]')))return;
+ badge.setAttribute('data-state',nextState);
+ if(elementId==='cloudStatusBadge'){
+  var icon=document.createElement('span');
+  icon.setAttribute('data-cloud-status-icon','');
+  icon.setAttribute('data-ui-icon',nextState==='ok'?'cloud-check':nextState==='error'?'cloud-exclamation-point':'cloud-upload');
+  icon.setAttribute('aria-hidden','true');
+  badge.replaceChildren(icon,document.createTextNode(text));
+ }else badge.textContent=text;
 }
 function dirtyCloudDates(){
  if(!cloudUser||!currentStorageIsUserScoped())return[];

@@ -127,6 +127,7 @@ test('historical failures stop until a manual retry despite idle time, focus and
   await openDetails(page);
   const row = page.locator(`[data-pending-date="${oldDate}"]`);
   await expect(row.locator('[data-state]')).toContainText('請手動重試');
+  await expect(page.locator('#cloudStatusBadge [data-ui-icon="cloud-exclamation-point"] svg')).toHaveCount(1);
   await page.clock.runFor(11 * 60_000);
   await page.evaluate(() => {
     window.dispatchEvent(new Event('focus'));
@@ -142,6 +143,7 @@ test('historical failures stop until a manual retry despite idle time, focus and
   expect(state.posts.get(oldDate)).toBe(2);
   await expect(page.locator('#studyDate')).toHaveValue(today);
   await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  await expect(page.locator('#cloudStatusBadge [data-ui-icon="cloud-check"] svg')).toHaveCount(1);
 });
 
 test('editing and leaving a field saves locally without an upload until Save is clicked', async ({ page }) => {
@@ -152,6 +154,8 @@ test('editing and leaving a field saves locally without an upload until Save is 
   await page.locator('#notes').fill('編輯先存本機');
   await page.locator('#notes').blur();
   await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key)!).notes, prefix + today)).toBe('編輯先存本機');
+  await page.clock.runFor(600);
+  await expect(page.locator('#cloudStatusBadge [data-ui-icon="cloud-upload"] svg')).toHaveCount(1);
   await page.clock.runFor(11 * 60_000);
   expect(state.posts.get(today) ?? 0).toBe(before);
   expect(state.rows.get(today)?.payload.notes).toBe('伺服器筆記');
