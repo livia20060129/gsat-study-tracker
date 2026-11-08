@@ -1,0 +1,31 @@
+import { expect, test } from '@playwright/test';
+import { selectStudyDate } from './helpers/siteNavigation.ts';
+
+for (const width of [360, 1440]) test(`home information and reflection retain data and controls at ${width}px`, async ({ page }, testInfo) => {
+  await page.clock.setFixedTime(new Date('2026-11-08T12:00:00+08:00'));
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('.home-brand h1')).toHaveText('GSAT Tracker');
+  await expect(page.locator('[data-home-date-label]').first()).toHaveText('11.08 星期日');
+  await expect(page.locator('#routineDisclosure')).not.toHaveAttribute('open');
+  await page.locator('.mood-segments button').filter({ hasText: '精神良好' }).click();
+  await expect(page.locator('#mood')).toHaveValue('精神良好');
+  await expect(page.locator('#completionRatePanel')).toBeVisible();
+  await page.locator('[data-overview-metric="pages"]').click();
+  await expect(page.locator('#mathPagesPanel')).toHaveAttribute('aria-hidden', 'false');
+  await page.locator('[data-overview-metric="completion"]').click();
+  await expect(page.locator('#completionRatePanel')).toHaveCSS('opacity', '1');
+  await expect(page.locator('#mathPagesPanel')).toHaveCSS('opacity', '0');
+  await page.screenshot({ path: testInfo.outputPath(`home-${width}.png`), fullPage: false });
+  await page.locator('#firstThingTomorrow').fill('先訂正數學');
+  await page.locator('#notes').fill('今日心得');
+  await page.locator('#biggestBlock').fill('三角比');
+  await page.locator('[data-home-save]').click();
+  await page.reload();
+  await expect(page.locator('#notes')).toHaveValue('今日心得');
+  await expect(page.locator('#biggestBlock')).toHaveValue('三角比');
+  await expect(page.locator('#firstThingTomorrow')).toHaveValue('先訂正數學');
+  await selectStudyDate(page, '2026-11-07');
+  await expect(page.locator('[data-home-date-label]').first()).toHaveText('11.07 星期六');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

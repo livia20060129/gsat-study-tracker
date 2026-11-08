@@ -1,4 +1,5 @@
 import type { StudyItem, StudyRecord } from '../types.ts';
+import { magazineMonthForDate } from './magazineDefaults.ts';
 
 const inputFields = [
   'progress', 'graded', 'corrected', 'review', 'reason', 'result', 'score', 'status',
@@ -36,6 +37,26 @@ function nestedItems(item: StudyItem): StudyItem[] {
   });
 }
 
+/** The initial magazine row has a generated ID, selected-date month and idle timer. */
+function hasEntryInput(item: StudyItem, date: string): boolean {
+  const entries = item.f?.entries;
+  if (item.type !== 'magazine' || !Array.isArray(entries)) return filled(entries);
+  // Adding another row is a deliberate edit, even before its fields are filled.
+  if (entries.length > 1) return true;
+  return entries.some(entry => {
+    if (!entry || typeof entry !== 'object') return filled(entry);
+    if (entry.magazineMonthInitialized !== true || String(entry.month ?? '') !== magazineMonthForDate(date)) return filled(entry);
+    return Object.entries(entry).some(([key, value]) => {
+      if (['id', 'month', 'magazineMonthInitialized'].includes(key)) return false;
+      if (key === 'timeTracking') {
+        const timer = value as { accumulatedSeconds?: number; startedAt?: number | null } | null;
+        return Boolean(timer && (Number(timer.accumulatedSeconds) > 0 || timer.startedAt != null));
+      }
+      return filled(value);
+    });
+  });
+}
+
 export function hasCalendarSchedule(record: StudyRecord): boolean {
   function contains(item: StudyItem): boolean {
     return calendarItem(item) || nestedItems(item).some(contains);
@@ -51,7 +72,7 @@ export function hasRecordedStudyInput(record: StudyRecord): boolean {
     if (item.done || filled(item.minutes) || filled(item.checkedOn) || filled(item.deferredCompletedOn)
       || item.deferred || item.deferredCarry) return true;
     const f = item.f || {};
-    if (inputFields.some(key => filled(f[key])) || filled(f.words) || filled(f.entries)) return true;
+    if (inputFields.some(key => filled(f[key])) || filled(f.words) || hasEntryInput(item, record.date)) return true;
     // A deliberately cleared manual boundary still protects the user's choice.
     if (f.dailyWorkUserFields && Object.keys(f.dailyWorkUserFields).length) return true;
     if (f.timeTracking && (Number(f.timeTracking.accumulatedSeconds) > 0 || f.timeTracking.startedAt != null)) return true;

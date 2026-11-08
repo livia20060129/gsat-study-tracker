@@ -21,6 +21,39 @@ function conflicted(): StudyRecord {
     syncConflictDetails: [{ path: '$.items', kind: 'unknown-base', baseExists: false, localExists: true, cloudExists: true }] };
 }
 
+function defaultMagazine() {
+  return { id: 'preset-magazine', type: 'magazine' as const, source: 'preset', required: true, done: false, minutes: '', f: {
+    entries: [{ id: 'generated-row', name: '', month: '11', unit: '', minutes: '', magazineMonthInitialized: true,
+      timeTracking: { mode: 'manual' as const, accumulatedSeconds: 0, startedAt: null as number | null } }],
+  } };
+}
+
+test('a generated blank magazine month and timer cannot turn a Calendar cache into recorded input', () => {
+  const local = conflicted();
+  local.items.push(defaultMagazine());
+  assert.equal(hasRecordedStudyInput(local), false);
+  assert.equal(canUseCloudCalendarRecord(local, markRecordSynced(blank(5))), true);
+  assert.equal(clearUnrecordedCalendarConflict(local).syncConflict, false);
+});
+
+test('real magazine fields, changed or cleared months, added rows and active timers stay protected', () => {
+  const edits: Array<(entry: ReturnType<typeof defaultMagazine>['f']['entries'][number]) => void> = [
+    entry => { entry.name = 'Live'; }, entry => { entry.unit = '3'; },
+    entry => { entry.minutes = '0'; }, entry => { entry.month = '12'; },
+    entry => { entry.month = ''; }, entry => { entry.timeTracking.startedAt = 1; },
+    entry => { entry.timeTracking.accumulatedSeconds = 1; },
+  ];
+  for (const edit of edits) {
+    const local = conflicted(), magazine = defaultMagazine();
+    edit(magazine.f.entries[0]); local.items.push(magazine);
+    assert.equal(hasRecordedStudyInput(local), true);
+    assert.equal(canUseCloudCalendarRecord(local, markRecordSynced(blank(5))), false);
+  }
+  const local = conflicted(), magazine = defaultMagazine();
+  magazine.f.entries.push(structuredClone(magazine.f.entries[0])); local.items.push(magazine);
+  assert.equal(hasRecordedStudyInput(local), true);
+});
+
 test('an unrecorded calendar difference adopts verified cloud even with an old schedule-only conflict', () => {
   const local = conflicted(), cloud = markRecordSynced({ ...blank(5), serverRevision: 4 });
   assert.equal(hasRecordedStudyInput(local), false);

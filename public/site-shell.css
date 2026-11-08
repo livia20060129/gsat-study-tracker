@@ -521,6 +521,17 @@ body.has-site-shell {
 }
 
 @media (max-width:1199px) {
+  /* Android WebView can pan the layout viewport to an animated offscreen
+     descendant, even when only the root element clips horizontal overflow. */
+  html.site-shell-ready, body.has-site-shell { overflow-x: clip; }
+  .site-mobile-motion-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    overflow: clip;
+    pointer-events: none;
+    contain: layout paint;
+  }
   html[data-menu-page-entry], html[data-menu-page-departure] { overflow-x: clip; }
   html[data-menu-page-entry=pending] body > :is(main,header,footer,section) { visibility: hidden; }
   html[data-mobile-slide-direction] { overflow-x: clip; }

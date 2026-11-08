@@ -14,9 +14,10 @@ test('all pages share desktop rails and three full-width mobile sections without
       if (width >= 1200) await expect(page.locator('[data-rail-date]')).toHaveCSS('color', 'rgb(237, 243, 252)');
       await expect(page.locator('#siteMobileBar [data-mobile-section]')).toHaveCount(3);
       const home = page.locator('.site-workspace-home');
-      const title = page.locator('h1:not(.site-mobile-section-heading):visible').first();
+      const compactHome = path === '/' && width < 1200;
+      const title = compactHome ? page.locator('.site-mobile-home') : page.locator('h1:not(.site-mobile-section-heading):visible').first();
       await expect(title).toBeVisible();
-      await expect(title).toHaveCSS('font-size', '28px');
+      await expect(title).toHaveCSS('font-size', compactHome ? '16px' : '28px');
       await expect(width >= 1200 ? home : page.locator('.site-mobile-home')).toHaveCSS('color', path === '/' ? 'rgb(57, 103, 233)' : 'rgb(23, 42, 57)');
       const selectedTool = page.locator(`.site-tools a[href=".${path}"]`);
       if (width >= 1200 && await selectedTool.count()) {
@@ -39,7 +40,8 @@ test('all pages share desktop rails and three full-width mobile sections without
         await expect(page.locator('.site-rail-right')).toBeHidden();
         await showMobileSection(page, 'tools');
         await expect(page.locator('.site-rail-right')).toBeVisible();
-        await expect(title).toBeHidden();
+        if (compactHome) { await expect(page.locator('main')).toBeHidden(); await expect(title).toBeVisible(); }
+        else await expect(title).toBeHidden();
         expect(Math.abs((await page.locator('.site-rail-right').boundingBox())!.width - width)).toBeLessThanOrEqual(16);
         await expect(page.locator('.site-rail-backdrop')).toHaveCount(0);
         await expect(page.locator('.site-tools a')).toHaveCount(4);

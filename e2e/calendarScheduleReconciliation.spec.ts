@@ -108,17 +108,22 @@ for (const path of ['/todo.html', '/summary.html']) test(`Actions data is read o
   expect((await saved(page)).notes).toBe('保留筆記');
 });
 
-test('an unrecorded Actions mismatch clears an old schedule conflict on todo and remains resolved after Tracker navigation', async ({ page }) => {
-  await seed(page); await makeUnrecordedConflict(page);
-  await page.goto('/todo.html');
-  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
-  expect((await saved(page)).localDirty).toBe(false);
-  await expect(page.locator('.todo-card')).toHaveCount(3);
-  await page.goto('/'); await selectStudyDate(page, date);
-  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
-  expect((await saved(page)).syncConflictDetails).toBeUndefined();
-  await page.reload();
-  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+test('an unrecorded Actions mismatch clears an old schedule conflict on todo and remains resolved after Tracker navigation', async ({ page }, testInfo) => {
+  try {
+    await seed(page); await makeUnrecordedConflict(page);
+    await page.goto('/todo.html');
+    await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+    expect((await saved(page)).localDirty).toBe(false);
+    await expect(page.locator('.todo-card')).toHaveCount(3);
+    await page.goto('/'); await selectStudyDate(page, date);
+    await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+    expect((await saved(page)).syncConflictDetails).toBeUndefined();
+    await page.reload();
+    await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+  } catch (error) {
+    await testInfo.attach('calendar-conflict-record.json', { body: JSON.stringify(await saved(page), null, 2), contentType: 'application/json' });
+    throw error;
+  }
 });
 
 test('a verified cloud record replaces an untouched local Calendar conflict without uploading the old schedule', async ({ page }) => {
@@ -133,6 +138,25 @@ test('a verified cloud record replaces an untouched local Calendar conflict with
   expect((state.cloud!.get(date)!.payload as any).items[0].f.round).toBe('9');
   await page.reload();
   expect(JSON.stringify((await saved(page)).items)).toContain('第 9 回');
+});
+
+test('a generated magazine month cannot protect an obsolete schedule conflict across reload', async ({ page }) => {
+  await seed(page); await makeUnrecordedConflict(page);
+  await page.evaluate(({ prefix, date }) => {
+    const local = JSON.parse(localStorage.getItem(prefix + date)!);
+    local.items.push({ id: `preset-${date}-weekday_magazine`, presetKey: 'weekday_magazine', source: 'preset',
+      type: 'magazine', done: false, minutes: '', f: { entries: [{ id: 'generated-row', name: '', month: '11',
+        unit: '', minutes: '', magazineMonthInitialized: true, timeTracking: { mode: 'manual', accumulatedSeconds: 0, startedAt: null } }] } });
+    localStorage.setItem(prefix + date, JSON.stringify(local));
+  }, { prefix, date });
+  await page.goto('/todo.html');
+  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+  expect((await saved(page)).localDirty).toBe(false);
+  await expect(page.locator('.todo-card')).toHaveCount(3);
+  await page.goto('/'); await selectStudyDate(page, date);
+  await page.reload();
+  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+  expect((await saved(page)).syncConflictDetails).toBeUndefined();
 });
 
 test('recorded dates retain actual input through the normal merge instead of whole-day cloud replacement', async ({ page }) => {

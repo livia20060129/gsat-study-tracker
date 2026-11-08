@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }) => {
   pageErrors.set(page, errors);
   page.on('pageerror', error => { errors.push(error.message); });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '每日讀書完成度紀錄卡' })).toBeVisible();
+  await expect(page.locator('main h1')).toHaveText('GSAT Tracker');
 });
 
 test.afterEach(async ({ page }) => {
@@ -633,7 +633,7 @@ test('mixed writing and timed mock on one date require a persisted exclusive cho
 });
 
 for (const width of [375, 760, 1440]) {
-test(`completion opens on the left and both metrics stay vertically centered and left aligned (${width}px)`, async ({ page }, testInfo) => {
+test(`completion opens on the left, metrics stay centered and labels align with right-hand percentages (${width}px)`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   const tabs = page.locator('#overviewMetricTabs');
   const completion = tabs.locator('[data-overview-metric="completion"]');
@@ -656,17 +656,20 @@ test(`completion opens on the left and both metrics stay vertically centered and
       const contentTop = Math.min(...children.map(rect => rect.top));
       const contentBottom = Math.max(...children.map(rect => rect.bottom));
       const contentLeft = panelRect.left + parseFloat(getComputedStyle(node).paddingLeft);
-      const labels = Array.from(node.querySelectorAll('h3, .metric-math-panel > strong, .completion-metric-head > *, .completion-metric > .small, .completion-notes > summary'));
+      const labels = Array.from(node.querySelectorAll('h3, .metric-math-panel > strong, .completion-metric-head > :first-child, .completion-metric > .small, .completion-notes > summary'));
+      const values = Array.from(node.querySelectorAll('.completion-metric-head > strong'));
       const indicator = document.querySelector('.metric-segment-indicator')!.getBoundingClientRect();
       const selectedTab = document.querySelector('#overviewMetricTabs [aria-selected="true"]')!.getBoundingClientRect();
       return {
         centerDifference: Math.abs((contentTop + contentBottom) / 2 - (panelRect.top + panelRect.bottom) / 2),
         leftDifferences: labels.map(label => Math.abs(label.getBoundingClientRect().left - contentLeft)),
+        rightDifferences: values.map(value => Math.abs(value.getBoundingClientRect().right - panelRect.right)),
         indicatorDifference: Math.abs(indicator.left - selectedTab.left),
       };
     });
     expect(position.centerDifference).toBeLessThan(3);
     for (const difference of position.leftDifferences) expect(difference).toBeLessThan(1);
+    for (const difference of position.rightDifferences) expect(difference).toBeLessThan(1);
     expect(position.indicatorDifference).toBeLessThan(1);
     await expect(page.locator('#subjectTimeDonut')).toBeVisible();
   }
