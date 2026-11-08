@@ -86,10 +86,33 @@ async function makeUnrecordedConflict(page: Page): Promise<void> {
   }, prefix + date);
 }
 
+for (const path of ['/todo.html', '/summary.html']) test(`Actions data is read on load without focus, reconnect or periodic polling on ${path}`, async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-11-07T12:00:00+08:00') });
+  const state = await seed(page);
+  await page.goto(path);
+  await expect.poll(async () => (await saved(page)).items.filter((item: any) => item.f.calendarScheduleArchived).length).toBe(2);
+  expect(state.requests).toBe(1);
+  const statusReads = state.statusReads;
+  await page.clock.runFor(11 * 60_000);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('online'));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.clock.runFor(10_000);
+  expect(state.requests).toBe(1);
+  expect(state.statusReads).toBe(statusReads);
+  if (path === '/todo.html') await page.locator('#refreshTodo').click();
+  else await page.reload();
+  await expect.poll(() => state.requests).toBe(2);
+  expect((await saved(page)).notes).toBe('保留筆記');
+});
+
 test('an unrecorded Actions mismatch clears an old schedule conflict on todo and remains resolved after Tracker navigation', async ({ page }) => {
   await seed(page); await makeUnrecordedConflict(page);
   await page.goto('/todo.html');
   await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+  expect((await saved(page)).localDirty).toBe(false);
   await expect(page.locator('.todo-card')).toHaveCount(3);
   await page.goto('/'); await selectStudyDate(page, date);
   await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);

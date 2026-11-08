@@ -67,6 +67,13 @@ export function hasProtectedStudyInput(record: StudyRecord): boolean {
   return [record, record.syncBase, record.syncConflictLocal, record.syncConflictCloud].some(value => value && hasRecordedStudyInput(value));
 }
 
+/** Calendar rows are already cloud data; untouched projections are a local cache, not an upload. */
+export function isUnrecordedCalendarCache(record: StudyRecord, previous?: StudyRecord | null): boolean {
+  return Boolean(!record.storageIssue && !previous?.storageIssue
+    && (hasCalendarSchedule(record) || (previous && hasCalendarSchedule(previous)))
+    && !hasProtectedStudyInput(record) && (!previous || !hasProtectedStudyInput(previous)));
+}
+
 /** A complete successful Calendar snapshot can resolve an empty schedule-only conflict. */
 export function clearUnrecordedCalendarConflict(record: StudyRecord): StudyRecord {
   if (!record.syncConflict || record.storageIssue || !hasCalendarSchedule(record)

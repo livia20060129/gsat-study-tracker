@@ -1,6 +1,6 @@
 import type { StudyRecord, StudyRecordSyncConflict } from '../types';
 import { ensureEnglishReviewWordEntryIds } from '../study/englishReview.ts';
-import { hasCalendarSchedule, hasProtectedStudyInput } from '../study/recordedActivity.ts';
+import { hasCalendarSchedule, hasProtectedStudyInput, isUnrecordedCalendarCache } from '../study/recordedActivity.ts';
 
 export interface CloudStudyRecordRow {
   study_date: string;
@@ -293,7 +293,7 @@ export function markRecordLocallyEdited(
   previous?: StudyRecord | null,
 ): StudyRecord {
   const edited = normalizedRecord(record);
-  edited.localDirty = true;
+  edited.localDirty = !isUnrecordedCalendarCache(edited, previous);
   if (previous) {
     edited.serverRevision = Number(previous.serverRevision || 0);
     edited.serverUpdatedAt = previous.serverUpdatedAt || '';

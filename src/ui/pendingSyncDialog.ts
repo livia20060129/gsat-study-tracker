@@ -2,7 +2,7 @@ import type { PendingSyncEntry } from '../application/cloud/pendingCloudSync.ts'
 import { animateVisibility } from './disclosureMotion.ts';
 
 const PHASE_LABELS = { waiting: '等待同步', queued: '已排入同步', uploading: '同步中',
-  failed: '同步失敗，等待重試', blocked: '需要處理', paused: '已暫停', conflict: '版本衝突' };
+  failed: '同步失敗，請手動重試', blocked: '需要處理', paused: '已暫停', conflict: '版本衝突' };
 export type PendingSyncAction = 'retry' | 'pause' | 'open' | 'compare';
 
 export interface PendingSyncDialog {
@@ -48,7 +48,7 @@ export function initializePendingSyncDialog(
           row.dataset.pendingDate = entry.date;
           row.innerHTML = '<div class="pending-sync-row-heading"><strong data-date></strong><span data-state></span></div><p data-reason></p><small data-attempt></small><div class="pending-sync-actions"></div>';
           row.querySelector('[data-date]')!.textContent = entry.date;
-          for (const [action, label] of [['retry', '重試同步'], ['pause', '暫停自動同步'], ['open', '前往當日'], ['compare', '比較與處理']] as const) {
+          for (const [action, label] of [['retry', '重試同步'], ['pause', '暫停此日同步'], ['open', '前往當日'], ['compare', '比較與處理']] as const) {
             const button = document.createElement('button');
             button.type = 'button'; button.textContent = label; button.dataset.pendingAction = action;
             button.addEventListener('click', function activate(): void { act(action, entry.date); });

@@ -56,8 +56,5 @@ async function refresh(): Promise<void> {
 
 export function initializeBrowserCalendarSchedule(): void {
   void refreshBrowserCalendarSchedule();
-  window.addEventListener('focus', () => { void refreshBrowserCalendarSchedule(); });
-  window.addEventListener('online', () => { void refreshBrowserCalendarSchedule(); });
   window.addEventListener('pageshow', event => { if (event.persisted) void refreshBrowserCalendarSchedule(); });
-  setInterval(() => { if (document.visibilityState === 'visible') void refreshBrowserCalendarSchedule(); }, 60000);
 }

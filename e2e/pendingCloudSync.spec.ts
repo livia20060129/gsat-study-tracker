@@ -120,14 +120,89 @@ test('server success with failed local write remains pending with a reason, then
   expect(state.posts.get(oldDate)).toBe(1);
 });
 
-test('historical transient failures retry in the background while another date is displayed', async ({ page }) => {
+test('historical failures stop until a manual retry despite idle time, focus and reconnect', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-08-09T12:00:00+08:00') });
   const state = await setup(page, { changed: true, failures: 1 });
   await expect.poll(() => state.posts.get(oldDate)).toBe(1);
-  await page.clock.setFixedTime(new Date('2026-08-09T12:00:10+08:00'));
-  await expect.poll(() => state.rows.get(oldDate)?.payload.notes, { timeout: 15_000 }).toBe('本機新筆記');
+  await openDetails(page);
+  const row = page.locator(`[data-pending-date="${oldDate}"]`);
+  await expect(row.locator('[data-state]')).toContainText('請手動重試');
+  await page.clock.runFor(11 * 60_000);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('online'));
+    window.dispatchEvent(new Event('study-records-changed'));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.clock.runFor(10_000);
+  expect(state.posts.get(oldDate)).toBe(1);
+  expect(state.rows.get(oldDate)?.payload.notes).toBe('伺服器筆記');
+  await row.getByRole('button', { name: '重試同步', exact: true }).click();
+  await expect.poll(() => state.rows.get(oldDate)?.payload.notes).toBe('本機新筆記');
   expect(state.posts.get(oldDate)).toBe(2);
   await expect(page.locator('#studyDate')).toHaveValue(today);
   await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+});
+
+test('editing and leaving a field saves locally without an upload until Save is clicked', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-08-09T12:00:00+08:00') });
+  const state = await setup(page);
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  const before = state.posts.get(today) ?? 0;
+  await page.locator('#notes').fill('編輯先存本機');
+  await page.locator('#notes').blur();
+  await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key)!).notes, prefix + today)).toBe('編輯先存本機');
+  await page.clock.runFor(11 * 60_000);
+  expect(state.posts.get(today) ?? 0).toBe(before);
+  expect(state.rows.get(today)?.payload.notes).toBe('伺服器筆記');
+  await page.locator('#saveBtn').click();
+  await expect.poll(() => state.rows.get(today)?.payload.notes).toBe('編輯先存本機');
+  expect(state.posts.get(today)).toBe(before + 1);
+  await expect(page.locator('#saveBtn')).toHaveAttribute('data-state', 'success');
+});
+
+test('a failed date gets one new attempt on page load without rescheduling itself', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-08-09T12:00:00+08:00') });
+  const state = await setup(page, { changed: true, failures: Infinity });
+  await expect.poll(() => state.posts.get(oldDate)).toBe(1);
+  await page.clock.runFor(11 * 60_000);
+  expect(state.posts.get(oldDate)).toBe(1);
+  await page.reload();
+  await expect.poll(() => state.posts.get(oldDate)).toBe(2);
+  await page.clock.runFor(11 * 60_000);
+  expect(state.posts.get(oldDate)).toBe(2);
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).localDirty, prefix + oldDate)).toBe(true);
+});
+
+test('an edit made during an upload stays pending instead of creating an endless follow-up queue', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-08-09T12:00:00+08:00') });
+  const state = await setup(page);
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  const before = state.posts.get(today) ?? 0;
+  await page.locator('#notes').fill('這次送出的版本');
+  await page.locator('#notes').blur();
+  state.beforeSaveReply = async () => {
+    state.beforeSaveReply = undefined;
+    await page.evaluate(key => {
+      const latest = JSON.parse(localStorage.getItem(key)!);
+      latest.notes = '上傳途中新增的內容'; latest.localDirty = true;
+      localStorage.setItem(key, JSON.stringify(latest));
+    }, prefix + today);
+  };
+  await page.locator('#saveBtn').click();
+  await expect(page.locator('#saveBtn')).toHaveAttribute('data-state', 'local');
+  await page.clock.runFor(11 * 60_000);
+  expect(state.posts.get(today)).toBe(before + 1);
+  expect(state.rows.get(today)?.payload.notes).toBe('這次送出的版本');
+  const local = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), prefix + today);
+  expect(local.notes).toBe('上傳途中新增的內容');
+  expect(local.localDirty).toBe(true);
+  expect(local.syncConflict).toBe(false);
+  await openDetails(page);
+  const row = page.locator(`[data-pending-date="${today}"]`);
+  await expect(row.locator('[data-state]')).toHaveText('等待同步');
+  await row.getByRole('button', { name: '重試同步', exact: true }).click();
+  await expect.poll(() => state.rows.get(today)?.payload.notes).toBe('上傳途中新增的內容');
 });
 
 test('a user can pause a date, retain that choice across reload, and explicitly resume it', async ({ page }) => {
@@ -135,7 +210,7 @@ test('a user can pause a date, retain that choice across reload, and explicitly 
   await openDetails(page);
   const row = page.locator(`[data-pending-date="${oldDate}"]`);
   await expect(row.locator('[data-state]')).toContainText('同步失敗');
-  await row.getByRole('button', { name: '暫停自動同步', exact: true }).click();
+  await row.getByRole('button', { name: '暫停此日同步', exact: true }).click();
   await expect(row.locator('[data-state]')).toHaveText('已暫停');
   const before = state.posts.get(oldDate);
   await page.reload();
@@ -152,7 +227,7 @@ test('comparison lets the user choose a cloud version with confirmation and a re
   await openDetails(page);
   const row = page.locator(`[data-pending-date="${oldDate}"]`);
   await expect(row.locator('[data-state]')).toContainText('同步失敗');
-  await row.getByRole('button', { name: '暫停自動同步', exact: true }).click();
+  await row.getByRole('button', { name: '暫停此日同步', exact: true }).click();
   await row.getByRole('button', { name: '比較與處理', exact: true }).click();
   await expect(page.locator('[data-pending-comparison]')).toBeVisible();
   page.once('dialog', dialog => dialog.accept());
@@ -168,7 +243,7 @@ test('a changed cloud revision after comparison prevents a stale overwrite', asy
   await openDetails(page);
   const row = page.locator(`[data-pending-date="${oldDate}"]`);
   await expect(row.locator('[data-state]')).toContainText('同步失敗');
-  await row.getByRole('button', { name: '暫停自動同步', exact: true }).click();
+  await row.getByRole('button', { name: '暫停此日同步', exact: true }).click();
   await row.getByRole('button', { name: '比較與處理', exact: true }).click();
   await expect(page.locator('[data-pending-comparison]')).toBeVisible();
   state.rows.get(oldDate)!.revision += 1;
@@ -186,7 +261,7 @@ test('local edits made during an explicit cloud overwrite are retained and requi
   await openDetails(page);
   const row = page.locator(`[data-pending-date="${oldDate}"]`);
   await expect(row.locator('[data-state]')).toContainText('同步失敗');
-  await row.getByRole('button', { name: '暫停自動同步', exact: true }).click();
+  await row.getByRole('button', { name: '暫停此日同步', exact: true }).click();
   await row.getByRole('button', { name: '比較與處理', exact: true }).click();
   await expect(page.locator('[data-pending-comparison]')).toBeVisible();
   state.failures.delete(oldDate);

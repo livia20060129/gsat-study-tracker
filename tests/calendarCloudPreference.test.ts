@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canUseCloudCalendarRecord, decideRevisionSync, markRecordSynced } from '../src/storage/recordSync.ts';
+import { canUseCloudCalendarRecord, decideRevisionSync, markRecordLocallyEdited, markRecordSynced } from '../src/storage/recordSync.ts';
 import { clearUnrecordedCalendarConflict, hasRecordedStudyInput } from '../src/study/recordedActivity.ts';
 import { calendarItemsByDate, reconcileCalendarRecord } from '../src/application/calendar/reconcileCalendarSchedule.ts';
 import { synchronizeStoredCalendarSchedule } from '../src/application/calendar/storedCalendarSchedule.ts';
@@ -87,11 +87,22 @@ test('the stored snapshot clears schedule-only conflicts without restoring them 
   const saved = JSON.parse(values.get(prefix + date)!);
   assert.equal(saved.syncConflict, false);
   assert.equal(saved.syncConflictDetails, undefined);
-  assert.equal(saved.localDirty, true);
+  assert.equal(saved.localDirty, false);
   assert.deepEqual(synchronizeStoredCalendarSchedule(storage, prefix, rows(6), date).savedDates, []);
   saved.syncConflict = true;
   saved.syncConflictDetails = [{ path: '$.items', kind: 'unknown-base' }];
   values.set(prefix + date, JSON.stringify(saved));
   assert.deepEqual(synchronizeStoredCalendarSchedule(storage, prefix, rows(6), date).savedDates, [date]);
   assert.equal(JSON.parse(values.get(prefix + date)!).syncConflict, false);
+});
+
+test('downloaded Calendar-only changes are cached without an upload, while actual input and cleared input stay dirty', () => {
+  const previous = markRecordSynced(blank());
+  const cached = markRecordLocallyEdited(blank(5), previous);
+  assert.equal(cached.localDirty, false);
+  assert.deepEqual(cached.syncBase, previous.syncBase);
+  const recorded = { ...blank(5), notes: '今天已記錄' };
+  assert.equal(markRecordLocallyEdited(recorded, previous).localDirty, true);
+  const cleared = markRecordLocallyEdited(blank(5), markRecordSynced(recorded));
+  assert.equal(cleared.localDirty, true);
 });

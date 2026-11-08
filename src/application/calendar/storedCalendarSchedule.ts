@@ -4,7 +4,7 @@ import { readBrowserRecordHistory } from '../../infrastructure/storage/localReco
 import { markRecordLocallyEdited, sameStudyContent } from '../../storage/recordSync.ts';
 import { reconcileCalendarRecords } from './reconcileCalendarSchedule.ts';
 import { resolveStudyTimerTarget, studyTimerTargetState, type StudyTimerPointer } from '../timer/studyTimerController.ts';
-import { clearUnrecordedCalendarConflict } from '../../study/recordedActivity.ts';
+import { clearUnrecordedCalendarConflict, isUnrecordedCalendarCache } from '../../study/recordedActivity.ts';
 
 /** All writes use fresh records and the normal sync baseline; an upload can never revive a removed task. */
 export function synchronizeStoredCalendarSchedule(storage: KeyValueStorage, prefix: string, rows: CalendarTaskRow[], today: string): {
@@ -18,7 +18,8 @@ export function synchronizeStoredCalendarSchedule(storage: KeyValueStorage, pref
     const loaded = repository.loadResult(candidate.date);
     if (loaded.status === 'invalid') { result.failedDates.push(candidate.date); continue; }
     const previous = loaded.status === 'ok' ? loaded.record : null;
-    if (previous && sameStudyContent(previous, candidate) && previous.syncConflict === candidate.syncConflict) continue;
+    if (previous && sameStudyContent(previous, candidate) && previous.syncConflict === candidate.syncConflict
+      && !(previous.localDirty && isUnrecordedCalendarCache(candidate, previous))) continue;
     const edited = markRecordLocallyEdited(candidate, previous ? clearUnrecordedCalendarConflict(previous) : previous);
     if (repository.save(edited)) result.savedDates.push(candidate.date);
     else result.failedDates.push(candidate.date);
