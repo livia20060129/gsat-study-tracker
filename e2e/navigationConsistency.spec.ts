@@ -120,7 +120,7 @@ test('mood slider preserves date-specific values and updates the weekly rail aft
   });
   await page.goto('/');
   await expect(page.locator('[data-rail-days]')).toHaveText('0');
-  await expect(page.locator('#routineDisclosure')).not.toHaveAttribute('open');
+  await expect(page.locator('#routineDisclosure')).toBeHidden();
   await page.getByRole('button', { name: '較疲累', exact: true }).click();
   await expect(page.locator('#mood')).toHaveValue('較疲累');
   await expect(page.locator('[data-rail-days]')).toHaveText('1');
@@ -150,8 +150,8 @@ test('sidebar date editing preserves drafts and routine replaces the upper date 
     await page.goto('/');
     await expect(page.locator('.site-rail-left #studyDate')).toHaveCount(1);
     await expect(page.locator('.today-info-grid #studyDate')).toHaveCount(0);
-    await expect(page.locator('.today-info-grid > :first-child')).toHaveAttribute('id', 'routineDisclosure');
-    await expect(page.locator('#routineDisclosure')).not.toHaveAttribute('open');
+    await expect(page.locator('.today-info-grid > :first-child #todayStatusToggle')).toBeVisible();
+    await expect(page.locator('#routineDisclosure')).toBeHidden();
     await page.locator('#notes').fill('切換前尚未離開欄位的筆記');
     await selectStudyDate(page, '2026-11-04');
     await expect(page.locator('[data-rail-date]')).toHaveText('11.04');

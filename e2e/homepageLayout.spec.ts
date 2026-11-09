@@ -7,9 +7,30 @@ for (const width of [360, 1440]) test(`home information and reflection retain da
   await page.goto('/');
   await expect(page.locator('.home-brand h1')).toHaveText('GSAT Tracker');
   await expect(page.locator('[data-home-date-label]').first()).toHaveText('11.08 星期日');
-  await expect(page.locator('#routineDisclosure')).not.toHaveAttribute('open');
+  await expect(page.locator('#routineDisclosure')).toBeHidden();
+  await expect(page.locator('#todayStatusToggle')).toHaveAttribute('aria-expanded','false');
+  await expect(page.locator('.mood-segments')).toBeVisible();
+  await expect(page.locator('.routine-disclosure')).toHaveCount(1);
   await page.locator('.mood-segments button').filter({ hasText: '精神良好' }).click();
   await expect(page.locator('#mood')).toHaveValue('精神良好');
+  await expect(page.locator('#todayStatusToggle')).toHaveAttribute('aria-expanded','false');
+  await page.locator('#todayStatusToggle').click();
+  await expect(page.locator('#wakeHour')).toBeVisible();
+  await page.locator('#wakeHour').fill('7');
+  await page.locator('#wakeMinute').fill('20');
+  await page.locator('#wakeMinute').blur();
+  await page.locator('#routineDisclosure').evaluate(async node=>{
+    await Promise.all(node.getAnimations({subtree:true}).filter(animation=>animation.id.startsWith('study-disclosure-'))
+      .map(animation=>animation.finished.catch(()=>undefined)));
+  });
+  await page.screenshot({path:testInfo.outputPath(`status-expanded-${width}.png`)});
+  await page.locator('#todayStatusToggle').click();
+  await expect(page.locator('#routineDisclosure')).toBeHidden();
+  await expect(page.locator('.mood-segments')).toBeVisible();
+  expect(await page.locator('#firstThingTomorrow').evaluate(node=>{
+    const css=getComputedStyle(node);
+    return node.clientHeight-parseFloat(css.paddingTop)-parseFloat(css.paddingBottom)>=3*parseFloat(css.lineHeight)-1;
+  })).toBe(true);
   await expect(page.locator('#completionRatePanel')).toBeVisible();
   await page.locator('[data-overview-metric="pages"]').click();
   await expect(page.locator('#mathPagesPanel')).toHaveAttribute('aria-hidden', 'false');
@@ -17,7 +38,7 @@ for (const width of [360, 1440]) test(`home information and reflection retain da
   await expect(page.locator('#completionRatePanel')).toHaveCSS('opacity', '1');
   await expect(page.locator('#mathPagesPanel')).toHaveCSS('opacity', '0');
   await page.screenshot({ path: testInfo.outputPath(`home-${width}.png`), fullPage: false });
-  await page.locator('#firstThingTomorrow').fill('先訂正數學');
+  await page.locator('#firstThingTomorrow').fill('先訂正數學\n複習英文單字\n整理錯題');
   await page.locator('#notes').fill('今日心得');
   await page.locator('#biggestBlock').fill('三角比');
   await page.locator('[data-home-save]').click();
@@ -31,7 +52,10 @@ for (const width of [360, 1440]) test(`home information and reflection retain da
   await page.reload();
   await expect(page.locator('#notes')).toHaveValue('今日心得');
   await expect(page.locator('#biggestBlock')).toHaveValue('三角比');
-  await expect(page.locator('#firstThingTomorrow')).toHaveValue('先訂正數學');
+  await expect(page.locator('#firstThingTomorrow')).toHaveValue('先訂正數學\n複習英文單字\n整理錯題');
+  await expect(page.locator('#routineDisclosure')).toBeHidden();
+  await expect(page.locator('#wakeHour')).toHaveValue(/0?7/);
+  await expect(page.locator('#wakeMinute')).toHaveValue('20');
   await page.evaluate(()=>{
     const set=Storage.prototype.setItem;
     Storage.prototype.setItem=function(key,value){

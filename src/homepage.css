@@ -42,10 +42,14 @@
 .tracker-home .today-info-grid>.field { padding: 0; border: 0; background: transparent; text-align: left; }
 .tracker-home .today-info-grid label { display: flex; align-items: center; gap: 7px; font-size: 13px; }
 .tracker-home #weekdayText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; }
-.tracker-home .routine-disclosure { width: 100%; background: #f4f7fc; border-color: #e5ebf3; border-radius: 10px; }
-.tracker-home .routine-disclosure>summary { min-height: 36px; padding: 8px 11px; }
-.tracker-home .routine-disclosure>summary strong { display: flex; align-items: center; gap: 7px; font-size: 13px; }
-.tracker-home .routine-expand, .tracker-home .routine-collapse { display: none !important; }
+.tracker-home .today-status-toggle { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; min-height:36px; margin:0 0 7px; padding:0; border:0; background:transparent; color:var(--text); font-size:13px; text-align:left; box-shadow:none; }
+.tracker-home .today-status-toggle>span { display:flex; align-items:center; gap:7px; }
+.tracker-home .today-status-toggle>i { width:7px; height:7px; margin-right:3px; border:solid #71859f; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); transition:transform .24s ease; }
+.tracker-home .today-status-toggle[aria-expanded="true"]>i { transform:rotate(225deg); }
+.tracker-home .routine-disclosure { width:100%; background:transparent; border:0; border-radius:0; }
+.tracker-home .routine-disclosure #routineTimeField { padding:12px 0 0; }
+.tracker-home .routine-disclosure #routineTimeLabel { display:flex; }
+.tracker-home .routine-disclosure .routine-time-meta { max-width:none; min-height:0; flex:none; margin:0 0 0 auto; font-size:11px; white-space:nowrap; }
 .tracker-home .mood-segments { background:#e9eff7; gap:0; border:1px solid #d3dfed; padding:4px; }
 .tracker-home .mood-segment-indicator { left:4px; top:4px; bottom:4px; width:calc((100% - 8px)/6); background:#538bcd; border-radius:8px; }
 .tracker-home .mood-segments button { display:block; min-height:44px; padding:5px 1px; border:0; border-radius:8px; background:transparent; font-size:11px; white-space:normal; }
@@ -82,7 +86,7 @@
 .tracker-home .home-reflection>.content { padding-top: 0; }
 .tracker-home .home-reflection .field { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .tracker-home .home-reflection label { display: flex; align-items: center; gap: 7px; font-size: 12px; }
-.tracker-home #firstThingTomorrow { min-height: 38px; height: 38px; resize: vertical; }
+.tracker-home #firstThingTomorrow { line-height:1.6; min-height:calc(4.8em + 20px); height:auto; resize:vertical; }
 .tracker-home .home-reflection-details { margin-top: 14px; }
 .tracker-home .home-reflection-details>summary { display: flex; align-items: center; gap: 7px; list-style: none; font-size: 13px; font-weight: 700; cursor: pointer; }
 .tracker-home .home-reflection-details>summary::-webkit-details-marker { display: none; }

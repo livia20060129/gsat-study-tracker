@@ -1,4 +1,5 @@
 import '../tracker-overview.css';
+import { animateVisibility } from './disclosureMotion.ts';
 /** Keep the existing select and change handler as the single saved mood value. */
 function initializeMoodSlider(): void {
     const select = document.getElementById('mood') as HTMLSelectElement;
@@ -35,22 +36,31 @@ function initializeMoodSlider(): void {
 }
 function initializeRoutineDisclosure(): void {
     const field = document.getElementById('routineTimeField')!;
-    const grid = field.closest('.today-info-grid')!;
-    const details = document.createElement('details');
-    details.id = 'routineDisclosure';
-    details.className = 'routine-disclosure';
-    const summary = document.createElement('summary');
-    summary.innerHTML = '<strong><span data-home-icon="clock" aria-hidden="true"></span>作息時間</strong><span class="routine-disclosure-toggle"><span class="routine-expand">展開</span><span class="routine-collapse">收合</span><i aria-hidden="true"></i></span>';
-    field.before(details);
-    details.append(summary, field);
-    grid.prepend(details);
+    const select = document.getElementById('mood')!;
+    const moodField = select.closest('.field')!;
+    const label = moodField.querySelector('label')!;
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.id = 'todayStatusToggle';
+    toggle.className = 'today-status-toggle';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', 'routineDisclosure');
+    toggle.innerHTML = '<span><span data-home-icon="heart" aria-hidden="true"></span>今日狀態</span><i aria-hidden="true"></i>';
+    label.replaceWith(toggle);
+    select.setAttribute('aria-label', '今日狀態');
+    const content = document.createElement('div');
+    content.id = 'routineDisclosure';
+    content.className = 'routine-disclosure';
+    content.hidden = true;
     const nextDay = field.querySelector('.routine-time-meta');
-    if (nextDay)
-        summary.insertBefore(nextDay, summary.lastElementChild);
-    details.addEventListener('toggle', function updateRoutineDisclosureState(): void {
-        summary.setAttribute('aria-expanded', String(details.open && details.dataset.disclosureMotion !== 'closing'));
+    if (nextDay) document.getElementById('routineTimeLabel')!.append(nextDay);
+    content.append(field);
+    moodField.append(content);
+    toggle.addEventListener('click', function toggleTodayStatus(): void {
+        const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+        toggle.setAttribute('aria-expanded', String(expanded));
+        animateVisibility(content, expanded);
     });
-    summary.setAttribute('aria-expanded', 'false');
 }
 export function initializeTrackerLayout(): void {
     initializeMoodSlider();

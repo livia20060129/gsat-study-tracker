@@ -929,24 +929,22 @@ test('routine switch preserves drafts, saves on blur, and stays fixed-height on 
   }, { date });
   await page.goto('/');
   await expect(page.locator('#wakeHour')).toHaveValue(/0?7/);
-  await expect(page.locator('#routineDisclosure')).not.toHaveAttribute('open');
-  await page.locator('#routineDisclosure > summary').click();
+  await expect(page.locator('#routineDisclosure')).toBeHidden();
+  await page.locator('#todayStatusToggle').click();
   await expect(page.locator('#wakeMinute')).toHaveValue('20');
   await expect(page.locator('#routineTimeSummary')).toHaveCount(0);
   await expect(page.locator('#wakeHour')).not.toHaveAttribute('placeholder');
   await expect(page.locator('#wakeMinute')).not.toHaveAttribute('placeholder');
 
-  const centeredFieldOffsets = await page.locator('.today-info-centered-field').evaluateAll(nodes => nodes.map(node => {
-    const field = node.getBoundingClientRect();
-    const label = node.querySelector('label')?.getBoundingClientRect();
-    const control = node.querySelector('input, .mood-segments')?.getBoundingClientRect();
-    if (!label || !control) return Number.POSITIVE_INFINITY;
-    const contentCenter = (label.top + control.bottom) / 2;
-    const fieldCenter = (field.top + field.bottom) / 2;
-    return Math.abs(contentCenter - fieldCenter);
+  const statusLayout=await page.locator('.today-info-centered-field').evaluateAll(nodes=>nodes.map(node=>{
+    const heading=node.querySelector('#todayStatusToggle')!.getBoundingClientRect();
+    const slider=node.querySelector('.mood-segments')!.getBoundingClientRect();
+    const routine=node.querySelector('#routineDisclosure')!.getBoundingClientRect();
+    return {headingBottom:heading.bottom,sliderTop:slider.top,sliderBottom:slider.bottom,routineTop:routine.top};
   }));
-  expect(centeredFieldOffsets).toHaveLength(1);
-  expect(centeredFieldOffsets.every(offset => offset < 3)).toBe(true);
+  expect(statusLayout).toHaveLength(1);
+  expect(statusLayout[0].headingBottom).toBeLessThanOrEqual(statusLayout[0].sliderTop);
+  expect(statusLayout[0].sliderBottom).toBeLessThanOrEqual(statusLayout[0].routineTop);
 
   const inputStageBounds = await page.locator('#routineTimeField').evaluate(node => {
     const stage = node.querySelector('.routine-time-input-stage')?.getBoundingClientRect();
@@ -1168,7 +1166,7 @@ test('ordinary completion is written immediately and survives reload', async ({ 
   const card = page.locator('#dailyItemList [data-item]').first();
   const itemId = await card.getAttribute('data-item');
   const checkbox = card.locator('[data-done]').first();
-  await page.locator('#routineDisclosure > summary').click();
+  await page.locator('#todayStatusToggle').click();
   await page.locator('#wakeMinute').fill('');
   await checkbox.check();
   await expect(checkbox).toBeChecked();

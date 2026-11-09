@@ -81,17 +81,19 @@ test('routine and completion explanations visibly expand and collapse without ch
   for (const selector of ['#routineDisclosure', '.completion-notes']) {
     if (selector === '.completion-notes') await page.locator('[data-overview-metric="completion"]').click();
     const panel = page.locator(selector);
-    expectSmooth(await sampleMotion(page, selector, panel.locator(':scope > summary')), true);
-    await expect(panel).toHaveAttribute('open', '');
+    const trigger=selector==='#routineDisclosure'?page.locator('#todayStatusToggle'):panel.locator(':scope > summary');
+    expectSmooth(await sampleMotion(page, selector, trigger), true);
+    if(selector==='#routineDisclosure')await expect(trigger).toHaveAttribute('aria-expanded','true');
+    else await expect(panel).toHaveAttribute('open', '');
     if (selector === '#routineDisclosure') {
       await page.locator('#wakeHour').fill('7');
       await page.locator('#wakeMinute').fill('20');
       await page.locator('#wakeMinute').blur();
     }
-    const closing = await sampleMotion(page, selector, panel.locator(':scope > summary'));
+    const closing = await sampleMotion(page, selector, trigger);
     expectSmooth(closing, false);
-    expect(closing.openAtMiddle).toBe(true);
-    await expect(panel).not.toHaveAttribute('open');
+    if(selector==='#routineDisclosure')await expect(panel).toBeHidden();
+    else {expect(closing.openAtMiddle).toBe(true);await expect(panel).not.toHaveAttribute('open');}
     if (selector === '#routineDisclosure') {
       await expect(page.locator('#wakeHour')).toHaveValue('7');
       await expect(page.locator('#wakeMinute')).toHaveValue('20');
