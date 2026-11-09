@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="./page-transitions.js?v=171.6.154"></script>
+  <script src="./page-transitions.js?v=171.6.157"></script>
   <meta name="theme-color" content="#f5f8fc" />
   <link rel="icon" type="image/png" href="/book.png" />
   <link rel="apple-touch-icon" href="/book.png" />
@@ -31,15 +31,15 @@
    <span class="connection-status-item"><span class="connection-status-name">Calendar</span><span class="badge connection-badge" id="calendarStatusBadge" data-state="offline">需先登入</span></span>
   </span>
   <span class="connection-quick-actions">
-   <span class="active-timer-summary" id="activeTimerSummary" hidden aria-live="polite">
-    <span class="active-timer-title" id="activeTimerTitle"></span>
-    <strong id="activeTimerDisplay">00:00</strong>
-    <button class="secondary" type="button" data-action="timer-pause-active">暫停</button>
-   </span>
-   <span class="connection-save-feedback" id="status" aria-live="polite"></span>
-   <button id="saveBtn" class="primary connection-save home-save-icon" type="button" aria-label="儲存紀錄" title="儲存紀錄"><span data-home-icon="save" aria-hidden="true"></span></button>
-   <span class="connection-settings-toggle"><span data-home-icon="settings" aria-hidden="true"></span><span class="ui-sr-only">連線設定</span><span class="connection-symbol" data-ui-icon="chevron-down" aria-hidden="true"></span></span>
+   <button id="saveBtn" class="primary connection-save home-save-button" type="button" aria-label="儲存紀錄" title="儲存紀錄"><span data-home-icon="save" aria-hidden="true"></span>儲存</button>
+   <span class="connection-settings-toggle" title="連線設定"><span data-home-icon="settings" aria-hidden="true"></span><span class="ui-sr-only">連線設定</span></span>
   </span>
+  <span class="active-timer-summary" id="activeTimerSummary" hidden aria-live="polite">
+   <span class="active-timer-title" id="activeTimerTitle"></span>
+   <strong id="activeTimerDisplay">00:00</strong>
+   <button class="secondary" type="button" data-action="timer-pause-active">暫停</button>
+  </span>
+  <span class="connection-save-feedback" id="status" aria-live="polite"></span>
  </summary>
  <div class="connection-settings-content">
   <section class="connection-settings-group" id="cloudPanel" aria-labelledby="cloudSettingsTitle">
@@ -218,7 +218,7 @@
    <summary><span data-home-icon="note" aria-hidden="true"></span>今日回顧</summary>
    <div class="home-reflection-fields"><div class="field"><label for="notes">心得與反思</label><textarea id="notes" class="notes-large" rows="3"></textarea></div><div class="field"><label for="biggestBlock">遇到的困難</label><textarea id="biggestBlock" rows="3"></textarea></div></div>
   </details>
-  <div class="home-save-row"><button class="primary home-save-icon" type="button" data-home-save aria-label="儲存紀錄" title="儲存紀錄"><span data-home-icon="save" aria-hidden="true"></span></button></div>
+  <div class="home-save-row"><button class="primary home-save-button" type="button" data-home-save aria-label="儲存紀錄" title="儲存紀錄"><span data-home-icon="save" aria-hidden="true"></span>儲存</button></div>
  </div>
 </section>
 

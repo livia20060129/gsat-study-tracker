@@ -24,15 +24,18 @@
 .tracker-home .connection-dock { border-radius: 12px; box-shadow: 0 2px 8px #334e6a0a; }
 .tracker-home .connection-dock:not([open]):not(.is-animating):not(.is-preparing) { background: #f5f9fdeb; border-color: transparent; border-bottom-color: #d5dfec; box-shadow: none; }
 .tracker-home .connection-status-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.tracker-home .connection-status-bar { padding: 8px 10px; }
+.tracker-home .connection-status-bar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:6px 12px; padding:8px 10px; }
 .tracker-home .connection-badge { border: 0; background: transparent; padding: 3px 0; font-size: 12px; }
 .tracker-home .connection-badge::before { box-shadow: 0 0 0 3px #94a3b81a; }
 .tracker-home #cloudStatusBadge::before { content:none; }
 .tracker-home #cloudStatusBadge[data-state="offline"] [data-cloud-status-icon] { color:#718096; }
 .tracker-home #cloudStatusBadge .ui-icon { width:18px; height:18px; }
 .tracker-home .connection-divider { display: none; }
-.tracker-home .connection-statuses { gap: 20px; }
-.tracker-home .connection-settings-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.tracker-home .connection-statuses { flex-wrap:nowrap; gap:20px; }
+.tracker-home .connection-quick-actions { flex:none; flex-wrap:nowrap; gap:8px; }
+.tracker-home .connection-save-feedback { grid-column:1 / -1; order:initial; width:100%; max-width:none; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+.tracker-home .active-timer-summary { grid-column:1 / -1; justify-self:end; max-width:100%; }
+.tracker-home .connection-settings-toggle { display: inline-flex; align-items: center; justify-content:center; flex:none; width:36px; height:36px; padding:8px; gap:0; border:1px solid #d6e0ec; border-radius:10px; font-size:12px; }
 .tracker-home .connection-save { min-height: 32px; padding: 5px 12px; font-size: 12px; }
 .tracker-home .today-info-grid { grid-template-columns: minmax(0,1fr); gap: 12px; }
 .tracker-home .today-info-grid>.field { padding: 0; border: 0; background: transparent; text-align: left; }
@@ -88,8 +91,14 @@
 .tracker-home .home-reflection textarea { min-height: 88px; }
 .tracker-home .home-save-row { display: flex; justify-content: flex-end; margin-top: 16px; }
 .tracker-home .home-save-row button { padding: 8px 14px; }
-.tracker-home button.home-save-icon { min-width:36px; min-height:36px; padding:8px; gap:0; }
-@media(pointer:coarse) { .tracker-home button.home-save-icon { min-width:44px; min-height:44px; } }
+.tracker-home button.home-save-button { min-height:36px; padding:8px 12px; gap:7px; font-size:12px; white-space:nowrap; }
+.tracker-home button.home-save-button:is([data-state="local"],[data-state="success"]) { background:#047857; color:#fff; }
+.tracker-home button.home-save-button[data-state="error"] { background:var(--danger); color:#fff; }
+.tracker-home button.home-save-button[data-state="saving"] { background:#475569; opacity:1; cursor:wait; }
+@media(pointer:coarse) {
+  .tracker-home button.home-save-button { min-height:44px; }
+  .tracker-home .connection-settings-toggle { width:44px; height:44px; }
+}
 @media(max-width:720px) {
   .tracker-home main { padding: 12px 10px 30px; }
   .tracker-home .home-brand h1 { font-size: 20px; }
@@ -99,14 +108,25 @@
   .tracker-home .panel>.content { padding: 10px 12px 14px; }
   .tracker-home .panel-head { padding: 12px 12px 6px; }
   .tracker-home .panel-head h2 { font-size: 16px; }
-  .tracker-home .connection-status-bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 4px; }
-  .tracker-home .connection-statuses { flex: 1 1 auto; gap: 12px; }
-  .tracker-home .connection-quick-actions { flex: 1 1 auto; justify-content: flex-end; gap: 9px; }
+  .tracker-home .connection-status-bar { gap:6px; padding:8px 4px; }
+  .tracker-home .connection-statuses { gap:6px; }
+  .tracker-home .connection-status-item { gap:4px; }
+  .tracker-home .connection-status-item:first-child { flex:1 1 auto; }
+  .tracker-home .connection-status-item:last-child { flex:0 0 auto; max-width:42%; }
+  .tracker-home .connection-badge { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .tracker-home .connection-badge::before { display:inline-block; vertical-align:middle; margin-right:5px; }
+  .tracker-home #cloudStatusBadge [data-cloud-status-icon] { margin-right:4px; }
+  .tracker-home .pending-sync-link { flex:none; }
+  .tracker-home .connection-quick-actions { gap:6px; }
   .tracker-home .mood-segments { gap:0; }
   .tracker-home .mood-segments button { font-size:11px; min-height:44px; }
   .tracker-home #overviewStats { grid-template-columns: minmax(0,1fr); gap: 16px; }
   .tracker-home .overview-time-stat .subject-time-chart { width:min(200px,100%); }
   .tracker-home .home-reflection-fields { grid-template-columns: minmax(0,1fr); gap: 12px; }
+}
+@media(max-width:380px) {
+  .tracker-home .connection-badge,.tracker-home .pending-sync-link { font-size:11px; }
+  .tracker-home button.connection-save { padding-inline:8px; }
 }
 @media(max-width:1199px) { .tracker-home.has-site-shell .app-header { display: none; } }
 @media(prefers-reduced-motion:reduce) { .tracker-home .home-reflection-details>summary::after { transition: none; } }

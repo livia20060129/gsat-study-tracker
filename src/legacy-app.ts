@@ -4520,11 +4520,14 @@ var saveFeedbackTimer=null;
 function setSaveButtonState(state){
  var button=id('saveBtn');if(!button)return;
  if(saveFeedbackTimer){clearTimeout(saveFeedbackTimer);saveFeedbackTimer=null}
- button.dataset.state=state||'idle';
- button.disabled=state==='saving';
- button.setAttribute('aria-busy',state==='saving'?'true':'false');
  var label=state==='saving'?'儲存中…':state==='local'?'已存本機 ✓':state==='success'?'Cloud 已同步 ✓':state==='error'?'同步失敗':'儲存紀錄';
- button.setAttribute('aria-label',label);button.title=label;
+ var iconName=state==='local'||state==='success'?'save-check':state==='error'?'triangle-exclamation-point':'save';
+ document.querySelectorAll('#saveBtn,[data-home-save]').forEach(function(control){
+  control.dataset.state=state||'idle';control.disabled=state==='saving';
+  control.setAttribute('aria-busy',state==='saving'?'true':'false');
+  control.setAttribute('aria-label',label);control.title=label;
+  var icon=control.querySelector('[data-home-icon="save"]');if(icon)icon.setAttribute('data-ui-icon',iconName);
+ });
  if(state==='local'||state==='success'||state==='error')saveFeedbackTimer=setTimeout(function(){setSaveButtonState('idle')},state==='error'?4000:3000);
 }
 function saveCurrentRecord(){

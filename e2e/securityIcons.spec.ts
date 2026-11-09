@@ -21,16 +21,31 @@ test('Lucide navigation keeps labels and all three Menu strokes at mobile size',
   await expect(menu.locator('svg path')).toHaveCount(3);
   await expect(page.locator('#siteMobileBar [data-mobile-section="date"] [data-ui-icon="calendar-days"]')).toBeVisible();
   await expect(page.locator('#saveBtn')).toHaveAccessibleName('儲存紀錄');
-  await expect(page.locator('#saveBtn,[data-home-save]')).toHaveText(['','']);
+  await expect(page.locator('#saveBtn,[data-home-save]')).toHaveText(['儲存','儲存']);
   await expect(page.locator('[data-home-save]')).toHaveAccessibleName('儲存紀錄');
   await expect(page.locator('#saveBtn [data-ui-icon="save"] svg')).toBeVisible();
   await expect(page.locator('#cloudStatusBadge [data-ui-icon="cloud-upload"] svg')).toBeVisible();
   await expect(page.locator('#cloudStatusBadge [data-cloud-status-icon]')).toHaveCSS('color','rgb(113, 128, 150)');
   await expect(page.locator('.connection-settings-toggle .ui-sr-only')).toHaveText('連線設定');
+  const settingsSize=await page.locator('.connection-settings-toggle').boundingBox();
+  expect(settingsSize!.width).toBe(settingsSize!.height);
+  await expect(page.locator('.connection-settings-toggle')).toHaveCSS('border-radius','10px');
   await expect(page.locator('#siteMobileBar [data-home-date]')).toHaveCount(0);
   const title=page.locator('#siteMobileBar .site-mobile-home strong');
-  for (const width of [360,820,393]) {
+  for (const width of [320,360,375,820,393]) {
     await page.setViewportSize({width,height:852});
+    const bounds=await page.evaluate(()=>{
+      document.getElementById('status')!.textContent='已儲存，並完成雲端同步。較長的回饋訊息應保留在控制列下方，不影響同一列按鈕。';
+      const cloud=document.getElementById('cloudStatusBadge')!;
+      cloud.lastChild!.textContent='待同步 4 天';
+      document.getElementById('cloudPendingDetailsBtn')!.hidden=false;
+      const status=document.querySelector('.connection-statuses')!.getBoundingClientRect();
+      const actions=document.querySelector('.connection-quick-actions')!.getBoundingClientRect();
+      const bar=document.querySelector('.connection-status-bar')!;
+      return {statusCenter:status.top+status.height/2,actionsCenter:actions.top+actions.height/2,scroll:bar.scrollWidth,width:bar.clientWidth};
+    });
+    expect(Math.abs(bounds.statusCenter-bounds.actionsCenter)).toBeLessThanOrEqual(1);
+    expect(bounds.scroll).toBeLessThanOrEqual(bounds.width);
     await expect(title).toBeVisible();
     await expect.poll(()=>title.evaluate(node=>{
       const bounds=node.getBoundingClientRect();
