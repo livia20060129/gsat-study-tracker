@@ -5,15 +5,20 @@ import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } 
 test('normalizes the shared metric view with completion as the default', () => {
   assert.equal(normalizeOverviewMetric('pages'), 'pages');
   assert.equal(normalizeOverviewMetric('completion'), 'completion');
+  assert.equal(normalizeOverviewMetric('reminder'), 'reminder');
   assert.equal(normalizeOverviewMetric('unknown'), 'completion');
   assert.equal(normalizeOverviewMetric(undefined), 'completion');
 });
 test('returns the correct position of each shared metric', () => {
   assert.equal(overviewMetricIndex('completion'), 0);
   assert.equal(overviewMetricIndex('pages'), 1);
+  assert.equal(overviewMetricIndex('reminder'), 2);
 });
-test('keyboard navigation wraps between pages and completion in either direction', () => {
-  assert.equal(adjacentOverviewMetric('pages', 1), 'completion');
+test('keyboard navigation wraps across completion, pages and yesterday reminders in either direction', () => {
+  assert.equal(adjacentOverviewMetric('pages', 1), 'reminder');
+  assert.equal(adjacentOverviewMetric('reminder', 1), 'completion');
   assert.equal(adjacentOverviewMetric('completion', 1), 'pages');
   assert.equal(adjacentOverviewMetric('pages', -1), 'completion');
+  assert.equal(adjacentOverviewMetric('completion', -1), 'reminder');
+  assert.equal(adjacentOverviewMetric('reminder', -1), 'pages');
 });

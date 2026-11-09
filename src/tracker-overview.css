@@ -223,11 +223,11 @@
 }
 
 .overview-metric-stat #overviewMetricTabs {
-  grid-template-columns: repeat(2,minmax(0,1fr));
+  grid-template-columns: repeat(3,minmax(0,1fr));
 }
 
 .overview-metric-stat .metric-segment-indicator {
-  width: calc((100% - 8px)/2);
+  width: calc((100% - 8px)/3);
 }
 
 .overview-metric-stat[data-metric-view=pages] .metric-segment-indicator {
@@ -236,6 +236,10 @@
 
 .overview-metric-stat[data-metric-view=completion] .metric-segment-indicator {
   transform: translateX(0);
+}
+
+.overview-metric-stat[data-metric-view=reminder] .metric-segment-indicator {
+  transform: translateX(200%);
 }
 
 .overview-metric-stat .metric-panel-stage {

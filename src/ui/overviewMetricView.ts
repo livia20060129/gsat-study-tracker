@@ -1,4 +1,4 @@
-export const OVERVIEW_METRICS = ['completion', 'pages'] as const;
+export const OVERVIEW_METRICS = ['completion', 'pages', 'reminder'] as const;
 
 export type OverviewMetric = typeof OVERVIEW_METRICS[number];
 

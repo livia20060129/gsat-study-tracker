@@ -76,7 +76,7 @@ import { saveLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { VOCABULARY_PARTS_OF_SPEECH } from './study/vocabularyTranslationCounts.ts';
 import { initializeMagazineMonth, magazineMonthForDate } from './study/magazineDefaults';
 import { setupConnectionSettingsMotion } from './ui/connectionSettingsMotion';
-import { adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
+import { OVERVIEW_METRICS, adjacentOverviewMetric, normalizeOverviewMetric, overviewMetricIndex } from './ui/overviewMetricView';
 import { adjacentStudyItemsView, normalizeStudyItemsView, studyItemsViewIndex } from './ui/studyItemsView';
 import { renderItemDeleteFooter } from './ui/itemActions';
 import { LatestTaskQueue } from './storage/latestTaskQueue';
@@ -3490,6 +3490,21 @@ function updateOverviewMetricView(focusSelected){
  tabs.querySelectorAll('[data-overview-metric]').forEach(function(button){var selected=button.getAttribute('data-overview-metric')===overviewMetricView;button.setAttribute('aria-selected',selected?'true':'false');button.tabIndex=selected?0:-1;if(selected&&focusSelected)button.focus()});
  var card=tabs.closest('.overview-metric-stat');if(card)card.dataset.metricView=overviewMetricView;
  document.querySelectorAll('[data-metric-panel]').forEach(function(panel){var selected=panel.getAttribute('data-metric-panel')===overviewMetricView;panel.hidden=false;panel.classList.toggle('is-active',selected);panel.setAttribute('aria-hidden',selected?'false':'true');panel.inert=!selected});
+ if(overviewMetricView==='reminder')updateYesterdayReminder();
+}
+function previousReminderDate(date){
+ var previous=parseDate(date);previous.setDate(previous.getDate()-1);return dateString(previous);
+}
+function updateYesterdayReminder(){
+ if(!data)return;
+ var previousDate=previousReminderDate(data.date),result=readStoredRecordResult(previousDate);
+ var text=result.status==='ok'&&typeof result.record.firstThingTomorrow==='string'?result.record.firstThingTomorrow:'';
+ var state=result.status==='invalid'?'unreadable':text.trim()?'content':'empty';
+ var message=state==='unreadable'?'前一天的紀錄無法讀取，請前往該日檢查。':state==='content'?text:'前一天尚未填寫「明日第一件事」。';
+ var dateLabel=id('yesterdayReminderDate'),content=id('yesterdayReminderText');
+ var source='來源日期：'+previousDate;if(dateLabel.textContent!==source)dateLabel.textContent=source;
+ if(content.textContent!==message)content.textContent=message;
+ id('yesterdayReminderPanel').dataset.state=state;
 }
 function render(){
  deferredCapacityCache=null;
@@ -4528,7 +4543,7 @@ id('englishTaskChoice').addEventListener('click',function(e){
 id('studyItemsViewTabs').addEventListener('click',function(e){var button=e.target.closest('[data-study-items-view]');if(!button)return;studyItemsView=button.getAttribute('data-study-items-view');updateStudyItemsView(false)});
 id('studyItemsViewTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')studyItemsView='today';else if(e.key==='End')studyItemsView='week';else studyItemsView=adjacentStudyItemsView(studyItemsView,e.key==='ArrowRight'?1:-1);updateStudyItemsView(true)});
 id('overviewMetricTabs').addEventListener('click',function(e){var button=e.target.closest('[data-overview-metric]');if(!button)return;overviewMetricView=button.getAttribute('data-overview-metric');updateOverviewMetricView(false)});
-id('overviewMetricTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')overviewMetricView='completion';else if(e.key==='End')overviewMetricView='pages';else overviewMetricView=adjacentOverviewMetric(overviewMetricView,e.key==='ArrowRight'?1:-1);updateOverviewMetricView(true)});
+id('overviewMetricTabs').addEventListener('keydown',function(e){if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'&&e.key!=='Home'&&e.key!=='End')return;e.preventDefault();if(e.key==='Home')overviewMetricView=OVERVIEW_METRICS[0];else if(e.key==='End')overviewMetricView=OVERVIEW_METRICS[OVERVIEW_METRICS.length-1];else overviewMetricView=adjacentOverviewMetric(overviewMetricView,e.key==='ArrowRight'?1:-1);updateOverviewMetricView(true)});
 id('activeTimerSummary').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('click',handleClick);
 id('weeklyItemList').addEventListener('change',handleWeeklyChange);
@@ -4634,11 +4649,14 @@ window.addEventListener('storage',function(event){
  }
  if(event.key&&event.key.indexOf(STORE_PREFIX)===0)catalogRuntimeCache=null;
  if(data&&event.storageArea===localStorage&&event.key===STORE_PREFIX+data.date)refreshVisibleRecordFromLocalChange();
+ if(data&&overviewMetricView==='reminder'&&event.storageArea===localStorage&&(!event.key||event.key===STORE_PREFIX+previousReminderDate(data.date)))updateYesterdayReminder();
 });
+window.addEventListener('study-records-changed',function(){if(overviewMetricView==='reminder')updateYesterdayReminder()});
 window.addEventListener('storage',schedulePendingCloudSync);
 window.addEventListener('study-records-changed',schedulePendingCloudSync);
 window.addEventListener('pageshow',function(event){if(event.persisted){
  localVisibleRefreshPending=true;refreshVisibleRecordFromLocalChange();
+ if(overviewMetricView==='reminder')updateYesterdayReminder();
  if(cloudUser&&!cloudBootstrapPending&&!cloudManualSyncPending){
   var serial=cloudActivationSerial;
   runCloudManualSync('載入頁面',async function(){

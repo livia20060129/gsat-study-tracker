@@ -70,6 +70,11 @@
 .tracker-home .metric-segments button[aria-selected=true] { color: white; }
 .tracker-home .overview-metric-stat .metric-panel-stage { min-height: 200px !important; }
 .tracker-home .overview-metric-stat .metric-panel-stage>[data-metric-panel] { min-height: 200px; padding: 7px 0; }
+.tracker-home #yesterdayReminderPanel:not(.is-active) { position:absolute; max-height:100%; overflow:hidden; }
+.tracker-home .yesterday-reminder-date { margin:0 0 10px; font-size:12px; color:var(--muted); }
+.tracker-home .yesterday-reminder-text { width:100%; white-space:pre-wrap; overflow-wrap:anywhere; font-size:16px; line-height:1.7; }
+.tracker-home #yesterdayReminderPanel[data-state="empty"] .yesterday-reminder-text,
+.tracker-home #yesterdayReminderPanel[data-state="unreadable"] .yesterday-reminder-text { color:var(--muted); font-size:14px; }
 .tracker-home #completionRatePanel { gap: 12px; }
 .tracker-home #completionRatePanel .completion-metric-head { flex-direction: row; justify-content: space-between; align-items: center; font-size: 12px; }
 .tracker-home #completionRatePanel .completion-metric-head strong { font-size: 14px; }

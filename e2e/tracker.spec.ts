@@ -638,16 +638,17 @@ test(`completion opens on the left, metrics stay centered and labels align with 
   const tabs = page.locator('#overviewMetricTabs');
   const completion = tabs.locator('[data-overview-metric="completion"]');
   const pages = tabs.locator('[data-overview-metric="pages"]');
+  const reminder = tabs.locator('[data-overview-metric="reminder"]');
   await expect(tabs.getByRole('tab').first()).toHaveText('完成率');
   await expect(completion).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#completionRatePanel')).toHaveClass(/is-active/);
   await expect(page.locator('#mathPagesPanel')).toHaveAttribute('inert', '');
   await selectStudyDate(page, '2026-09-20');
-  for (const view of ['completion', 'pages', 'completion']) {
+  for (const view of ['completion', 'pages', 'reminder', 'completion']) {
     await page.locator(`[data-overview-metric="${view}"]`).click();
     const panel = page.locator(`[data-metric-panel="${view}"]`);
     await expect(panel).toHaveClass(/is-active/);
-    await expect(tabs).toHaveAttribute('data-active', view === 'completion' ? '0' : '1');
+    await expect(tabs).toHaveAttribute('data-active', String(['completion','pages','reminder'].indexOf(view)));
     await page.waitForTimeout(480);
     const position = await panel.evaluate(node => {
       const panelRect = node.getBoundingClientRect();
@@ -689,10 +690,12 @@ test(`completion opens on the left, metrics stay centered and labels align with 
   await expect(completion).toBeFocused();
   await expect(completion).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('End');
-  await expect(pages).toBeFocused();
-  await expect(pages).toHaveAttribute('aria-selected', 'true');
+  await expect(reminder).toBeFocused();
+  await expect(reminder).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('ArrowRight');
   await expect(completion).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(reminder).toBeFocused();
   await page.keyboard.press('ArrowLeft');
   await expect(pages).toBeFocused();
   await page.reload();
