@@ -61,7 +61,7 @@
         <label class="vocabulary-accent">辭典 <select id="vocabularyDictionary"><option value="oxford">牛津辭典</option><option value="cambridge">劍橋英漢辭典</option></select></label>
         </div>
         <div class="vocabulary-export-tools" role="group" aria-label="匯出單字表">
-        <label class="vocabulary-accent vocabulary-export-format"><span>匯出格式</span><select id="vocabularyExportFormat"><option value="pdf">.pdf</option><option value="docx">.docx</option></select></label>
+        <label class="vocabulary-accent vocabulary-export-format" for="vocabularyExportFormat"><span id="vocabularyExportLabel">匯出格式</span><select id="vocabularyExportFormat" aria-labelledby="vocabularyExportLabel"><option value="pdf">.pdf</option><option value="docx">.docx</option></select></label>
         <button type="button" data-export-vocabulary="translated">有翻譯</button>
         <button type="button" data-export-vocabulary="blank">無翻譯</button>
         </div>

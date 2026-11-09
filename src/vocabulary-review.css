@@ -35,9 +35,10 @@
 .vocabulary-view-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 10px}
 .vocabulary-view-toolbar .vocabulary-grouping-switch{margin-top:0}
 .vocabulary-reading-tools,.vocabulary-export-tools{display:flex;flex:1 0 100%;align-items:center;flex-wrap:wrap;gap:10px;min-width:0}
-.vocabulary-export-tools{flex-wrap:nowrap;gap:6px}
-.vocabulary-export-format{flex:0 1 70px;min-width:0}
-.vocabulary-export-format>span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.vocabulary-export-tools{display:grid;grid-template-columns:max-content minmax(0,70px) max-content max-content;justify-content:start;gap:6px}
+.vocabulary-export-tools .vocabulary-export-format{display:contents}
+.vocabulary-export-format>span{font-size:13px;white-space:nowrap}
+@media(max-width:420px){.vocabulary-export-tools{grid-template-columns:minmax(0,70px) max-content max-content}.vocabulary-export-format>span{grid-column:1 / -1}}
 #toggleVocabularyTranslations{min-height:40px;padding:8px 12px;border:1px solid #cbd8ea;border-radius:11px;background:#fff;color:#315b91;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
 #toggleVocabularyTranslations:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:2px}
 .vocabulary-readonly-translations{display:grid;gap:9px;min-width:0;padding:10px 12px;border:1px solid #e0e7f0;border-radius:12px;background:#fff;color:#34445b;font-size:14px;overflow-wrap:anywhere}

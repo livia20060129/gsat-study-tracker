@@ -34,7 +34,11 @@
 .tracker-home .connection-divider { display: none; }
 .tracker-home .connection-statuses { flex-wrap:nowrap; gap:20px; }
 .tracker-home .connection-quick-actions { flex:none; flex-wrap:nowrap; gap:8px; }
-.tracker-home .connection-save-feedback { grid-column:1 / -1; order:initial; width:100%; max-width:none; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+.tracker-home .connection-save-feedback { display:flex; align-items:center; gap:8px; grid-column:1 / -1; order:initial; width:100%; max-width:none; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+.tracker-home .connection-save-feedback[hidden] { display:none; }
+.tracker-home .connection-save-feedback>#status { flex:1; min-width:0; }
+.tracker-home .connection-status-ack { flex:none; min-height:32px; padding:4px 8px; border:0; background:transparent; color:#647b99; font:inherit; font-weight:700; text-decoration:underline; cursor:pointer; }
+@media(pointer:coarse) { .tracker-home .connection-status-ack { min-width:44px; min-height:44px; } }
 .tracker-home .active-timer-summary { grid-column:1 / -1; justify-self:end; max-width:100%; }
 .tracker-home .connection-settings-toggle { display: inline-flex; align-items: center; justify-content:center; flex:none; width:36px; height:36px; padding:8px; gap:0; border:1px solid #d6e0ec; border-radius:10px; font-size:12px; }
 .tracker-home .connection-save { min-height: 32px; padding: 5px 12px; font-size: 12px; }

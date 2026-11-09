@@ -10,6 +10,10 @@ test('pronunciation and Chinese controls use a separate row from export controls
     await expect(reading.locator('#toggleVocabularyTranslations')).toBeVisible();
     await expect(reading.locator('#vocabularyAccent')).toBeVisible();
     await expect(exporting.locator('#vocabularyExportFormat')).toBeVisible();
+    await expect(exporting.locator('.vocabulary-export-format>span')).toBeVisible();
+    await expect(exporting.locator('.vocabulary-export-format>span')).toHaveText('匯出格式');
+    await expect(exporting.getByLabel('匯出格式', { exact: true })).toHaveId('vocabularyExportFormat');
+    expect((await exporting.locator('#vocabularyExportFormat').boundingBox())!.width).toBeGreaterThanOrEqual(62);
     await expect(exporting.locator('#vocabularyExportFormat option')).toHaveText(['.pdf', '.docx']);
     for (const format of ['pdf', 'docx', 'pdf']) {
       await exporting.locator('#vocabularyExportFormat').selectOption(format);

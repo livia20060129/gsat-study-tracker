@@ -15,6 +15,7 @@ import { synchronizeStoredCalendarSchedule } from './application/calendar/stored
 
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
 import { WordLookupFeedback } from './ui/wordLookupFeedback.ts';
+import { initializeStatusFeedback } from './ui/statusFeedback.ts';
 import { WordInputCommitGate } from './ui/wordInputCommitGate.ts';
 import { googleTranslationAttributionHtml } from './ui/googleTranslationAttribution.ts';
 import { renderStudyReference } from './ui/studyReference.ts';
@@ -413,6 +414,7 @@ var pendingSyncDialog=null;
 var pendingSyncPreview=null;
 var pendingSyncRefreshTimer=null;
 var rangeCompletionFailures=[];
+var statusFeedbackRefresh=null;
 var cloudConflictBackupError='';
 var cloudSaveQueue=new LatestTaskQueue(450,async function(date,job){
  if(job.scope!==STORE_PREFIX||job.serial!==cloudActivationSerial||!currentStorageIsUserScoped())return false;
@@ -472,6 +474,7 @@ function setStorageScope(userId){
  catalogRuntimeCache=null;
  rangeCompletionFailures=[];cloudConflictBackupError='';
  STORE_PREFIX=storagePrefixForUser(userId||null);
+ if(statusFeedbackRefresh)statusFeedbackRefresh();
  localRecordRepository.setPrefix(STORE_PREFIX);
  try{store.setItem(ACTIVE_RECORD_PREFIX_KEY,STORE_PREFIX)}catch(e){}
  mathProgressIndex.replaceAll([]);
@@ -529,6 +532,7 @@ function refreshPendingSyncDetails(){
  var entries=pendingCloudSync.entries(STORE_PREFIX,records),button=id('cloudPendingDetailsBtn');
  if(button)button.hidden=!entries.length&&!rangeCompletionFailures.length;
  if(pendingSyncDialog)pendingSyncDialog.render(entries,rangeCompletionFailures);
+ if(statusFeedbackRefresh)statusFeedbackRefresh();
  return entries;
 }
 function schedulePendingCloudSync(){
@@ -784,7 +788,7 @@ async function pendingSyncAction(action,date){
  if(!pendingSyncDialog)return;
  if(action==='retry-ranges'){
   var ranges=synchronizeLocalRanges('manual');
-  var rangeMessage=ranges.failedDates.length?'本機對照仍有 '+ranges.failedDates.length+' 天未更新，原因見下方。':'本機完成範圍對照已更新；Cloud 上傳依各日期狀態另行確認。';
+  var rangeMessage=ranges.failedDates.length?'本機對照仍有 '+ranges.failedDates.length+' 天未更新，原因見詳細。':'本機完成範圍對照已更新；Cloud 上傳依各日期狀態另行確認。';
   pendingSyncDialog.message(rangeMessage);id('status').textContent=rangeMessage;
   return;
  }
@@ -4220,7 +4224,7 @@ function persist(show,options){
   if(rangeCompletionSignature(data)!==rangeCompletionSignature(previous)){
    var rangeSync=synchronizeLocalRanges();
    var rangeUpdated=rangeSync.saved.find(function(record){return record.date===data.date});if(rangeUpdated)data=rangeUpdated;
-   if(rangeSync.failedDates.length)id('status').textContent='紀錄已保存；'+rangeSync.failedDates.length+' 天的本機完成範圍對照未更新。'+(rangeSync.failures[0]&&rangeSync.failures[0].reason||'')+'請點「查看詳細」。';
+   if(rangeSync.failedDates.length)id('status').textContent='紀錄已保存；'+rangeSync.failedDates.length+' 天的本機完成範圍對照未更新，原因見詳細。';
   }
   dataLoadBase=cloneRecord(data);window.dispatchEvent(new Event('study-records-changed'))
  }
@@ -4587,7 +4591,7 @@ function saveCurrentRecord(){
    var saved=readStoredRecord(savingDate),synced=!!saved&&!saved.localDirty&&!saved.syncConflict;
    if(synced){id('status').textContent='已儲存 '+savingDate+'，並完成雲端同步。';setSaveButtonState('success')}
    else if(saved&&!saved.syncConflict&&pendingCloudSync.state(STORE_PREFIX,savingDate).phase==='paused'){
-    id('status').textContent='已儲存本機；此日期同步已暫停，可在「查看詳細」恢復。';setSaveButtonState('local');
+    id('status').textContent='已儲存本機；此日期同步已暫停，可在「詳細」恢復。';setSaveButtonState('local');
    }
    else if(saved&&!saved.syncConflict&&pendingCloudSync.state(STORE_PREFIX,savingDate).phase==='waiting'){
     id('status').textContent='前一版已同步；最新修改已存本機，請再按儲存紀錄。';setSaveButtonState('local');
@@ -4670,5 +4674,8 @@ window.addEventListener('offline',function(){cloudSetMessage('目前離線；紀
 window.addEventListener('pagehide',function(){if(data)persist(false)});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&data)persist(false);else if(document.visibilityState==='visible'){refreshVisibleRecordFromLocalChange();schedulePendingCloudSync()}});
 pendingSyncDialog=initializePendingSyncDialog(id('cloudPendingDialog'),pendingSyncAction,resolvePendingSync);
+statusFeedbackRefresh=initializeStatusFeedback(id('statusFeedback'),id('status'),id('statusAcknowledgeBtn'),id('connectionSettings').querySelector('.connection-settings-content'),store,function(text){
+ return{scope:STORE_PREFIX,issueKey:text.indexOf('對照')>=0?JSON.stringify(rangeCompletionFailures.map(function(failure){return[failure.date,failure.reason]}).sort()):''};
+},function(){var target=id('cloudPendingDetailsBtn');if(!target||target.hidden)target=id('saveBtn');if(target)target.focus({preventScroll:true})});
 id('cloudPendingDetailsBtn').addEventListener('click',function(event){event.preventDefault();event.stopPropagation();refreshPendingSyncDetails();pendingSyncDialog.open()});
 id('studyDate').value=requestedStudyDate(window.location.search)||dateString(new Date());updateImportBackupButton();initCloud();
