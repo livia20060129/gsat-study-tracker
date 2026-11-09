@@ -31,12 +31,23 @@ export class PendingCloudSync {
     try {
       const stored = JSON.parse(this.storage.getItem(key) ?? 'null');
       if (stored?.phase === 'paused') return { phase: 'paused', reason: '已由你暫停此日同步。', attempts: 0, attemptedAt: 0, retryAt: 0 };
+      if (['failed','blocked','waiting'].includes(stored?.phase) && typeof stored.reason === 'string' && stored.reason.trim()) {
+        // Reload permits one normal load-triggered attempt, while retaining the
+        // last actual cause until that attempt starts or the user retries.
+        return { phase:'waiting', reason:`上次未完成原因：${stored.reason.slice(0,1000)}`,
+          attempts:Number.isSafeInteger(stored.attempts) && stored.attempts>0 ? stored.attempts : 0,
+          attemptedAt:Number.isFinite(stored.attemptedAt) && stored.attemptedAt>0 ? stored.attemptedAt : 0, retryAt:0 };
+      }
     } catch { /* UI preferences must not prevent record synchronization. */ }
     return { phase: 'waiting', reason: '本機變更尚未獲得雲端確認。', attempts: 0, attemptedAt: 0, retryAt: 0 };
   }
 
   private set(scope: string, date: string, state: PendingSyncState): void {
     this.states.set(this.key(scope, date), state);
+    if (state.phase==='failed' || state.phase==='blocked' || state.phase==='waiting') {
+      try { this.storage.setItem(this.key(scope,date),JSON.stringify({...state,reason:state.reason.slice(0,1000)})); }
+      catch { /* Failed diagnostics must never replace or delete an actual record. */ }
+    }
   }
 
   queued(scope: string, date: string): void {

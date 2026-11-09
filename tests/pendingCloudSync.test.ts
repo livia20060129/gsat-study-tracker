@@ -70,6 +70,33 @@ test('confirmed saves clear only the corresponding date and failure reason', () 
   assert.equal(sync.state(scope, '2026-08-04').reason, 'second');
 });
 
+test('reloading retains the last failure cause but permits exactly the normal load-triggered attempt', () => {
+  const store=storage(),sync=new PendingCloudSync(store);
+  sync.failed(scope,record.date,'雲端已接收，但本機無法寫回同步狀態。',true,1234);
+  const reopened=new PendingCloudSync(store);
+  assert.equal(reopened.state(scope,record.date).phase,'waiting');
+  assert.match(reopened.state(scope,record.date).reason,/本機無法寫回/);
+  assert.equal(reopened.state(scope,record.date).attemptedAt,1234);
+  assert.equal(reopened.ready(scope,record),true);
+  reopened.queued(scope,record.date);
+  assert.equal(reopened.ready(scope,record),false);
+  reopened.failed(scope,record.date,'still full',true,2345);
+  assert.equal(reopened.ready(scope,record),false);
+  assert.equal(reopened.state('study-v11:user:b:',record.date).attempts,0);
+  reopened.saved(scope,record.date);
+  assert.equal(new PendingCloudSync(store).state(scope,record.date).attemptedAt,0);
+});
+
+test('failed diagnostic storage cannot erase records or prevent manual retry', () => {
+  const store=storage();
+  store.setItem=()=>{throw new DOMException('full','QuotaExceededError');};
+  const sync=new PendingCloudSync(store);
+  sync.failed(scope,record.date,'full',true,100);
+  assert.equal(sync.state(scope,record.date).reason,'full');
+  sync.resume(scope,record.date);
+  assert.equal(sync.ready(scope,record),true);
+});
+
 test('old dirty Calendar caches do not appear as pending days but real recorded changes do', () => {
   const sync = new PendingCloudSync(storage());
   const cached: StudyRecord = { date: record.date, localDirty: true, items: [{ id: 'calendar', type: 'extra',

@@ -23,6 +23,9 @@ async function setup(page: Page, options: { dates?: string[]; changed?: boolean;
   await page.context().addInitScript(({ prefix }) => {
     const set = Storage.prototype.setItem;
     Storage.prototype.setItem = function simulateStorageCapacity(key, value): void {
+      if(this===localStorage && key.endsWith('__cloud-conflict-backup__') && localStorage.getItem('test:block-backup')==='yes') {
+        throw new DOMException('simulated backup capacity exhausted','QuotaExceededError');
+      }
       if (this === localStorage && key === prefix + localStorage.getItem('test:block-clean-date')) {
         const parsed = JSON.parse(value);
         if (parsed.localDirty === false) throw new DOMException('simulated full storage', 'QuotaExceededError');
@@ -169,6 +172,7 @@ test('a failed date gets one new attempt on page load without rescheduling itsel
   await page.clock.install({ time: new Date('2026-08-09T12:00:00+08:00') });
   const state = await setup(page, { changed: true, failures: Infinity });
   await expect.poll(() => state.posts.get(oldDate)).toBe(1);
+  await expect.poll(()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)||'null')?.reason,prefix+'meta:pending-sync:'+oldDate)).toContain('temporary upload unavailable');
   await page.clock.runFor(11 * 60_000);
   expect(state.posts.get(oldDate)).toBe(1);
   await page.reload();
@@ -209,6 +213,32 @@ test('an edit made during an upload stays pending instead of creating an endless
   await expect.poll(() => state.rows.get(today)?.payload.notes).toBe('上傳途中新增的內容');
 });
 
+test('a rejected cross-tab lock reports the pre-upload cause and manual retry finishes explicitly', async ({ page }) => {
+  const errors:string[]=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.addInitScript(({oldDate})=>{
+    const locks=navigator.locks;
+    Object.defineProperty(navigator,'locks',{configurable:true,value:{request(...args:unknown[]){
+      if(String(args[0]).startsWith('gsat-study-record:') && String(args[0]).endsWith(oldDate)
+        && localStorage.getItem('test:allow-record-lock')!=='yes') return Promise.reject(new Error('simulated record lock unavailable'));
+      if(locks) return Reflect.apply(locks.request,locks,args);
+      const callback=args.at(-1) as ()=>unknown;
+      return Promise.resolve().then(callback);
+    }}});
+  },{oldDate});
+  const state=await setup(page,{changed:true});
+  await openDetails(page);
+  const row=page.locator(`[data-pending-date="${oldDate}"]`);
+  await expect(row.locator('[data-state]')).toHaveText('需要處理');
+  await expect(row.locator('[data-reason]')).toContainText('未開始上傳：simulated record lock unavailable');
+  expect(state.posts.get(oldDate)??0).toBe(0);
+  await page.evaluate(()=>localStorage.setItem('test:allow-record-lock','yes'));
+  await row.getByRole('button',{name:'重試同步',exact:true}).click();
+  await expect(page.locator('[data-pending-message]')).toHaveText(oldDate+' 已確認與雲端同步。');
+  expect(state.posts.get(oldDate)).toBe(1);
+  expect(errors).toEqual([]);
+});
+
 test('a user can pause a date, retain that choice across reload, and explicitly resume it', async ({ page }) => {
   const state = await setup(page, { changed: true, failures: Infinity });
   await openDetails(page);
@@ -240,6 +270,29 @@ test('comparison lets the user choose a cloud version with confirmation and a re
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).notes, prefix + oldDate)).toBe('伺服器筆記');
   expect(await page.evaluate(key => localStorage.getItem(key) !== null, prefix + '__cloud-conflict-backup__')).toBe(true);
   expect(state.posts.get(oldDate)).toBe(1);
+});
+
+test('a full backup store reports capacity, preserves both versions and permits a safe later retry', async ({ page }) => {
+  const state=await setup(page,{changed:true,failures:Infinity});
+  await openDetails(page);
+  const row=page.locator(`[data-pending-date="${oldDate}"]`);
+  await expect(row.locator('[data-state]')).toContainText('同步失敗');
+  await page.evaluate(()=>localStorage.setItem('test:block-backup','yes'));
+  page.on('dialog',dialog=>dialog.accept());
+  await row.getByRole('button',{name:'比較與處理',exact:true}).click();
+  await expect(page.locator('[data-pending-diff]')).toContainText('兩端內容不同');
+  await page.locator('[data-pending-use="cloud"]').click();
+  await expect(page.locator('[data-pending-message]')).toContainText('本機儲存空間不足');
+  expect(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).notes,prefix+oldDate)).toBe('本機新筆記');
+  expect(state.rows.get(oldDate)?.payload.notes).toBe('伺服器筆記');
+  expect(state.posts.get(oldDate)).toBe(1);
+  await page.evaluate(()=>localStorage.removeItem('test:block-backup'));
+  await row.getByRole('button',{name:'比較與處理',exact:true}).click();
+  await expect(page.locator('[data-pending-diff]')).toContainText('兩端內容不同');
+  await page.locator('[data-pending-use="cloud"]').click();
+  await expect(page.locator('[data-pending-message]')).toContainText('已完成處理');
+  expect(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).notes,prefix+oldDate)).toBe('伺服器筆記');
+  expect(await page.evaluate(key=>!!localStorage.getItem(key),prefix+'__cloud-conflict-backup__')).toBe(true);
 });
 
 test('a changed cloud revision after comparison prevents a stale overwrite', async ({ page }) => {
