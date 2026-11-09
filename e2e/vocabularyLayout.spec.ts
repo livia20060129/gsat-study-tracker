@@ -10,6 +10,21 @@ test('pronunciation and Chinese controls use a separate row from export controls
     await expect(reading.locator('#toggleVocabularyTranslations')).toBeVisible();
     await expect(reading.locator('#vocabularyAccent')).toBeVisible();
     await expect(exporting.locator('#vocabularyExportFormat')).toBeVisible();
+    await expect(exporting.locator('#vocabularyExportFormat option')).toHaveText(['.pdf', '.docx']);
+    for (const format of ['pdf', 'docx', 'pdf']) {
+      await exporting.locator('#vocabularyExportFormat').selectOption(format);
+      for (const label of ['有翻譯', '無翻譯']) {
+        const button = exporting.getByRole('button', { name: label, exact: true });
+        await expect(button).toHaveText(label);
+        await expect(button.locator('[data-ui-icon="download"] svg')).toBeVisible();
+        await expect(button.locator('svg path')).not.toHaveCount(0);
+      }
+      const centers = await exporting.locator('select,button').evaluateAll(nodes => nodes.map(node => {
+        const rect = node.getBoundingClientRect();
+        return rect.top + rect.height / 2;
+      }));
+      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(1);
+    }
     const first = (await reading.boundingBox())!;
     const second = (await exporting.boundingBox())!;
     expect(second.y).toBeGreaterThanOrEqual(first.y + first.height + 8);
