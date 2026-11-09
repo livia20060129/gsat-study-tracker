@@ -626,7 +626,7 @@ async function runCloudManualSync(label,task){
   var name='gsat-study-manual-sync:'+(cloudUser&&cloudUser.id?cloudUser.id:'guest');
   return await withCrossTabLock(name,task);
  }
- finally{cloudManualSyncPending=false;updateCloudActionButtons()}
+ finally{cloudManualSyncPending=false;updateCloudActionButtons();updateCloudStatusBadge()}
 }
 function readStoredRecord(date){
  return localRecordRepository.load(date);
@@ -979,6 +979,7 @@ async function cloudPullDateLocked(date,force){
   cloudSetMessage(studyRecordConflictSummary(date,conflictDetails,conflictRecord&&conflictRecord.syncConflictLocal||conflictRecord,conflictRecord&&conflictRecord.syncConflictCloud||cloud),false);return false
  }
  if(cloudConflictDate===date)updateCloudConflictUI('');
+ queueDirtyCloudRecords('load');
  return !!cloud||!!localToPush;
 }
 function localStudyDates(){return recordDatesForPrefix(STORE_PREFIX)}
@@ -1043,8 +1044,17 @@ async function cloudMergeLocalMissing(){
 }
 async function cloudRefreshAllRecords(){
  return runCloudManualSync('重新讀取雲端',async function(){
+  var refreshScope=STORE_PREFIX,refreshSerial=cloudActivationSerial;
   await Promise.all(localStudyDates().map(function(date){return cloudSaveQueue.flush(date)}));
-  await cloudPullAllRecords();load({skipCloudRead:true});
+  if(!cloudSaveContextCurrent(refreshScope,refreshSerial))return;
+  await cloudPullAllRecords();
+  if(!cloudSaveContextCurrent(refreshScope,refreshSerial))return;
+  load({skipCloudRead:true});
+  // Applying a downloaded completion can update other dates after the pull's
+  // upload list was built. Include those derived edits in this explicit sync.
+  synchronizeLocalRanges('manual');
+  queueDirtyCloudRecords('manual');
+  await Promise.all(localStudyDates().map(function(date){return cloudSaveQueue.flush(date)}));
  });
 }
 async function cloudKeepLocalConflict(){
@@ -1343,17 +1353,19 @@ async function refreshCalendarTaskCache(token,expectedStatus){
  if(!calendarContinuity.accept(token,rows))return null;
  calendarCacheLoaded=true;calendarUsingLastSnapshot=false;return rows.length;
 }
-function reconcileStoredCalendarPresets(){
+function reconcileStoredCalendarPresets(trigger){
  if(!calendarCacheLoaded||calendarContinuity.preservesRecords)return 0;
  var refreshed=synchronizeStoredCalendarSchedule(store,STORE_PREFIX,calendarContinuity.snapshot.rows,dateString(new Date()));
  var changedDates=new Set(refreshed.savedDates);
  localStudyDates().sort().forEach(function(ds){
+  var previous=readStoredRecord(ds);
   var rec=loadData(ds);
   if(!ensureDailyPresets(rec,ds))return;
+  if(previous&&sameStudyContent(previous,rec))return;
   // Calendar reconciliation may add or remove preset items, but it must not
   // erase an existing revision conflict before the user resolves it.
-  rec.localDirty=true;
-  if(writeStoredRecord(rec)){changedDates.add(ds);if(!rec.syncConflict)queueCloudSave(rec,true)}
+  rec=markRecordLocallyEdited(rec,previous);
+  if(writeStoredRecord(rec)){changedDates.add(ds);if(!rec.syncConflict)queueCloudSave(rec,true,trigger)}
  });
  return changedDates.size;
 }
@@ -1369,7 +1381,8 @@ async function calendarRefreshStatus(showMessage){
    }
    if(s.sync_error)throw new Error('Google Calendar 上一次同步尚未成功：'+s.sync_error);
    var n=await refreshCalendarTaskCache(token,s);if(n===null)return false;
-   var cleaned=cloudBootstrapPending?0:reconcileStoredCalendarPresets();
+   var cleaned=cloudBootstrapPending?0:reconcileStoredCalendarPresets('load');
+   if(!cloudBootstrapPending)queueDirtyCloudRecords('load');
    calendarSetMessage('Google Calendar 已連接；已載入 '+n+' 筆同步排程'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true);
   }else{
    calendarContinuity.disconnected(token,hasStoredCalendarSchedule());
@@ -1401,7 +1414,7 @@ async function calendarSyncNow(){
   var r=await calendarInvoke('sync');if(!calendarRequestCurrent(token))return;
   if(!r.connected)throw new Error('Google Calendar 尚未連接，請重新授權。');
   calendarConnected=true;var n=await refreshCalendarTaskCache(token);if(n===null)return;
-  var cleaned=reconcileStoredCalendarPresets();
+  var cleaned=reconcileStoredCalendarPresets('manual');
   calendarSetMessage('同步完成：Google API 更新 '+Number(r.synced||0)+' 筆、移除 '+Number(r.removed||0)+' 筆；Tracker 載入 '+n+' 筆'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true);
   calendarUpdateUI();refreshVisibleDataAfterBackgroundSync();
   queueDirtyCloudRecords('manual');
@@ -1504,7 +1517,7 @@ async function refreshCalendarAfterCloudActivation(serial){
  }catch(e){
   if(serial===cloudActivationSerial&&calendarContinuity.sequence===calendarSequence+1)calendarHandleUnavailable(calendarContinuity.token,e);
  }finally{
-  if(serial===cloudActivationSerial&&cloudUser)queueDirtyCloudRecords('load');
+  if(serial===cloudActivationSerial&&cloudUser){synchronizeLocalRanges('load');queueDirtyCloudRecords('load')}
  }
 }
 async function initCloud(){

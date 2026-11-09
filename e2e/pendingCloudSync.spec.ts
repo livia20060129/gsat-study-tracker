@@ -9,7 +9,7 @@ const user = { id: '00000000-0000-0000-0000-000000000124', email: 'pending@examp
 const prefix = `study-v11:user:${user.id}:`;
 const oldDate = '2026-08-03';
 interface CloudRow { study_date: string; payload: StudyRecord; revision: number; updated_at: string }
-interface State { rows: Map<string, CloudRow>; posts: Map<string, number>; failures: Map<string, number>; held: Route[]; holdReads: boolean; holdList?: boolean; heldLists?: Route[]; beforeSaveReply?: () => Promise<void> }
+interface State { rows: Map<string, CloudRow>; posts: Map<string, number>; failures: Map<string, number>; held: Route[]; holdReads: boolean; holdList?: boolean; heldLists?: Route[]; beforeSaveReply?: () => Promise<void>; listDates?: string[] }
 
 function record(date: string, notes = '伺服器筆記'): StudyRecord & { completionCelebrations: { version: number; half: boolean; complete: boolean } } {
   return { schemaVersion: 2, date, mood: '', wakeTime: '', biggestBlock: '', firstThingTomorrow: '', notes,
@@ -46,7 +46,7 @@ async function setup(page: Page, options: { dates?: string[]; changed?: boolean;
       const wanted = url.searchParams.get('study_date')?.replace(/^eq\./, '');
       if(!wanted&&state.holdList){(state.heldLists??=[]).push(route);return;}
       if (wanted && wanted !== today && state.holdReads) { state.held.push(route); return; }
-      const rows = wanted ? [...state.rows.values()].filter(row => row.study_date === wanted) : [state.rows.get(today)!];
+      const rows = wanted ? [...state.rows.values()].filter(row => row.study_date === wanted) : (state.listDates??[today]).map(date=>state.rows.get(date)!);
       return route.fulfill({ json: rows, headers });
     }
     if (url.pathname.endsWith('/rpc/upsert_study_record')) {
@@ -133,6 +133,46 @@ test('Save also processes waiting historical dates without needing to navigate t
   expect(state.posts.get(oldDate)).toBe(1);
 });
 
+test('an explicit cloud refresh also uploads the 33 range completions generated while applying that refresh',async({page})=>{
+  const sourceDate='2026-08-10';
+  const dates=Array.from({length:33},(_,index)=>new Date(Date.UTC(2026,7,11+index)).toISOString().slice(0,10));
+  const state=await setup(page,{dates:[sourceDate,...dates]});
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  await page.clock.setFixedTime(new Date('2026-08-10T12:00:00+08:00'));
+  await page.goto('/');
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  const targets=dates.map(date=>{
+    const row=state.rows.get(date)!;
+    row.payload.items=[{id:'target-'+date,type:'extra',title:'英文｜ACE Reading',source:'preset',required:true,done:false,minutes:'',
+      f:{title:'ACE Reading',book:'ACE Reading',round:'1',scopeKind:'round'}}];
+    return row;
+  });
+  await page.evaluate(({prefix,targets})=>{
+    for(const row of targets){
+      const key=prefix+row.study_date;
+      localStorage.setItem(key,JSON.stringify({...row.payload,serverRevision:row.revision,
+        serverUpdatedAt:row.updated_at,localDirty:false,syncConflict:false,syncBase:row.payload}));
+      window.dispatchEvent(new StorageEvent('storage',{key,storageArea:localStorage}));
+    }
+  },{prefix,targets});
+  const current=state.rows.get(sourceDate)!;
+  state.listDates=[sourceDate];
+  current.revision++;
+  current.payload.items=[{id:'completed-source',type:'extra',title:'英文｜ACE Reading',source:'custom',required:true,done:true,
+    minutes:'15',checkedOn:sourceDate,f:{title:'ACE Reading',book:'ACE Reading',round:'1',scopeKind:'round'}}];
+  await clickConnectionToggle(page.locator('.connection-settings-toggle'));
+  await page.locator('#cloudRefreshBtn').click();
+  await expect.poll(()=>page.evaluate(({prefix,dates})=>dates.filter(date=>JSON.parse(localStorage.getItem(prefix+date)!).items[0].done).length,
+    {prefix,dates})).toBe(33);
+  await expect.poll(()=>dates.filter(date=>state.rows.get(date)!.payload.items[0].done).length).toBe(33);
+  await expect.poll(()=>page.evaluate(({prefix,dates})=>dates.filter(date=>JSON.parse(localStorage.getItem(prefix+date)!).localDirty),
+    {prefix,dates})).toEqual([]);
+  const uploads=dates.map(date=>state.posts.get(date)??0);
+  await page.reload();
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  expect(dates.map(date=>state.posts.get(date)??0)).toEqual(uploads);
+});
+
 test('a delayed older bulk read cannot undo a newer confirmed date or make it pending again',async({page})=>{
   const state=await setup(page);
   await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
@@ -152,6 +192,19 @@ test('a delayed older bulk read cannot undo a newer confirmed date or make it pe
   expect(local.notes).toBe(newer.payload.notes);expect(local.serverRevision).toBe(3);expect(local.localDirty).toBe(false);
   expect(state.posts.get(oldDate)??0).toBe(0);
   await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+});
+
+test('an empty incremental refresh finishes its busy badge without relying on a later record write',async({page})=>{
+  await page.clock.install({time:new Date('2026-08-09T12:00:00+08:00')});
+  const state=await setup(page,{dates:[]});
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  await page.clock.runFor(1100);
+  state.listDates=[];
+  await clickConnectionToggle(page.locator('.connection-settings-toggle'));
+  await page.locator('#cloudRefreshBtn').click();
+  await expect(page.locator('#cloudRefreshBtn')).toHaveAttribute('aria-busy','false');
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  expect(state.posts.size).toBe(0);
 });
 
 test('details list all pending dates and matching cloud contents clear dirty flags without repeat RPC uploads', async ({ page }) => {

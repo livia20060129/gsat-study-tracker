@@ -12,7 +12,12 @@ function row(id: string, round: number, day = date): CalendarTaskRow {
     title: `英文｜ACE Reading 第 ${round} 回`, description: '', category: 'english' };
 }
 interface State { rows: CalendarTaskRow[] | object; failed: boolean; stamp: string; owner: string; requests: number;
-  statusReads?: number; changeDuringRead?: boolean; syncError?: string; cloud?: Map<string, Record<string, unknown>> }
+  statusReads?: number; changeDuringRead?: boolean; syncError?: string; cloud?: Map<string, Record<string, unknown>>; jsonb?: boolean }
+function jsonbPayload(value: any): any {
+  if (Array.isArray(value)) return value.map(jsonbPayload);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.keys(value).sort((a,b)=>a.length-b.length || (a<b?-1:a>b?1:0)).map(key=>[key,jsonbPayload(value[key])]));
+}
 async function seed(page: Page): Promise<State> {
   const oldRows = [row('kept', 3), row('deleted', 4), row('revised', 5)];
   const items = JSON.parse(JSON.stringify(calendarItemsByDate(oldRows).get(date)!));
@@ -41,7 +46,7 @@ async function seed(page: Page): Promise<State> {
       if (previous && Number(previous.revision) !== Number(body.p_base_revision)) {
         return route.fulfill({ json: { applied: false, ...previous } });
       }
-      const result = { study_date: body.p_study_date, payload: body.p_payload,
+      const result = { study_date: body.p_study_date, payload: state.jsonb ? jsonbPayload(body.p_payload) : body.p_payload,
         revision: Number(cloud.get(body.p_study_date)?.revision || 0) + 1, updated_at: state.stamp };
       cloud.set(body.p_study_date, result);
       return route.fulfill({ json: { applied: true, ...result } });
@@ -85,6 +90,39 @@ async function makeUnrecordedConflict(page: Page): Promise<void> {
     localStorage.setItem(key, JSON.stringify(local));
   }, prefix + date);
 }
+
+test('33 confirmed historical dates stay confirmed after Calendar loading, reload and standalone navigation', async ({ page }) => {
+  const state = await seed(page);
+  state.jsonb=true;
+  const rows = Array.from({ length: 33 }, (_, index) => row(`confirmed-${index}`, index + 1,
+    new Date(Date.UTC(2026, 9, index + 1)).toISOString().slice(0, 10)));
+  state.rows = rows;
+  const records = [...calendarItemsByDate(rows)].map(([date, items]) => ({
+    schemaVersion: 2, date, notes: '保留已同步筆記', mood: '', wakeTime: '', biggestBlock: '', firstThingTomorrow: '', items,
+  }));
+  state.cloud!.clear();
+  for (const record of records) state.cloud!.set(record.date, {
+    study_date: record.date, payload: record, revision: 2, updated_at: state.stamp,
+  });
+  await page.evaluate(({ prefix, records, stamp }) => {
+    for (const key of Object.keys(localStorage)) if (key.startsWith(prefix)) localStorage.removeItem(key);
+    for (const record of records) localStorage.setItem(prefix + record.date, JSON.stringify({
+      ...record, serverRevision: 2, serverUpdatedAt: stamp, localDirty: false, syncConflict: false, syncBase: record,
+    }));
+  }, { prefix, records, stamp: state.stamp });
+  const waiting = () => page.evaluate(prefix => Object.keys(localStorage).filter(key => key.startsWith(prefix)
+    && /^\d{4}-\d{2}-\d{2}$/.test(key.slice(prefix.length))).map(key => JSON.parse(localStorage.getItem(key)!))
+    .filter(record => record.localDirty || record.syncConflict).map(record => ({date:record.date,conflict:record.syncConflict})), prefix);
+  for (let visit = 0; visit < 3; visit++) {
+    await page.goto('/');
+    await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
+    await expect.poll(waiting).toEqual([]);
+    await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+    for (const record of records) expect((state.cloud!.get(record.date)!.payload as any).notes).toBe('保留已同步筆記');
+    await page.goto('/todo.html');
+    await expect.poll(() => state.requests).toBeGreaterThan(visit * 2 + 1);
+  }
+});
 
 for (const path of ['/todo.html', '/summary.html']) test(`Actions data is read on load without focus, reconnect or periodic polling on ${path}`, async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-07T12:00:00+08:00') });
