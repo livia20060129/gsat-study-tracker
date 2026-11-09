@@ -352,7 +352,7 @@ function createTranslationGroup(field: keyof VocabularyTranslations, label: stri
     remove.type = 'button';
     remove.dataset.deleteTranslation = String(index);
     remove.textContent = '刪除';
-    remove.disabled = values.length <= 1;
+    remove.disabled = field !== 'unclassified' && values.length <= 1;
     remove.setAttribute('aria-label', `刪除 ${label} 第 ${index + 1} 個翻譯`);
     row.append(input, remove);
     group.append(row);
@@ -957,10 +957,11 @@ element<HTMLDivElement>('vocabularyList').addEventListener('click', event => {
     const field = group.dataset.translationGroup as keyof VocabularyTranslations;
     const values = [...group.querySelectorAll<HTMLInputElement>('[data-vocabulary-pos-translation]')].map(input => input.value);
     if (action.hasAttribute('data-add-translation')) values.push('');
-    else if (values.length > 1) values.splice(Number(action.dataset.deleteTranslation), 1);
+    else if (values.length > 1 || field === 'unclassified') values.splice(Number(action.dataset.deleteTranslation), 1);
     else return;
     const groups = vocabularyTranslationGroups(entry.translation, entry.tags, entry.translationsByPartOfSpeech);
-    groups[field] = values;
+    if (field === 'unclassified' && !values.length) delete groups.unclassified;
+    else groups[field] = values;
     const translationRemoval = action.hasAttribute('data-delete-translation') ? { field, index: Number(action.dataset.deleteTranslation) } : undefined;
     if (saveEntryEdits(entry, { translationsByPartOfSpeech: groups, translationRemoval })) renderEntries();
     return;

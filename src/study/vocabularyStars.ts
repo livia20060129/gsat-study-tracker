@@ -52,7 +52,7 @@ export function remapVocabularyMeaningStars(
 ): VocabularyStars {
   const result = { ...stars };
   for (const [part, values] of Object.entries(previous)) {
-    const updated = next[part];
+    const updated = next[part] ?? (removed?.partOfSpeech === part ? [] : undefined);
     if (!updated) continue;
     const beforeKeys = vocabularyMeaningStarKeys(part, values);
     const afterKeys = vocabularyMeaningStarKeys(part, updated);

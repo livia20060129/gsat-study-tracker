@@ -329,9 +329,12 @@ function updateItemWords(
         const current = normalizedVocabularyTranslations(word.translationsByPartOfSpeech);
         const updates = normalizedVocabularyTranslations(edits.translationsByPartOfSpeech);
         const next = { ...current, ...updates };
-        if (JSON.stringify(next) !== JSON.stringify(current)) {
+        if (edits.translationRemoval?.field === 'unclassified'
+          && !Object.hasOwn(edits.translationsByPartOfSpeech, 'unclassified')) delete next.unclassified;
+        const translation = vocabularyTranslationText(next);
+        if (JSON.stringify(next) !== JSON.stringify(current) || word.translation !== translation) {
           word.translationsByPartOfSpeech = next;
-          word.translation = vocabularyTranslationText(next);
+          word.translation = translation;
           changed = true;
         }
       }
