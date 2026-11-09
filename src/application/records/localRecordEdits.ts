@@ -15,11 +15,13 @@ export function reconcileLocalRecordEdit(draft: StudyRecord, latest: StudyRecord
     return { record: draft, conflicts: [], usedThreeWayMerge: false };
   }
   const merged = mergeStudyRecordsThreeWay(draft, latest, base);
-  // A delayed render may still hold an older projection of the same schedule.
+  // A delayed render may hold an older projection, or only default presets if
+  // it started before Calendar loaded. The latest record establishes that this
+  // is a schedule cache; all three versions must still be free of actual input.
   // Only actual input needs merging; never resurrect generated cache fields or
   // a cleared conflict by treating that stale projection as a user's edit.
   if (merged.conflicts.length
-    && isUnrecordedCalendarCache(draft, latest) && isUnrecordedCalendarCache(base)) {
+    && isUnrecordedCalendarCache(draft, latest) && isUnrecordedCalendarCache(base, latest)) {
     return { record: latest, conflicts: [], usedThreeWayMerge: false };
   }
   return merged;

@@ -38,6 +38,47 @@ test('a stale untouched Calendar projection cannot revive a cleared schedule con
   assert.equal(result.record.localDirty, false);
 });
 
+function preCalendarRender(): { base: StudyRecord; draft: StudyRecord; latest: StudyRecord } {
+  const base = fixture();
+  base.items.push({ id: 'magazine', type: 'magazine', source: 'preset', required: true, done: false, minutes: '', f: {} });
+  const draft = structuredClone(base);
+  draft.items[0].f.timeTracking = { mode: 'manual', accumulatedSeconds: 0, startedAt: null };
+  draft.items[1].f.entries = [{ id: 'generated-row', name: '', month: '10', unit: '', minutes: '',
+    magazineMonthInitialized: true, timeTracking: { mode: 'manual', accumulatedSeconds: 0, startedAt: null } }];
+  const latest: StudyRecord = { date: base.date, notes: '', localDirty: false, syncConflict: false,
+    items: [{ id: 'calendar', type: 'extra', source: 'preset', required: true, done: false, minutes: '',
+      f: { calendarEventKey: 'primary:task', book: 'ACE Reading', round: '6' } }] };
+  return { base, draft, latest };
+}
+
+test('a render started before Calendar loading uses the latest untouched schedule without delete-vs-edit conflicts', () => {
+  const { base, draft, latest } = preCalendarRender();
+  const result = reconcileLocalRecordEdit(draft, latest, base);
+  assert.deepEqual(result.conflicts, []);
+  assert.equal(result.record, latest);
+  assert.equal(result.record.syncConflict, false);
+  assert.equal(result.record.localDirty, false);
+});
+
+test('pre-Calendar rendering still protects input, recoverable versions and unreadable records', () => {
+  for (const version of ['base', 'draft', 'latest'] as const) {
+    for (const protect of ['notes', 'syncBase', 'syncConflictLocal', 'syncConflictCloud', 'minutes', 'words', 'storage'] as const) {
+      const versions = preCalendarRender(), record = versions[version];
+      if (protect === 'notes') record.notes = 'real input';
+      if (protect === 'syncBase' || protect === 'syncConflictLocal' || protect === 'syncConflictCloud') {
+        record[protect] = { ...structuredClone(record), notes: 'earlier input' };
+      }
+      if (protect === 'minutes') record.items[0].minutes = '5';
+      if (protect === 'words') record.items[0].f.words = [{ text: 'intriguing', translation: '有趣的' }];
+      if (protect === 'storage') record.storageIssue = { source: 'local', date: record.date,
+        error: 'unreadable', backupKey: 'recovery', capturedAt: '2026-11-09T12:00:00Z' };
+      const result = reconcileLocalRecordEdit(versions.draft, versions.latest, versions.base);
+      assert.equal(result.usedThreeWayMerge, true, `${version}: ${protect}`);
+      assert.notEqual(result.record, versions.latest, `${version}: ${protect}`);
+    }
+  }
+});
+
 test('Calendar cache preference never discards actual input or a deliberately cleared prior input', () => {
   for (const protectedVersion of ['draft', 'latest', 'base'] as const) {
     const base = fixture();
