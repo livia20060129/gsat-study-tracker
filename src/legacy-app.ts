@@ -417,7 +417,10 @@ var cloudConflictBackupError='';
 var cloudSaveQueue=new LatestTaskQueue(450,async function(date,job){
  if(job.scope!==STORE_PREFIX||job.serial!==cloudActivationSerial||!currentStorageIsUserScoped())return false;
  if(pendingCloudSync.state(job.scope,date).phase==='paused')return false;
- try{await withCloudDateLock(date,async function(){
+ try{
+ await cloudPullAllPromise;
+ if(job.scope!==STORE_PREFIX||job.serial!==cloudActivationSerial||!currentStorageIsUserScoped())return false;
+ await withCloudDateLock(date,async function(){
   if(job.scope!==STORE_PREFIX||job.serial!==cloudActivationSerial)return false;
   // localStorage is shared by tabs. Merge the enqueue-time copy with the copy
   // written by another tab so neither tab's recorded items can disappear.
@@ -454,6 +457,7 @@ var CLOUD_CALENDAR_BOOTSTRAP_TIMEOUT_MS=15000;
 
 var calendarConnected=false;
 var calendarManualSyncPending=false;
+var calendarStatusBusy=false;
 var calendarContinuity=new CalendarScheduleContinuity(store);
 var calendarUsingLastSnapshot=false;
 var calendarCacheLoaded=false;
@@ -487,12 +491,14 @@ function saveRecordSyncWatermark(value){
 function setConnectionBadge(elementId,text,state){
  var badge=id(elementId);if(!badge)return;
  var nextState=state||'offline';
- if(badge.getAttribute('data-state')===nextState&&badge.textContent===text&&(elementId!=='cloudStatusBadge'||badge.querySelector('[data-cloud-status-icon]')))return;
+ var iconName=elementId==='cloudStatusBadge'?(nextState==='ok'?'cloud-check':nextState==='error'?'cloud-exclamation-point':'cloud-upload')
+  :elementId==='calendarStatusBadge'?(nextState==='ok'?'globe-check':nextState==='error'?'globe-x':nextState==='busy'?'globe':'globe-off'):'';
+ if(badge.getAttribute('data-state')===nextState&&badge.textContent===text&&(!iconName||badge.querySelector('[data-ui-icon="'+iconName+'"]')))return;
  badge.setAttribute('data-state',nextState);
- if(elementId==='cloudStatusBadge'){
+ if(iconName){
   var icon=document.createElement('span');
-  icon.setAttribute('data-cloud-status-icon','');
-  icon.setAttribute('data-ui-icon',nextState==='ok'?'cloud-check':nextState==='error'?'cloud-exclamation-point':'cloud-upload');
+  icon.setAttribute(elementId==='cloudStatusBadge'?'data-cloud-status-icon':'data-connection-status-icon','');
+  icon.setAttribute('data-ui-icon',iconName);
   icon.setAttribute('aria-hidden','true');
   badge.replaceChildren(icon,document.createTextNode(text));
  }else badge.textContent=text;
@@ -507,11 +513,15 @@ function updateCloudStatusBadge(){
  if(!cloudUser&&cloudSessionRestoring){setConnectionBadge('cloudStatusBadge',cloudSessionRestoreError?'登入確認暫停':'恢復登入中',cloudSessionRestoreError?'error':'busy');return}
  if(!cloudUser){setConnectionBadge('cloudStatusBadge','本機模式','offline');return}
  if(cloudLoading||cloudBootstrapPending||cloudManualSyncPending){setConnectionBadge('cloudStatusBadge','同步中','busy');return}
- var pending=dirtyCloudDates().length;
+ var activeSyncs=pendingDetails.filter(function(entry){return entry.phase==='queued'||entry.phase==='uploading'}).length;
+ if(activeSyncs){setConnectionBadge('cloudStatusBadge','同步中 '+activeSyncs+' 天','busy');return}
+ var paused=pendingDetails.filter(function(entry){return entry.phase==='paused'}).length;
+ var pending=pendingDetails.filter(function(entry){return entry.phase!=='paused'&&entry.phase!=='conflict'}).length;
  var conflicts=pendingDetails.filter(function(entry){return entry.phase==='conflict'}).length;
  if(conflicts){setConnectionBadge('cloudStatusBadge','需處理 '+conflicts+' 天'+(pending?'・待同步 '+pending+' 天':''),'error');return}
+ if(!pending&&paused){setConnectionBadge('cloudStatusBadge','已暫停 '+paused+' 天','warning');return}
  if(cloudHasError){setConnectionBadge('cloudStatusBadge',pending?'同步失敗・待 '+pending+' 天':'同步異常','error');return}
- if(pending){setConnectionBadge('cloudStatusBadge','待同步 '+pending+' 天','warning');return}
+ if(pending){setConnectionBadge('cloudStatusBadge','待同步 '+pending+' 天'+(paused?'・暫停 '+paused+' 天':''),'warning');return}
  setConnectionBadge('cloudStatusBadge','已同步','ok');
 }
 function refreshPendingSyncDetails(){
@@ -750,7 +760,7 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
 function queueCloudSave(rec,allowDuringBootstrap,trigger){
  // Input and storage events only refresh local status; uploads require a load or an explicit sync request.
  if(trigger!=='manual'&&trigger!=='load'){schedulePendingCloudSync();return}
- if(!cloudClient||!cloudUser||!rec||cloudLoading||(!allowDuringBootstrap&&cloudBootstrapPending)||rec.syncConflict||!currentStorageIsUserScoped())return false;
+ if(!cloudClient||!cloudUser||!rec||(!allowDuringBootstrap&&cloudBootstrapPending)||rec.syncConflict||!currentStorageIsUserScoped())return false;
  if(isUnrecordedCalendarCache(rec))return false;
  var snap=cloneRecord(rec),date=String(rec.date||'');if(!date)return false;
  if(pendingCloudSync.state(STORE_PREFIX,date).phase==='paused')return false;
@@ -766,7 +776,7 @@ function queueDirtyCloudRecords(trigger){
  localStudyDates().forEach(function(date){
   var rec=readStoredRecord(date);
   if(!rec||!pendingCloudSync.ready(STORE_PREFIX,rec))return;
-  queueCloudSave(rec,true,trigger);queued++;
+  if(queueCloudSave(rec,true,trigger))queued++;
  });
  return queued;
 }
@@ -882,6 +892,7 @@ async function cloudPullAllRecordsOnce(options){
    }
    var local=readStoredRecord(date);
    var decision=decideRevisionSync(local,cloud);
+   if(decision==='keep-local'){accepted++;return;}
     if(decision==='use-cloud'||decision==='equal'){
      if(cloud){writeStoredRecord(cloud);accepted++}
     }else if(decision==='push-local'){
@@ -944,7 +955,9 @@ async function cloudPullDateLocked(date,force){
   // A standalone page may have applied a new Calendar schedule while this request was in flight.
   local=readStoredRecord(date);
   var decision=decideRevisionSync(local,cloud);
-  if(decision==='use-cloud'||decision==='equal'){
+  if(decision==='keep-local'){
+   // A delayed read must not restore an older payload or dirty an acknowledged day.
+  }else if(decision==='use-cloud'||decision==='equal'){
    if(cloud)writeStoredRecord(cloud);
   }else if(decision==='push-local')localToPush=local;
   else if(local){
@@ -1180,11 +1193,11 @@ async function cloudSignOut(){
 function calendarSetMessage(msg,ok){
  var el=id('calendarMessage');if(el)el.textContent=msg||'';
  calendarHasError=ok===false;
- var busy=/正在|同步中/.test(String(msg||''));
+ var busy=ok!==false&&/正在|同步中/.test(String(msg||''));calendarStatusBusy=busy;
  if(!cloudUser)setConnectionBadge('calendarStatusBadge','需先登入','offline');
  else if(ok===false)setConnectionBadge('calendarStatusBadge',calendarUsingLastSnapshot?'同步異常・沿用上次':'同步異常','error');
- else if(!calendarConnected&&!googleCalendarClientConfig.isConfigured)setConnectionBadge('calendarStatusBadge','設定未完成','warning');
  else if(busy)setConnectionBadge('calendarStatusBadge','同步中','busy');
+ else if(!calendarConnected&&!googleCalendarClientConfig.isConfigured)setConnectionBadge('calendarStatusBadge','設定未完成','warning');
  else if(calendarConnected)setConnectionBadge('calendarStatusBadge','已連接','ok');
  else setConnectionBadge('calendarStatusBadge','未連接','offline');
 }
@@ -1198,6 +1211,7 @@ function calendarUpdateUI(){
  if(disconnect)disconnect.disabled=!cloudUser||(!calendarConnected&&!calendarUsingLastSnapshot);
  if(!cloudUser)setConnectionBadge('calendarStatusBadge','需先登入','offline');
  else if(calendarHasError)setConnectionBadge('calendarStatusBadge',calendarUsingLastSnapshot?'同步異常・沿用上次':'同步異常','error');
+ else if(calendarStatusBusy)setConnectionBadge('calendarStatusBadge','同步中','busy');
  else if(calendarConnected)setConnectionBadge('calendarStatusBadge','已連接','ok');
  else if(calendarUsingLastSnapshot)setConnectionBadge('calendarStatusBadge','沿用上次排程','warning');
  else if(!googleCalendarClientConfig.isConfigured)setConnectionBadge('calendarStatusBadge','設定未完成','warning');
@@ -1242,6 +1256,7 @@ async function calendarInvoke(action,payload){
  return r.data||{};
 }
 function clearCalendarRuntime(){
+ calendarStatusBusy=false;
  calendarUsingLastSnapshot=false;
  calendarConnected=false;calendarCacheLoaded=false;calendarHasError=false;calendarParsedByDate={};cloudMathPlanByDate={};cloudMathPlansByDate={};cloudNaturalIntegrationItemsByDate={};cloudNaturalIntegrationDetailsByDate={};
  calendarUpdateUI();
@@ -4536,12 +4551,16 @@ function saveCurrentRecord(){
  setTimeout(async function(){
   var ok=persist(true),savingDate=data&&data.date;updateSummary();
   if(!ok){setSaveButtonState('error');return}
-  if(cloudUser&&cloudClient&&currentStorageIsUserScoped()&&!cloudLoading&&!cloudBootstrapPending&&savingDate){
+  if(cloudUser&&cloudClient&&currentStorageIsUserScoped()&&!cloudBootstrapPending&&savingDate){
    id('status').textContent='已儲存本機；正在同步 '+savingDate+' 的完整紀錄到雲端…';
    queueCloudSave(readStoredRecord(savingDate),true,'manual');
+   queueDirtyCloudRecords('manual');
    await cloudSaveQueue.flush(savingDate);
    var saved=readStoredRecord(savingDate),synced=!!saved&&!saved.localDirty&&!saved.syncConflict;
    if(synced){id('status').textContent='已儲存 '+savingDate+'，並完成雲端同步。';setSaveButtonState('success')}
+   else if(saved&&!saved.syncConflict&&pendingCloudSync.state(STORE_PREFIX,savingDate).phase==='paused'){
+    id('status').textContent='已儲存本機；此日期同步已暫停，可在「查看詳細」恢復。';setSaveButtonState('local');
+   }
    else if(saved&&!saved.syncConflict&&pendingCloudSync.state(STORE_PREFIX,savingDate).phase==='waiting'){
     id('status').textContent='前一版已同步；最新修改已存本機，請再按儲存紀錄。';setSaveButtonState('local');
    }

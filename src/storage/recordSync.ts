@@ -9,7 +9,7 @@ export interface CloudStudyRecordRow {
   updated_at: string;
 }
 
-export type RevisionSyncDecision = 'use-cloud' | 'push-local' | 'equal' | 'conflict';
+export type RevisionSyncDecision = 'use-cloud' | 'keep-local' | 'push-local' | 'equal' | 'conflict';
 
 export interface StudyRecordMergeResult {
   record: StudyRecord;
@@ -388,6 +388,10 @@ export function decideRevisionSync(local: StudyRecord | null, cloud: StudyRecord
   if (!local && cloud) return 'use-cloud';
   if (local && !cloud) return 'push-local';
   if (!local && !cloud) return 'equal';
+  if (local && cloud && Number(local.serverRevision)>Number(cloud.serverRevision) && Number(cloud.serverRevision)>0) {
+    if(local.syncConflict) return 'conflict';
+    return local.localDirty ? 'push-local' : 'keep-local';
+  }
   if (sameStudyContent(local, cloud)) return 'equal';
   if (!local || !cloud) return 'conflict';
   if (canUseCloudCalendarRecord(local, cloud)) return 'use-cloud';

@@ -27,9 +27,10 @@
 .tracker-home .connection-status-bar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:6px 12px; padding:8px 10px; }
 .tracker-home .connection-badge { border: 0; background: transparent; padding: 3px 0; font-size: 12px; }
 .tracker-home .connection-badge::before { box-shadow: 0 0 0 3px #94a3b81a; }
-.tracker-home #cloudStatusBadge::before { content:none; }
+.tracker-home #cloudStatusBadge::before,.tracker-home #calendarStatusBadge::before { content:none; }
 .tracker-home #cloudStatusBadge[data-state="offline"] [data-cloud-status-icon] { color:#718096; }
-.tracker-home #cloudStatusBadge .ui-icon { width:18px; height:18px; }
+.tracker-home #calendarStatusBadge[data-state="offline"] [data-connection-status-icon] { color:#718096; }
+.tracker-home #cloudStatusBadge .ui-icon,.tracker-home #calendarStatusBadge .ui-icon { width:18px; height:18px; }
 .tracker-home .connection-divider { display: none; }
 .tracker-home .connection-statuses { flex-wrap:nowrap; gap:20px; }
 .tracker-home .connection-quick-actions { flex:none; flex-wrap:nowrap; gap:8px; }
@@ -116,6 +117,7 @@
   .tracker-home .connection-badge { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .tracker-home .connection-badge::before { display:inline-block; vertical-align:middle; margin-right:5px; }
   .tracker-home #cloudStatusBadge [data-cloud-status-icon] { margin-right:4px; }
+  .tracker-home #calendarStatusBadge [data-connection-status-icon] { margin-right:4px; }
   .tracker-home .pending-sync-link { flex:none; }
   .tracker-home .connection-quick-actions { gap:6px; }
   .tracker-home .mood-segments { gap:0; }

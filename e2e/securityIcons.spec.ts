@@ -25,6 +25,7 @@ test('Lucide navigation keeps labels and all three Menu strokes at mobile size',
   await expect(page.locator('[data-home-save]')).toHaveAccessibleName('儲存紀錄');
   await expect(page.locator('#saveBtn [data-ui-icon="save"] svg')).toBeVisible();
   await expect(page.locator('#cloudStatusBadge [data-ui-icon="cloud-upload"] svg')).toBeVisible();
+  await expect(page.locator('#calendarStatusBadge [data-ui-icon="globe-off"] svg')).toBeVisible();
   await expect(page.locator('#cloudStatusBadge [data-cloud-status-icon]')).toHaveCSS('color','rgb(113, 128, 150)');
   await expect(page.locator('.connection-settings-toggle .ui-sr-only')).toHaveText('連線設定');
   const settingsSize=await page.locator('.connection-settings-toggle').boundingBox();

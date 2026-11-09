@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { recordSyncWatermarkKey } from '../src/storage/syncWatermark.ts';
 import type { StudyRecord } from '../src/types.ts';
+import { clickConnectionToggle } from './helpers/connectionMotion.ts';
 
 test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
 const today = '2026-08-09';
@@ -8,7 +9,7 @@ const user = { id: '00000000-0000-0000-0000-000000000124', email: 'pending@examp
 const prefix = `study-v11:user:${user.id}:`;
 const oldDate = '2026-08-03';
 interface CloudRow { study_date: string; payload: StudyRecord; revision: number; updated_at: string }
-interface State { rows: Map<string, CloudRow>; posts: Map<string, number>; failures: Map<string, number>; held: Route[]; holdReads: boolean; beforeSaveReply?: () => Promise<void> }
+interface State { rows: Map<string, CloudRow>; posts: Map<string, number>; failures: Map<string, number>; held: Route[]; holdReads: boolean; holdList?: boolean; heldLists?: Route[]; beforeSaveReply?: () => Promise<void> }
 
 function record(date: string, notes = '伺服器筆記'): StudyRecord & { completionCelebrations: { version: number; half: boolean; complete: boolean } } {
   return { schemaVersion: 2, date, mood: '', wakeTime: '', biggestBlock: '', firstThingTomorrow: '', notes,
@@ -43,6 +44,7 @@ async function setup(page: Page, options: { dates?: string[]; changed?: boolean;
     if (url.pathname.includes('/functions/')) return route.fulfill({ json: { connected: false }, headers });
     if (url.pathname.endsWith('/rest/v1/study_records')) {
       const wanted = url.searchParams.get('study_date')?.replace(/^eq\./, '');
+      if(!wanted&&state.holdList){(state.heldLists??=[]).push(route);return;}
       if (wanted && wanted !== today && state.holdReads) { state.held.push(route); return; }
       const rows = wanted ? [...state.rows.values()].filter(row => row.study_date === wanted) : [state.rows.get(today)!];
       return route.fulfill({ json: rows, headers });
@@ -89,6 +91,68 @@ async function openDetails(page: Page): Promise<void> {
   await page.getByRole('button', { name: '查看詳細', exact: true }).click();
   await expect(page.locator('#cloudPendingDialog')).toBeVisible();
 }
+
+async function editWaitingDay(page:Page,state:State):Promise<void>{
+  const row=state.rows.get(oldDate)!;
+  await page.evaluate(({prefix,oldDate,row})=>{
+    localStorage.setItem(prefix+oldDate,JSON.stringify({...row.payload,notes:'舊日期的新筆記',serverRevision:row.revision,serverUpdatedAt:row.updated_at,
+      localDirty:true,syncConflict:false,syncBase:row.payload}));
+    window.dispatchEvent(new Event('study-records-changed'));
+  },{prefix,oldDate,row});
+}
+
+test('a manual date retry during a slow cloud read is queued and runs after that read finishes',async({page})=>{
+  const state=await setup(page);
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  await editWaitingDay(page,state);
+  state.holdList=true;
+  await clickConnectionToggle(page.locator('.connection-settings-toggle'));
+  await page.locator('#cloudRefreshBtn').click();
+  await expect.poll(()=>state.heldLists?.length??0).toBe(1);
+  await openDetails(page);
+  const row=page.locator(`[data-pending-date="${oldDate}"]`);
+  await row.getByRole('button',{name:'重試同步',exact:true}).click();
+  await expect(row.locator('[data-state]')).toHaveText('已排入同步');
+  expect(state.rows.get(oldDate)?.payload.notes).toBe('伺服器筆記');
+  state.holdList=false;
+  await state.heldLists![0].fulfill({json:[state.rows.get(today)!],headers:{'Access-Control-Allow-Origin':'http://127.0.0.1:4173'}});
+  await expect.poll(()=>state.rows.get(oldDate)?.payload.notes).toBe('舊日期的新筆記');
+  await expect(page.locator('[data-pending-count]')).toHaveText('目前沒有待同步紀錄');
+  expect(state.posts.get(oldDate)).toBe(1);
+});
+
+test('Save also processes waiting historical dates without needing to navigate to each one',async({page})=>{
+  const state=await setup(page);
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  await editWaitingDay(page,state);
+  await page.locator('#notes').fill('當天的新筆記');
+  await page.locator('#notes').blur();
+  await page.locator('#saveBtn').click();
+  await expect.poll(()=>state.rows.get(oldDate)?.payload.notes).toBe('舊日期的新筆記');
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  expect(state.posts.get(oldDate)).toBe(1);
+});
+
+test('a delayed older bulk read cannot undo a newer confirmed date or make it pending again',async({page})=>{
+  const state=await setup(page);
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+  const stale=structuredClone(state.rows.get(oldDate)!);
+  state.holdList=true;
+  await clickConnectionToggle(page.locator('.connection-settings-toggle'));
+  await page.locator('#cloudRefreshBtn').click();
+  await expect.poll(()=>state.heldLists?.length??0).toBe(1);
+  const newer={...stale,payload:{...stale.payload,notes:'另一頁已確認同步的新版本'},revision:3,updated_at:'2026-08-09T01:00:00Z'};
+  state.rows.set(oldDate,newer);state.holdReads=true;
+  await page.evaluate(({prefix,oldDate,newer})=>localStorage.setItem(prefix+oldDate,JSON.stringify({...newer.payload,serverRevision:newer.revision,
+    serverUpdatedAt:newer.updated_at,localDirty:false,syncConflict:false,syncBase:newer.payload})),{prefix,oldDate,newer});
+  state.holdList=false;
+  await state.heldLists![0].fulfill({json:[state.rows.get(today)!,stale],headers:{'Access-Control-Allow-Origin':'http://127.0.0.1:4173'}});
+  await expect(page.locator('#cloudRefreshBtn')).toBeEnabled();
+  const local=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)!),prefix+oldDate);
+  expect(local.notes).toBe(newer.payload.notes);expect(local.serverRevision).toBe(3);expect(local.localDirty).toBe(false);
+  expect(state.posts.get(oldDate)??0).toBe(0);
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
+});
 
 test('details list all pending dates and matching cloud contents clear dirty flags without repeat RPC uploads', async ({ page }) => {
   const dates = ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07'];
@@ -246,6 +310,7 @@ test('a user can pause a date, retain that choice across reload, and explicitly 
   await expect(row.locator('[data-state]')).toContainText('同步失敗');
   await row.getByRole('button', { name: '暫停此日同步', exact: true }).click();
   await expect(row.locator('[data-state]')).toHaveText('已暫停');
+  await expect(page.locator('#cloudStatusBadge')).toHaveText('已暫停 1 天');
   const before = state.posts.get(oldDate);
   await page.reload();
   await openDetails(page);
