@@ -457,3 +457,35 @@ test('a fast Google preview waits for an opening editor before inserting clickab
   await row.locator('[data-google-apply]').click();
   await expect.poll(async () => (await words(page))[1].translation).toContain('快速候選');
 });
+
+test('scrolling to Google translation cannot scroll the opening editor internally and move its click target', async ({ page }) => {
+  await seed(page); await page.reload();
+  let requests = 0;
+  await page.route('**/functions/v1/google-translation', route => {
+    requests++;
+    return route.fulfill({ json: { provider: 'google', word: 'ability', translation: '穩定候選' } });
+  });
+  await page.evaluate(() => {
+    const original = Element.prototype.animate;
+    Element.prototype.animate = function (frames, options) {
+      const animation = original.call(this, frames, options);
+      if (typeof options === 'object' && options.id?.startsWith('study-disclosure-')) {
+        animation.pause(); animation.currentTime = 120;
+      }
+      return animation;
+    };
+  });
+  const row = page.locator('.vocabulary-row[data-entry-key="ability"]');
+  await row.getByRole('button', { name: '編輯「ability」', exact: true }).click();
+  await expect(row).toHaveAttribute('data-disclosure-motion', 'opening');
+  const internalScroll = await row.evaluate(node => {
+    node.querySelector<HTMLElement>('[data-google-translate]')!.scrollIntoView({ block: 'center', behavior: 'instant' });
+    return node.scrollTop;
+  });
+  expect(internalScroll).toBe(0);
+  await row.evaluate(node => node.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
+  await row.getByRole('button', { name: 'Google 翻譯', exact: true }).click();
+  await row.locator('[data-google-meaning]').check();
+  await expect(row.locator('[data-google-meaning]')).toBeChecked();
+  expect(requests).toBe(1);
+});

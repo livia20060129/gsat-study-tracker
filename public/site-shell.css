@@ -709,6 +709,7 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 .tracker-home.has-site-shell .item.subject-card { border-radius:16px; box-shadow:none; }
 .tracker-home.has-site-shell .study-record-section .item .item.subject-card { border-radius:0; }
 .tracker-home.has-site-shell .item [data-done],.tracker-home.has-site-shell [data-week-done] { width:21px; height:21px; flex:none; accent-color:var(--flat-blue); transform-origin:center; }
+.tracker-home.has-site-shell .item-top>[data-done] { align-self:flex-start; margin:5px 0 0; }
 .tracker-home.has-site-shell .item [data-done]:checked,.tracker-home.has-site-shell [data-week-done]:checked { accent-color:var(--flat-green); }
 .tracker-home.has-site-shell #exportBox,.tracker-home.has-site-shell .import-panel { border:0; background:transparent; box-shadow:none; }
 .tracker-home.has-site-shell .home-reflection-fields { gap:16px; }
