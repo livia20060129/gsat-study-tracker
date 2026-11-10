@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 
-test('pronunciation and Chinese controls use a separate row from export controls', async ({ page }) => {
-  for (const width of [1440, 375, 320]) {
+test('reading tools align left and export tools align right on one wide row with a usable narrow fallback', async ({ page }) => {
+  for (const width of [1440, 768, 375, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/vocabulary.review.html');
     const reading = page.locator('.vocabulary-reading-tools');
@@ -31,7 +31,10 @@ test('pronunciation and Chinese controls use a separate row from export controls
     }
     const first = (await reading.boundingBox())!;
     const second = (await exporting.boundingBox())!;
-    expect(second.y).toBeGreaterThanOrEqual(first.y + first.height + 8);
+    if(width>=768){
+      expect(Math.abs(first.y+first.height/2-second.y-second.height/2)).toBeLessThan(1);
+      expect(second.x).toBeGreaterThanOrEqual(first.x+first.width+12);
+    }else expect(second.y).toBeGreaterThanOrEqual(first.y + first.height + 8);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });

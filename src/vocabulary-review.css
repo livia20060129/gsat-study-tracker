@@ -35,6 +35,10 @@
 .vocabulary-view-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 10px}
 .vocabulary-view-toolbar .vocabulary-grouping-switch{margin-top:0}
 .vocabulary-reading-tools,.vocabulary-export-tools{display:flex;flex:1 0 100%;align-items:center;flex-wrap:wrap;gap:10px;min-width:0}
+.vocabulary-tool-columns{display:flex;flex:1 0 100%;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 16px;min-width:0}
+.vocabulary-tool-columns>.vocabulary-reading-tools{flex:0 1 auto}
+.vocabulary-tool-columns>.vocabulary-export-tools{flex:0 0 auto;margin-left:auto}
+@media(max-width:420px){.vocabulary-tool-columns>.vocabulary-export-tools{margin-left:0}}
 .vocabulary-export-tools{display:grid;grid-template-columns:max-content minmax(0,70px) max-content max-content;justify-content:start;gap:6px}
 .vocabulary-export-tools .vocabulary-export-format{display:contents}
 .vocabulary-export-format>span{font-size:13px;white-space:nowrap}

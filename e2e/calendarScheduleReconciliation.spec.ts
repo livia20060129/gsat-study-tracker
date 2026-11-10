@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { calendarItemsByDate } from '../src/application/calendar/reconcileCalendarSchedule.ts';
 import type { CalendarTaskRow } from '../src/calendar/calendarBridge.ts';
 import { selectStudyDate } from './helpers/siteNavigation.ts';
+import { completedRangeIndex, reconcileRangeCompletion } from '../src/study/rangeCompletion.ts';
+import type { StudyRecord } from '../src/types.ts';
 
 test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
 const userId = '00000000-0000-0000-0000-000000000071';
@@ -97,12 +99,18 @@ test('33 confirmed historical dates stay confirmed after Calendar loading, reloa
   const rows = Array.from({ length: 33 }, (_, index) => row(`confirmed-${index}`, index + 1,
     new Date(Date.UTC(2026, 9, index + 1)).toISOString().slice(0, 10)));
   state.rows = rows;
-  const records = [...calendarItemsByDate(rows)].map(([date, items]) => ({
+  const source: StudyRecord={date:'2026-09-30',notes:'保留來源紀錄',items:[{
+    id:'actual-rounds',type:'extra',source:'custom',required:false,done:true,minutes:'15',checkedOn:'2026-09-30',
+    title:'英文｜ACE Reading',f:{title:'ACE Reading',book:'ACE Reading',subject:'英文',scopeKind:'round',round:'1',roundEnd:'33'},
+  }]};
+  const coverage=completedRangeIndex([source]);
+  const records = [source,...[...calendarItemsByDate(rows)].map(([date, items]) => reconcileRangeCompletion({
     schemaVersion: 2, date, notes: '保留已同步筆記', mood: '', wakeTime: '', biggestBlock: '', firstThingTomorrow: '', items,
-  }));
+  },coverage)!)];
+  expect(records.filter(record=>record.items.some(item=>item.f.rangeCompletion))).toHaveLength(33);
   state.cloud!.clear();
   for (const record of records) state.cloud!.set(record.date, {
-    study_date: record.date, payload: record, revision: 2, updated_at: state.stamp,
+    study_date: record.date, payload: jsonbPayload(record), revision: 2, updated_at: state.stamp,
   });
   await page.evaluate(({ prefix, records, stamp }) => {
     for (const key of Object.keys(localStorage)) if (key.startsWith(prefix)) localStorage.removeItem(key);
@@ -118,9 +126,13 @@ test('33 confirmed historical dates stay confirmed after Calendar loading, reloa
     await expect(page.locator('#calendarStatusBadge')).toHaveText('已連接');
     await expect.poll(waiting).toEqual([]);
     await expect(page.locator('#cloudStatusBadge')).toHaveText('已同步');
-    for (const record of records) expect((state.cloud!.get(record.date)!.payload as any).notes).toBe('保留已同步筆記');
+    for (const record of records) expect((state.cloud!.get(record.date)!.payload as any).notes).toBe(record.notes);
     await page.goto('/todo.html');
     await expect.poll(() => state.requests).toBeGreaterThan(visit * 2 + 1);
+    await expect.poll(waiting).toEqual([]);
+    if(visit===0)for(const path of ['/summary.html','/material.progress.html','/vocabulary.review.html']){
+      await page.goto(path);await expect.poll(waiting).toEqual([]);
+    }
   }
 });
 
