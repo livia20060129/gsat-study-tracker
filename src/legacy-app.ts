@@ -54,7 +54,7 @@ import { initializePendingSyncDialog } from './ui/pendingSyncDialog.ts';
 import { synchronizeRangeCompletion } from './application/records/synchronizeRangeCompletion.ts';
 import { readRecoverableCloudBackup, writeRecoverableCloudBackup } from './infrastructure/storage/cloudConflictBackup.ts';
 import { completedRangeIndex, reconcileRangeCompletion, rangeCompletionSignature } from './study/rangeCompletion.ts';
-import { reconcileLocalRecordEdit } from './application/records/localRecordEdits.ts';
+import { mergeQueuedRecord, reconcileLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { changeStudyTimer, resolveStudyTimerTarget, sameStudyTimerPointer, sameStudyTimerTarget, setStudyTimerTargetMinutes, setStudyTimerTargetState, studyTimerTargetState, studyTimerToggleLabel, switchStudyTimerMode } from './application/timer/studyTimerController.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
@@ -428,7 +428,7 @@ var cloudSaveQueue=new LatestTaskQueue(450,async function(date,job){
   // written by another tab so neither tab's recorded items can disappear.
   var stored=readStoredRecord(date);
   if(stored&&!stored.localDirty&&!stored.syncConflict&&Number(stored.serverRevision)>0){pendingCloudSync.saved(job.scope,date);updateCloudStatusBadge();return true}
-  var latest=mergeStudyRecordsForUpload(stored||job.record,job.record);
+  var latest=mergeQueuedRecord(job.record,stored);
   return cloudSaveRecord(latest);
  });}catch(error){
   if(job.scope===STORE_PREFIX&&job.serial===cloudActivationSerial){
@@ -666,6 +666,11 @@ function updateCurrentRecordSyncMeta(date,serverRec){
  data.syncConflict=false;
  delete data.syncConflictDetails;delete data.syncConflictLocal;delete data.syncConflictCloud;
 }
+function skipUnrecordedCalendarUpload(record,scope){
+ if(!isUnrecordedCalendarCache(record))return false;
+ if(pendingCloudSync.state(scope,record.date).phase!=='paused')pendingCloudSync.saved(scope,record.date);
+ cloudSetMessage('已沿用 '+record.date+' 的最新 Calendar 排程；當日尚無實際紀錄。',true);return true;
+}
 async function cloudSaveRecord(rec,forcedBaseRevision){
  if(!cloudRecordRepository||!cloudUser||!rec||!currentStorageIsUserScoped())return false;
  var scope=STORE_PREFIX,serial=cloudActivationSerial;
@@ -678,10 +683,12 @@ async function cloudSaveRecord(rec,forcedBaseRevision){
  try{
   var snapshot=null,result=null,hasNewerLocalEdits=false;
   for(var attempt=0;attempt<2;attempt++){
-   var stored=readStoredRecord(rec.date),pending=mergeStudyRecordsForUpload(stored||rec,rec);
+   var stored=readStoredRecord(rec.date),pending=mergeQueuedRecord(rec,stored);
+   if(skipUnrecordedCalendarUpload(pending,scope))return true;
    var cloudSnapshot=await withOperationTimeout(cloudRecordRepository.loadDate(rec.date),{timeoutMs:20000,message:rec.date+' 雲端讀取逾時；保留本機紀錄，稍後重試。'}),cloudRecord=cloudSnapshot?cloudSnapshot.record:null;
    if(!cloudSaveContextCurrent(scope,serial))return false;
-   var afterRead=readStoredRecord(rec.date);if(afterRead)pending=mergeStudyRecordsForUpload(afterRead,pending);
+   var afterRead=readStoredRecord(rec.date);if(afterRead)pending=mergeQueuedRecord(pending,afterRead);
+   if(skipUnrecordedCalendarUpload(pending,scope))return true;
    if(canUseCloudCalendarRecord(pending,cloudRecord)){
     if(!writeStoredRecord(cloudRecord))throw cloudLocalWriteError('已採用雲端排程，但本機無法確認儲存。');
     updateCurrentRecordSyncMeta(rec.date,cloudRecord);pendingCloudSync.saved(scope,rec.date);

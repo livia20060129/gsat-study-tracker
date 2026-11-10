@@ -46,6 +46,16 @@ function finishMotions(): void {
   for (const motion of [...motions.values()]) motion.finish();
 }
 
+/** Insert async controls after their containing disclosure stops moving and clipping. */
+export async function waitForDisclosure(element: HTMLElement): Promise<void> {
+  while (element.isConnected) {
+    const container = element.closest<HTMLElement>('[data-disclosure-motion]');
+    const motion = container && motions.get(container);
+    if (!motion) return;
+    await Promise.all(motion.animations.map(animation => animation.finished.catch(() => {})));
+  }
+}
+
 function reducedMotion(): boolean {
   return matchMedia('(prefers-reduced-motion: reduce)').matches;
 }

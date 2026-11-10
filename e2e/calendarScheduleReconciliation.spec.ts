@@ -176,6 +176,39 @@ test('an unrecorded Actions mismatch clears an old schedule conflict on todo and
   }
 });
 
+test('a delayed upload read cannot merge an obsolete blank draft back into a newer Calendar cache', async ({ page }) => {
+  const state = await seed(page);
+  state.failed = true;
+  await page.evaluate(({ prefix, date }) => {
+    const record = { date, notes: '', localDirty: false, syncConflict: false, items: [{
+      id: 'blank-math', type: 'mathStudy', source: 'preset', required: true, done: false, minutes: '', f: {},
+    }] };
+    localStorage.setItem(prefix + date, JSON.stringify({ ...record, syncBase: structuredClone(record) }));
+  }, { prefix, date });
+  let release = function (): void {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let reads = 0, held = false;
+  await page.route('**/rest/v1/study_records?**', async route => {
+    if (new URL(route.request().url()).searchParams.get('study_date') !== `eq.${date}`) return route.fallback();
+    if (++reads === 2) { held = true; await gate; }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto('/');
+  await expect(page.locator('#cloudRefreshBtn')).toBeEnabled();
+  await expect(page.locator('#cloudMessage')).toContainText('登入完成');
+  await selectStudyDate(page, date);
+  await expect.poll(() => held).toBe(true);
+  const latest = { date, notes: '', items: calendarItemsByDate(state.rows as CalendarTaskRow[]).get(date)!,
+    localDirty: false, syncConflict: false };
+  await page.evaluate(({ prefix, latest }) => localStorage.setItem(prefix + latest.date, JSON.stringify(latest)), { prefix, latest });
+  release();
+  await expect(page.locator('#cloudMessage')).toContainText('最新 Calendar 排程');
+  await expect.poll(async () => (await saved(page)).syncConflict).toBe(false);
+  expect((await saved(page)).localDirty).toBe(false);
+  expect((await saved(page)).syncConflictDetails).toBeUndefined();
+  expect(state.cloud!.has(date)).toBe(false);
+});
+
 test('a verified cloud record replaces an untouched local Calendar conflict without uploading the old schedule', async ({ page }) => {
   const state = await seed(page); await makeUnrecordedConflict(page);
   state.failed = true;

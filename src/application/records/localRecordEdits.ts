@@ -1,6 +1,6 @@
 import { LocalStudyRecordRepository, type KeyValueStorage } from '../../infrastructure/storage/localStudyRecordRepository.ts';
 import {
-  markRecordLocallyEdited, mergeStudyRecordsThreeWay, sameStudyContent,
+  markRecordLocallyEdited, mergeStudyRecordsForUpload, mergeStudyRecordsThreeWay, sameStudyContent,
   type StudyRecordMergeResult,
 } from '../../storage/recordSync.ts';
 import type { StudyRecord } from '../../types.ts';
@@ -8,6 +8,13 @@ import { studyRecordConflictLocations } from '../../storage/conflictPresentation
 import { rangeCompletionSignature } from '../../study/rangeCompletion.ts';
 import { synchronizeRangeCompletion } from './synchronizeRangeCompletion.ts';
 import { isUnrecordedCalendarCache } from '../../study/recordedActivity.ts';
+
+/** A queued pre-Calendar render cannot restore generated fields removed by a newer schedule. */
+export function mergeQueuedRecord(queued: StudyRecord, latest: StudyRecord | null): StudyRecord {
+  if (!latest) return queued;
+  if (isUnrecordedCalendarCache(latest, queued)) return latest;
+  return mergeStudyRecordsForUpload(latest, queued);
+}
 
 /** Shares the editor's loaded-base merge with standalone pages. */
 export function reconcileLocalRecordEdit(draft: StudyRecord, latest: StudyRecord | null, base: StudyRecord): StudyRecordMergeResult {

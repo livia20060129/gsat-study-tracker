@@ -423,3 +423,37 @@ test('a confirmed Google preview cannot write after the active account changes',
   expect(await words(page)).toEqual(before);
   expect(await page.evaluate(date => JSON.parse(localStorage.getItem('study-v11:user:another:' + date)!).notes, date)).toBe('另一帳號原內容');
 });
+
+test('a fast Google preview waits for an opening editor before inserting clickable candidates', async ({ page }) => {
+  await seed(page); await page.reload();
+  let requests = 0;
+  await page.route('**/functions/v1/google-translation', route => {
+    requests++;
+    return route.fulfill({ json: { provider: 'google', word: 'ability', translation: '快速候選' } });
+  });
+  const row = page.locator('.vocabulary-row[data-entry-key="ability"]');
+  await page.evaluate(() => {
+    const original = Element.prototype.animate;
+    Element.prototype.animate = function (frames, options) {
+      const animation = original.call(this, frames, options);
+      if (typeof options === 'object' && options.id?.startsWith('study-disclosure-')) {
+        animation.pause(); animation.currentTime = 120;
+      }
+      return animation;
+    };
+  });
+  await row.getByRole('button', { name: '編輯「ability」', exact: true }).click();
+  await expect(row).toHaveAttribute('data-disclosure-motion', 'opening');
+  // Keyboard activation is usable while the pointer target is still being revealed.
+  await row.locator('[data-google-translate]').press('Enter');
+  await expect(row.locator('[data-google-translate]')).toBeDisabled();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(requests).toBe(0);
+  await expect(row.locator('[data-google-meaning]')).toHaveCount(0);
+  await row.evaluate(node => node.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
+  await row.locator('[data-google-meaning]').check();
+  await expect(row.locator('[data-google-meaning]')).toBeChecked();
+  expect(requests).toBe(1);
+  await row.locator('[data-google-apply]').click();
+  await expect.poll(async () => (await words(page))[1].translation).toContain('快速候選');
+});

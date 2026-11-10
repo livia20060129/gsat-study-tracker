@@ -5,6 +5,7 @@ import { VOCABULARY_PARTS_OF_SPEECH } from '../study/vocabularyTranslationCounts
 import type { VocabularyTranslations } from '../types.ts';
 import type { GoogleTranslationContentKind, GoogleTranslationSelection } from '../study/googleTranslationSelection.ts';
 import { translationText } from '../../supabase/functions/_shared/translationText.ts';
+import { waitForDisclosure } from './disclosureMotion.ts';
 
 type SelectionOutcome = 'saved' | 'unchanged' | 'failed';
 
@@ -78,6 +79,8 @@ export class DictionaryPreview {
       this.status.textContent = '正在取得 Google 翻譯…';
       googleQuery.disabled = true;
       try {
+        await waitForDisclosure(this.element);
+        if (this.disposed || serial !== this.requestSerial) return;
         const result = await this.options.google.lookup();
         if (this.disposed || serial !== this.requestSerial) return;
         if (result) this.showGoogleResult(result);
@@ -100,7 +103,11 @@ export class DictionaryPreview {
     const serial = ++this.requestSerial;
     this.output.replaceChildren();
     let translations: VocabularyTranslations | null;
-    try { translations = await loadEcdictTranslations(this.options.word); }
+    try {
+      await waitForDisclosure(this.element);
+      if (this.disposed || serial !== this.requestSerial) return;
+      translations = await loadEcdictTranslations(this.options.word);
+    }
     catch {
       if (!this.disposed && serial === this.requestSerial) this.status.textContent = 'ECDICT 暫時無法載入，可稍後重試或手動輸入中文。';
       return;
