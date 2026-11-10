@@ -97,8 +97,9 @@ export function initializeSelectionMotion(right: HTMLElement, bar: HTMLElement):
     else finish();
   }, true);
 
-  // Tracker replaces a completed card synchronously. Resolve its new checkbox
-  // after the save handler, rather than animating the detached old input.
+  // Real browser input may run a microtask checkpoint between capture and
+  // bubble listeners. Wait for the next frame so Tracker's save/render handler
+  // has finished, then animate the replacement that will actually be painted.
   document.addEventListener('change', function completedTrackerItem(event): void {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || !input.matches('[data-done],[data-week-done]')) return;
@@ -112,7 +113,9 @@ export function initializeSelectionMotion(right: HTMLElement, bar: HTMLElement):
     }
     const occurrence = [...document.querySelectorAll(selector)].indexOf(input);
     const wasFocused = document.activeElement === input;
-    queueMicrotask(() => {
+    const selectedDate = document.querySelector<HTMLInputElement>('#studyDate')?.value;
+    requestAnimationFrame(() => {
+      if (selectedDate !== document.querySelector<HTMLInputElement>('#studyDate')?.value) return;
       const current = input.isConnected ? input : document.querySelectorAll<HTMLInputElement>(selector)[Math.max(0, occurrence)];
       if (current?.checked === input.checked) {
         if (wasFocused && !input.isConnected) current.focus({ preventScroll: true });

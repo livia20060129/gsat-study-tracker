@@ -74,19 +74,57 @@ test('a failed checkbox save is unchecked, remains actionable and does not play 
   expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).items.find((item: { id: string }) => item.id === 'flat-ace').done, key)).toBe(false);
 });
 
-test('Tracker resolves the newly rendered checkbox for its pulse and keeps original large editable cards', async ({ page }) => {
+for (const activation of ['pointer', 'keyboard'] as const) test(`Tracker preserves a visible pulse after real ${activation} completion`, async ({ page }) => {
   await seed(page);
   await page.goto('/');
   await selectStudyDate(page, date);
   const card = page.locator('[data-item="flat-grammar"]').first();
   await expect(card.locator('[data-done]')).toBeVisible();
   await expect(card.locator('[data-field="unitStart"]')).toBeVisible();
-  await card.locator('[data-done]').evaluate(input => { (input as HTMLInputElement).focus(); (input as HTMLInputElement).click(); });
+  const checkbox = card.locator('[data-done]');
+  if (activation === 'pointer') await checkbox.check();
+  else { await checkbox.focus(); await checkbox.press('Space'); }
   await expect(card.locator('[data-done]')).toBeChecked();
-  await expect(card.locator('[data-done]')).toBeFocused();
-  const current = await card.locator('[data-done]').evaluate(input => input.getAnimations().map(animation => animation.id));
-  expect(current).toContain('study-completion-checkbox');
+  const current = await card.locator('[data-done]').evaluate(input => new Promise<{ ids: string[]; width: number; originalWidth: number }>(resolve => requestAnimationFrame(() => {
+    const animations = input.getAnimations();
+    const pulse = animations.find(animation => animation.id === 'study-completion-checkbox');
+    if (pulse) { pulse.pause(); pulse.currentTime = 40; }
+    resolve({ ids: animations.map(animation => animation.id), width: input.getBoundingClientRect().width, originalWidth: Number.parseFloat(getComputedStyle(input).width) });
+  })));
+  expect(current.ids).toContain('study-completion-checkbox');
+  expect(current.width).toBeGreaterThan(current.originalWidth * 1.1);
+  // WebKit does not focus native checkboxes for pointer input. Preserve the
+  // platform's pointer behavior and require focus retention for keyboard input.
+  if (activation === 'keyboard') await expect(card.locator('[data-done]')).toBeFocused();
   expect(await card.evaluate(node => node.getAnimations().length)).toBe(0);
+  await card.locator('[data-done]').evaluate(input => input.getAnimations().forEach(animation => animation.finish()));
+});
+
+test.describe('touch completion', () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+  test('real taps preserve the Tracker pulse and save compact todo completion', async ({ page }) => {
+    await seed(page);
+    await page.goto('/');
+    await selectStudyDate(page, date);
+    const checkbox = page.locator('[data-item="flat-grammar"] [data-done]').first();
+    await checkbox.tap();
+    await expect(checkbox).toBeChecked();
+    const pulsing = await checkbox.evaluate(input => new Promise<boolean>(resolve => requestAnimationFrame(() => resolve(input.getAnimations().some(animation => animation.id === 'study-completion-checkbox')))));
+    expect(pulsing).toBe(true);
+    await page.goto('/todo.html');
+    const todo = page.locator('.todo-card[data-todo-key$=flat-ace]');
+    await todo.locator('.todo-complete').tap();
+    expect(await page.evaluate(key => {
+      const queue = [...JSON.parse(localStorage.getItem(key)!).items];
+      while (queue.length) {
+        const item = queue.shift();
+        if (item.id === 'flat-ace') return item.done;
+        for (const value of Object.values(item.f ?? {})) if (Array.isArray(value)) queue.push(...value);
+      }
+      return undefined;
+    }, key)).toBe(true);
+    await expect(todo).toHaveCount(0);
+  });
 });
 
 test('desktop menu selection slides from its painted position and rapid selection navigates only to the last page', async ({ page }) => {
