@@ -166,7 +166,7 @@ test('overdue task page filters subjects and persists skip without marking compl
   await minutes.dispatchEvent('change');
   await expect(page.locator('#todoFeedback')).toContainText('25.5 分鐘');
   const completionDate = await page.getByLabel('英文閱讀的完成日期').inputValue();
-  await page.getByRole('button', { name: '標記完成 英文閱讀' }).click();
+  await page.getByRole('checkbox', { name: '標記完成 英文閱讀' }).click();
   await expect(page.locator('#todoEmpty')).toBeVisible();
   await expect(page.locator('#todoFeedback')).toContainText(`完成日期為 ${completionDate}`);
   await expect(page.locator('#todoHistoryList')).toContainText('英文閱讀');

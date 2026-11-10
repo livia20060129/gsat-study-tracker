@@ -264,7 +264,7 @@ test('flat todo cards preserve direct range edits and synchronize them back to t
   await expect(todo).toBeVisible();
   await expect(todo).not.toContainText('Google Calendar API');
   await expect(todo).not.toHaveCSS('background-color', 'rgb(255, 255, 255)');
-  await expect(todo).toHaveCSS('border-left-width', '4px');
+  await expect(todo).toHaveCSS('border-left-width', '3px');
   await expect(page.locator('.study-record-section')).toHaveCSS('border-top-width', '0px');
   const end = todo.locator('[data-todo-range="end"]');
   await expect(end).toBeEditable();

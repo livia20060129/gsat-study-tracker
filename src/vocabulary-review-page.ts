@@ -360,6 +360,7 @@ function createReadonlyTranslations(entry: VocabularyReviewEntry): HTMLElement {
   container.className = 'vocabulary-readonly-translations';
   for (const { partOfSpeech, meanings } of vocabularyMeaningGroups(entry, activeContentKind)) {
     const group = document.createElement('div');
+    group.className = 'vocabulary-pos-group';
     if (partOfSpeech) {
       const heading = document.createElement('strong');
       heading.textContent = partOfSpeech;

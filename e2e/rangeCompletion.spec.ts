@@ -66,7 +66,7 @@ test('completing a Unit from todo checks covered scheduled Units with their own 
   await page.goto('/todo.html');
   const card = page.locator('.todo-card').filter({ has: page.locator('[data-item-id="unit-source"]') });
   await expandTodoCard(card);
-  await card.getByRole('button', { name: /^標記完成/ }).click();
+  await card.getByRole('checkbox', { name: /^標記完成/ }).click();
   await expect.poll(async () => (await stored(page, '2026-11-08', 'unit-plan')).done).toBe(true);
   await page.goto('/'); await selectStudyDate(page, '2026-11-08');
   await expect(page.locator('[data-item="unit-plan"] [data-done]')).toBeChecked();
