@@ -21,12 +21,26 @@ async function seed(page: Page): Promise<void> {
   await expect(page.locator('.todo-card')).toHaveCount(2);
 }
 
-test('native todo completion saves before the checkbox pulse finishes and preserves manual time, timer and notes', async ({ page }) => {
+for (const width of [1280, 375]) test(`native todo completion stays left of the title and saves time before its pulse finishes (${width}px)`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 812 });
   await seed(page);
   const card = page.locator('.todo-card[data-todo-key$=flat-grammar]');
   await expect(card.getByRole('checkbox', { name: /^標記完成/ })).toBeVisible();
   await expect(card).toHaveAttribute('data-expanded', 'false');
+  const compact = await card.evaluate(node => {
+    const box = node.querySelector('.todo-complete')!.getBoundingClientRect(), title = node.querySelector('h3')!.getBoundingClientRect(), card = node.getBoundingClientRect();
+    return { x: box.left + box.width / 2 - card.left, y: box.top + box.height / 2 - card.top, right: box.right, titleLeft: title.left };
+  });
+  expect(compact.right).toBeLessThan(compact.titleLeft);
+  await card.screenshot({ path: testInfo.outputPath(`todo-title-checkbox-${width}-compact.png`) });
   await expandTodoCard(card);
+  const expanded = await card.evaluate(node => {
+    const box = node.querySelector('.todo-complete')!.getBoundingClientRect(), card = node.getBoundingClientRect();
+    return { x: box.left + box.width / 2 - card.left, y: box.top + box.height / 2 - card.top };
+  });
+  expect(Math.abs(expanded.x - compact.x)).toBeLessThan(1);
+  expect(Math.abs(expanded.y - compact.y)).toBeLessThan(1);
+  await card.screenshot({ path: testInfo.outputPath(`todo-title-checkbox-${width}-expanded.png`) });
   await card.locator('[data-todo-minutes]').fill('25');
   await card.getByRole('button', { name: '計時', exact: true }).click();
   await expect(card.locator('.todo-timer-display')).toContainText('25:00');

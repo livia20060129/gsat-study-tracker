@@ -128,7 +128,11 @@ test('all cards start compact with a scope summary and whole-card editing withou
   await expect(card.locator('.todo-range-summary')).toHaveText('新關鍵｜p.10–12');
   await expect(card.locator('.todo-expand')).toHaveCSS('border-top-width', '0px');
   await expect(card.locator('.todo-expand')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-  expect(await card.locator('.todo-actions').evaluate(node => node.children[0].classList.contains('todo-completion-control') && node.children[0].querySelector('input.todo-complete') !== null && node.children[1].classList.contains('todo-expand'))).toBe(true);
+  const headingBounds = await card.evaluate(node => {
+    const checkbox = node.querySelector('.todo-complete')!.getBoundingClientRect(), title = node.querySelector('h3')!.getBoundingClientRect();
+    return { checkboxRight: checkbox.right, titleLeft: title.left };
+  });
+  expect(headingBounds.checkboxRight).toBeLessThan(headingBounds.titleLeft);
   await card.locator('.todo-range-summary').click();
   await expect(card.locator('[data-todo-range="end"]')).toBeEditable();
   await card.locator('[data-todo-range="end"]').fill('18');
