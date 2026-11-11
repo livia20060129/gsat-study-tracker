@@ -47,7 +47,9 @@ test('English review text stays in memory while typing and saves after leaving t
 test('English review separates parts of speech from the animated content-kind switch', () => {
   assert.match(runtime, /var primaryTags=VOCABULARY_PARTS_OF_SPEECH/);
   assert.match(runtime, /\[\['word','單字'\],\['combination','組合'\],\['sentence','句子'\]\]/);
-  assert.match(runtime, /renderEnglishReviewWordTagRow\(w,i,primaryTags,'word-pos-primary'\)\+renderEnglishReviewWordKind\(w,i\)/);
+  // The input layout may move the kind switch above the text; both controls remain available.
+  assert.match(runtime, /renderEnglishReviewWordTagRow\(w,i,primaryTags,'word-pos-primary'\)/);
+  assert.match(runtime, /renderEnglishReviewWordKind\(w,i\)/);
   assert.match(runtime, /current\.fixedCombination=kind==='combination';current\.beautifulSentences=kind==='sentence'/);
   assert.match(styles, /\.word-kind-indicator\{[\s\S]*?transition:transform/);
 });
