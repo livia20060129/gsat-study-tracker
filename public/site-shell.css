@@ -679,7 +679,7 @@ body.has-site-shell :is(.footer,.site-footer) a { color:inherit; }
 .has-site-shell .site-rail-right[data-selection-motion=ready] :is(.site-workspace-home,.site-tools>a)[aria-current=page] { background:transparent; }
 .has-site-shell .site-rail-right>.site-navigation-selection { position:absolute; z-index:0; border-radius:10px; background:var(--flat-selected); pointer-events:none; }
 .has-site-shell .site-rail-right>:not(.site-navigation-selection) { position:relative; z-index:1; }
-.has-site-shell .site-rail .site-tools { display:grid; gap:4px; padding:0; border:0; background:transparent; }
+.has-site-shell .site-rail .site-tools { display:grid; gap:4px; margin-top:4px; padding:0; border:0; background:transparent; }
 .has-site-shell .site-tools>a { min-height:48px; padding:10px; border:0; border-radius:10px; }
 .has-site-shell .site-tool-icon { width:24px; height:24px; border:0; background:transparent; color:inherit; }
 .has-site-shell .site-tools small { color:var(--flat-muted); font-weight:400; }
@@ -712,6 +712,10 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 .tracker-home.has-site-shell .item-top>[data-done] { align-self:flex-start; margin:5px 0 0; }
 .tracker-home.has-site-shell .item-top>[data-done]+div { flex:1; min-width:0!important; }
 .tracker-home.has-site-shell .item [data-done]:checked,.tracker-home.has-site-shell [data-week-done]:checked { accent-color:var(--flat-green); }
+.tracker-home.has-site-shell .weekly-item-toggle { align-items:flex-start; }
+.tracker-home.has-site-shell .weekly-item-toggle>[data-week-done] { margin:0; }
+.tracker-home.has-site-shell .weekly-item-label { display:grid; min-width:0; gap:3px; line-height:1.55; white-space:normal; overflow-wrap:anywhere; }
+.tracker-home.has-site-shell .weekly-item-range { color:#64748b; font-size:12px; line-height:1.5; }
 .tracker-home.has-site-shell #exportBox,.tracker-home.has-site-shell .import-panel { border:0; background:transparent; box-shadow:none; }
 .tracker-home.has-site-shell .home-reflection-fields { gap:16px; }
 
@@ -775,7 +779,7 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 
 @media(max-width:1199px) {
   .has-site-shell .site-rail-right { border:0; background:var(--site-page-background); }
-  .has-site-shell .site-rail-right>.site-rail-top { display:block; margin:0 0 4px; padding:12px; border-radius:16px; background:var(--flat-surface); }
+  .has-site-shell .site-rail-right>.site-rail-top { display:block; margin:0; padding:12px 12px 4px; border-radius:16px 16px 0 0; background:var(--flat-surface); }
   .has-site-shell .site-workspace-home { display:flex; align-items:center; min-height:60px; }
   .has-site-shell .site-workspace-home strong { display:none; }
   .has-site-shell .site-workspace-home>span { display:flex; align-items:center; gap:9px; margin:0; color:inherit; font-size:14px; font-weight:750; }
@@ -783,7 +787,7 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
      selected link itself here, while full-page navigation keeps its slide. */
   .has-site-shell .site-rail-right>.site-navigation-selection { display:none; }
   .has-site-shell .site-rail-right[data-selection-motion=ready] :is(.site-workspace-home,.site-tools>a)[aria-current=page] { background:var(--flat-selected); }
-  .has-site-shell .site-rail .site-tools { padding:12px; border:0; border-radius:16px; background:var(--flat-surface); }
+  .has-site-shell .site-rail .site-tools { margin:0; padding:0 12px 12px; border:0; border-radius:0 0 16px 16px; background:var(--flat-surface); }
   .has-site-shell .site-tools>a { min-height:60px; }
   .has-site-shell .site-rail .site-overdue { padding:18px; border:0; border-radius:16px; background:var(--flat-surface); }
   .has-site-shell .site-rail-left { background:var(--site-page-background); }

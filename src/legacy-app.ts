@@ -22,6 +22,7 @@ import { renderStudyReference } from './ui/studyReference.ts';
 import { requestedStudyDate } from './ui/siteNavigation.ts';
 import { studyCardDescription } from './ui/studyDescription.ts';
 import { deduplicateStudyIdentityFields } from './ui/studyIdentityFields.ts';
+import { weeklyStudyDisplay } from './ui/weeklyStudyDisplay.ts';
 import { canUseCloudCalendarRecord, decideRevisionSync, markRecordLocallyEdited, mergeStudyRecordsForUpload, mergeStudyRecordsThreeWay, recordSyncConflicts, sameStudyContent, stripRecordSyncMeta } from './storage/recordSync';
 import { isUnrecordedCalendarCache } from './study/recordedActivity.ts';
 import { studyRecordConflictDetailsText, studyRecordConflictSummary } from './storage/conflictPresentation';
@@ -3444,14 +3445,6 @@ function renderCard(x,canDelete){
  if(canDelete)h+=renderItemDeleteFooter('delete-item');
  return h+'</div>';
 }
-function weeklyItemDisplayTitle(x){
- var title=itemTitle(x),book=x&&x.type==='extra'&&x.f&&x.f.title?String(x.f.title):'';
- if(numberedStudyScope(x)){
-  if(title.indexOf(book)>=0)return title;
-  return title+(book?'｜'+book:'')+'｜'+(numberedStudyScope(x).kind==='unit'?bookUnitText(x):numberedScopeText(x));
- }
- return book&&book!==title?title+'｜'+book:title;
-}
 function weeklyItemState(x){
  if(isGroupedWork(x))x.done=groupedWorkEntries(x).every(function(entry){return !!entry.done});
  if(x.done)return{label:'完成',kind:'done'};
@@ -3479,7 +3472,7 @@ function renderWeeklyItems(){
   total+=items.length;
   html+='<details class="weekly-day" open><summary><span><strong>'+weekdays[dayDate.getDay()]+'</strong><span class="weekly-date">'+esc(ds.slice(5).replace('-','／'))+'</span></span><span class="weekly-day-actions"><span class="small">'+accepted+'／'+items.length+'</span></span></summary>';
   html+='<div class="weekly-day-items">';
-  items.forEach(function(x){var state=weeklyItemState(x),dateEditor=completionDateMarkup(x,ds,' data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"');html+='<div class="weekly-item-row '+studyItemSubjectClass(x)+'"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><div class="weekly-item-check"><label class="weekly-item-toggle"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span>'+esc(weeklyItemDisplayTitle(x))+'</span></label>'+dateEditor+'</div></div>'});
+  items.forEach(function(x){var state=weeklyItemState(x),display=weeklyStudyDisplay(x,itemTitle(x)),dateEditor=completionDateMarkup(x,ds,' data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"');html+='<div class="weekly-item-row '+studyItemSubjectClass(x)+'"><span class="weekly-item-state" data-state="'+state.kind+'">'+esc(state.label)+'</span><div class="weekly-item-check"><label class="weekly-item-toggle"><input type="checkbox" data-week-done data-week-date="'+esc(ds)+'" data-week-item="'+esc(x.id)+'"'+checked(x.done)+'><span class="weekly-item-label"><span class="weekly-item-title">'+esc(display.title)+'</span>'+(display.range?'<span class="weekly-item-range">'+esc(display.range)+'</span>':'')+'</span></label>'+dateEditor+'</div></div>'});
   html+='</div>';
   html+='</details>';
  }
