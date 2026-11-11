@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 
-test('reading tools align left and export tools align right on one wide row with a usable narrow fallback', async ({ page }) => {
+test('vocabulary tools use centered labeled groups and wrap into centered rows on narrow screens', async ({ page }) => {
   for (const width of [1440, 768, 375, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/vocabulary.review.html');
@@ -23,18 +23,29 @@ test('reading tools align left and export tools align right on one wide row with
         await expect(button.locator('[data-ui-icon="download"] svg')).toBeVisible();
         await expect(button.locator('svg path')).not.toHaveCount(0);
       }
-      const centers = await exporting.locator('select,button').evaluateAll(nodes => nodes.map(node => {
+      // On a narrow phone the format label and the two download actions may
+      // wrap independently, but each resulting row remains centered.
+      const groups = await exporting.locator('.vocabulary-export-format,.vocabulary-export-actions').evaluateAll(nodes => nodes.map(node => {
         const rect = node.getBoundingClientRect();
-        return rect.top + rect.height / 2;
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
       }));
-      expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(1);
+      const box = (await exporting.boundingBox())!;
+      const rows = new Map<number, typeof groups>();
+      for (const group of groups) { const y = Math.round(group.y + group.height / 2); rows.set(y, [...(rows.get(y) ?? []), group]); }
+      for (const row of rows.values()) {
+        const left = Math.min(...row.map(group => group.x)), right = Math.max(...row.map(group => group.x + group.width));
+        expect(Math.abs((left + right) / 2 - box.x - box.width / 2)).toBeLessThan(1);
+      }
     }
-    const first = (await reading.boundingBox())!;
-    const second = (await exporting.boundingBox())!;
-    if(width>=768){
-      expect(Math.abs(first.y+first.height/2-second.y-second.height/2)).toBeLessThan(1);
-      expect(second.x).toBeGreaterThanOrEqual(first.x+first.width+12);
-    }else expect(second.y).toBeGreaterThanOrEqual(first.y + first.height + 8);
+    await expect(page.locator('.vocabulary-translation-tools')).toContainText('中文翻譯');
+    await expect(reading.getByLabel('發音口音')).toBeVisible();
+    await expect(reading.getByLabel('辭典版本')).toBeVisible();
+    const first = (await reading.boundingBox())!, second = (await exporting.boundingBox())!;
+    const toolbar = (await page.locator('.vocabulary-tool-columns').boundingBox())!;
+    const onSameRow = Math.abs(first.y + first.height / 2 - second.y - second.height / 2) < 1;
+    if (width === 1440) expect(onSameRow).toBe(true);
+    if (onSameRow) expect(Math.abs((first.x + second.x + second.width) / 2 - toolbar.x - toolbar.width / 2)).toBeLessThan(1);
+    else for (const row of [first, second]) expect(Math.abs(row.x + row.width / 2 - toolbar.x - toolbar.width / 2)).toBeLessThan(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });
@@ -82,6 +93,9 @@ test('page references appear directly under the title and all word groupings use
   await expect(page.locator('#vocabularyLegacySources')).toBeHidden();
   await expect(page.locator('.vocabulary-row a[href*="ECDICT"], .vocabulary-row .vocabulary-reference-sources')).toHaveCount(0);
   const rows = page.locator('.vocabulary-row');
+  await expect(rows.first()).toHaveCSS('border-top-width', '1px');
+  await expect(rows.first()).toHaveCSS('border-radius', '14px');
+  await expect(rows.first()).toHaveCSS('background-color', 'rgb(251, 253, 255)');
   for (const grouping of ['字母排序', '詞性', 'Level']) {
     await page.getByRole('button', { name: grouping, exact: true }).click();
     await expect(rows).toHaveCount(4);

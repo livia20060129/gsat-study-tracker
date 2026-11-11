@@ -674,7 +674,7 @@ body.has-site-shell :is(.footer,.site-footer) a { color:inherit; }
 /* The navigation owns one moving selection surface; icons and text stay still. */
 .has-site-shell .site-rail-left { background:#293b4f; }
 .has-site-shell .site-rail-right { background:var(--flat-surface); border-left-color:var(--flat-line); isolation:isolate; }
-.has-site-shell .site-workspace-home { padding:10px; margin:-10px; border-radius:10px; }
+.has-site-shell .site-workspace-home { width:100%; padding:10px; margin:0; border-radius:10px; }
 .has-site-shell :is(.site-workspace-home,.site-tools>a)[aria-current=page] { background:var(--flat-selected); }
 .has-site-shell .site-rail-right[data-selection-motion=ready] :is(.site-workspace-home,.site-tools>a)[aria-current=page] { background:transparent; }
 .has-site-shell .site-rail-right>.site-navigation-selection { position:absolute; z-index:0; border-radius:10px; background:var(--flat-selected); pointer-events:none; }
@@ -741,8 +741,8 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 /* A thick divider separates English and Chinese; thin lines separate POS groups. */
 .has-site-shell .vocabulary-panel { background:var(--flat-surface); }
 .has-site-shell .vocabulary-panel-body { padding:18px; }
-.has-site-shell .vocabulary-row { padding:16px 4px; border:0; border-bottom:1px solid var(--flat-line); border-radius:0; background:transparent; box-shadow:none; }
-.has-site-shell .vocabulary-row.is-card-starred { box-shadow:inset 3px 0 0 #dbb766; padding-left:12px; }
+.has-site-shell .vocabulary-row { padding:16px; border:1px solid #dbe5f0; border-radius:14px; background:#fbfdff; box-shadow:none; }
+.has-site-shell .vocabulary-row.is-card-starred { border-color:#dbb766; box-shadow:inset 3px 0 0 #dbb766; }
 .has-site-shell .vocabulary-identity { padding-bottom:12px; border-bottom:3px solid #7d91ac; }
 .has-site-shell :is(.vocabulary-word-link,.vocabulary-word-text) { font-size:20px; }
 .has-site-shell .vocabulary-readonly-translations { gap:0; border:0; padding:0; border-radius:0; background:transparent; }
@@ -772,6 +772,14 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 
 @media(max-width:1199px) {
   .has-site-shell .site-rail-right { border:0; background:var(--site-page-background); }
+  .has-site-shell .site-rail-right>.site-rail-top { display:block; margin:0 0 4px; padding:12px; border-radius:16px; background:var(--flat-surface); }
+  .has-site-shell .site-workspace-home { display:flex; align-items:center; min-height:60px; }
+  .has-site-shell .site-workspace-home strong { display:none; }
+  .has-site-shell .site-workspace-home>span { display:flex; align-items:center; gap:9px; margin:0; color:inherit; font-size:14px; font-weight:750; }
+  /* The desktop marker sits behind the opaque mobile menu surface. Paint the
+     selected link itself here, while full-page navigation keeps its slide. */
+  .has-site-shell .site-rail-right>.site-navigation-selection { display:none; }
+  .has-site-shell .site-rail-right[data-selection-motion=ready] :is(.site-workspace-home,.site-tools>a)[aria-current=page] { background:var(--flat-selected); }
   .has-site-shell .site-rail .site-tools { padding:12px; border:0; border-radius:16px; background:var(--flat-surface); }
   .has-site-shell .site-tools>a { min-height:60px; }
   .has-site-shell .site-rail .site-overdue { padding:18px; border:0; border-radius:16px; background:var(--flat-surface); }
