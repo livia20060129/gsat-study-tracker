@@ -3378,8 +3378,14 @@ function renderEnglishReviewWordKind(word,index){
 function renderEnglishReview(x){
  var a=x.f.words;if(!Array.isArray(a))a=x.f.words=[];
  var primaryTags=VOCABULARY_PARTS_OF_SPEECH;
- var h='<div><label>今日單字</label>';if(!a.length)h+='<div class="small">尚未新增今日單字。</div>';
- for(var i=0;i<a.length;i++){var w=typeof a[i]==='string'?{text:a[i]}:(a[i]||{});h+='<div class="field" style="margin-top:8px"><div class="inline"><input data-word-text data-index="'+i+'" value="'+esc(w.text||'')+'" placeholder="輸入今天整理的單字／搭配詞"><button class="delete" data-action="word-delete" data-index="'+i+'">刪除</button></div><div class="small" data-word-reference>'+esc(englishWordFeedbackMessage(x,w,i)||vocabularyAutoFillStatus(w))+(w.vocabularyTranslationSource==='Google Translate'?' '+googleTranslationAttributionHtml():'')+'</div><div class="word-review-controls">'+renderEnglishReviewWordTagRow(w,i,primaryTags,'word-pos-primary')+renderEnglishReviewWordKind(w,i)+'</div></div>'}
+ var h='<div class="english-word-list"><label>今日單字</label>';if(!a.length)h+='<div class="small">尚未新增今日單字。</div>';
+ for(var i=0;i<a.length;i++){
+  var w=typeof a[i]==='string'?{text:a[i]}:(a[i]||{});
+  h+='<div class="field english-word-entry">'+renderEnglishReviewWordKind(w,i)+
+   '<div class="inline"><input data-word-text data-index="'+i+'" value="'+esc(w.text||'')+'" placeholder="輸入今天整理的單字／搭配詞"><button class="delete" data-action="word-delete" data-index="'+i+'">刪除</button></div>'+
+   '<div class="small" data-word-reference>'+esc(englishWordFeedbackMessage(x,w,i)||vocabularyAutoFillStatus(w))+(w.vocabularyTranslationSource==='Google Translate'?' '+googleTranslationAttributionHtml():'')+'</div>'+
+   '<div class="word-review-controls">'+renderEnglishReviewWordTagRow(w,i,primaryTags,'word-pos-primary')+'</div></div>';
+ }
  return h+'</div><button class="secondary" data-action="word-add" style="margin-top:8px">新增單字</button>';
 }
 function renderNestedEntry(x,kind){
@@ -3742,7 +3748,7 @@ function selectEnglishReviewWordKind(item,control){
  var switcher=control.closest('[data-word-kind-switch]');if(!switcher)return;
  switcher.dataset.active=kind==='word'?'0':(kind==='combination'?'1':'2');
  switcher.querySelectorAll('[data-word-kind]').forEach(function(button){button.setAttribute('aria-pressed',button.getAttribute('data-word-kind')===kind?'true':'false')});
- var controls=switcher.closest('.word-review-controls'),posRow=controls&&controls.querySelector('.word-pos-primary');
+ var controls=switcher.closest('.english-word-entry'),posRow=controls&&controls.querySelector('.word-pos-primary');
  if(posRow)posRow.hidden=kind!=='word';
 }
 function updateMagazineField(target,item){
