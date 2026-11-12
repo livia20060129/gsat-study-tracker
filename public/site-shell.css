@@ -671,13 +671,15 @@ body.has-site-shell main :is(.small,.progress-note,.vocabulary-reference-sources
 body.has-site-shell :is(.footer,.site-footer) { color:var(--flat-muted); }
 body.has-site-shell :is(.footer,.site-footer) a { color:inherit; }
 
-/* The navigation owns one moving selection surface; icons and text stay still. */
+/* One selection surface slides on hover; its fill and the clicked row pulse together. */
 .has-site-shell .site-rail-left { background:#293b4f; }
 .has-site-shell .site-rail-right { background:var(--flat-surface); border-left-color:var(--flat-line); isolation:isolate; }
 .has-site-shell .site-workspace-home { width:100%; padding:10px; margin:0; border-radius:10px; }
 .has-site-shell :is(.site-workspace-home,.site-tools>a)[aria-current=page] { background:var(--flat-selected); }
 .has-site-shell .site-rail-right[data-selection-motion=ready] :is(.site-workspace-home,.site-tools>a)[aria-current=page] { background:transparent; }
-.has-site-shell .site-rail-right>.site-navigation-selection { position:absolute; z-index:0; border-radius:10px; background:var(--flat-selected); pointer-events:none; }
+.has-site-shell .site-rail-right>.site-navigation-selection { position:absolute; z-index:0; border-radius:10px; pointer-events:none; }
+.has-site-shell .site-navigation-selection>span { display:block; width:100%; height:100%; border-radius:inherit; background:var(--flat-selected); transform-origin:center; }
+.has-site-shell :is(.site-workspace-home,.site-tools>a) { transform-origin:center; }
 .has-site-shell .site-rail-right>:not(.site-navigation-selection) { position:relative; z-index:1; }
 .has-site-shell .site-rail .site-tools { display:grid; gap:4px; margin-top:4px; padding:0; border:0; background:transparent; }
 .has-site-shell .site-tools>a { min-height:48px; padding:10px; border:0; border-radius:10px; }
