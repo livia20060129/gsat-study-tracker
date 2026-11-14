@@ -250,7 +250,9 @@ body.has-site-shell {
   min-height: 35px;
 }
 
-.site-week-ticks span {
+.site-week-ticks a {
+  display: block;
+  min-height: 44px;
   padding-top: 12px;
   border-top: 7px solid #536276;
   border-radius: 5px;
@@ -258,6 +260,8 @@ body.has-site-shell {
   text-align: center;
   color: #afc4dc;
 }
+
+.site-week-ticks a:hover { background: rgba(134,181,255,.12); }
 
 .site-week-ticks .has-record {
   border-color: #86b5ff;
@@ -582,9 +586,9 @@ body.has-site-shell {
   .site-rail-date strong { color: var(--rail-blue); }
   .site-rail-date>span:first-child, .site-rail-date>span:last-child,
   .site-rail .site-date-edit, .site-week>span, .site-week small, .site-week p,
-  .site-week-ticks span, .site-rail-bottom { color: #61758e; }
+  .site-week-ticks a, .site-rail-bottom { color: #61758e; }
   .site-week>strong { color: var(--rail-blue); }
-  .site-week-ticks span { border-top-color: #dbe3ee; }
+  .site-week-ticks a { border-top-color: #dbe3ee; }
   .site-week-ticks .has-record { border-top-color: var(--rail-blue); }
   .site-rail .site-summary-link { display: block; margin: 0; padding: 16px 18px; border: 1px solid #dbe3ee; border-radius: 16px; background: #fff; color: var(--rail-blue); font-size: 14px; }
   .site-rail-bottom { margin-top: 22px; padding-top: 0; }
