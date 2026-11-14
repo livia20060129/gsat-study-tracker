@@ -243,16 +243,17 @@ body.has-site-shell {
 }
 
 .site-week-ticks {
+  --site-weekday-height: 44px;
   display: grid;
   grid-template-columns: repeat(7,minmax(0,1fr));
   gap: 5px;
   margin-top: 16px;
-  min-height: 35px;
+  min-height: var(--site-weekday-height);
 }
 
 .site-week-ticks a {
   display: block;
-  min-height: 44px;
+  min-height: var(--site-weekday-height);
   padding-top: 12px;
   border-top: 7px solid #536276;
   border-radius: 5px;
