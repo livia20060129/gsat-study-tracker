@@ -1,6 +1,16 @@
 @import "./header-action-link.css";
 @import "./study-cards.css";
 .word-pos-primary[hidden]{display:none}
+.google-account-button{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:44px;max-width:100%;padding:10px 16px;border:1px solid #747775;background:#fff;color:#1f1f1f;font-family:Arial,"Microsoft JhengHei",sans-serif;font-size:14px;font-weight:500;white-space:normal}
+.google-account-button>img{flex:0 0 20px;width:20px;height:20px}
+.google-account-button:hover{background:#f6f8fc}
+.google-account-button[hidden],.google-account-message[hidden]{display:none}
+.google-account-note{margin:10px 0 16px;line-height:1.65}
+.legacy-account-heading{margin:0 0 10px;font-size:13px;color:#526176;font-weight:650}
+.google-account-link{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin-bottom:12px}
+.google-account-message{margin:10px 0;overflow-wrap:anywhere}
+.google-account-message[data-state=error]{color:#b91c1c}
+.google-account-message[data-state=ok]{color:#047857}
 .english-word-list>.english-word-entry{margin-top:12px}
 .english-word-list>.english-word-entry+.english-word-entry{margin-top:20px;padding-top:20px;border-top:2px solid var(--subject-accent,#a898bd)}
 .english-word-entry>.word-kind-field{padding-top:0;border-top:0}

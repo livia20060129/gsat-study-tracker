@@ -29,6 +29,7 @@ import { studyRecordConflictDetailsText, studyRecordConflictSummary } from './st
 import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, initialRecordPrefix, storagePrefixForUser } from './storage/local';
 import { browserAuthPersistence, createPersistentAuthStorage } from './infrastructure/storage/browserAuthStorage.ts';
 import { createSessionRestorationGate } from './application/cloud/sessionRestoration.ts';
+import { beginGoogleAuthentication, cleanGoogleAuthReturnUrl, completeGoogleAuthReturn, googleAuthErrorMessage, googleAuthFetch, hasGoogleIdentity, prepareGoogleAuthReturn } from './application/cloud/googleAccountAuth.ts';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
@@ -408,6 +409,7 @@ var deferredLimitPrompt=null;
 var cloudClient=null;
 var cloudRecordRepository=null;
 var cloudUser=null;
+var cloudGoogleAuthStorage=null;
 var cloudLoading=false;
 var cloudBootstrapPending=false;
 var pendingCloudSync=new PendingCloudSync(store);
@@ -552,6 +554,9 @@ function cloudUpdateUI(){
  if(!out||!inn)return;
  out.hidden=!!cloudUser||(cloudSessionRestoring&&!cloudSessionRestoreError);inn.hidden=!cloudUser;
  id('cloudUserEmail').textContent=cloudUser?(cloudUser.email||'已登入'):'';
+ var googleLink=id('cloudGoogleLinkBtn'),googleStatus=id('cloudGoogleIdentityStatus');
+ if(googleLink){googleLink.hidden=!cloudUser||hasGoogleIdentity(cloudUser);googleLink.disabled=cloudAuthPending||cloudBootstrapPending}
+ if(googleStatus)googleStatus.textContent=cloudUser?(hasGoogleIdentity(cloudUser)?'Google 已綁定':'尚未綁定 Google'):'';
  updateCloudStatusBadge();
  updateCloudActionButtons();
  updateStorageRecoveryUI();
@@ -559,7 +564,8 @@ function cloudUpdateUI(){
 }
 function setCloudAuthPending(pending){
  cloudAuthPending=!!pending;
- ['cloudSignInBtn','cloudSignUpBtn','cloudForgotPasswordBtn','cloudResendVerificationBtn'].forEach(function(buttonId){var button=id(buttonId);if(button)button.disabled=cloudAuthPending});
+ ['cloudSignInBtn','cloudSignUpBtn','cloudForgotPasswordBtn','cloudResendVerificationBtn','cloudGoogleSignInBtn','cloudGoogleLinkBtn'].forEach(function(buttonId){var button=id(buttonId);if(button)button.disabled=cloudAuthPending});
+ updateCloudActionButtons();
  updateCloudStatusBadge();
 }
 function cloneRecord(rec){
@@ -571,6 +577,7 @@ function cloudDateLockName(date){
 function withCloudDateLock(date,task){return withCrossTabLock(cloudDateLockName(date),task)}
 function updateCloudActionButtons(){
  var disabled=!cloudUser||cloudBootstrapPending||cloudManualSyncPending;
+ var googleLink=id('cloudGoogleLinkBtn');if(googleLink)googleLink.disabled=disabled||cloudAuthPending;
  var refresh=id('cloudRefreshBtn'),merge=id('cloudSyncLocalBtn'),keep=id('cloudKeepLocalBtn'),useCloud=id('cloudUseCloudBtn'),undo=id('cloudUndoConflictBtn');
  if(refresh){refresh.disabled=disabled;refresh.setAttribute('aria-busy',cloudManualSyncPending?'true':'false')}
  if(merge){merge.disabled=disabled;merge.setAttribute('aria-busy',cloudManualSyncPending?'true':'false')}
@@ -1142,6 +1149,28 @@ async function repairStorageIssueFromCloud(){
   }catch(e){cloudSetMessage('修復失敗：'+(e&&e.message?e.message:String(e)),false);return false}
  });
 }
+function cloudGoogleSetMessage(message,ok){
+ var output=id('cloudGoogleMessage');if(!output)return;
+ output.textContent=message||'';output.hidden=!message;output.dataset.state=ok===false?'error':(ok===true?'ok':'busy');
+}
+async function cloudGoogleAuthenticate(){
+ if(!cloudClient||!cloudGoogleAuthStorage||cloudAuthPending||cloudSessionRestoring)return;
+ var userId=cloudUser?cloudUser.id:null;
+ if(userId&&(!currentStorageIsUserScoped()||cloudBootstrapPending)){cloudGoogleSetMessage('請等候帳號紀錄載入完成後再綁定。',false);return}
+ setCloudAuthPending(true);cloudGoogleSetMessage(userId?'正在準備綁定 Google…':'正在前往 Google 登入…',null);
+ try{
+  await beginGoogleAuthentication({
+   auth:{
+    getUser:function(){return withOperationTimeout(cloudClient.auth.getUser(),{timeoutMs:CLOUD_AUTH_TIMEOUT_MS,message:'登入確認逾時，請稍後再試。'})},
+    signInWithOAuth:function(options){return cloudClient.auth.signInWithOAuth(options)},
+    linkIdentity:function(options){return cloudClient.auth.linkIdentity(options)}
+   },storage:cloudGoogleAuthStorage,supabaseUrl:SUPABASE_URL,href:window.location.href,
+   date:id('studyDate').value,userId:userId,currentUserId:function(){return cloudUser?cloudUser.id:null},
+   saveDraft:function(){return persist(false)},redirect:function(url){window.location.assign(url)}
+  });
+ }catch(error){cloudGoogleSetMessage(googleAuthErrorMessage(error),false)}
+ finally{setCloudAuthPending(false)}
+}
 async function cloudSignIn(){
  var email=id('cloudEmail').value.trim(),password=id('cloudPassword').value;
  if(!email||!password){cloudSetMessage('請輸入 Email 與密碼。',false);return}
@@ -1534,15 +1563,35 @@ async function refreshCalendarAfterCloudActivation(serial){
 }
 async function initCloud(){
  cloudSessionRestoring=true;cloudSessionRestoreError=false;cloudUpdateUI();cloudSetMessage('正在恢復登入狀態…',true);
- var guestScope=STORE_PREFIX===storagePrefixForUser(null);
- rebuildMathProgressIndex();load({skipCloudRead:true,cacheOnly:!guestScope,skipPresetReconcile:!guestScope});
  var authStorage=createPersistentAuthStorage(browserAuthPersistence(window.indexedDB),{
   getItem:function(key){return window.localStorage.getItem(key)},
   setItem:function(key,value){window.localStorage.setItem(key,value)},
   removeItem:function(key){window.localStorage.removeItem(key)}
  });
- cloudClient=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{storage:authStorage,persistSession:true,autoRefreshToken:true}});
+ cloudGoogleAuthStorage=authStorage;
+ var googleReturn=await prepareGoogleAuthReturn(window.location.href,authStorage);
+ if(googleReturn.intent){id('studyDate').value=googleReturn.intent.date}
+ var guestScope=STORE_PREFIX===storagePrefixForUser(null);
+ rebuildMathProgressIndex();load({skipCloudRead:true,cacheOnly:!guestScope,skipPresetReconcile:!guestScope});
+ var legacyHash=new URLSearchParams(window.location.hash.slice(1));
+ var legacyTokens=!googleReturn.requested&&legacyHash.has('access_token')&&legacyHash.has('refresh_token');
+ if(googleReturn.requested&&!googleReturn.allowExchange)window.history.replaceState(window.history.state,'',cleanGoogleAuthReturnUrl(window.location.href,googleReturn.intent&&googleReturn.intent.date));
+ cloudClient=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{global:{fetch:googleAuthFetch(window.fetch.bind(window),SUPABASE_URL,googleReturn)},auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,flowType:'pkce',detectSessionInUrl:!legacyTokens&&(!googleReturn.requested||googleReturn.allowExchange)}});
  cloudRecordRepository=new SupabaseStudyRecordRepository(cloudClient);
+ if(googleReturn.requested){
+  var googleResult=await completeGoogleAuthReturn(googleReturn,authStorage,cloudClient.auth);
+  cloudGoogleSetMessage(googleResult.message,googleResult.ok);
+  window.history.replaceState(window.history.state,'',cleanGoogleAuthReturnUrl(window.location.href,googleReturn.intent&&googleReturn.intent.date));
+ }
+ if(legacyTokens){
+  var recoveryReturn=legacyHash.get('type')==='recovery';
+  var legacyUrl=new URL(window.location.href);legacyUrl.hash='';window.history.replaceState(window.history.state,'',legacyUrl.href);
+  try{
+   var restored=await withOperationTimeout(cloudClient.auth.setSession({access_token:legacyHash.get('access_token'),refresh_token:legacyHash.get('refresh_token')}),{timeoutMs:CLOUD_AUTH_TIMEOUT_MS,message:'登入連結確認逾時，請稍後再試。'});
+   if(restored.error)throw restored.error;
+   if(recoveryReturn)setTimeout(openPasswordRecoveryDialog,0);
+  }catch(error){cloudGoogleSetMessage('登入連結未完成，請重新索取登入或密碼重設連結。',false)}
+ }
  var params=new URLSearchParams(window.location.search),calendarReturned=params.get('calendar')==='connected';
  if(calendarReturned){params.delete('calendar');var qs=params.toString();window.history.replaceState({},'',window.location.pathname+(qs?'?'+qs:'')+window.location.hash)}
  var gate=createSessionRestorationGate(function applySession(next){
@@ -4623,6 +4672,8 @@ id('downloadStorageRecoveryBtn').addEventListener('click',downloadStorageRecover
 id('repairStorageFromCloudBtn').addEventListener('click',repairStorageIssueFromCloud);
 
 id('cloudSignInBtn').addEventListener('click',cloudSignIn);
+id('cloudGoogleSignInBtn').addEventListener('click',cloudGoogleAuthenticate);
+id('cloudGoogleLinkBtn').addEventListener('click',cloudGoogleAuthenticate);
 id('cloudSignUpBtn').addEventListener('click',cloudSignUp);
 id('cloudForgotPasswordBtn').addEventListener('click',cloudRequestPasswordReset);
 id('cloudResendVerificationBtn').addEventListener('click',cloudResendVerification);

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="./page-transitions.js?v=171.6.179"></script>
+  <script src="./page-transitions.js?v=171.6.180"></script>
   <meta name="theme-color" content="#f5f8fc" />
   <link rel="icon" type="image/png" href="/book.png" />
   <link rel="apple-touch-icon" href="/book.png" />
@@ -44,6 +44,9 @@
   <section class="connection-settings-group" id="cloudPanel" aria-labelledby="cloudSettingsTitle">
    <h2 id="cloudSettingsTitle">Cloud 帳號與同步</h2>
    <div id="cloudLoggedOut">
+    <button id="cloudGoogleSignInBtn" class="google-account-button" type="button"><img src="./google-g.svg" width="20" height="20" alt="" aria-hidden="true">使用 Google 繼續</button>
+    <p class="small google-account-note">已有帳號與紀錄？請先使用下方原帳號登入，再綁定 Google。</p>
+    <h3 class="legacy-account-heading">既有帳號／Email 登入</h3>
     <div class="connection-login-grid">
      <div class="field"><label for="cloudEmail">Email</label><input id="cloudEmail" type="email" autocomplete="email" placeholder="你的 Email"></div>
      <div class="field"><label for="cloudPassword">密碼</label><input id="cloudPassword" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 碼"></div>
@@ -52,6 +55,7 @@
    </div>
    <div id="cloudLoggedIn" hidden>
     <div class="connection-account"><strong id="cloudUserEmail"></strong></div>
+    <div class="google-account-link"><span id="cloudGoogleIdentityStatus" class="small"></span><button id="cloudGoogleLinkBtn" class="google-account-button" type="button"><img src="./google-g.svg" width="20" height="20" alt="" aria-hidden="true">綁定 Google 帳號</button></div>
     <div class="connection-actions">
      <button id="cloudRefreshBtn" class="secondary" type="button">重新讀取雲端</button>
      <button id="cloudSyncLocalBtn" type="button">補上本機舊資料</button>
@@ -59,6 +63,7 @@
      <button id="cloudSignOutBtn" type="button">登出</button>
     </div>
    </div>
+   <p id="cloudGoogleMessage" class="small google-account-message" aria-live="polite" hidden></p>
    <div class="small connection-message" id="cloudMessage" aria-live="polite">未登入時仍可使用；訪客新增的內容會在登入後自動保存到帳號。</div>
    <div class="cloud-refresh-notice" id="cloudRefreshNotice" hidden aria-live="polite">
     <span>雲端有較新的資料；輸入完成後會安全合併並更新畫面。</span>
