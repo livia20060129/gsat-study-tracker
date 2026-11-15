@@ -564,7 +564,7 @@ function cloudUpdateUI(){
 }
 function setCloudAuthPending(pending){
  cloudAuthPending=!!pending;
- ['cloudSignInBtn','cloudSignUpBtn','cloudForgotPasswordBtn','cloudResendVerificationBtn','cloudGoogleSignInBtn','cloudGoogleLinkBtn'].forEach(function(buttonId){var button=id(buttonId);if(button)button.disabled=cloudAuthPending});
+ ['cloudGoogleSignInBtn','cloudGoogleLinkBtn'].forEach(function(buttonId){var button=id(buttonId);if(button)button.disabled=cloudAuthPending});
  updateCloudActionButtons();
  updateCloudStatusBadge();
 }
@@ -1171,70 +1171,6 @@ async function cloudGoogleAuthenticate(){
  }catch(error){cloudGoogleSetMessage(googleAuthErrorMessage(error),false)}
  finally{setCloudAuthPending(false)}
 }
-async function cloudSignIn(){
- var email=id('cloudEmail').value.trim(),password=id('cloudPassword').value;
- if(!email||!password){cloudSetMessage('請輸入 Email 與密碼。',false);return}
- if(cloudAuthPending)return;
- setCloudAuthPending(true);cloudSetMessage('正在登入 Cloud 帳號…',true);
- try{
-  var r=await withOperationTimeout(cloudClient.auth.signInWithPassword({email:email,password:password}),{timeoutMs:CLOUD_AUTH_TIMEOUT_MS,message:'登入伺服器逾時；請確認網路後再試一次。'});
-  if(r.error)throw r.error;cloudSetMessage('登入成功，正在切換到此帳號的獨立資料空間。',true);
- }catch(e){cloudSetMessage('登入失敗：'+(e&&e.message?e.message:String(e)),false)}
- finally{setCloudAuthPending(false)}
-}
-async function cloudSignUp(){
- var email=id('cloudEmail').value.trim(),password=id('cloudPassword').value;
- if(!email||password.length<6){cloudSetMessage('請輸入 Email，密碼至少 6 碼。',false);return}
- try{
-  var r=await cloudClient.auth.signUp({email:email,password:password});
-  if(r.error)throw r.error;
-  if(r.data&&r.data.session)cloudSetMessage('帳號建立完成並已登入。',true);
-  else cloudSetMessage('帳號已建立；若專案要求 Email 驗證，請先完成驗證後再登入。',true);
- }catch(e){cloudSetMessage('建立帳號失敗：'+(e&&e.message?e.message:String(e)),false)}
-}
-function cloudAuthReturnUrl(){
- var url=new URL(window.location.href);url.search='';url.hash='';return url.toString();
-}
-async function cloudRequestPasswordReset(){
- var email=id('cloudEmail').value.trim();
- if(!email){cloudSetMessage('請先輸入要重設密碼的 Email。',false);return}
- try{
-  var r=await cloudClient.auth.resetPasswordForEmail(email,{redirectTo:cloudAuthReturnUrl()});
-  if(r.error)throw r.error;
-  cloudSetMessage('若此 Email 已建立帳號，密碼重設信已寄出；請從信中的連結回到 Tracker。',true);
- }catch(e){cloudSetMessage('無法寄出密碼重設信：'+(e&&e.message?e.message:String(e)),false)}
-}
-async function cloudResendVerification(){
- var email=id('cloudEmail').value.trim();
- if(!email){cloudSetMessage('請先輸入要驗證的 Email。',false);return}
- try{
-  var r=await cloudClient.auth.resend({type:'signup',email:email,options:{emailRedirectTo:cloudAuthReturnUrl()}});
-  if(r.error)throw r.error;
-  cloudSetMessage('驗證信已重新寄出；請檢查收件匣與垃圾郵件。',true);
- }catch(e){cloudSetMessage('無法重寄驗證信：'+(e&&e.message?e.message:String(e)),false)}
-}
-function openPasswordRecoveryDialog(){
- var dialog=id('passwordRecoveryDialog');if(!dialog)return;
- id('cloudNewPassword').value='';id('cloudNewPasswordConfirm').value='';id('passwordRecoveryMessage').textContent='';
- if(typeof dialog.showModal==='function'){if(!dialog.open)dialog.showModal()}else dialog.setAttribute('open','');
- setTimeout(function(){id('cloudNewPassword').focus()},0);
-}
-function closePasswordRecoveryDialog(){
- var dialog=id('passwordRecoveryDialog');if(!dialog)return;
- if(typeof dialog.close==='function'&&dialog.open)dialog.close();else dialog.removeAttribute('open');
-}
-async function cloudUpdateRecoveredPassword(event){
- if(event)event.preventDefault();
- var password=id('cloudNewPassword').value,confirmation=id('cloudNewPasswordConfirm').value,message=id('passwordRecoveryMessage');
- if(password.length<6){message.textContent='新密碼至少需要 6 碼。';return}
- if(password!==confirmation){message.textContent='兩次輸入的密碼不同。';return}
- var button=id('cloudUpdatePasswordBtn');button.disabled=true;message.textContent='正在更新密碼…';
- try{
-  var r=await cloudClient.auth.updateUser({password:password});if(r.error)throw r.error;
-  closePasswordRecoveryDialog();cloudSetMessage('密碼已更新，可以繼續使用目前登入的帳號。',true);
- }catch(e){message.textContent='更新密碼失敗：'+(e&&e.message?e.message:String(e))}
- finally{button.disabled=false}
-}
 async function cloudSignOut(){
  if(!cloudClient)return;
  try{var result=await cloudClient.auth.signOut();if(result.error)throw result.error}
@@ -1573,24 +1509,13 @@ async function initCloud(){
  if(googleReturn.intent){id('studyDate').value=googleReturn.intent.date}
  var guestScope=STORE_PREFIX===storagePrefixForUser(null);
  rebuildMathProgressIndex();load({skipCloudRead:true,cacheOnly:!guestScope,skipPresetReconcile:!guestScope});
- var legacyHash=new URLSearchParams(window.location.hash.slice(1));
- var legacyTokens=!googleReturn.requested&&legacyHash.has('access_token')&&legacyHash.has('refresh_token');
  if(googleReturn.requested&&!googleReturn.allowExchange)window.history.replaceState(window.history.state,'',cleanGoogleAuthReturnUrl(window.location.href,googleReturn.intent&&googleReturn.intent.date));
- cloudClient=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{global:{fetch:googleAuthFetch(window.fetch.bind(window),SUPABASE_URL,googleReturn)},auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,flowType:'pkce',detectSessionInUrl:!legacyTokens&&(!googleReturn.requested||googleReturn.allowExchange)}});
+ cloudClient=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{global:{fetch:googleAuthFetch(window.fetch.bind(window),SUPABASE_URL,googleReturn)},auth:{storage:authStorage,persistSession:true,autoRefreshToken:true,flowType:'pkce',detectSessionInUrl:!googleReturn.requested||googleReturn.allowExchange}});
  cloudRecordRepository=new SupabaseStudyRecordRepository(cloudClient);
  if(googleReturn.requested){
   var googleResult=await completeGoogleAuthReturn(googleReturn,authStorage,cloudClient.auth);
   cloudGoogleSetMessage(googleResult.message,googleResult.ok);
   window.history.replaceState(window.history.state,'',cleanGoogleAuthReturnUrl(window.location.href,googleReturn.intent&&googleReturn.intent.date));
- }
- if(legacyTokens){
-  var recoveryReturn=legacyHash.get('type')==='recovery';
-  var legacyUrl=new URL(window.location.href);legacyUrl.hash='';window.history.replaceState(window.history.state,'',legacyUrl.href);
-  try{
-   var restored=await withOperationTimeout(cloudClient.auth.setSession({access_token:legacyHash.get('access_token'),refresh_token:legacyHash.get('refresh_token')}),{timeoutMs:CLOUD_AUTH_TIMEOUT_MS,message:'登入連結確認逾時，請稍後再試。'});
-   if(restored.error)throw restored.error;
-   if(recoveryReturn)setTimeout(openPasswordRecoveryDialog,0);
-  }catch(error){cloudGoogleSetMessage('登入連結未完成，請重新索取登入或密碼重設連結。',false)}
  }
  var params=new URLSearchParams(window.location.search),calendarReturned=params.get('calendar')==='connected';
  if(calendarReturned){params.delete('calendar');var qs=params.toString();window.history.replaceState({},'',window.location.pathname+(qs?'?'+qs:'')+window.location.hash)}
@@ -1611,7 +1536,7 @@ async function initCloud(){
   }).catch(function(error){cloudSetMessage('登入狀態已恢復，但載入紀錄失敗：'+(error&&error.message?error.message:String(error)),false)});
  },function defer(callback){setTimeout(callback,0)});
  cloudClient.auth.onAuthStateChange(function(event,session){
-  if(event==='PASSWORD_RECOVERY')setTimeout(openPasswordRecoveryDialog,0);
+  if(event==='PASSWORD_RECOVERY'){cloudGoogleSetMessage('密碼復原已停用，請使用 Google 登入。',false);return}
   gate.event(event,session&&session.user?session.user:null);
  });
  var initialVersion=gate.version();
@@ -4671,12 +4596,12 @@ id('undoImportBtn').addEventListener('click',undoLastProgressImport);
 id('downloadStorageRecoveryBtn').addEventListener('click',downloadStorageRecovery);
 id('repairStorageFromCloudBtn').addEventListener('click',repairStorageIssueFromCloud);
 
-id('cloudSignInBtn').addEventListener('click',cloudSignIn);
+
 id('cloudGoogleSignInBtn').addEventListener('click',cloudGoogleAuthenticate);
 id('cloudGoogleLinkBtn').addEventListener('click',cloudGoogleAuthenticate);
-id('cloudSignUpBtn').addEventListener('click',cloudSignUp);
-id('cloudForgotPasswordBtn').addEventListener('click',cloudRequestPasswordReset);
-id('cloudResendVerificationBtn').addEventListener('click',cloudResendVerification);
+
+
+
 id('cloudSignOutBtn').addEventListener('click',cloudSignOut);
 id('cloudSyncLocalBtn').addEventListener('click',cloudMergeLocalMissing);
 id('cloudRefreshBtn').addEventListener('click',cloudRefreshAllRecords);
@@ -4684,8 +4609,8 @@ id('cloudKeepLocalBtn').addEventListener('click',cloudKeepLocalConflict);
 id('cloudUseCloudBtn').addEventListener('click',cloudUseCloudConflict);
 id('cloudUndoConflictBtn').addEventListener('click',cloudUndoConflictResolution);
 id('cloudApplyRefreshBtn').addEventListener('click',function(){setTimeout(applyPendingVisibleCloudRefresh,0)});
-id('passwordRecoveryForm').addEventListener('submit',cloudUpdateRecoveredPassword);
-id('cloudCancelPasswordBtn').addEventListener('click',closePasswordRecoveryDialog);
+
+
 id('deleteUndoBtn').addEventListener('click',undoLastSmallDelete);
 id('calendarConnectBtn').addEventListener('click',calendarConnect);
 id('calendarSyncBtn').addEventListener('click',calendarSyncNow);

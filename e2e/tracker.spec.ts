@@ -796,12 +796,12 @@ test('whole-card deletion requires confirmation and small-row deletion can be un
   await expect(wordInput).toHaveValue('regression');
 });
 
-test('account recovery controls are readable without changing data', async ({ page }) => {
+test('account settings offer Google access without retired password controls', async ({ page }) => {
   await page.locator('.connection-settings-toggle').click();
-  await expect(page.getByRole('button', { name: '忘記密碼' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '重寄驗證信' })).toBeVisible();
-  await page.getByRole('button', { name: '忘記密碼' }).click();
-  await expect(page.locator('#cloudMessage')).toContainText('請先輸入');
+  await expect(page.getByRole('button', { name: '使用 Google 繼續', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '忘記密碼' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '重寄驗證信' })).toHaveCount(0);
+  await expect(page.locator('#cloudPanel input')).toHaveCount(0);
 });
 
 test('mobile connection settings stay anchored to their scrolled position', async ({ browser }) => {

@@ -6,7 +6,6 @@
 .google-account-button:hover{background:#f6f8fc}
 .google-account-button[hidden],.google-account-message[hidden]{display:none}
 .google-account-note{margin:10px 0 16px;line-height:1.65}
-.legacy-account-heading{margin:0 0 10px;font-size:13px;color:#526176;font-weight:650}
 .google-account-link{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin-bottom:12px}
 .google-account-message{margin:10px 0;overflow-wrap:anywhere}
 .google-account-message[data-state=error]{color:#b91c1c}
@@ -72,7 +71,6 @@ main{max-width:1050px;margin:0 auto;padding:22px 14px 60px}h1{font-size:28px;mar
 .cloud-conflict-details{flex:1 0 100%;white-space:pre-line;padding:10px 12px;border:1px solid #f1d4dc;border-radius:9px;background:#fff;color:#71324a;font-size:12.5px;line-height:1.65;overflow-wrap:anywhere}
 .storage-recovery{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px;padding:13px 15px;border:1px solid #efb4a8;border-radius:16px;background:#fff8f5;color:#8a392c;box-shadow:0 5px 18px rgba(127,45,32,.06)}
 .storage-recovery[hidden]{display:none}.storage-recovery strong{display:block;margin-bottom:2px}.storage-recovery .small{color:#8a5147}.storage-recovery .btns{flex:0 0 auto;justify-content:flex-end}
-.account-recovery-dialog{width:min(92vw,440px);padding:0;border:1px solid #d6dfeb;border-radius:18px;background:#fff;color:var(--text);box-shadow:0 24px 80px rgba(15,23,42,.24)}.account-recovery-dialog::backdrop{background:rgba(15,23,42,.42);backdrop-filter:blur(2px)}.account-recovery-dialog form{display:grid;gap:11px;padding:20px}.account-recovery-dialog h2{margin:0;font-size:19px}.dialog-message{min-height:20px}.dialog-actions{justify-content:flex-end}
 .undo-toast{position:fixed;z-index:140;left:50%;bottom:max(20px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:14px;max-width:calc(100vw - 24px);padding:11px 13px 11px 16px;border:1px solid #cbd5e1;border-radius:14px;background:#172033;color:#fff;box-shadow:0 18px 50px rgba(15,23,42,.28);transform:translateX(-50%)}.undo-toast[hidden]{display:none}.undo-toast span{min-width:0;font-size:13px}.undo-toast button{flex:0 0 auto;padding:6px 10px;background:#fff;color:#244ab5}
 .grid-2,.grid-3,.grid-4,.field-grid,.math-main-row,.science-main-row,.chinese-writing-layout,.chinese-book-main-row,.chinese-book-map-row,.english-book-row,.english-book-page-row,.english-mixed-writing-layout{display:grid;gap:10px}
 .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-4,.math-main-row,.science-main-row{grid-template-columns:repeat(4,minmax(0,1fr))}

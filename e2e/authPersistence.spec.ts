@@ -1,10 +1,11 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { goHome } from './helpers/siteNavigation.ts';
+import { mockGoogleRedirect } from './helpers/googleOAuth.ts';
 
 test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
 const date = '2026-11-02';
 const epoch = new Date('2026-11-02T12:00:00+08:00').getTime();
-const user = { id: '00000000-0000-0000-0000-000000000118', email: 'auth-navigation@example.test', role: 'authenticated', aud: 'authenticated' };
+const user = { id: '00000000-0000-0000-0000-000000000118', email: 'auth-navigation@example.test', role: 'authenticated', aud: 'authenticated', identities: [{ provider: 'email' }, { provider: 'google' }] };
 const prefix = `study-v11:user:${user.id}:`;
 const authKey = 'sb-arxbirgujbrtzhoficdf-auth-token';
 const activeKey = 'study-v11:meta:active-record-prefix';
@@ -48,6 +49,7 @@ async function setup(page: Page, options: { legacy?: boolean; expiresAt?: number
     }
     return route.fulfill({ json: [] });
   });
+  await mockGoogleRedirect(page);
   await page.goto('/material.progress.html');
   await page.evaluate(({ prefix, date, record, activeKey, authKey, legacy, authSession }) => {
     localStorage.clear();
@@ -68,11 +70,9 @@ async function loggedIn(page: Page): Promise<void> {
 }
 async function signIn(page: Page): Promise<void> {
   await page.goto('/'); await settings(page);
-  await expect(page.locator('#cloudEmail')).toBeVisible();
+  await expect(page.locator('#cloudGoogleSignInBtn')).toBeVisible();
   await expect(page.locator('#cloudMessage')).toHaveText('目前未登入；使用獨立訪客本機資料。');
-  await page.locator('#cloudEmail').fill(user.email);
-  await page.locator('#cloudPassword').fill('dummy-password');
-  await page.locator('#cloudSignInBtn').click();
+  await page.locator('#cloudGoogleSignInBtn').click();
   await loggedIn(page);
 }
 async function returnHome(page: Page, path: string): Promise<void> {
@@ -190,10 +190,8 @@ test('unavailable persistent auth storage is reported without claiming a success
   await expect(page.locator('#cloudUserEmail')).toBeEmpty();
   await expect(page.locator('#notes')).toHaveValue(record.notes);
   expect(await page.evaluate(key => localStorage.getItem(key), activeKey)).toBe(prefix);
-  await page.locator('#cloudEmail').fill(user.email);
-  await page.locator('#cloudPassword').fill('dummy-password');
-  await page.locator('#cloudSignInBtn').click();
-  await expect(page.locator('#cloudMessage')).toContainText('登入失敗');
+  await page.locator('#cloudGoogleSignInBtn').click();
+  await expect(page.locator('#cloudMessage')).toContainText('無法保存登入狀態');
   await expect(page.locator('#cloudUserEmail')).toBeEmpty();
 });
 

@@ -1,8 +1,10 @@
 # GSAT Study Tracker
 
-目前版本：**v171.6.180**
+目前版本：**v171.6.181**
 
 個人版學測讀書追蹤器，整合每日／每週項目、逾期待辦、Google Calendar 唯讀排程、Supabase 跨裝置同步、計時、完成率、教材進度與週／月總結。
+
+v171.6.181 在已確認既有主要帳號完成 Google 綁定與登入驗收後，移除 Email／密碼登入、註冊、重寄驗證信及密碼復原介面與操作。舊 Email 回呼連結會被攔下，不交換憑證或取代目前帳號。Google 登入、原 UUID、既有帳號與紀錄持續保留；後台需停用 Email provider，維持 Google provider 啟用。
 
 v171.6.180 加入「使用 Google 繼續」與既有帳號的 Google 綁定，使用 PKCE 及持久化驗證資料，綁定回傳在寫入登入狀態前核對原 UUID。保留 Email 登入與密碼復原作為轉換入口，Calendar 授權維持獨立，原帳號紀錄與翻譯額度依原 UUID 延續。需先完成 Google Cloud／Supabase 後台設定，詳見 [Google 登入設定](GOOGLE_SIGN_IN_SETUP.md)。
 

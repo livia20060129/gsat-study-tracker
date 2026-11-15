@@ -20,12 +20,11 @@ test('small rows use an eight-second targeted undo instead of restoring a whole 
   assert.doesNotMatch(runtime, /deleteUndoState=cloneRecord\(data\)/);
 });
 
-test('Supabase account recovery includes reset, resend and password update', () => {
-  assert.match(runtime, /resetPasswordForEmail\(email,\{redirectTo:cloudAuthReturnUrl\(\)\}\)/);
-  assert.match(runtime, /auth\.resend\(\{type:'signup'/);
-  assert.match(runtime, /event==='PASSWORD_RECOVERY'/);
-  assert.match(runtime, /auth\.updateUser\(\{password:password\}\)/);
-  assert.match(html, /id="passwordRecoveryDialog"/);
+test('Google-only access removes password operations and retired email controls', () => {
+  assert.doesNotMatch(runtime, /signInWithPassword|resetPasswordForEmail|auth\.signUp|auth\.resend|auth\.updateUser\(\{password/);
+  assert.doesNotMatch(html, /id="(?:cloudEmail|cloudPassword|cloudSignInBtn|cloudSignUpBtn|cloudForgotPasswordBtn|cloudResendVerificationBtn|passwordRecoveryDialog)"/);
+  assert.match(html, /id="cloudGoogleSignInBtn"/);
+  assert.match(html, /id="cloudGoogleLinkBtn"/);
 });
 
 test('all typed fields save after leaving the field while page exit remains durable', () => {

@@ -27,12 +27,12 @@ async function settings(page: Page): Promise<void> {
 interface MockState {
   authorizations: URL[]; links: URL[]; challenge: string; redirect: string; tokenRequests: number;
   uploadUsers: string[]; calendarActions: string[]; google: boolean; cancel: boolean; wrong: boolean;
-  errorCode: string; providerDisabled: boolean; recovery: URL | null;
+  errorCode: string; providerDisabled: boolean;
 }
 async function setup(page: Page, signedIn = false): Promise<MockState> {
   await page.clock.setFixedTime(new Date(epoch));
   const state: MockState = { authorizations: [], links: [], challenge: '', redirect: '', tokenRequests: 0, uploadUsers: [], calendarActions: [],
-    google: false, cancel: false, wrong: false, errorCode: '', providerDisabled: false, recovery: null };
+    google: false, cancel: false, wrong: false, errorCode: '', providerDisabled: false };
   const rows = new Map<string, { study_date: string; payload: typeof original; revision: number; updated_at: string }>();
   if (signedIn) rows.set(date, { study_date: date, payload: structuredClone(original), revision: 2, updated_at: '2026-11-14T03:00:00Z' });
   await page.route(`${api}/**`, async route => {
@@ -62,19 +62,13 @@ async function setup(page: Page, signedIn = false): Promise<MockState> {
         state.tokenRequests++;
         const body = request.postDataJSON();
         expect(createHash('sha256').update(body.code_verifier).digest('base64url')).toBe(state.challenge);
-        const recovery = body.auth_code === 'recovery-code';
-        state.google = !recovery && !state.wrong;
-        return route.fulfill({ json: session(!recovery, state.wrong ? wrongId : userId) });
+        state.google = !state.wrong;
+        return route.fulfill({ json: session(true, state.wrong ? wrongId : userId) });
       }
       return route.fulfill({ json: session(state.google) });
     }
     if (url.pathname === '/auth/v1/user') return route.fulfill({ json: user(state.google) });
     if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204 });
-    if (url.pathname === '/auth/v1/recover') {
-      state.recovery = url;
-      state.challenge = request.postDataJSON().code_challenge;
-      return route.fulfill({ json: {} });
-    }
     if (url.pathname.includes('/functions/')) {
       const action = request.postData()?.startsWith('{') ? request.postDataJSON().action : '';
       state.calendarActions.push(action || '');
@@ -223,23 +217,48 @@ test('a callback with a missing intent never exchanges its code or switches acco
   await expect(page.locator('#notes')).toHaveValue(original.notes);
 });
 
-test('existing implicit password-recovery links remain usable with the new PKCE client', async ({ page }) => {
-  await setup(page);
+test('retired implicit recovery links cannot sign in or overwrite an existing account', async ({ page }) => {
+  const state = await setup(page, true);
   const token = session();
   await page.goto(`/index.html#access_token=${token.access_token}&refresh_token=${token.refresh_token}&expires_in=7200&type=recovery`);
-  await expect(page.locator('#passwordRecoveryDialog')).toBeVisible();
+  await expect(page.locator('#cloudGoogleMessage')).toContainText('此登入連結已停用');
+  await expect(page.locator('#passwordRecoveryDialog')).toHaveCount(0);
   await expect(page.locator('#cloudUserEmail')).toHaveText(user().email);
+  expect(await accountScope(page)).toBe(prefix);
+  expect((await saved(page)).notes).toBe(original.notes);
+  expect(state.tokenRequests).toBe(0);
   expect(new URL(page.url()).hash).toBe('');
 });
 
-test('new email password-recovery links use PKCE and still open the recovery dialog', async ({ page }) => {
+test('retired email PKCE codes are cleaned without exchanging a code or changing guest data', async ({ page }) => {
   const state = await setup(page);
-  await page.locator('#cloudEmail').fill(user().email);
-  await page.locator('#cloudForgotPasswordBtn').click();
-  await expect.poll(() => state.challenge.length).toBeGreaterThan(20);
-  await page.goto('/index.html?code=recovery-code');
-  await expect(page.locator('#passwordRecoveryDialog')).toBeVisible();
+  await page.evaluate(() => localStorage.setItem('sb-arxbirgujbrtzhoficdf-auth-token-code-verifier', JSON.stringify('old-verifier/recovery')));
+  await page.goto(`/index.html?code=recovery-code&date=${date}`);
+  await expect(page.locator('#cloudGoogleMessage')).toContainText('此登入連結已停用');
+  await expect(page.locator('#passwordRecoveryDialog')).toHaveCount(0);
+  await expect(page.locator('#notes')).toHaveValue(original.notes);
+  expect(await accountScope(page)).toBe('study-v11:guest:');
+  expect(new URL(page.url()).searchParams.has('code')).toBe(false);
+  expect(state.tokenRequests).toBe(0);
+});
+
+test('Google-only controls retain the original records across logout and Google sign-in without email requests', async ({ page }) => {
+  const state = await setup(page, true);
+  const emailRequests: string[] = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (/\/auth\/v1\/(signup|recover|resend|verify)$/.test(url.pathname) || url.searchParams.get('grant_type') === 'password') emailRequests.push(url.pathname);
+  });
+  await page.locator('#cloudSignOutBtn').click();
+  await expect(page.locator('#cloudGoogleSignInBtn')).toBeVisible();
+  await expect(page.locator('#cloudPanel input, #passwordRecoveryDialog, #cloudSignInBtn, #cloudSignUpBtn, #cloudForgotPasswordBtn, #cloudResendVerificationBtn')).toHaveCount(0);
+  await page.locator('#cloudGoogleSignInBtn').click();
+  await expect(page.locator('#cloudGoogleIdentityStatus')).toHaveText('Google 已綁定');
+  expect(await accountScope(page)).toBe(prefix);
+  expect((await saved(page)).notes).toBe(original.notes);
+  expect((await saved(page)).items.find((item: { id: string }) => item.id === 'original-item').minutes).toBe('18');
   expect(state.tokenRequests).toBe(1);
+  expect(emailRequests).toEqual([]);
 });
 
 test.describe('mobile Google access', () => {

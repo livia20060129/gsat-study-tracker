@@ -117,6 +117,26 @@ test('a callback requires an unexpired durable intent and maps cancellation with
   assert.ok(canceled.error!.includes('已取消'));
   assert.ok(!canceled.error!.includes('private-data'));
 });
+
+test('retired email callbacks are refused before reading auth storage or exchanging credentials', async () => {
+  const store = storage();
+  store.getItem = async () => { throw new Error('retired callbacks must not inspect stored sessions'); };
+  for (const href of ['https://tracker.test/?code=retired-recovery', 'https://tracker.test/#access_token=retired&refresh_token=retired&type=recovery', 'https://tracker.test/#type=recovery']) {
+    const plan = await prepareGoogleAuthReturn(href, store, now);
+    assert.equal(plan.requested, true);
+    assert.equal(plan.allowExchange, false);
+    assert.equal(plan.intent, null);
+    assert.ok(plan.error!.includes('此登入連結已停用'));
+  }
+});
+
+test('ordinary navigation and Calendar returns still restore the existing account normally', async () => {
+  const store = storage();
+  store.getItem = async () => { throw new Error('ordinary navigation does not read a Google intent'); };
+  for (const href of ['https://tracker.test/?date=2026-11-14', 'https://tracker.test/?calendar=connected#notes']) {
+    assert.deepEqual(await prepareGoogleAuthReturn(href, store, now), { requested: false, intent: null, error: null, allowExchange: true });
+  }
+});
 test('a blocked callback store produces an actionable message without enabling code exchange', async () => {
   const store = storage(); store.getItem = async () => { throw new Error('storage unavailable'); };
   const plan = await prepareGoogleAuthReturn('https://tracker.test/?google_auth=1&code=abc', store, now);

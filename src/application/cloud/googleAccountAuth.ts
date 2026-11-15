@@ -69,8 +69,14 @@ export function googleAuthErrorMessage(error: unknown): string {
 
 export async function prepareGoogleAuthReturn(href: string, storage: GoogleAuthStorage, now = Date.now()): Promise<GoogleAuthReturn> {
   const url = new URL(href);
-  if (url.searchParams.get('google_auth') !== '1') return { requested: false, intent: null, error: null, allowExchange: true };
   const hash = new URLSearchParams(url.hash.slice(1));
+  if (url.searchParams.get('google_auth') !== '1') {
+    // Retired email/recovery links must never replace the current account session.
+    if (url.searchParams.has('code') || hash.has('access_token') || hash.has('refresh_token') || hash.get('type') === 'recovery') {
+      return { requested: true, intent: null, error: '此登入連結已停用，請重新使用 Google 登入；原有紀錄仍保留。', allowExchange: false };
+    }
+    return { requested: false, intent: null, error: null, allowExchange: true };
+  }
   const code = url.searchParams.get('error_code') || hash.get('error_code') || url.searchParams.get('error') || hash.get('error');
   let intent: GoogleAuthIntent | null;
   try { intent = parseGoogleAuthIntent(await storage.getItem(GOOGLE_AUTH_INTENT_KEY), now); }
