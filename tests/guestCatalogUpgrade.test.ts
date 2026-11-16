@@ -11,6 +11,8 @@ import { catalogItemFields, catalogItemType, catalogLargeSections, catalogOverri
 import { preferredSpeechVoice } from '../src/ui/vocabularySpeech.ts';
 import { vocabularyReviewEntries } from '../src/study/vocabularyReview.ts';
 import type { StudyItem, StudyRecord } from '../src/types.ts';
+import { decompressLocalRecord, isCompressedLocalRecord } from '../src/storage/localRecordCompression.ts';
+import { compactConfirmedRecordStorage } from '../src/infrastructure/storage/localRecordCompaction.ts';
 
 const date = '2026-10-29';
 class MemoryStorage {
@@ -36,13 +38,56 @@ function setup(guest: StudyRecord, account?: StudyRecord): MemoryStorage {
 function account(storage: MemoryStorage, user = 'a'): StudyRecord { return new LocalStudyRecordRepository(storage, storagePrefixForUser(user)).load(date)!; }
 
 test('guest sign-in imports new items, routine data and catalog definitions without deleting guest originals', async () => {
-  const guest = { date, wakeTime: '07:20', bedtime: { date: '2026-10-30', time: '01:30', dayOffset: 1 }, notes: '訪客筆記', items: [item()], materialCatalog: [material()] } as StudyRecord;
+  const guest = { date, wakeTime: '07:20', bedtime: { date: '2026-10-30', time: '01:30', dayOffset: 1 }, notes: '訪客筆記', items: [item()], materialCatalog: [material()] } as unknown as StudyRecord;
   const storage = setup(guest); const original = storage.getItem(storagePrefixForUser() + date);
   const result = await importGuestRecords(storage, 'a');
   assert.equal(result.importedItems, 1); assert.equal(result.importedDates, 1);
   assert.equal(account(storage).items[0].title, 'new'); assert.equal(account(storage).localDirty, true);
   assert.deepEqual(account(storage).bedtime, guest.bedtime); assert.deepEqual(account(storage).materialCatalog, guest.materialCatalog);
   assert.equal(storage.getItem(storagePrefixForUser() + date), original);
+});
+
+test('guest import recovers full storage, restores compact receipts and remains idempotent and bound to its first account', async () => {
+  const source = { schemaVersion: 2, date, notes: '未同步的訪客筆記。'.repeat(500), items: [item()] };
+  const storage = setup(source), set = storage.setItem.bind(storage);
+  let limit = storage.getItem(storagePrefixForUser() + date)!.length;
+  storage.setItem = (key, value) => {
+    const used = [...storage.values.entries()].reduce((size, [name, content]) => size + (key === name ? 0 : content.length), value.length);
+    if (used > limit) throw new DOMException('full', 'QuotaExceededError');
+    set(key, value);
+  };
+  const imported = await importGuestRecords(storage, 'a');
+  assert.deepEqual(imported.failedDates, []);
+  assert.equal(imported.importedDates, 1);
+  assert.equal(account(storage).notes, source.notes);
+  assert.deepEqual(new LocalStudyRecordRepository(storage, storagePrefixForUser()).load(date), source);
+  const raw = storage.getItem('study-v11:meta:guest-import:' + date)!;
+  assert.ok(isCompressedLocalRecord(raw));
+  const receipt = decompressLocalRecord(JSON.parse(raw)) as { owner: string; snapshot: StudyRecord };
+  assert.equal(receipt.owner, 'a'); assert.deepEqual(receipt.snapshot, source);
+  assert.equal((await importGuestRecords(storage, 'a')).importedDates, 0);
+  assert.equal(account(storage).items.length, 1);
+  assert.equal((await importGuestRecords(storage, 'b')).otherAccountDates, 1);
+  assert.equal(account(storage, 'b'), null);
+  limit += 200;
+  const updated = { ...source, notes: source.notes + '新增的筆記' };
+  assert.equal(new LocalStudyRecordRepository(storage, storagePrefixForUser()).save(updated), true);
+  assert.deepEqual((await importGuestRecords(storage, 'a')).failedDates, []);
+  assert.ok(account(storage).notes!.includes('新增的筆記'));
+  assert.equal(account(storage).items.length, 1);
+});
+
+test('quota compaction preserves an existing import receipt and every unknown recovery field', async () => {
+  const source = { schemaVersion: 2, date, notes: '已轉入的原筆記。'.repeat(500), items: [item()] };
+  const storage = setup(source);
+  const receipt = { owner: 'b', itemIds: { new: 'guest-import:new' }, snapshot: source, future: { keep: true } };
+  storage.setItem('study-v11:meta:guest-import:' + date, JSON.stringify(receipt));
+  assert.equal(compactConfirmedRecordStorage(storage), 2);
+  const raw = storage.getItem('study-v11:meta:guest-import:' + date)!;
+  assert.ok(isCompressedLocalRecord(raw));
+  assert.deepEqual(decompressLocalRecord(JSON.parse(raw)), receipt);
+  assert.equal((await importGuestRecords(storage, 'a')).otherAccountDates, 1);
+  assert.equal(account(storage), null);
 });
 test('same-date import preserves account cards, colliding guest IDs, notes and server revision', async () => {
   const storage = setup({ date, items: [item('same', { title: 'guest' })], notes: 'guest' }, markRecordSynced({ date, items: [item('same', { title: 'account' })], notes: 'account', serverRevision: 7 }));

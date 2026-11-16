@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { goHome } from './helpers/siteNavigation.ts';
+import { decodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
 
 test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
 const date = '2026-11-14';
@@ -82,6 +83,7 @@ async function setup(page: Page, signedIn = false): Promise<MockState> {
       const token = request.headers().authorization?.replace(/^Bearer /, '').split('.')[1];
       if (token) state.uploadUsers.push(JSON.parse(Buffer.from(token, 'base64url').toString()).sub);
       const body = request.postDataJSON(), prior = rows.get(body.p_study_date);
+      expect(Array.isArray(body.p_payload)).toBe(false);
       const row = { study_date: body.p_study_date, payload: body.p_payload, revision: (prior?.revision ?? 0) + 1, updated_at: '2026-11-15T04:00:00Z' };
       rows.set(row.study_date, row);
       return route.fulfill({ json: { ...row, applied: true } });
@@ -109,6 +111,21 @@ async function setup(page: Page, signedIn = false): Promise<MockState> {
 }
 async function accountScope(page: Page): Promise<string | null> { return page.evaluate(key => localStorage.getItem(key), activeKey); }
 async function saved(page: Page) { return page.evaluate(({ prefix, date }) => JSON.parse(localStorage.getItem(prefix + date)!), { prefix, date }); }
+
+function installLocalStorageBudget(limit: number): void {
+  const set = Storage.prototype.setItem;
+  Storage.prototype.setItem = function(key, value): void {
+    if (this === localStorage) {
+      let used = 2 * (String(key).length + String(value).length);
+      for (let index = 0; index < this.length; index++) {
+        const name = this.key(index)!;
+        if (name !== key) used += 2 * (name.length + (this.getItem(name)?.length ?? 0));
+      }
+      if (used > limit) throw new DOMException('localStorage capacity exceeded', 'QuotaExceededError');
+    }
+    set.call(this, key, value);
+  };
+}
 
 test('Google sign-in uses PKCE, saves guest drafts, restores the chosen date and stays signed in across pages', async ({ page }, testInfo) => {
   const state = await setup(page);
@@ -335,6 +352,100 @@ test.describe('mobile save failures', () => {
     await expect(page.locator('#recordSaveFailure')).toContainText('起床時間格式不正確');
     await expect(page.locator('#wakeHour')).toHaveValue('25');
     expect(state.authorizations).toHaveLength(0);
+  });
+});
+
+test.describe('mobile full localStorage recovery', () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+  test('a full guest and pending history saves a draft, signs in and retains every record after reload', async ({ page }, testInfo) => {
+    const state = await setup(page);
+    const fixtures = await page.evaluate(() => {
+      const guests = Array.from({ length: 18 }, (_, i) => ({ schemaVersion: 2, date: `2026-08-${String(i + 1).padStart(2, '0')}`,
+        items: [], notes: `第 ${i + 1} 天訪客筆記。`.repeat(450), localDirty: true }));
+      const pending = Array.from({ length: 15 }, (_, i) => {
+        const base = { schemaVersion: 2, date: `2026-09-${String(i + 1).padStart(2, '0')}`, items: [], notes: `雲端祖先 ${i}。`.repeat(350) };
+        return { ...base, notes: `另一帳號的未同步筆記 ${i}。`.repeat(350), serverRevision: 3, localDirty: true, syncBase: base };
+      });
+      for (const record of guests) localStorage.setItem('study-v11:guest:' + record.date, JSON.stringify(record));
+      for (const record of pending) localStorage.setItem('study-v11:user:untouched:' + record.date, JSON.stringify(record));
+      let used = 0;
+      for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i)!; used += 2 * (key.length + localStorage.getItem(key)!.length); }
+      return { guests, pending, limit: used + 256 };
+    });
+    await page.addInitScript(installLocalStorageBudget, fixtures.limit);
+    await page.evaluate(installLocalStorageBudget, fixtures.limit);
+    const draft = '空間滿時也須保留的登入前草稿。'.repeat(800);
+    await page.locator('#notes').fill(draft);
+    await page.locator('#cloudGoogleSignInBtn').tap();
+    await expect(page.locator('#cloudUserEmail')).toHaveText(user().email);
+    await expect.poll(() => accountScope(page)).toBe(prefix);
+    await expect(page.locator('#notes')).toHaveValue(draft);
+    expect(state.authorizations).toHaveLength(1);
+    expect(state.tokenRequests).toBe(1);
+    const raw = await page.evaluate(() => Object.fromEntries(Object.entries(localStorage).filter(([key]) => /^study-v11:(guest|user:untouched):\d/.test(key))));
+    expect(Object.values(raw).some(value => value.startsWith('["gsat-local-record:deflate-v1"'))).toBe(true);
+    for (const record of fixtures.guests) {
+      const decoded = decodeStudyRecord(raw['study-v11:guest:' + record.date]);
+      expect(decoded.ok).toBe(true); if (decoded.ok) expect(decoded.record).toEqual(record);
+    }
+    for (const record of fixtures.pending) {
+      const decoded = decodeStudyRecord(raw['study-v11:user:untouched:' + record.date]);
+      expect(decoded.ok).toBe(true); if (decoded.ok) expect(decoded.record).toEqual(record);
+    }
+    await expect(page.locator('#recordSaveFailure')).toBeHidden();
+    await page.locator('#saveBtn').tap();
+    await expect(page.locator('#saveBtn')).toHaveAttribute('data-state', 'success');
+    await expect.poll(() => state.uploadUsers.length).toBeGreaterThanOrEqual(fixtures.guests.length + 1);
+    await page.reload();
+    await expect(page.locator('#notes')).toHaveValue(draft);
+    const accountRaw = await page.evaluate(prefix => Object.fromEntries(Object.entries(localStorage).filter(([key]) => key.startsWith(prefix))), prefix);
+    for (const record of fixtures.guests) {
+      const decoded = decodeStudyRecord(accountRaw[prefix + record.date]);
+      expect(decoded.ok).toBe(true); if (decoded.ok) expect(decoded.record.notes).toBe(record.notes);
+    }
+    await settings(page);
+    await page.screenshot({ path: testInfo.outputPath('mobile-storage-recovered-google-sign-in.png'), fullPage: false });
+    console.log('STORAGE_QUOTA_RECOVERY', JSON.stringify({ days: fixtures.guests.length + fixtures.pending.length, originalBudgetBytes: fixtures.limit,
+      preservedGuestDays: fixtures.guests.length, preservedPendingDays: fixtures.pending.length, googleSignIns: state.tokenRequests }));
+  });
+
+  test('native browser quota is reclaimed without clearing site data or dropping unsynced dates', async ({ page }) => {
+    const state = await setup(page);
+    const filled = await page.evaluate(() => {
+      const records: Array<{ schemaVersion: number; date: string; items: never[]; notes: string; serverRevision: number; localDirty: boolean;
+        syncBase: { schemaVersion: number; date: string; items: never[]; notes: string } }> = [];
+      let serial = 0, reachedQuota = false;
+      for (const size of [4000, 400, 20]) {
+        for (let count = 0; count < 256; count++) {
+          const date = new Date(Date.UTC(2025, 0, ++serial)).toISOString().slice(0, 10);
+          const base = { schemaVersion: 2, date, items: [] as never[], notes: '保留雲端原始內容。'.repeat(size) };
+          const record = { ...base, notes: '還沒同步的本機筆記。'.repeat(size), serverRevision: 2, localDirty: true, syncBase: base };
+          try { localStorage.setItem('study-v11:user:native-quota:' + date, JSON.stringify(record)); records.push(record); }
+          catch (error) {
+            if ((error as DOMException).name !== 'QuotaExceededError') throw error;
+            reachedQuota = true; break;
+          }
+        }
+      }
+      return { records, reachedQuota };
+    });
+    expect(filled.reachedQuota).toBe(true);
+    expect(filled.records.length).toBeGreaterThan(10);
+    const draft = '原生容量用滿後保存的訪客草稿。'.repeat(1000);
+    await page.locator('#notes').fill(draft);
+    await page.locator('#cloudGoogleSignInBtn').tap();
+    await expect(page.locator('#cloudUserEmail')).toHaveText(user().email);
+    await expect(page.locator('#notes')).toHaveValue(draft);
+    expect(state.tokenRequests).toBe(1);
+    const raw = await page.evaluate(() => Object.fromEntries(Object.entries(localStorage).filter(([key]) => key.startsWith('study-v11:user:native-quota:'))));
+    expect(Object.keys(raw)).toHaveLength(filled.records.length);
+    for (const record of filled.records) {
+      const decoded = decodeStudyRecord(raw['study-v11:user:native-quota:' + record.date]);
+      expect(decoded.ok).toBe(true); if (decoded.ok) expect(decoded.record).toEqual(record);
+    }
+    await page.reload();
+    await expect(page.locator('#notes')).toHaveValue(draft);
+    console.log('NATIVE_STORAGE_QUOTA_RECOVERY', JSON.stringify({ preservedPendingDays: filled.records.length, googleSignIns: state.tokenRequests }));
   });
 });
 

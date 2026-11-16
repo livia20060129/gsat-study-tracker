@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readRecoverableCloudBackup, writeRecoverableCloudBackup, type CloudConflictBackup } from '../src/infrastructure/storage/cloudConflictBackup.ts';
 import { markRecordSynced, markRecordLocallyEdited } from '../src/storage/recordSync.ts';
-import { encodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
+import { decodeStudyRecord, encodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
 
 class StorageBudget {
   values=new Map<string,string>();
@@ -40,26 +40,26 @@ test('old full backups remain readable and invalid nested records cannot be rest
   storage.setItem(key,JSON.stringify({...original,local:{...original.local,schemaVersion:999}}));
   assert.equal(readRecoverableCloudBackup(storage,key),null);
 });
-test('backup quota recovery only compacts redundant confirmed baselines and preserves other data',()=>{
+test('backup quota recovery preserves pending contents and all other data',()=>{
   const storage=new StorageBudget(),original=backup();
   storage.setItem(prefix+'2026-08-16',encodeStudyRecord({...original.cloud!,date:'2026-08-16',syncBase:{...original.cloud!.syncBase!,date:'2026-08-16'}}));
   storage.setItem(prefix+'2026-08-17',encodeStudyRecord(original.local!));
-  const dirty=storage.getItem(prefix+'2026-08-17');
   storage.setItem('other-service','keep');
   const old={...original,local:null,cloud:null};
   storage.setItem(key,JSON.stringify(old));
   storage.limit=storage.used()+JSON.stringify(original).length-original.cloud!.notes!.length-500;
   assert.equal(writeRecoverableCloudBackup(storage,key,original).ok,true);
   assert.deepEqual(readRecoverableCloudBackup(storage,key),original);
-  assert.equal(storage.getItem(prefix+'2026-08-17'),dirty);
+  const dirty=decodeStudyRecord(storage.getItem(prefix+'2026-08-17'));
+  assert.ok(dirty.ok);assert.deepEqual(dirty.record,original.local);
   assert.equal(storage.getItem('other-service'),'keep');
-  assert.ok(storage.getItem(prefix+'2026-08-16')!.includes('same-content-v1'));
+  assert.equal(decodeStudyRecord(storage.getItem(prefix+'2026-08-16')).ok,true);
 });
 test('unrecoverable capacity preserves the existing backup and every record',()=>{
   const storage=new StorageBudget(),original=backup();
   storage.setItem(key,JSON.stringify({...original,local:null,cloud:null}));
   storage.setItem(prefix+'2026-08-17',encodeStudyRecord(original.local!));
-  const before=[...storage.values.entries()];storage.limit=storage.used();
+  const before=[...storage.values.entries()];storage.limit=0;
   const result=writeRecoverableCloudBackup(storage,key,original);
   assert.equal(result.ok,false);assert.match(result.reason,/本機儲存空間不足/);
   assert.deepEqual([...storage.values.entries()],before);

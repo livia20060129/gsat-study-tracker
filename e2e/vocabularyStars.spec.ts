@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { decodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
 
 async function seed(page: Page): Promise<void> {
   await page.goto('/vocabulary.review.html');
@@ -249,7 +250,17 @@ test('card and meaning star controls recover from full storage by compacting con
   await row.getByRole('button', { name: '標註 Noun 第 2 筆翻譯', exact: true }).click();
   await expect(row.locator('[data-star-key="card"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(row.locator('[data-star-save-error]')).toHaveCount(0);
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('study-v11:guest:2026-10-20')!).__localSyncBase)).toBe('same-content-v1');
+  for (let day = 20; day < 24; day += 1) {
+    const raw = await page.evaluate(date => localStorage.getItem('study-v11:guest:' + date)!, `2026-10-${day}`);
+    const decoded = decodeStudyRecord(raw);
+    expect(decoded.ok).toBe(true);
+    if (decoded.ok) {
+      expect(decoded.record.notes).toBe('保留筆記'.repeat(2000));
+      expect(decoded.record.syncBase?.notes).toBe(decoded.record.notes);
+      expect(decoded.record.localDirty).toBe(false);
+    }
+    expect(raw.length).toBeLessThan('保留筆記'.repeat(2000).length);
+  }
   await page.reload();
   await expect(row.locator('[data-star-key="card"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(row.locator('[data-annotate-entry], [data-star-key^="word:"], .is-word-starred')).toHaveCount(0);

@@ -21,16 +21,17 @@ test('history reuses unchanged days, reads only an invalidated date and never ex
   const { storage, reads } = storageFixture();
   const repository = new LocalStudyRecordRepository(storage, prefix);
   for (const date of ['2026-11-03', '2026-11-04']) repository.save({ date, items: [], notes: date });
+  const beforeHistory = reads();
   const history = new LocalRecordHistory(storage);
   const first = history.read(prefix);
-  assert.equal(reads(), 2);
+  assert.equal(reads() - beforeHistory, 2);
   assert.equal(history.read(prefix)[0], first[0]);
-  assert.equal(reads(), 2);
+  assert.equal(reads() - beforeHistory, 2);
   assert.throws(() => { first[0].notes = '不應更改快取'; }, TypeError);
   storage.setItem(prefix + '2026-11-04', JSON.stringify({ date: '2026-11-04', items: [], notes: '新內容' }));
   history.invalidate(prefix + '2026-11-04');
   assert.equal(history.read(prefix)[1].notes, '新內容');
-  assert.equal(reads(), 3);
+  assert.equal(reads() - beforeHistory, 3);
 });
 
 test('repository saves and deletes invalidate shared history, while account switches and damaged rows stay isolated', () => {

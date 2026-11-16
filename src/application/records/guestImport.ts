@@ -3,6 +3,8 @@ import { withCrossTabLock } from '../../storage/crossTabLock.ts';
 import { storagePrefixForUser } from '../../storage/local.ts';
 import { markRecordLocallyEdited, mergeStudyRecordsThreeWay, sameStudyContent, stripRecordSyncMeta } from '../../storage/recordSync.ts';
 import type { StudyItem, StudyRecord } from '../../types.ts';
+import { compressLocalRecord, decompressLocalRecord, isCompressedLocalRecord } from '../../storage/localRecordCompression.ts';
+import { compactConfirmedRecordStorage, isStorageQuotaError } from '../../infrastructure/storage/localRecordCompaction.ts';
 
 interface GuestImportReceipt {
   owner: string;
@@ -27,9 +29,20 @@ function clone<T>(value: T): T {
 function readReceipt(storage: KeyValueStorage, date: string): GuestImportReceipt | null {
   const raw = storage.getItem(RECEIPT_PREFIX + date);
   if (!raw) return null;
-  const receipt = JSON.parse(raw) as GuestImportReceipt;
+  const receipt = decompressLocalRecord(JSON.parse(raw)) as GuestImportReceipt;
   if (!receipt.owner || !receipt.itemIds || typeof receipt.itemIds !== 'object') throw new Error('Invalid guest import receipt');
   return receipt;
+}
+
+function writeReceipt(storage: KeyValueStorage, date: string, receipt: GuestImportReceipt): void {
+  const key = RECEIPT_PREFIX + date, json = JSON.stringify(receipt);
+  try {
+    storage.setItem(key, isCompressedLocalRecord(storage.getItem(key)) ? compressLocalRecord(json) : json);
+  } catch (cause) {
+    if (!isStorageQuotaError(cause)) throw cause;
+    compactConfirmedRecordStorage(storage);
+    storage.setItem(key, compressLocalRecord(json));
+  }
 }
 
 function sameValue(left: unknown, right: unknown): boolean {
@@ -145,13 +158,13 @@ export async function importGuestRecords(storage: KeyValueStorage, userId: strin
         if (receipt && receipt.owner !== userId) { result.otherAccountDates++; return; }
         if (receipt?.snapshot && sameStudyContent(source.record, receipt.snapshot)) return;
         receipt ??= { owner: userId, itemIds: {} };
-        storage.setItem(RECEIPT_PREFIX + date, JSON.stringify(receipt));
+        writeReceipt(storage, date, receipt);
         const loaded = account.loadResult(date);
         if (loaded.status === 'invalid') throw new Error('Account record cannot be read');
         const current = loaded.status === 'ok' ? loaded.record : null;
         const merged = mergeGuestAdditions(source.record, current, receipt.snapshot, receipt.itemIds);
         // Persist the ID mapping before the data write: a retry reuses the same destination IDs.
-        storage.setItem(RECEIPT_PREFIX + date, JSON.stringify(receipt));
+        writeReceipt(storage, date, receipt);
         if (!sameStudyContent(current, merged.record)) {
           if (!account.save(merged.record)) throw new Error('Account record cannot be saved');
           result.importedDates++;
@@ -159,7 +172,7 @@ export async function importGuestRecords(storage: KeyValueStorage, userId: strin
           result.conflicts += merged.conflicts;
         }
         receipt.snapshot = clone(source.record);
-        storage.setItem(RECEIPT_PREFIX + date, JSON.stringify(receipt));
+        writeReceipt(storage, date, receipt);
        });
       });
     } catch {

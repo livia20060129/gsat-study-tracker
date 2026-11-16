@@ -1,5 +1,6 @@
 import type { StudyRecord } from '../types.ts';
 import { sameStudyContent, stripRecordSyncMeta } from './recordSync.ts';
+import { compressLocalRecord, decompressLocalRecord } from './localRecordCompression.ts';
 
 export const CURRENT_STUDY_RECORD_SCHEMA_VERSION = 2;
 
@@ -67,6 +68,8 @@ export function decodeStudyRecord(
       return { ok: false, error: 'invalid-json' };
     }
   }
+  try { parsed = decompressLocalRecord(parsed); }
+  catch { return { ok: false, error: 'invalid-record' }; }
   if (!isObject(parsed)) return { ok: false, error: 'invalid-record' };
 
   const fromVersion = schemaVersion(parsed);
@@ -123,4 +126,9 @@ export function encodeLocalStudyRecord(record: StudyRecord): string {
   delete stored.syncBase;
   stored.__localSyncBase = 'same-content-v1';
   return JSON.stringify(stored);
+}
+
+/** Used only after a quota failure; includes guest drafts, dirty baselines and conflict copies. */
+export function encodeCompressedLocalStudyRecord(record: StudyRecord): string {
+  return compressLocalRecord(encodeLocalStudyRecord(record));
 }

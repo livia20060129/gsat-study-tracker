@@ -3,10 +3,12 @@ import type { StudyRecord } from '../../types.ts';
 import {
   decodeStudyRecord,
   encodeLocalStudyRecord,
+  encodeCompressedLocalStudyRecord,
   type StudyRecordDecodeError,
 } from '../../storage/studyRecordCodec.ts';
 import { compactConfirmedRecordStorage, isStorageQuotaError } from './localRecordCompaction.ts';
 import { invalidateLocalRecordHistory } from './localRecordHistory.ts';
+import { isCompressedLocalRecord } from '../../storage/localRecordCompression.ts';
 
 export interface KeyValueStorage {
   readonly length: number;
@@ -114,13 +116,14 @@ export class LocalStudyRecordRepository implements LocalStudyRecordRepositoryPor
   save(record: StudyRecord): boolean {
     if (!record?.date) return false;
     try {
-      const encoded = encodeLocalStudyRecord(record);
+      const encoded = isCompressedLocalRecord(this.storage.getItem(this.prefix + record.date))
+        ? encodeCompressedLocalStudyRecord(record) : encodeLocalStudyRecord(record);
       try {
         this.storage.setItem(this.prefix + record.date, encoded);
       } catch (cause) {
         if (!isStorageQuotaError(cause)) throw cause;
         compactConfirmedRecordStorage(this.storage);
-        this.storage.setItem(this.prefix + record.date, encoded);
+        this.storage.setItem(this.prefix + record.date, encodeCompressedLocalStudyRecord(record));
       }
       this.lastSaveError = '';
       invalidateLocalRecordHistory(this.storage, this.prefix + record.date);

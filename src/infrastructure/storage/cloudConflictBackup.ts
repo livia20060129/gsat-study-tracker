@@ -1,7 +1,7 @@
 import type { StudyRecord } from '../../types.ts';
 import type { KeyValueStorage } from './localStudyRecordRepository.ts';
 import { compactConfirmedRecordStorage, isStorageQuotaError } from './localRecordCompaction.ts';
-import { decodeStudyRecord, encodeLocalStudyRecord } from '../../storage/studyRecordCodec.ts';
+import { decodeStudyRecord, encodeLocalStudyRecord, encodeCompressedLocalStudyRecord } from '../../storage/studyRecordCodec.ts';
 
 export interface CloudConflictBackup {
   version: 1;
@@ -12,7 +12,7 @@ export interface CloudConflictBackup {
   resolvedRevision: number | null;
 }
 
-/** Confirmed baselines are reconstructed on read; dirty/conflict history stays intact. */
+/** Local encodings are restored on read, including complete dirty/conflict history. */
 export function readRecoverableCloudBackup(storage: Pick<KeyValueStorage,'getItem'>, key: string): CloudConflictBackup | null {
   try {
     const value=JSON.parse(storage.getItem(key)??'null');
@@ -36,7 +36,9 @@ export function writeRecoverableCloudBackup(storage: KeyValueStorage, key: strin
     catch(cause) {
       if(!isStorageQuotaError(cause)) throw cause;
       compactConfirmedRecordStorage(storage);
-      storage.setItem(key,encoded);
+      storage.setItem(key,JSON.stringify({...value,
+        local:value.local ? JSON.parse(encodeCompressedLocalStudyRecord(value.local)) : null,
+        cloud:value.cloud ? JSON.parse(encodeCompressedLocalStudyRecord(value.cloud)) : null}));
     }
     return {ok:true,reason:''};
   } catch(cause) {
