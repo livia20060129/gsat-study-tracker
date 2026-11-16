@@ -16,6 +16,7 @@ import { synchronizeStoredCalendarSchedule } from './application/calendar/stored
 import { calculateMathProgress, MathProgressIndex } from './study/mathProgress';
 import { WordLookupFeedback } from './ui/wordLookupFeedback.ts';
 import { initializeStatusFeedback } from './ui/statusFeedback.ts';
+import { initializeRecordSaveFeedback } from './ui/recordSaveFeedback.ts';
 import { WordInputCommitGate } from './ui/wordInputCommitGate.ts';
 import { googleTranslationAttributionHtml } from './ui/googleTranslationAttribution.ts';
 import { renderStudyReference } from './ui/studyReference.ts';
@@ -29,7 +30,7 @@ import { studyRecordConflictDetailsText, studyRecordConflictSummary } from './st
 import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, initialRecordPrefix, storagePrefixForUser } from './storage/local';
 import { browserAuthPersistence, createPersistentAuthStorage } from './infrastructure/storage/browserAuthStorage.ts';
 import { createSessionRestorationGate } from './application/cloud/sessionRestoration.ts';
-import { beginGoogleAuthentication, cleanGoogleAuthReturnUrl, completeGoogleAuthReturn, googleAuthErrorMessage, googleAuthFetch, hasGoogleIdentity, prepareGoogleAuthReturn } from './application/cloud/googleAccountAuth.ts';
+import { beginGoogleAuthentication, cleanGoogleAuthReturnUrl, completeGoogleAuthReturn, GoogleAuthDraftError, googleAuthErrorMessage, googleAuthFetch, hasGoogleIdentity, prepareGoogleAuthReturn } from './application/cloud/googleAccountAuth.ts';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
@@ -1153,6 +1154,18 @@ function cloudGoogleSetMessage(message,ok){
  var output=id('cloudGoogleMessage');if(!output)return;
  output.textContent=message||'';output.hidden=!message;output.dataset.state=ok===false?'error':(ok===true?'ok':'busy');
 }
+function recordSaveFailureReason(){
+ var reason='無法確認紀錄已保存，請先按「儲存」查看原因。';
+ if(!data)reason='紀錄仍在載入，請稍後再試。';
+ else if(data.storageIssue)reason='當日的原始紀錄無法讀取，請先在連線設定下載原始備份並修復。';
+ else{var validation=validate();reason=validation.ok?(localRecordRepository.saveError()||reason):validation.msg}
+ return reason;
+}
+function saveGoogleAuthDraft(){
+ var saved=false;try{saved=persist(false)}catch(error){}
+ if(saved){recordSaveFeedback.clear();return true}
+ var error=new GoogleAuthDraftError(recordSaveFailureReason());id('status').textContent=error.message;recordSaveFeedback.show(error.message);throw error;
+}
 async function cloudGoogleAuthenticate(){
  if(!cloudClient||!cloudGoogleAuthStorage||cloudAuthPending||cloudSessionRestoring)return;
  var userId=cloudUser?cloudUser.id:null;
@@ -1166,7 +1179,7 @@ async function cloudGoogleAuthenticate(){
     linkIdentity:function(options){return cloudClient.auth.linkIdentity(options)}
    },storage:cloudGoogleAuthStorage,supabaseUrl:SUPABASE_URL,href:window.location.href,
    date:id('studyDate').value,userId:userId,currentUserId:function(){return cloudUser?cloudUser.id:null},
-   saveDraft:function(){return persist(false)},redirect:function(url){window.location.assign(url)}
+   saveDraft:saveGoogleAuthDraft,redirect:function(url){window.location.assign(url)}
   });
  }catch(error){cloudGoogleSetMessage(googleAuthErrorMessage(error),false)}
  finally{setCloudAuthPending(false)}
@@ -4199,7 +4212,7 @@ function persist(show,options){
   }
   relinkDailyWorkSourceItems(data.items);
  var ok=false;
- try{ok=writeStoredRecord(data)&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
+ try{ok=(!changed&&!!previous||writeStoredRecord(data))&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
  if(ok){
   if(rangeCompletionSignature(data)!==rangeCompletionSignature(previous)){
    var rangeSync=synchronizeLocalRanges();
@@ -4559,10 +4572,11 @@ function setSaveButtonState(state){
 }
 function saveCurrentRecord(){
  var button=id('saveBtn');if(button&&button.dataset.state==='saving')return;
+ recordSaveFeedback.clear();
  setSaveButtonState('saving');id('status').textContent='正在儲存…';
  setTimeout(async function(){
   var ok=persist(true),savingDate=data&&data.date;updateSummary();
-  if(!ok){setSaveButtonState('error');return}
+  if(!ok){recordSaveFeedback.show(recordSaveFailureReason());setSaveButtonState('error');return}
   if(cloudUser&&cloudClient&&currentStorageIsUserScoped()&&!cloudBootstrapPending&&savingDate){
    id('status').textContent='已儲存本機；正在同步 '+savingDate+' 的完整紀錄到雲端…';
    queueCloudSave(readStoredRecord(savingDate),true,'manual');
@@ -4655,6 +4669,7 @@ window.addEventListener('online',function(){cloudSetMessage('網路已恢復；�
 window.addEventListener('offline',function(){cloudSetMessage('目前離線；紀錄已保存在本機，恢復網路後可手動同步。',false)});
 window.addEventListener('pagehide',function(){if(data)persist(false)});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&data)persist(false);else if(document.visibilityState==='visible'){refreshVisibleRecordFromLocalChange();schedulePendingCloudSync()}});
+var recordSaveFeedback=initializeRecordSaveFeedback(id('recordSaveFailure'));
 pendingSyncDialog=initializePendingSyncDialog(id('cloudPendingDialog'),pendingSyncAction,resolvePendingSync);
 statusFeedbackRefresh=initializeStatusFeedback(id('statusFeedback'),id('status'),id('statusAcknowledgeBtn'),id('connectionSettings').querySelector('.connection-settings-content'),store,function(text){
  return{scope:STORE_PREFIX,issueKey:text.indexOf('對照')>=0?JSON.stringify(rangeCompletionFailures.map(function(failure){return[failure.date,failure.reason]}).sort()):''};

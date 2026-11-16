@@ -204,7 +204,37 @@ test('failed local draft storage blocks the Google redirect', async ({ page }) =
   }, date);
   await page.locator('#cloudGoogleSignInBtn').click();
   await expect(page.locator('#cloudGoogleMessage')).toContainText('儲存空間');
+  await expect(page.locator('#cloudGoogleMessage')).toContainText('讀書紀錄尚未保存');
+  await expect(page.locator('#cloudGoogleMessage')).not.toContainText('登入驗證資料');
   await expect(page.locator('#notes')).toHaveValue('尚未保存的草稿');
+  expect(state.authorizations).toHaveLength(0);
+});
+
+test('unchanged saved records do not need another record write before Google authentication', async ({ page }) => {
+  const state = await setup(page);
+  await page.evaluate(date => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value): void {
+      if (key === `study-v11:guest:${date}`) throw new DOMException('storage unavailable', 'QuotaExceededError');
+      set.call(this, key, value);
+    };
+  }, date);
+  await page.locator('#cloudGoogleSignInBtn').click();
+  await expect(page.locator('#cloudUserEmail')).toHaveText(user().email);
+  expect(state.authorizations).toHaveLength(1);
+  expect(state.tokenRequests).toBe(1);
+  expect(await accountScope(page)).toBe(prefix);
+});
+
+test('invalid study input names the field and prevents Google navigation without losing its draft', async ({ page }) => {
+  const state = await setup(page);
+  await page.locator('#todayStatusToggle').click();
+  await page.locator('#wakeHour').fill('25');
+  await page.locator('#wakeMinute').fill('00');
+  await page.locator('#cloudGoogleSignInBtn').click();
+  await expect(page.locator('#cloudGoogleMessage')).toContainText('起床時間格式不正確');
+  await expect(page.locator('#cloudGoogleMessage')).not.toContainText('登入驗證資料');
+  await expect(page.locator('#wakeHour')).toHaveValue('25');
   expect(state.authorizations).toHaveLength(0);
 });
 
@@ -259,6 +289,53 @@ test('Google-only controls retain the original records across logout and Google 
   expect((await saved(page)).items.find((item: { id: string }) => item.id === 'original-item').minutes).toBe('18');
   expect(state.tokenRequests).toBe(1);
   expect(emailRequests).toEqual([]);
+});
+
+test.describe('mobile save failures', () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+  test('save validation stays visible after the feedback folds and clears after a successful save', async ({ page }, testInfo) => {
+    await setup(page);
+    await page.clock.install({ time: new Date(epoch) });
+    await page.locator('#connectionSettings summary').tap();
+    await page.locator('#todayStatusToggle').tap();
+    await page.locator('#wakeHour').fill('25');
+    await page.locator('#wakeMinute').fill('00');
+    const before = await page.locator('main').evaluate(node => node.getBoundingClientRect().height);
+    await page.locator('#saveBtn').tap();
+    const notice = page.locator('#recordSaveFailure');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('起床時間格式不正確');
+    await expect(page.locator('#connectionSettings')).not.toHaveAttribute('open', '');
+    await page.clock.runFor(6000);
+    await expect(notice).toBeVisible();
+    expect(await page.locator('main').evaluate(node => node.getBoundingClientRect().height)).toBe(before);
+    const box = await notice.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(375);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(812);
+    await page.screenshot({ path: testInfo.outputPath('mobile-save-failure.png'), fullPage: false });
+    await notice.getByRole('button', { name: '關閉儲存錯誤提示' }).tap();
+    await expect(notice).toBeHidden();
+    await page.locator('#wakeHour').fill('07');
+    await page.locator('#wakeMinute').fill('30');
+    await page.locator('#saveBtn').tap();
+    await page.clock.runFor(100);
+    await expect(notice).toBeHidden();
+    expect(await page.evaluate(date => JSON.parse(localStorage.getItem('study-v11:guest:' + date)!).wakeTime, date)).toBe('07:30');
+  });
+
+  test('Google draft failure stays readable on mobile and preserves the entered field', async ({ page }) => {
+    const state = await setup(page);
+    await page.locator('#todayStatusToggle').tap();
+    await page.locator('#wakeHour').fill('25');
+    await page.locator('#wakeMinute').fill('00');
+    await page.locator('#cloudGoogleSignInBtn').tap();
+    await expect(page.locator('#recordSaveFailure')).toBeVisible();
+    await expect(page.locator('#recordSaveFailure')).toContainText('讀書紀錄尚未保存');
+    await expect(page.locator('#recordSaveFailure')).toContainText('起床時間格式不正確');
+    await expect(page.locator('#wakeHour')).toHaveValue('25');
+    expect(state.authorizations).toHaveLength(0);
+  });
 });
 
 test.describe('mobile Google access', () => {

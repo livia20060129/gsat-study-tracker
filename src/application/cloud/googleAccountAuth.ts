@@ -2,6 +2,12 @@ import { requestedStudyDate } from '../../ui/siteNavigation.ts';
 
 export const GOOGLE_AUTH_INTENT_KEY = 'study-v11:auth:google-intent';
 const INTENT_MAX_AGE = 20 * 60 * 1000;
+export class GoogleAuthDraftError extends Error {
+  constructor(reason = '請先按「儲存」查看原因，再重新登入。') {
+    super('登入前的讀書紀錄尚未保存。' + reason);
+    this.name = 'GoogleAuthDraftError';
+  }
+}
 export interface GoogleAuthStorage {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
@@ -55,6 +61,7 @@ export function parseGoogleAuthIntent(raw: string | null, now: number): GoogleAu
 
 /** Error codes only: provider descriptions may contain URLs or private data. */
 export function googleAuthErrorMessage(error: unknown): string {
+  if (error instanceof GoogleAuthDraftError) return error.message;
   const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
   if (code === 'identity_already_exists' || code === 'identity_already_linked') return '這個 Google 帳號已綁定其他帳號，請使用原先綁定的帳號登入。';
   if (code === 'manual_linking_disabled') return '尚未啟用帳號綁定，請依設定說明開啟 Supabase 的 Manual Linking。';
@@ -112,7 +119,7 @@ export async function beginGoogleAuthentication(options: {
   const intent: GoogleAuthIntent = { version: 1, kind: options.userId ? 'link' : 'signin', userId: options.userId,
     date: options.date, startedAt: options.now ?? Date.now(), attempt: options.attempt ?? crypto.randomUUID() };
   if (!parseGoogleAuthIntent(JSON.stringify(intent), intent.startedAt)) throw new Error('Invalid Google authentication context');
-  if (!options.saveDraft()) throw new Error('登入前的草稿尚未保存。');
+  if (!options.saveDraft()) throw new GoogleAuthDraftError();
   if (intent.kind === 'link') {
     const result = await options.auth.getUser();
     if (result.error) throw result.error;
@@ -132,7 +139,7 @@ export async function beginGoogleAuthentication(options: {
     if (!valid || options.currentUserId() !== intent.userId) throw { code: 'google_identity_mismatch' };
     const current = parseGoogleAuthIntent(await options.storage.getItem(GOOGLE_AUTH_INTENT_KEY), options.now ?? Date.now());
     if (current?.attempt !== intent.attempt) throw { code: 'google_auth_replaced' };
-    if (!options.saveDraft()) throw new Error('登入前的草稿尚未保存。');
+    if (!options.saveDraft()) throw new GoogleAuthDraftError();
     if (intent.kind === 'signin') url.searchParams.delete('skip_http_redirect');
     options.redirect(url.href);
   } catch (error) {

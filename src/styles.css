@@ -10,6 +10,8 @@
 .google-account-message{margin:10px 0;overflow-wrap:anywhere}
 .google-account-message[data-state=error]{color:#b91c1c}
 .google-account-message[data-state=ok]{color:#047857}
+.save-failure-toast{position:fixed;z-index:145;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:flex-start;gap:10px;width:min(560px,calc(100vw - 24px));max-height:45vh;overflow:auto;padding:12px;border:1px solid #efb4a8;border-radius:14px;background:#fff7f5;color:#862f24;box-shadow:0 12px 40px rgba(91,31,24,.2)}
+.save-failure-toast[hidden]{display:none}.save-failure-toast>[data-ui-icon]{flex:0 0 20px;margin-top:3px}.save-failure-toast>div{flex:1;min-width:0}.save-failure-toast strong{font-size:14px}.save-failure-toast p{margin:3px 0 0;font-size:13px;line-height:1.6;overflow-wrap:anywhere;white-space:pre-wrap}.save-failure-toast button{flex:0 0 auto;min-height:44px;padding:8px 10px;background:#fff;color:#862f24}
 .english-word-list>.english-word-entry{margin-top:12px}
 .english-word-list>.english-word-entry+.english-word-entry{margin-top:20px;padding-top:20px;border-top:2px solid var(--subject-accent,#a898bd)}
 .english-word-entry>.word-kind-field{padding-top:0;border-top:0}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="./page-transitions.js?v=171.6.181"></script>
+  <script src="./page-transitions.js?v=171.6.182"></script>
   <meta name="theme-color" content="#f5f8fc" />
   <link rel="icon" type="image/png" href="/book.png" />
   <link rel="apple-touch-icon" href="/book.png" />
@@ -250,6 +250,11 @@
  <a href="./vocabulary.sources.html">單字資料來源</a>
 </footer>
 </main>
+<div class="save-failure-toast" id="recordSaveFailure" role="alert" aria-atomic="true" hidden>
+ <span data-ui-icon="triangle-exclamation-point" aria-hidden="true"></span>
+ <div><strong>未能儲存</strong><p data-save-failure-message></p></div>
+ <button type="button" data-save-failure-close aria-label="關閉儲存錯誤提示">關閉</button>
+</div>
 <div class="undo-toast" id="deleteUndoToast" role="status" aria-live="polite" hidden>
  <span id="deleteUndoMessage">已刪除小項目。</span>
  <button id="deleteUndoBtn" type="button">復原</button>

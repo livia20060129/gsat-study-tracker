@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { beginGoogleAuthentication, cleanGoogleAuthReturnUrl, clearGoogleAuthIntent, completeGoogleAuthReturn, GOOGLE_AUTH_INTENT_KEY,
-  googleAuthErrorMessage, googleAuthFetch, googleAuthReturnUrl, hasGoogleIdentity, parseGoogleAuthIntent, prepareGoogleAuthReturn,
+  GoogleAuthDraftError, googleAuthErrorMessage, googleAuthFetch, googleAuthReturnUrl, hasGoogleIdentity, parseGoogleAuthIntent, prepareGoogleAuthReturn,
   type GoogleAuthIntent, type GoogleAuthStorage, type GoogleOAuthApi } from '../src/application/cloud/googleAccountAuth.ts';
 
 const now = Date.parse('2026-11-15T12:00:00+08:00');
@@ -73,6 +73,31 @@ test('a failed draft or durable intent write prevents any redirect', async () =>
   await assert.rejects(beginGoogleAuthentication(g.options));
   assert.equal(g.calls.length, 0);
   assert.equal(g.redirects.length, 0);
+});
+
+test('unsaved study drafts retain their own explanation instead of claiming auth storage is blocked', async () => {
+  const f = fixture();
+  f.options.saveDraft = () => false;
+  await assert.rejects(beginGoogleAuthentication(f.options), error => {
+    assert.ok(error instanceof GoogleAuthDraftError);
+    assert.match(googleAuthErrorMessage(error), /讀書紀錄尚未保存/);
+    assert.doesNotMatch(googleAuthErrorMessage(error), /登入驗證資料|瀏覽器允許/);
+    return true;
+  });
+  const validation = new GoogleAuthDraftError('起床時間格式不正確。');
+  assert.match(googleAuthErrorMessage(validation), /起床時間格式不正確/);
+  assert.equal(f.calls.length, 0);
+});
+
+test('a real durable auth write failure still reports auth storage and never redirects', async () => {
+  const f = fixture();
+  f.store.setItem = async () => { throw new Error('無法保存登入狀態，請確認瀏覽器允許此網站使用儲存空間後再試一次。'); };
+  await assert.rejects(beginGoogleAuthentication(f.options), error => {
+    assert.match(googleAuthErrorMessage(error), /登入驗證資料/);
+    assert.doesNotMatch(googleAuthErrorMessage(error), /讀書紀錄尚未保存/);
+    return true;
+  });
+  assert.equal(f.redirects.length, 0);
 });
 test('an account change while authorization is being prepared prevents a stale redirect', async () => {
   const f = fixture('link');
