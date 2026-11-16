@@ -45,6 +45,8 @@ export class LocalStudyRecordRepository implements LocalStudyRecordRepositoryPor
   private readonly storage: KeyValueStorage;
   private prefix: string;
   private lastSaveError = '';
+  // Reuse only the encoding hint from the latest read; record contents are always read fresh.
+  private lastEncoding: { key: string; compressed: boolean } | null = null;
 
   saveError(): string { return this.lastSaveError; }
 
@@ -55,6 +57,7 @@ export class LocalStudyRecordRepository implements LocalStudyRecordRepositoryPor
 
   setPrefix(prefix: string): void {
     this.prefix = prefix;
+    this.lastEncoding = null;
   }
 
   load(date: string): StudyRecord | null {
@@ -71,7 +74,10 @@ export class LocalStudyRecordRepository implements LocalStudyRecordRepositoryPor
   }
 
   loadResultFromPrefix(prefix: string, date: string): LocalStudyRecordLoadResult {
-    const raw = this.storage.getItem(prefix + date);
+    const key = prefix + date;
+    this.lastEncoding = null;
+    const raw = this.storage.getItem(key);
+    this.lastEncoding = { key, compressed: isCompressedLocalRecord(raw) };
     if (!raw) return { status: 'missing' };
     const decoded = decodeStudyRecord(raw, date);
     if (decoded.ok) return { status: 'ok', record: decoded.record };
@@ -116,20 +122,26 @@ export class LocalStudyRecordRepository implements LocalStudyRecordRepositoryPor
   save(record: StudyRecord): boolean {
     if (!record?.date) return false;
     try {
-      const encoded = isCompressedLocalRecord(this.storage.getItem(this.prefix + record.date))
+      const key = this.prefix + record.date;
+      const compressed = this.lastEncoding?.key === key
+        ? this.lastEncoding.compressed : isCompressedLocalRecord(this.storage.getItem(key));
+      let encoded = compressed
         ? encodeCompressedLocalStudyRecord(record) : encodeLocalStudyRecord(record);
       try {
-        this.storage.setItem(this.prefix + record.date, encoded);
+        this.storage.setItem(key, encoded);
       } catch (cause) {
         if (!isStorageQuotaError(cause)) throw cause;
         compactConfirmedRecordStorage(this.storage);
-        this.storage.setItem(this.prefix + record.date, encodeCompressedLocalStudyRecord(record));
+        encoded = encodeCompressedLocalStudyRecord(record);
+        this.storage.setItem(key, encoded);
       }
+      this.lastEncoding = { key, compressed: isCompressedLocalRecord(encoded) };
       this.lastSaveError = '';
-      invalidateLocalRecordHistory(this.storage, this.prefix + record.date);
+      invalidateLocalRecordHistory(this.storage, key);
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('study-records-changed'));
       return true;
     } catch (cause) {
+      this.lastEncoding = null;
       this.lastSaveError = isStorageQuotaError(cause)
         ? '瀏覽器本機儲存空間不足；原有紀錄仍保留。'
         : '瀏覽器無法寫入本機資料；請確認儲存權限。';
@@ -138,8 +150,10 @@ export class LocalStudyRecordRepository implements LocalStudyRecordRepositoryPor
   }
 
   remove(date: string): void {
-    this.storage.removeItem(this.prefix + date);
-    invalidateLocalRecordHistory(this.storage, this.prefix + date);
+    const key = this.prefix + date;
+    this.storage.removeItem(key);
+    if (this.lastEncoding?.key === key) this.lastEncoding = null;
+    invalidateLocalRecordHistory(this.storage, key);
   }
 
   listDates(prefix = this.prefix): string[] {

@@ -1,6 +1,6 @@
 # Google 登入設定
 
-適用個人版 v171.6.183。正式網站：https://myself.liviayeh.dev 。Supabase 專案：arxbirgujbrtzhoficdf。
+適用個人版 v171.6.184。正式網站：https://myself.liviayeh.dev 。Supabase 專案：arxbirgujbrtzhoficdf。
 
 本版已完成主要舊帳號的 Google 綁定與實際登入驗收，改為只提供 Google 登入。保留原 Supabase 使用者、Email 身分、UUID、讀書紀錄、Calendar 連線及翻譯額度；未刪除閒置帳號或其紀錄。
 
