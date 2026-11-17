@@ -1,9 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { CEEC_MEANING_ROWS } from '../src/data/ceecCompactTranslations.ts';
 import { CEEC_VOCABULARY } from '../src/data/ceecVocabulary.ts';
 import { CEEC_TRANSLATIONS } from '../src/data/ceecTranslations.ts';
 import { ceecReferenceMetadata } from '../src/study/ceecReferenceIndex.ts';
-import { ceecCoreTranslations } from '../src/study/ceecCoreTranslations.ts';
+import { ceecCoreTranslations, loadCeecCoreTranslations } from '../src/study/ceecCoreTranslations.ts';
+
+await loadCeecCoreTranslations();
+
+test('the deferred browser data asset exactly matches the preserved offline dictionary', () => {
+  const data = JSON.parse(readFileSync(new URL('../src/data/ceecCoreMeanings.json', import.meta.url), 'utf8'));
+  assert.equal(data.CEEC_MEANING_ROWS, CEEC_MEANING_ROWS);
+});
 
 test('compact offline indices preserve every official spelling, POS, level and licensed meaning', () => {
   for (const [word, entry] of Object.entries(CEEC_VOCABULARY)) {

@@ -25,6 +25,8 @@ def write_compact_tables(output, vocabulary, translations):
                        ensure_ascii=False, separators=(',', ':')) for word in words]
     (output / 'ceecCompactTranslations.ts').write_text(header + 'export const CEEC_MEANING_ROWS = '
         + json.dumps('\n'.join(rows), ensure_ascii=False) + ';\n', encoding='utf-8')
+    (output / 'ceecCoreMeanings.json').write_text(json.dumps({'CEEC_MEANING_ROWS': '\n'.join(rows)},
+        ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
 
 
 if __name__ == '__main__':

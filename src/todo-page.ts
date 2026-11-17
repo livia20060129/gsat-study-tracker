@@ -12,6 +12,8 @@ import {
   type StudyTimerPointer,
 } from './application/timer/studyTimerController.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
+import { coalescedRecordRefresh, isRecordStorageChange } from './ui/recordRefresh.ts';
+import { createOverdueTaskCache } from './study/overdueTaskCache.ts';
 import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
 import { todoStudyDisplay } from './ui/todoStudyDisplay.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
@@ -63,6 +65,7 @@ const expandedCards = new Set<string>();
 const PERIOD_LABELS: Record<OverduePeriod, string> = { all: '全部', month: '本月', week: '本週' };
 let recordPrefix = 'study-v11:guest:';
 let records: StudyRecord[] = [];
+const overdueCache = createOverdueTaskCache();
 const drafts = new TodoDrafts();
 const draftBases = new Map<string, StudyRecord>();
 let displayedTimers = new Map<string, StudyTimerState>();
@@ -443,7 +446,7 @@ function renderItemFilter(entries: OverdueTaskEntry[]): void {
 function render(): void {
   const today = localDateKey();
   renderedDate = today;
-  const entries = overdueTasks(records, today);
+  const entries = overdueCache.get(records, today);
   const subjectItem = overdueItemFilterForSubject(activeItem, activeSubject);
   if (subjectItem !== activeItem) {
     activeItem = subjectItem;
@@ -489,7 +492,7 @@ function render(): void {
 function skipFilteredSubject(): void {
   if (activeSubject === 'all') return;
   const today = localDateKey(), scope = recordPrefix;
-  const selected = overdueEntriesForItem(visibleEntries(overdueEntriesForPeriod(overdueTasks(records, today), activePeriod, today)), activeItem);
+  const selected = overdueEntriesForItem(visibleEntries(overdueEntriesForPeriod(overdueCache.get(records, today), activePeriod, today)), activeItem);
   if (!selected.length) return;
   const subject = selected[0].subjectLabel;
   const longTerm = selected.filter(entry => entry.daysOverdue > 30).length;
@@ -773,13 +776,14 @@ function refreshTimerDisplays(): void {
   });
 }
 
-function load(forceCards = false): void {
+function load(forceCards = false, preserveMessages = false): void {
   try {
     let result = readMaterialProgressRecords(localStorage, forceCards);
     const rangeSync = synchronizeRangeCompletion(localStorage, result.prefix);
     if (rangeSync.saved.length) result = readMaterialProgressRecords(localStorage);
     records = result.records;
-    if (recordPrefix !== result.prefix) {
+    const accountChanged = recordPrefix !== result.prefix;
+    if (accountChanged) {
       drafts.clear(); draftBases.clear(); expandedCards.clear();
       longTermLoaded = false;
       element('todoLongTermList').replaceChildren();
@@ -787,8 +791,10 @@ function load(forceCards = false): void {
     recordPrefix = result.prefix;
     const source = result.prefix.startsWith('study-v11:user:') ? '目前登入帳號的本機同步資料' : '訪客本機資料';
     element<HTMLSpanElement>('recordSource').textContent = `${source}｜已讀取 ${result.records.length} 天紀錄`;
-    setError(rangeSync.failedDates.length ? `以下日期尚未完成範圍同步：${rangeSync.failedDates.join('、')}。請確認儲存空間後重新讀取。` : '');
-    setFeedback('');
+    const rangeError = rangeSync.failedDates.length ? `以下日期尚未完成範圍同步：${rangeSync.failedDates.join('、')}。請確認儲存空間後重新讀取。` : '';
+    // A delayed background refresh must not acknowledge a failed save or hide its conflict.
+    if (rangeError || !preserveMessages || accountChanged) setError(rangeError);
+    if (!preserveMessages || accountChanged) setFeedback('');
     if (forceCards) element<HTMLDivElement>('todoList').querySelectorAll<HTMLElement>('.todo-card')
       .forEach(card => { delete card.dataset.todoSignature; });
     render();
@@ -1014,11 +1020,13 @@ element<HTMLAnchorElement>('refreshTodo').addEventListener('click', function ref
   load(true);
   void refreshBrowserCalendarSchedule();
 });
+const backgroundRefresh = coalescedRecordRefresh(() => load(false, true));
 window.addEventListener('storage', function refreshChangedRecords(event): void {
-  if (event.storageArea !== localStorage) return;
-  if (event.key === null || event.key === ACTIVE_RECORD_PREFIX_KEY
-    || (event.key.startsWith(recordPrefix) && /^\d{4}-\d{2}-\d{2}$/.test(event.key.slice(recordPrefix.length)))) load();
+  if (!isRecordStorageChange(event, recordPrefix, localStorage)) return;
+  if (event.key === null || event.key === ACTIVE_RECORD_PREFIX_KEY) backgroundRefresh.flush();
+  else backgroundRefresh.schedule();
 });
+window.addEventListener('pagehide', backgroundRefresh.cancel);
 window.addEventListener('pageshow', function refreshVisibleTodoPage(event): void {
   if (!event.persisted) return;
   readLocationFilters();
@@ -1035,7 +1043,7 @@ window.addEventListener('popstate', function syncHistoryFilters(): void {
 
 setInterval(refreshTimerDisplays, 1000);
 window.addEventListener(CALENDAR_SCHEDULE_UPDATED, function appliedCalendar(event): void {
-  load();
+  load(false, true);
   const failed = (event as CustomEvent<{ failedDates: string[] }>).detail?.failedDates;
   if (failed?.length) setError(`以下日期的最新排程尚未保存：${failed.join('、')}。原紀錄保留，請確認儲存空間後重新讀取。`);
 });

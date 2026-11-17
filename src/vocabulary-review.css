@@ -109,3 +109,7 @@
   .vocabulary-list.is-flat.is-word-grid,
   .vocabulary-list.is-word-grid .vocabulary-letter-list { grid-template-columns:minmax(0,1fr); }
 }
+.vocabulary-load-more { display: flex; justify-content: center; margin-top: 18px; }
+.vocabulary-load-more[hidden] { display: none; }
+.vocabulary-load-more button { min-height: 44px; padding: 10px 24px; border: 1px solid #cbdcf1; border-radius: 12px; background: #eff6ff; color: #315c9a; font: inherit; cursor: pointer; }
+.vocabulary-load-more button:focus-visible { outline: 2px solid #3568e8; outline-offset: 3px; }

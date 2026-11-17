@@ -12,6 +12,9 @@ import { decodeStudyRecord, encodeStudyRecord } from '../src/storage/studyRecord
 import { mergeStudyRecordsThreeWay } from '../src/storage/recordSync.ts';
 import { parseProgressImportText } from '../src/application/progressImport.ts';
 import type { EnglishReviewWordEntry, StudyRecord, VocabularyTranslations } from '../src/types.ts';
+import { loadCeecCoreTranslations } from '../src/study/ceecCoreTranslations.ts';
+
+await loadCeecCoreTranslations();
 
 function word(text = 'ability'): EnglishReviewWordEntry { return { id: 'stable', text }; }
 function record(entry: EnglishReviewWordEntry): StudyRecord {

@@ -1,6 +1,6 @@
 import { dictionaryQuery, type DictionaryLookupResult } from '../study/dictionaryEntries.ts';
 import { localDictionaryLookup } from '../study/localDictionaryLookup.ts';
-import { loadEcdictTranslations } from '../study/ecdictLookup.ts';
+import { loadEcdictTranslations, prepareEcdictLookup } from '../study/ecdictLookup.ts';
 import { VOCABULARY_PARTS_OF_SPEECH } from '../study/vocabularyTranslationCounts.ts';
 import type { VocabularyTranslations } from '../types.ts';
 import type { GoogleTranslationContentKind, GoogleTranslationSelection } from '../study/googleTranslationSelection.ts';
@@ -71,6 +71,20 @@ export class DictionaryPreview {
     this.output = document.createElement('div');
     this.output.className = 'dictionary-preview-results';
     this.element.append(controls, this.status, this.output);
+    if (options.local !== false && !query.disabled) {
+      const initialStatus = this.status.textContent;
+      query.disabled = true;
+      this.status.textContent = '正在準備離線字典…';
+      void prepareEcdictLookup(options.word).then(() => {
+        if (this.disposed) return;
+        query.disabled = false;
+        if (!this.requestSerial) this.status.textContent = initialStatus;
+      }).catch(() => {
+        if (this.disposed) return;
+        query.disabled = false;
+        if (!this.requestSerial) this.status.textContent = 'ECDICT 暫時無法載入，可按取得翻譯重試或手動輸入中文。';
+      });
+    }
     query.addEventListener('click', () => this.lookup());
     googleQuery.addEventListener('click', async () => {
       if (!googleEnabled || googleQuery.disabled || !this.options.google) return;

@@ -4,6 +4,7 @@ import {
   completedItemSummarySubject, completedItemsForPeriod, completedItemsForSubject,
 } from './study/completedItems.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
+import { coalescedRecordRefresh, isRecordStorageChange } from './ui/recordRefresh.ts';
 import {
   SUMMARY_MODES,
   calendarLeadingBlankCount,
@@ -640,11 +641,14 @@ document.addEventListener('click', event => {
   document.querySelectorAll('.summary-day.is-tooltip-open').forEach(node => node.classList.remove('is-tooltip-open'));
   document.querySelectorAll<HTMLButtonElement>('[data-summary-day]').forEach(node => node.setAttribute('aria-expanded', 'false'));
 });
+const backgroundRefresh = coalescedRecordRefresh(loadRecords);
 window.addEventListener('storage', function updateChangedHistory(event): void {
-  if (event.storageArea && event.storageArea !== localStorage) return;
-  if (event.key === null || event.key === ACTIVE_RECORD_PREFIX_KEY
-    || (event.key.startsWith(recordPrefix) && /^\d{4}-\d{2}-\d{2}$/.test(event.key.slice(recordPrefix.length)))) loadRecords();
+  if (!isRecordStorageChange(event, recordPrefix, localStorage)) return;
+  if (event.key === null || event.key === ACTIVE_RECORD_PREFIX_KEY) backgroundRefresh.flush();
+  else backgroundRefresh.schedule();
 });
+window.addEventListener('pagehide', backgroundRefresh.cancel);
+window.addEventListener('pageshow', event => { if (event.persisted) backgroundRefresh.flush(); });
 loadRecords();
 window.addEventListener(CALENDAR_SCHEDULE_UPDATED, loadRecords);
 initializeBrowserCalendarSchedule();

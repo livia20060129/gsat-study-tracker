@@ -2,6 +2,8 @@ import './material-progress.css';
 import { MaterialCatalogEditor } from './ui/materialCatalogEditor.ts';
 import { catalogModeNoun, catalogProgressSubject, effectiveMaterialCatalog, type CatalogMaterial, type CatalogSubject } from './study/materialCatalog.ts';
 import type { StudyRecord } from './types.ts';
+import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
+import { coalescedRecordRefresh, isRecordStorageChange } from './ui/recordRefresh.ts';
 import {
   MATERIAL_PROGRESS_SUBJECTS,
   builtInMaterialCatalog,
@@ -225,9 +227,14 @@ const editor = new MaterialCatalogEditor({
 element<HTMLButtonElement>('refreshProgress').addEventListener('click', function refreshProgress(): void { load(true); });
 element('catalogSearch').addEventListener('input', render);
 element('showRetiredMaterials').addEventListener('change', render);
+const backgroundRefresh = coalescedRecordRefresh(() => load());
 window.addEventListener('storage', event => {
-  if (event.key?.startsWith('study-v11:') && !event.key.includes(':cross-tab-lock:')) load();
+  if (!isRecordStorageChange(event, prefix, localStorage)) return;
+  if (event.key === null || event.key === ACTIVE_RECORD_PREFIX_KEY) backgroundRefresh.flush();
+  else backgroundRefresh.schedule();
 });
+window.addEventListener('pagehide', backgroundRefresh.cancel);
+window.addEventListener('pageshow', event => { if (event.persisted) backgroundRefresh.flush(); });
 window.addEventListener('hashchange', () => {
   activeSubject = normalizedProgressSubject(location.hash.replace(/^#/, ''));
   render();

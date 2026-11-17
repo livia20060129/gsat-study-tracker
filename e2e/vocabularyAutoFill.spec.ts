@@ -3,7 +3,10 @@ import { navigateSite, selectStudyDate } from './helpers/siteNavigation.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { EnglishReviewWordEntry } from '../src/types.ts';
-import { ceecCoreTranslations } from '../src/study/ceecCoreTranslations.ts';
+import { ceecCoreTranslations, loadCeecCoreTranslations } from '../src/study/ceecCoreTranslations.ts';
+
+// Prepare the Node-side fixture filter; browser dictionary readiness is tested independently.
+await loadCeecCoreTranslations();
 
 async function seedWords(page: Page, words: EnglishReviewWordEntry[]): Promise<void> {
   await page.goto('/vocabulary.review.html');

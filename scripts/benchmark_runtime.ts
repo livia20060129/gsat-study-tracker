@@ -1,6 +1,7 @@
 import { materialProgressRows } from '../src/study/materialProgress.ts';
 import { overdueTasks } from '../src/study/overdueTasks.ts';
 import { organizedOverdueEntries } from '../src/study/overdueOrganization.ts';
+import { createOverdueTaskCache } from '../src/study/overdueTaskCache.ts';
 import type { StudyRecord } from '../src/types.ts';
 
 /** Fixed in-memory history; no browser storage, accounts or network requests are accessed. */
@@ -22,12 +23,14 @@ function measure(name: string, operation: () => unknown): void {
     for (let index = 0; index < 10; index += 1) operation();
     return (performance.now() - start) / 10;
   }).sort((left, right) => left - right);
-  console.log(JSON.stringify({ name, medianMs: +times[4].toFixed(3), minMs: +times[0].toFixed(3) }));
+  console.log(JSON.stringify({ name, medianMs: +times[4].toFixed(4), minMs: +times[0].toFixed(4) }));
 }
 
 const records = benchmarkRecords();
 const entries = overdueTasks(records, '2026-11-05');
 console.log('Fixture: 156 days, 12 study items per day; 9 samples of 10 operations after warm-up.');
 measure('overdue generation', () => overdueTasks(records, '2026-11-05'));
+const overdueCache = createOverdueTaskCache();
+measure('cached overdue projection for filter changes', () => overdueCache.get(records, '2026-11-05'));
 measure('overdue sorting', () => organizedOverdueEntries(entries, 'oldest'));
 measure('material page coverage', () => materialProgressRows(records));

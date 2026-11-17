@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { loadCeecCoreTranslations } from '../src/study/ceecCoreTranslations.ts';
 import { saveLocalRecordEdit } from '../src/application/records/localRecordEdits.ts';
 import { decodeStudyRecord, encodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
 import { cambridgeDictionaryUrl, dictionaryQuery, dictionaryResult, dictionarySource, ECDICT_SOURCE_URL, type DictionaryLookupResult } from '../src/study/dictionaryEntries.ts';
@@ -10,7 +11,10 @@ import { vocabularyPrintDocument } from '../src/study/vocabularyPrint.ts';
 import type { EnglishReviewWordEntry, StudyRecord } from '../src/types.ts';
 import { cambridgeApiResult } from '../supabase/functions/_shared/cambridgeEntries.ts';
 import { lookupCambridge } from '../src/infrastructure/dictionary/cambridgeLookup.ts';
+
 import { createDictionaryLookupHandler } from '../supabase/functions/_shared/dictionaryLookup.ts';
+
+await loadCeecCoreTranslations();
 
 const result: DictionaryLookupResult = { provider: 'ecdict', word: 'cell', sourceUrl: ECDICT_SOURCE_URL,
   meanings: [{ partOfSpeech: 'noun', text: '測試意思甲' }, { partOfSpeech: 'verb', text: '測試意思乙' }] };
@@ -126,7 +130,8 @@ test('dictionary confirmation merges newer unrelated edits instead of replacing 
   latest.notes = '另一個分頁的最新筆記';
   latest.items[0].minutes = '40';
   const values = new Map([[`p:${base.date}`, JSON.stringify(latest)]]);
-  const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
+  const storage = { get length() { return values.size; }, key: (index: number) => [...values.keys()][index] ?? null,
+    getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
   const saved = saveLocalRecordEdit(storage, 'p:', base, function confirm(record): StudyRecord {
     const copy = structuredClone(record);
     updateVocabularyWordEntries(copy, 'cell', { dictionarySelection: result });

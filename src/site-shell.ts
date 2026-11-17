@@ -1,4 +1,5 @@
 import { initialRecordPrefix } from './storage/local.ts';
+import { isRecordStorageChange } from './ui/recordRefresh.ts';
 import { decodeStudyRecord } from './storage/studyRecordCodec.ts';
 import { overdueTasks } from './study/overdueTasks.ts';
 import { overdueEntriesForPeriod } from './study/overduePeriod.ts';
@@ -152,7 +153,9 @@ function refreshRails(): void {
 }
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 function scheduleRefresh(): void { clearTimeout(refreshTimer); refreshTimer = setTimeout(refreshRails, 180); }
-window.addEventListener('storage', scheduleRefresh);
+window.addEventListener('storage', event => {
+    if (isRecordStorageChange(event, initialRecordPrefix(localStorage), localStorage)) scheduleRefresh();
+});
 window.addEventListener('study-records-changed', scheduleRefresh);
 window.addEventListener('pageshow', function refreshRestoredRails(event): void {
     if (event.persisted) scheduleRefresh();

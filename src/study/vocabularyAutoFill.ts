@@ -80,6 +80,10 @@ export function applyVocabularyAutoFill(word: EnglishReviewWordEntry, dictionary
   const reference = ceecReferenceMetadata(normalizedReferenceWord(word.text));
   const translations = dictionaryTranslations ?? ecdictTranslations(word.text);
   const defaults: Record<string, unknown> = {};
+  // A deferred dictionary has no new evidence yet; retain ownership of existing automatic fields.
+  if (previous?.word === key && !translations) {
+    for (const field of owned) defaults[field] = JSON.parse(JSON.stringify(previous.defaults[field])) as unknown;
+  }
   for (const field of blocked) {
     if (previous && Object.hasOwn(previous.defaults, field)) defaults[field] = JSON.parse(JSON.stringify(previous.defaults[field])) as unknown;
   }

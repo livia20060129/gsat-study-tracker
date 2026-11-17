@@ -1,9 +1,16 @@
-import { ceecCoreTranslations } from './ceecCoreTranslations.ts';
+import { ceecCoreTranslations, loadCeecCoreTranslations } from './ceecCoreTranslations.ts';
+import { ceecReferenceMetadata } from './ceecReferenceIndex.ts';
 import { dictionaryQuery } from './dictionaryEntries.ts';
 import type { VocabularyTranslations } from '../types.ts';
 
 type DictionaryShard = Record<string, VocabularyTranslations>;
 export type DictionaryFetch = (url: string) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
+
+/** Core meanings are needed only by an actual lookup, not by ordinary page rendering. */
+export async function prepareEcdictLookup(value: unknown): Promise<void> {
+  const word = dictionaryQuery(value);
+  if (word && ceecReferenceMetadata(word)) await loadCeecCoreTranslations();
+}
 
 /** Only requested hash buckets are downloaded; failures remain retryable. */
 export function createEcdictLookup(fetchShard: DictionaryFetch, baseUrl: string): {
@@ -32,6 +39,7 @@ export function createEcdictLookup(fetchShard: DictionaryFetch, baseUrl: string)
   async function load(value: unknown): Promise<VocabularyTranslations | null> {
     const word = dictionaryQuery(value);
     if (!word) return null;
+    await prepareEcdictLookup(word);
     const existing = find(word);
     if (existing) return existing;
     const key = bucket(word);

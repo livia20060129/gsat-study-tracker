@@ -7,6 +7,7 @@ import { DictionaryPreview } from './ui/dictionaryPreview.ts';
 import { VocabularySpeech, type VocabularyAccent } from './ui/vocabularySpeech.ts';
 import { VOCABULARY_DICTIONARY_KEY, vocabularyDictionary, vocabularyDictionaryLink, type VocabularyDictionary } from './ui/vocabularyDictionaryLinks.ts';
 import { patchChildOrder } from './ui/patchChildOrder.ts';
+import { ProgressiveEntries } from './ui/progressiveEntries.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   normalizedGsatVocabularyLevel,
@@ -50,13 +51,24 @@ let nextRowKeys = new Set<string>();
 let nextGroupKeys = new Set<string>();
 let searchRenderTimer: ReturnType<typeof setTimeout> | undefined;
 const searchIndex = new WeakMap<VocabularyReviewEntry, string>();
+const progressiveEntries = new ProgressiveEntries();
+const moreArea = document.createElement('div');
+moreArea.className = 'vocabulary-load-more';
+moreArea.hidden = true;
+const moreButton = document.createElement('button');
+moreButton.type = 'button';
+moreButton.textContent = '載入更多';
+moreButton.setAttribute('aria-controls', 'vocabularyList');
+moreArea.append(moreButton);
+document.getElementById('vocabularyList')!.after(moreArea);
 const speech = new VocabularySpeech(document.getElementById('vocabularySpeechStatus')!);
 const resumedLookups = new Set<string>();
 let vocabularyPointerActive = false;
 let vocabularyRefreshPending = false;
 let vocabularyEnrichmentPending = false;
 let vocabularyRefreshTimer: ReturnType<typeof setTimeout> | undefined;
-window.addEventListener('pagehide', function stopSpeech(): void { speech.cancel(); });
+let enrichmentFlushTimer: ReturnType<typeof setTimeout> | undefined;
+window.addEventListener('pagehide', function stopSpeech(): void { speech.cancel(); if (enrichmentFlushTimer) clearTimeout(enrichmentFlushTimer); });
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -169,8 +181,11 @@ function saveEntryEdits(entry: VocabularyReviewEntry, edits: VocabularyWordEdits
 }
 
 function renderEnrichedEntries(): void {
-  if (vocabularyPointerActive) { vocabularyEnrichmentPending = true; return; }
   const focused = document.activeElement as HTMLInputElement | null;
+  if (vocabularyPointerActive || focused?.matches('[data-vocabulary-text]')) {
+    vocabularyEnrichmentPending = true;
+    return;
+  }
   const rowKey = focused?.closest<HTMLElement>('[data-entry-key]')?.dataset.entryKey;
   const attribute = focused && [...focused.attributes].find(value => value.name.startsWith('data-vocabulary-'));
   const ariaLabel = focused?.getAttribute('aria-label');
@@ -582,20 +597,6 @@ function renderPartOfSpeechIndex(): void {
   }));
 }
 
-function partsOfSpeechGroups(entries: VocabularyReviewEntry[]): HTMLElement[] {
-  const groups: HTMLElement[] = [];
-  for (const [, label] of VOCABULARY_PARTS_OF_SPEECH) {
-    if (activePartOfSpeech !== '全部' && activePartOfSpeech !== label) continue;
-    const group = entries.filter(entry => entry.tags.includes(label));
-    if (group.length > 0) groups.push(createVocabularyGroup(label.toLowerCase(), label, group));
-  }
-  const unclassified = entries.filter(entry => entry.tags.length === 0);
-  if ((activePartOfSpeech === '全部' || activePartOfSpeech === '未標註') && unclassified.length > 0) {
-    groups.push(createVocabularyGroup('unclassified', '未標註', unclassified));
-  }
-  return groups;
-}
-
 function renderGroupingSwitch(): void {
   const switcher = element<HTMLDivElement>('vocabularyGrouping');
   switcher.hidden = activeContentKind !== '單字';
@@ -613,9 +614,10 @@ function renderContentKindSwitch(): void {
   }
 }
 
-function renderEntries(): void {
+function renderEntries(options: { append?: boolean } = {}): void {
+  vocabularyEnrichmentPending = false;
   element('vocabularyLegacySources').hidden = !allEntries.some(entry => entry.dictionarySources?.some(source => source.provider === 'cambridge'));
-  speech.cancel();
+  if (!options.append) speech.cancel();
   nextRowKeys = new Set();
   nextGroupKeys = new Set();
   const entries = filteredEntries();
@@ -623,18 +625,39 @@ function renderEntries(): void {
   const empty = element<HTMLParagraphElement>('vocabularyEmpty');
   list.classList.toggle('is-flat', groupingMode === 'alphabetical');
   list.classList.toggle('is-word-grid', activeContentKind === '單字');
-  let rows: HTMLElement[];
+  let groups: Array<{ key: string; label: string; entries: VocabularyReviewEntry[] }>;
   switch (groupingMode) {
     case 'partOfSpeech':
-      rows = partsOfSpeechGroups(entries);
+      groups = VOCABULARY_PARTS_OF_SPEECH
+        .filter(([, label]) => activePartOfSpeech === '全部' || activePartOfSpeech === label)
+        .map(([, label]) => ({ key: label.toLowerCase(), label, entries: entries.filter(entry => entry.tags.includes(label)) }));
+      if (activePartOfSpeech === '全部' || activePartOfSpeech === '未標註') {
+        groups.push({ key: 'unclassified', label: '未標註', entries: entries.filter(entry => entry.tags.length === 0) });
+      }
       break;
     case 'gsatLevel':
-      rows = vocabularyLevelGroups(entries).map(group => createVocabularyGroup(`level-${group.level}`, group.label, group.entries));
+      groups = vocabularyLevelGroups(entries).map(group => ({ key: `level-${group.level}`, label: group.label, entries: group.entries }));
       break;
     default:
-      rows = entries.map(entry => retainedVocabularyRow(entry));
+      groups = [{ key: '', label: '', entries }];
+  }
+  let total = 0, pinnedThrough = 0;
+  for (const group of groups) {
+    group.entries.forEach((entry, index) => { if (editingEntryKeys.has(entry.key)) pinnedThrough = total + index + 1; });
+    total += group.entries.length;
+  }
+  const view = JSON.stringify([activeRecordPrefix, activeContentKind, groupingMode, activePartOfSpeech, searchText]);
+  let remaining = progressiveEntries.prepare(view, total, pinnedThrough);
+  const rows: HTMLElement[] = [];
+  for (const group of groups) {
+    const visible = group.entries.slice(0, remaining);
+    remaining -= visible.length;
+    if (!visible.length) continue;
+    if (group.key) rows.push(createVocabularyGroup(group.key, group.label, visible));
+    else rows.push(...visible.map(entry => retainedVocabularyRow(entry)));
   }
   patchChildOrder(list, rows);
+  moreArea.hidden = !progressiveEntries.hasMore;
   for (const [key, row] of rowCache) {
     if (nextRowKeys.has(key)) continue;
     dictionaryPreviews.get(row.node)?.dispose();
@@ -647,6 +670,27 @@ function renderEntries(): void {
   else empty.textContent = '找不到符合目前篩選條件的單字。';
   element<HTMLElement>('visibleVocabularyCount').textContent = `${entries.length} 個`;
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-export-vocabulary]')) button.disabled = entries.length === 0;
+}
+
+function loadMoreVocabulary(manual = false): void {
+  if (!progressiveEntries.more()) return;
+  const previous = manual ? new Set(element('vocabularyList').querySelectorAll('.vocabulary-row')) : null;
+  renderEntries({ append: true });
+  if (previous) {
+    const firstNew = [...element('vocabularyList').querySelectorAll<HTMLElement>('.vocabulary-row')].find(row => !previous.has(row));
+    firstNew?.querySelector<HTMLElement>('a,button,input')?.focus({ preventScroll: true });
+  }
+}
+moreButton.addEventListener('click', () => loadMoreVocabulary(true));
+if (typeof IntersectionObserver !== 'undefined') {
+  const observer = new IntersectionObserver(entries => {
+    if (!entries.some(entry => entry.isIntersecting)) return;
+    if (document.hidden || vocabularyPointerActive || editingEntryKeys.size) return;
+    loadMoreVocabulary();
+  }, { rootMargin: '600px 0px' });
+  observer.observe(moreArea);
+  window.addEventListener('pagehide', () => observer.disconnect());
+  window.addEventListener('pageshow', event => { if (event.persisted) observer.observe(moreArea); });
 }
 
 let pdfFontLoad: Promise<ArrayBuffer> | undefined;
@@ -747,6 +791,13 @@ function scheduleVocabularyRefresh(): void {
 }
 
 element('vocabularyList').addEventListener('pointerdown', function beginVocabularyInteraction(): void { vocabularyPointerActive = true; });
+element('vocabularyList').addEventListener('focusout', function finishVocabularyDraft(): void {
+  if (enrichmentFlushTimer) clearTimeout(enrichmentFlushTimer);
+  enrichmentFlushTimer = setTimeout(() => {
+    enrichmentFlushTimer = undefined;
+    if (vocabularyEnrichmentPending) renderEnrichedEntries();
+  }, 80);
+});
 for (const event of ['pointerup', 'pointercancel']) document.addEventListener(event, function finishVocabularyInteraction(): void {
   setTimeout(function afterVocabularyClick(): void {
     vocabularyPointerActive = false;
