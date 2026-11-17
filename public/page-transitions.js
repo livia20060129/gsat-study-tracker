@@ -1,3 +1,9 @@
+// Capture installation before the asynchronously loaded shared shell is ready.
+window.addEventListener('beforeinstallprompt', function retainInstallPrompt(event) {
+  event.preventDefault(); window.__gsatInstallPrompt = event;
+});
+window.addEventListener('appinstalled', function clearInstallPrompt() { delete window.__gsatInstallPrompt; });
+
 // Lucide ISC icons, pinned source: 53fab88ff9d1b48f4704b5b5b560d6b4d560bf4c.
 // Copyright (c) 2026 Lucide Icons and Contributors. See LUCIDE_LICENSE.txt.
 (function initializeStudyIcons() {
@@ -130,7 +136,7 @@
       right.className = 'site-rail site-rail-right';
       right.id = 'siteRightRail';
       right.setAttribute('aria-label', '工具與本週逾期');
-      right.innerHTML = `<h1 class="site-mobile-section-heading">功能選單</h1><div class="site-rail-top"><a class="site-workspace-home" href="./index.html"><strong>GSAT Tracker</strong><span><svg data-ui-icon="house" aria-hidden="true"></svg>首頁</span></a></div><nav class="site-tools" aria-label="讀書工具">${tools.map(([href, title, caption, icon]) => `<a href="./${href}" aria-label="${title}"><span class="site-tool-icon" aria-hidden="true">${icon}</span><span><strong>${title}</strong><small>${caption}</small></span><span class="site-tool-arrow" aria-hidden="true">→</span></a>`).join('')}</nav><section class="site-overdue"><header><h2>本週逾期</h2><span data-rail-overdue-count>0 項</span></header><div data-rail-overdue-list></div><a class="site-overdue-all" href="./todo.html?period=all">查看全部待辦 →</a></section>`;
+      right.innerHTML = `<h1 class="site-mobile-section-heading">功能選單</h1><div class="site-rail-top"><a class="site-workspace-home" href="./index.html"><strong>GSAT Tracker</strong><span><svg data-ui-icon="house" aria-hidden="true"></svg>首頁</span></a></div><nav class="site-tools" aria-label="讀書工具">${tools.map(([href, title, caption, icon]) => `<a href="./${href}" aria-label="${title}"><span class="site-tool-icon" aria-hidden="true">${icon}</span><span><strong>${title}</strong><small>${caption}</small></span><span class="site-tool-arrow" aria-hidden="true">→</span></a>`).join('')}</nav><section class="site-overdue"><header><h2>本週逾期</h2><span data-rail-overdue-count>0 項</span></header><div data-rail-overdue-list></div><a class="site-overdue-all" href="./todo.html?period=all">查看全部待辦 →</a></section><button type="button" id="siteAppSettings" class="site-app-entry" aria-haspopup="dialog" aria-controls="siteAppDialog"><svg data-ui-icon="download" aria-hidden="true"></svg><span>安裝與資料</span></button>`;
       const bar = document.createElement('div');
       bar.className = 'site-mobile-bar';
       bar.id = 'siteMobileBar';

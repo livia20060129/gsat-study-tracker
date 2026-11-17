@@ -11,9 +11,9 @@ export function isStorageQuotaError(cause: unknown): boolean {
 }
 
 /** Preserve every day and sync ancestor; replace only verified, smaller lossless representations. */
-export function compactConfirmedRecordStorage(storage: KeyValueStorage): number {
+export function compactConfirmedRecordStorage(storage: KeyValueStorage, captured?: ReadonlyMap<string, string>): number {
   let compacted = 0;
-  const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
+  const keys = captured ? [...captured.keys()] : Array.from({ length: storage.length }, (_, index) => storage.key(index));
   for (const key of keys) {
     if (!key) continue;
     const recordKey = /^study-v11:(?:guest|user:[^:]+):\d{4}-\d{2}-\d{2}$/.test(key);
@@ -21,6 +21,7 @@ export function compactConfirmedRecordStorage(storage: KeyValueStorage): number 
     if (!recordKey && !receiptKey) continue;
     try {
       const raw = storage.getItem(key);
+      if (captured && raw !== captured.get(key)) continue;
       if (!raw || isCompressedLocalRecord(raw)) continue;
       let compact: string;
       if (recordKey) {

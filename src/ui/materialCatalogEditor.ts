@@ -2,6 +2,7 @@ import { saveCatalogMaterial } from '../application/records/catalogEdits.ts';
 import { catalogGroups, catalogModeNoun, catalogOverrides, catalogValidationError, type CatalogMaterial, type CatalogSection, type CatalogSubject } from '../study/materialCatalog.ts';
 import type { StudyRecord } from '../types.ts';
 import { animateVisibility } from './disclosureMotion.ts';
+import { DEVICE_DRAFT_SAVE, type DeviceDraftSaveRequest } from './devicePreparation.ts';
 
 const NATURAL_SUBJECTS: readonly CatalogSubject[] = ['生物', '物理', '化學', '地科'];
 
@@ -41,6 +42,10 @@ export class MaterialCatalogEditor {
 
   constructor(options: MaterialCatalogEditorOptions) {
     this.options = options;
+    window.addEventListener(DEVICE_DRAFT_SAVE, event => {
+      if (this.managementEnabled && this.editing) (event as CustomEvent<DeviceDraftSaveRequest>).detail.reject(
+        '教材編輯尚未結束，請先儲存或取消草稿，再安裝或還原。');
+    });
     element('toggleMaterialEditing').addEventListener('click', () => this.toggleManagement());
     element('newMaterial').addEventListener('click', () => this.open());
     element('catalogSubject').addEventListener('change', () => this.updateGroups());

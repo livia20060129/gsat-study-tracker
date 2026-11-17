@@ -27,6 +27,34 @@ function fixture(kind: 'signin' | 'link' = 'signin') {
   return { store, calls, redirects, auth, options, saves: () => saves };
 }
 
+test('installation-era login waits for verified device backup after saving the final draft', async () => {
+  const f = fixture(); let confirmed = false;
+  await beginGoogleAuthentication({ ...f.options, beforeRedirect: async () => {
+    assert.equal(f.saves(), 2); assert.equal(f.redirects.length, 0); confirmed = true;
+  }, redirect: url => { assert.equal(confirmed, true); f.redirects.push(url); } });
+  assert.equal(f.redirects.length, 1);
+});
+test('a failed device backup cancels the redirect with its own actionable reason', async () => {
+  const f = fixture();
+  await assert.rejects(beginGoogleAuthentication({ ...f.options, beforeRedirect: async () => { throw new Error('IDB aborted'); } }), error => {
+    assert.match(googleAuthErrorMessage(error), /裝置備份未完成/); return true;
+  });
+  assert.equal(f.redirects.length, 0); assert.equal(f.store.values.has(GOOGLE_AUTH_INTENT_KEY), false);
+});
+test('account changes during a device backup cannot continue a stale Google redirect', async () => {
+  const f = fixture('link'); let current = userId;
+  await assert.rejects(beginGoogleAuthentication({ ...f.options, currentUserId: () => current,
+    beforeRedirect: async () => { current = 'other'; } }), error => (error as { code: string }).code === 'google_identity_mismatch');
+  assert.equal(f.redirects.length, 0);
+});
+test('a newer Google intent during backup remains intact and prevents the old redirect', async () => {
+  const f = fixture();
+  await assert.rejects(beginGoogleAuthentication({ ...f.options, beforeRedirect: async () => {
+    await f.store.setItem(GOOGLE_AUTH_INTENT_KEY, JSON.stringify({ ...intent(), attempt: 'newer' }));
+  } }), error => (error as { code: string }).code === 'google_auth_replaced');
+  assert.equal(f.redirects.length, 0); assert.equal(JSON.parse(f.store.values.get(GOOGLE_AUTH_INTENT_KEY)!).attempt, 'newer');
+});
+
 test('Google callbacks stay on the current origin and project directory with a fixed allow-list URL', () => {
   assert.equal(googleAuthReturnUrl('https://tracker.example.test/sub/index.html?next=https://evil.test/#token'), 'https://tracker.example.test/sub/index.html?google_auth=1');
   assert.equal(googleAuthReturnUrl('https://tracker.example.test/'), 'https://tracker.example.test/index.html?google_auth=1');

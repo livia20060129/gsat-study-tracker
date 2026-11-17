@@ -10,6 +10,7 @@ import { initializeSidebarDate } from './ui/sidebarDate.ts';
 import { initializeDisclosureMotion } from './ui/disclosureMotion.ts';
 import { initializeMobileSections } from './ui/mobileSections.ts';
 import { initializeSelectionMotion } from './ui/selectionMotion.ts';
+import { initializeInstallableApp } from './ui/installableApp.ts';
 import type { StudyItem, StudyRecord } from './types.ts';
 initializeDisclosureMotion();
 const cache = new Map<string, {
@@ -64,6 +65,7 @@ right.querySelectorAll<HTMLAnchorElement>('.site-tools a,.site-workspace-home').
 left.querySelector('.site-summary-link')!.setAttribute('aria-label', '週／月總結');
 if (currentPage === 'summary.html') left.querySelector('.site-summary-link')!.setAttribute('aria-current', 'page');
 initializeSelectionMotion(right, bar);
+initializeInstallableApp();
 const sidebarDate = initializeSidebarDate(left, dateKey(), function dateChanged(): void {
     scheduleRefresh();
     mobileSections.showContent();

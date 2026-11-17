@@ -1,0 +1,23 @@
+{
+  "id": "./",
+  "name": "GSAT Tracker",
+  "short_name": "GSAT Tracker",
+  "description": "每日讀書完成度紀錄卡",
+  "lang": "zh-Hant",
+  "start_url": "./index.html?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f8fc",
+  "theme_color": "#f5f8fc",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "icons/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/app-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "今日紀錄", "url": "./index.html" },
+    { "name": "待辦事項", "url": "./todo.html" },
+    { "name": "英文單字複習", "url": "./vocabulary.review.html" }
+  ]
+}

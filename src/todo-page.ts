@@ -14,6 +14,7 @@ import {
 import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
 import { coalescedRecordRefresh, isRecordStorageChange } from './ui/recordRefresh.ts';
 import { createOverdueTaskCache } from './study/overdueTaskCache.ts';
+import { DEVICE_DRAFT_SAVE, type DeviceDraftSaveRequest } from './ui/devicePreparation.ts';
 import { TodoDrafts, type TodoDraftField } from './ui/todoDrafts.ts';
 import { todoStudyDisplay } from './ui/todoStudyDisplay.ts';
 import { updateTodoList } from './ui/keyedTodoList.ts';
@@ -983,6 +984,11 @@ element<HTMLDivElement>('todoList').addEventListener('focusout', function saveOn
 });
 window.addEventListener('pagehide', function saveBeforeLeaving(): void {
   if (document.activeElement instanceof HTMLInputElement) saveFocusedDraft(document.activeElement);
+});
+window.addEventListener(DEVICE_DRAFT_SAVE, function saveBeforeInstall(event): void {
+  document.querySelectorAll<HTMLInputElement>('[data-todo-minutes], [data-todo-range]').forEach(saveFocusedDraft);
+  if (draftBases.size) (event as CustomEvent<DeviceDraftSaveRequest>).detail.reject(
+    element('todoError').textContent || '待辦仍有尚未儲存的輸入，請確認後再安裝或還原。');
 });
 
 element<HTMLDivElement>('todoList').addEventListener('input', function constrainTodoRange(event): void {

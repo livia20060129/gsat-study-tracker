@@ -9,6 +9,7 @@ import {
 import { compactConfirmedRecordStorage, isStorageQuotaError } from './localRecordCompaction.ts';
 import { invalidateLocalRecordHistory } from './localRecordHistory.ts';
 import { isCompressedLocalRecord } from '../../storage/localRecordCompression.ts';
+import { queueDeviceRecordCopy } from './deviceRecordBackup.ts';
 
 export interface KeyValueStorage {
   readonly length: number;
@@ -137,6 +138,7 @@ export class LocalStudyRecordRepository implements LocalStudyRecordRepositoryPor
       }
       this.lastEncoding = { key, compressed: isCompressedLocalRecord(encoded) };
       this.lastSaveError = '';
+      queueDeviceRecordCopy(this.storage, key, encoded);
       invalidateLocalRecordHistory(this.storage, key);
       if (typeof window !== 'undefined') window.dispatchEvent(new Event('study-records-changed'));
       return true;

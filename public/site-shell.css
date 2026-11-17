@@ -817,3 +817,40 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 @media(prefers-reduced-motion:reduce) {
   .has-site-shell .site-mobile-selection,.has-site-shell :is(.metric-segment-indicator,.mood-segment-indicator,.study-items-segment-indicator,.period-switch-indicator,.subject-switch-indicator,.vocabulary-content-kind-indicator,.vocabulary-grouping-indicator,.summary-mode-switch>span) { transition:none!important; }
 }
+.site-app-entry {
+  display:flex; align-items:center; justify-content:center; gap:9px; width:100%; min-height:44px;
+  margin-top:18px; padding:10px 14px; border:1px solid #cddcee; border-radius:12px;
+  background:#f4f8fe; color:#365c83; font:inherit; font-weight:650; cursor:pointer;
+  transition:background-color 160ms ease,transform 160ms ease;
+}
+.site-app-entry:hover { background:#e6f0fe; }
+.site-app-entry:active { transform:scale(.97); }
+.site-app-entry .ui-icon { width:20px; height:20px; }
+.site-app-dialog {
+  box-sizing:border-box; width:min(560px,calc(100% - 24px)); max-height:85vh; max-height:85dvh;
+  overflow:auto; overscroll-behavior:contain; padding:22px; border:1px solid #d5e1ef; border-radius:20px;
+  background:#fff; color:#1c2e43; box-shadow:0 18px 70px #152d4d30;
+  font:15px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.site-app-dialog::backdrop { background:#19334f66; }
+.site-app-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.site-app-dialog h2 { margin:0; padding:0; border:0; font-size:21px; line-height:1.4; }
+.site-app-dialog h3 { margin:0 0 8px; font-size:17px; }
+.site-app-dialog p { margin:8px 0 12px; overflow-wrap:anywhere; }
+.site-app-dialog section { padding:18px 0; border-bottom:1px solid #e4ebf3; }
+.site-app-dialog button {
+  display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:44px;
+  padding:9px 14px; border:1px solid #cbdced; border-radius:11px; background:#f3f7fe;
+  color:#24558d; font:inherit; font-weight:600; cursor:pointer;
+}
+.site-app-dialog button:hover { background:#e4efff; }
+.site-app-dialog button:disabled { cursor:default; opacity:.5; }
+.site-app-dialog [data-app-install] { background:#315cf5; color:white; border-color:#315cf5; }
+.site-app-dialog [data-app-close] { width:40px; min-height:40px; padding:0; flex-shrink:0; font-size:25px; }
+.site-app-actions { display:flex; flex-wrap:wrap; gap:9px; }
+.site-app-dialog .site-app-note { color:#60748c; font-size:13px; }
+.site-app-dialog summary { cursor:pointer; color:#315e94; }
+.site-app-dialog [data-app-status] { min-height:1.6em; color:#247252; margin-bottom:0; }
+.site-app-dialog [data-app-status][data-error="true"] { color:#a83d35; }
+.site-app-dialog [hidden] { display:none!important; }
+@media (prefers-reduced-motion:reduce) { .site-app-entry { transition:none; } }

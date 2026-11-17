@@ -31,6 +31,8 @@ import { ACTIVE_RECORD_PREFIX_KEY, LEGACY_UNSCOPED_PREFIX, initialRecordPrefix, 
 import { browserAuthPersistence, createPersistentAuthStorage } from './infrastructure/storage/browserAuthStorage.ts';
 import { createSessionRestorationGate } from './application/cloud/sessionRestoration.ts';
 import { beginGoogleAuthentication, cleanGoogleAuthReturnUrl, completeGoogleAuthReturn, GoogleAuthDraftError, googleAuthErrorMessage, googleAuthFetch, hasGoogleIdentity, prepareGoogleAuthReturn } from './application/cloud/googleAccountAuth.ts';
+import { captureDeviceRecords } from './infrastructure/storage/deviceRecordBackup.ts';
+import { DEVICE_DRAFT_SAVE } from './ui/devicePreparation.ts';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
@@ -1166,6 +1168,10 @@ function saveGoogleAuthDraft(){
  if(saved){recordSaveFeedback.clear();return true}
  var error=new GoogleAuthDraftError(recordSaveFailureReason());id('status').textContent=error.message;recordSaveFeedback.show(error.message);throw error;
 }
+window.addEventListener(DEVICE_DRAFT_SAVE,function(event){
+ try{if(!persist(false))event.detail.reject('目前輸入尚未儲存：'+recordSaveFailureReason());else recordSaveFeedback.clear()}
+ catch(error){event.detail.reject('目前輸入尚未儲存：'+(error&&error.message?error.message:recordSaveFailureReason()))}
+});
 async function cloudGoogleAuthenticate(){
  if(!cloudClient||!cloudGoogleAuthStorage||cloudAuthPending||cloudSessionRestoring)return;
  var userId=cloudUser?cloudUser.id:null;
@@ -1179,7 +1185,7 @@ async function cloudGoogleAuthenticate(){
     linkIdentity:function(options){return cloudClient.auth.linkIdentity(options)}
    },storage:cloudGoogleAuthStorage,supabaseUrl:SUPABASE_URL,href:window.location.href,
    date:id('studyDate').value,userId:userId,currentUserId:function(){return cloudUser?cloudUser.id:null},
-   saveDraft:saveGoogleAuthDraft,redirect:function(url){window.location.assign(url)}
+   saveDraft:saveGoogleAuthDraft,beforeRedirect:function(){return captureDeviceRecords(store,STORE_PREFIX).then(function(){})},redirect:function(url){window.location.assign(url)}
   });
  }catch(error){cloudGoogleSetMessage(googleAuthErrorMessage(error),false)}
  finally{setCloudAuthPending(false)}

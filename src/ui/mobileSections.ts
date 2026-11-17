@@ -60,7 +60,7 @@ export function initializeMobileSections(left: HTMLElement, right: HTMLElement, 
 
   function contentNodes(): HTMLElement[] {
     return [...document.body.children].filter((node): node is HTMLElement =>
-      node instanceof HTMLElement && !node.matches('.site-rail,.site-mobile-bar,.site-mobile-motion-layer,script,style,link'));
+      node instanceof HTMLElement && !node.matches('.site-rail,.site-mobile-bar,.site-mobile-motion-layer,dialog,script,style,link'));
   }
 
   function sectionRoots(active: MobileSection): HTMLElement[] {
