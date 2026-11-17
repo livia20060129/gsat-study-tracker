@@ -6,10 +6,21 @@ import { captureDeviceRecords, parseDeviceSnapshot, restoreMissingDeviceRecords,
 import { compactConfirmedRecordStorage } from '../src/infrastructure/storage/localRecordCompaction.ts';
 import { decodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from '../src/storage/local.ts';
+import { siteNavigationPage } from '../src/ui/siteNavigation.ts';
 
 const prefix = 'study-v11:guest:', date = '2026-11-15';
 const record = { schemaVersion: 2, date, notes: '保留筆記'.repeat(800), items: [], dirty: true,
   cloudBase: { date, notes: '原始雲端內容', items: [] }, extraLegacy: { preserve: ['字詞', 42] } };
+
+/** Build inputs and routed public pages define the app; archived HTML is reference material. */
+function appEntryHtmlPaths(config: string, publicFiles: readonly string[]): string[] {
+  const input = config.match(/\binput:\s*\{([^}]*)\}/)?.[1];
+  const built = [...(input ?? '').matchAll(/:\s*['"]\.\/([^'"]+\.html)['"]/g)].map(match => match[1]);
+  assert.ok(built.length, 'Vite HTML build inputs must be available for the install metadata check');
+  const copied = publicFiles.filter(name => name.endsWith('.html') && !built.includes(name)
+    && siteNavigationPage('/' + name.slice(0, -5)) === name).map(name => 'public/' + name);
+  return [...new Set([...built, ...copied])].sort();
+}
 function fixture() {
   const values = new Map<string, string>([[ACTIVE_RECORD_PREFIX_KEY, prefix], [prefix + date, JSON.stringify(record)]]);
   const storage: Storage = { get length() { return values.size; }, key: index => [...values.keys()][index] ?? null,
@@ -110,16 +121,27 @@ test('post-backup compaction skips changed records and other accounts, retaining
   f.values.set(prefix + date, JSON.stringify({ ...record, notes: 'changed' }));
   assert.equal(compactConfirmedRecordStorage(f.storage, new Map(snapshot.entries.map(row => [row.key, row.raw]))), 0);
 });
+test('install entry selection follows build inputs and routed public pages rather than archived HTML', () => {
+  const archive = 'GSAT_Google_Calendar_Prompt_latest_2026-09-16.html';
+  const config = `input: { tracker: './index.html', catalog: './material.catalog.html', siteShell: './src/site-shell.ts' }`;
+  const publicFiles = ['index.html', 'gpt.prompt.html', 'privacy.html', archive, 'notes.html', 'book.png'];
+  assert.deepEqual(appEntryHtmlPaths(config, publicFiles), ['index.html', 'material.catalog.html', 'public/gpt.prompt.html', 'public/privacy.html']);
+  assert.ok(appEntryHtmlPaths(`input: { reference: './${archive}' }`, []).includes(archive));
+  assert.throws(() => appEntryHtmlPaths('input: {}', publicFiles), /HTML build inputs/);
+});
+
 test('install metadata covers all entry pages and real icon sizes without an offline worker', () => {
   const root = new URL('../', import.meta.url), manifest = JSON.parse(readFileSync(new URL('public/manifest.webmanifest', root), 'utf8'));
   assert.equal(manifest.display, 'standalone'); assert.equal(manifest.id, './'); assert.equal(manifest.scope, './');
   assert.equal(manifest.start_url, './index.html?source=pwa');
-  for (const directory of ['', 'public/']) for (const page of readdirSync(new URL(directory || '.', root)).filter(name => name.endsWith('.html'))) {
-    const html = readFileSync(new URL(directory + page, root), 'utf8');
-    assert.match(html, /rel="manifest" href="\.\/manifest\.webmanifest"/, page);
-    assert.equal([...html.matchAll(/rel="manifest"/g)].length, 1, page);
-    assert.doesNotMatch(html.slice(html.indexOf('<body')), /rel="manifest"|apple-mobile-web-app-capable/, page);
-    assert.match(html, /apple-mobile-web-app-capable/);
+  const config = readFileSync(new URL('vite.config.ts', root), 'utf8');
+  const entries = appEntryHtmlPaths(config, readdirSync(new URL('public/', root)));
+  for (const page of entries) {
+    const html = readFileSync(new URL(page, root), 'utf8');
+    assert.ok(/rel="manifest" href="\.\/manifest\.webmanifest"/.test(html), `${page}: missing App manifest link`);
+    assert.equal([...html.matchAll(/rel="manifest"/g)].length, 1, `${page}: expected exactly one App manifest`);
+    assert.ok(!/rel="manifest"|apple-mobile-web-app-capable/.test(html.slice(html.indexOf('<body'))), `${page}: install metadata must stay in the document head`);
+    assert.ok(/apple-mobile-web-app-capable/.test(html), `${page}: missing Apple web app metadata`);
   }
   for (const icon of manifest.icons) {
     const png = readFileSync(new URL('public/' + icon.src, root)); const size = Number(icon.sizes.split('x')[0]);
