@@ -8,6 +8,7 @@ import { VocabularySpeech, type VocabularyAccent } from './ui/vocabularySpeech.t
 import { VOCABULARY_DICTIONARY_KEY, vocabularyDictionary, vocabularyDictionaryLink, type VocabularyDictionary } from './ui/vocabularyDictionaryLinks.ts';
 import { patchChildOrder } from './ui/patchChildOrder.ts';
 import { ProgressiveEntries } from './ui/progressiveEntries.ts';
+import { DEVICE_DRAFT_SAVE, type DeviceDraftSaveRequest } from './ui/devicePreparation.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   normalizedGsatVocabularyLevel,
@@ -44,6 +45,10 @@ let translationsVisible = true;
 let selectedDictionary: VocabularyDictionary = 'oxford';
 try { selectedDictionary = vocabularyDictionary(localStorage.getItem(VOCABULARY_DICTIONARY_KEY)); } catch { /* Optional display preference. */ }
 const editingEntryKeys = new Set<string>();
+window.addEventListener(DEVICE_DRAFT_SAVE, event => {
+  if (editingEntryKeys.size) (event as CustomEvent<DeviceDraftSaveRequest>).detail.reject(
+    '單字編輯尚未結束，請先完成編輯並確認翻譯，再更新、安裝或還原。');
+});
 const dictionaryPreviews = new WeakMap<HTMLElement, DictionaryPreview>();
 const rowCache = new Map<string, { signature: string; node: HTMLElement }>();
 const groupCache = new Map<string, HTMLElement>();

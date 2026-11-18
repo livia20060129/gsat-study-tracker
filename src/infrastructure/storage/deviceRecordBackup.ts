@@ -53,7 +53,8 @@ export function browserDeviceBackupVault(factory: IDBFactory): DeviceBackupVault
       const tx = database.transaction(stores, mode);
       tx.oncomplete = () => resolve(value);
       tx.onabort = tx.onerror = () => reject(new Error(BACKUP_ERROR));
-      try { action(tx, result => { value = result; }); } catch { tx.abort(); }
+      try { action(tx, result => { value = result; }); }
+      catch { try { tx.abort(); } catch { /* A storage failure may already have aborted this transaction. */ } reject(new Error(BACKUP_ERROR)); }
     });
   }
   async function put(entry: DeviceRecordCopy): Promise<void> {

@@ -1,13 +1,14 @@
-# App 安裝與裝置資料（v171.6.186）
+# App 安裝、離線與更新（v171.6.187）
 
-本版完成第一、二階段：可安裝的網站設定，以及登入前資料保護、裝置備份、容量整理與缺少日期還原。功能選單最下方新增「安裝與資料」。
+本版延續第一、二階段的安裝與裝置資料保護，加入第三階段離線頁面、安全更新，以及第四階段的自動驗證與發布檢查。入口在功能選單最下方「安裝與資料」。實際桌面、Android、iPhone 安裝與鎖屏測試，須在部署後依 APP_RELEASE_CHECKLIST.md 驗收。
 
 ## 部署
 
 1. 依覆蓋說明合併檔案，執行 `npm ci`、`npm run build`，沿用既有部署方式。
 2. 使用原本的 HTTPS 網址。每個頁面均指向同一份 `manifest.webmanifest`；必須部署 `public/icons` 產生的圖示與整份建置結果。
 3. 既有 Google 登入回傳網址維持 `index.html?google_auth=1`。沒有新增 OAuth 用戶端、Supabase 專案、SQL migration、Edge Function 或登入提供者設定。
-4. 部署後先保存舊分頁的輸入，再重新整理以載入新版。
+4. 執行 `npm run check:app` 核對正式檔案；整份 `dist` 一次發布，包含新產生的 `app-worker.js`、`app-release.json`。不要只上傳個別 HTML，或覆蓋不同建置版本的資產。
+5. 部署後先保存舊分頁的輸入，再重新整理以載入新版。新版自動提示與更新只在啟用離線功能後生效。
 
 ## 安裝
 
@@ -49,9 +50,37 @@
 
 Google 登入跳轉前，先保存目前輸入並等待裝置備份完成。備份失敗、帳號改變或其他分頁啟動較新的登入時，不繼續舊跳轉，也不清除新分頁的登入資料。
 
-## 範圍與驗收
+## 第三階段：離線使用
 
-本版不註冊離線 Service Worker，不會把登入、翻譯或同步 API 回應存入頁面快取。首次開啟及重新載入仍需連線；離線開啟、更新管理與商店上架屬於後續階段。雲端同步仍沿用載入、手動操作及既有 Actions。
+1. 先連線，於「安裝與資料」選「準備離線使用」。首次下載約 11 MB，包含所有正式入口、程式、樣式、核心詞庫與 PDF 所需字型。
+2. 等待「離線頁面已核對」。頁面檔案由相同建置產生，逐檔核對 SHA-256，完整下載才讓離線版本生效。一般瀏覽不會自動下載整包。
+3. 之後可離線開啟／重新載入首頁、待辦、總結、教材、單字及排程說明；本機紀錄仍沿用原保存、驗證、帳號隔離與衝突規則，可離線匯出 PDF／Word。
+4. ECDICT 擴充詞庫採實際查詢時下載，保留最近 64 組。未下載或被淘汰的部分需連線取得，未保存的 Google 翻譯不能離線產生。辭典外部連結與裝置未安裝的語音仍可能需要網路。
+5. Google 登入、Calendar、雲端同步及 Google 翻譯需要連線。網路恢復不新增背景輪詢或無限重試；同步仍依載入、手動操作與既有 Actions 觸發。
+
+快取只有明確列出的公開靜態檔與詞庫，沒有帳號紀錄、Token、API 回應或帶 OAuth code 的 URL。Google 返回時沿用同一版靜態 HTML，授權查詢參數只留在瀏覽器網址供原登入程式處理。普通歷史參考 HTML 不屬於離線 App 入口。
+
+離線檔不足時，只有核對同版內容成功才補回；可連線後再選「準備離線使用」。容量不足或下載失敗保留原紀錄和原本完整的 App 版本。網站儲存仍受瀏覽器容量與清除規則限制。
+
+## 第三階段：安全更新
+
+啟用離線功能後，開啟 App 會依瀏覽器的 Service Worker 更新流程檢查版本；也可在「安裝與資料」按「檢查更新」。不設背景定時輪詢。
+
+新版完整下載後顯示「查看更新」，不搶走焦點或自動重新整理。選「儲存並更新」時：
+
+1. 保存目前輸入，沿用各頁驗證與衝突保護；教材與單字編輯要先完成或取消。
+2. 將目前帳號已保存紀錄寫入裝置備份並讀回核對。
+3. 再次確認帳號、輸入與紀錄沒有變動。
+4. 確認此網站／App 只剩一個視窗；其他分頁仍開啟時請先保存並關閉，再重試。
+5. 明確同意後才啟用新版並重新載入，保留原網址、日期、本機紀錄與計時資料。
+
+下載中斷、內容不符、保存或備份失敗時不更新，繼續使用原完整版本。只整理此 App 自己的舊版本快取，保留上一版檔案及已下載詞庫；不清除 localStorage、IndexedDB、登入資料或其他網站快取。
+
+## 第四階段：驗證與發布
+
+發布前執行 `npm test`、`npm run test:e2e`、`npm run check:app`。`npm run test:pwa` 可單獨驗證安裝、資料保護、離線與安全更新；完整測試仍涵蓋原有登入、Calendar、計時、發音、匯出、導覽及版面。
+
+GitHub Actions 會在正式建置後核對 release index 的逐檔大小與 SHA-256，再上傳發布成品。Windows／Android／iPhone 的實機項目、失敗時處理及回復方式見 [APP_RELEASE_CHECKLIST.md](APP_RELEASE_CHECKLIST.md)。
 
 瀏覽器測試可驗證畫面、模擬安裝事件、資料庫寫入／還原及 OAuth 回跳。實際安裝到桌面／手機、系統圖示、外部 Google 授權回到 App 的行為，需在部署後以目標裝置驗收，不以模擬事件代替實機確認。
 
@@ -61,3 +90,5 @@ Google 登入跳轉前，先保存目前輸入並等待裝置備份完成。備�
 - [Chrome：使用網頁應用程式](https://support.google.com/chrome/answer/9658361?hl=zh-Hant)
 - [MDN：PWA 安裝要求](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable)
 - [MDN：儲存容量與清除規則](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria)
+- [Component Gallery：Alert](https://component.gallery/components/alert/)
+- [Service Worker 生命週期](https://web.dev/articles/service-worker-lifecycle)

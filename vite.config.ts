@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { SITE_SECURITY_HEADERS, cloudflareSecurityHeaders, injectStaticSecurityMeta } from './src/config/siteSecurityHeaders.ts';
 
 import { assertSafeViteEnvironment } from './src/config/publicEnvironment.ts';
+import { buildOfflineRelease } from './scripts/pwaBuild.ts';
 
 function createViteConfig({ mode }: ConfigEnv): UserConfig {
   assertSafeViteEnvironment(loadEnv(mode, process.cwd(), ''));
@@ -19,6 +20,7 @@ function createViteConfig({ mode }: ConfigEnv): UserConfig {
       for (const name of readdirSync(resolve('dist')).filter(name=>name.endsWith('.html'))) {
         const path=resolve('dist',name); writeFileSync(path,injectStaticSecurityMeta(readFileSync(path,'utf8')));
       }
+      buildOfflineRelease(resolve('dist'), JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version);
     } }, { name: 'shared-site-shell', configureServer(server) {
       server.middlewares.use((request, _response, next) => { if (request.url === '/site-shell.js') request.url = '/src/site-shell.ts'; next(); });
     } }],

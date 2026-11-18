@@ -4,6 +4,7 @@ import { captureDeviceRecords, deviceBackupVault, isDeviceRecordKey, parseDevice
 import { compactConfirmedRecordStorage } from '../infrastructure/storage/localRecordCompaction.ts';
 import { saveBeforeDeviceOperation } from './devicePreparation.ts';
 import { decodeStudyRecord } from '../storage/studyRecordCodec.ts';
+import { initializeOfflineApp } from './offlineApp.ts';
 
 interface InstallPrompt extends Event {
   prompt(): Promise<void>;
@@ -30,9 +31,10 @@ export function initializeInstallableApp(): void {
     <button type="button" data-app-persist>保留裝置資料</button></div>
     <p data-app-backup-info></p><details data-app-recovery hidden><summary>還原缺少的日期</summary><p data-app-missing></p>
     <button type="button" data-app-restore>確認還原缺少紀錄</button><p class="site-app-note">現有日期保留。若需處理已有日期，可將下載備份貼到首頁「匯入進度」預覽確認。</p></details>
-    <p class="site-app-note">裝置備份不包含登入憑證。Google 翻譯、Calendar 與雲端同步需要網路。首次開啟及重新載入頁面也需要連線。</p></section>
+    <p class="site-app-note">裝置備份不包含登入憑證。Google 翻譯、Calendar 與雲端同步需要網路。完成離線準備後，可離線開啟及重新載入主要頁面。</p></section>
     <p data-app-status role="status" aria-live="polite"></p>`;
   document.body.append(dialog);
+  const offline = initializeOfflineApp(dialog, { run, openSettings: () => entry.click() });
   const find = <T extends HTMLElement>(selector: string): T => dialog.querySelector<T>(selector)!;
   const install = find<HTMLButtonElement>('[data-app-install]');
   const standalone = (): boolean => matchMedia('(display-mode: standalone)').matches
@@ -99,6 +101,7 @@ export function initializeInstallableApp(): void {
       dialog.querySelectorAll<HTMLButtonElement>('section button').forEach(button => { button.disabled = false; });
       find<HTMLButtonElement>('[data-app-export]').disabled = !recovery?.entries.length && !localCount;
       installState();
+      offline.refresh();
     }
   }
   function download(snapshot: DeviceRecordSnapshot): void {

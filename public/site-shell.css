@@ -854,3 +854,20 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 .site-app-dialog [data-app-status][data-error="true"] { color:#a83d35; }
 .site-app-dialog [hidden] { display:none!important; }
 @media (prefers-reduced-motion:reduce) { .site-app-entry { transition:none; } }
+
+/* Component Gallery alert pattern: compact, persistent action without moving page content. */
+.site-app-update {
+  position:fixed; z-index:1300; left:50%; bottom:max(16px,env(safe-area-inset-bottom)); transform:translateX(-50%);
+  box-sizing:border-box; display:flex; align-items:center; justify-content:center; gap:14px;
+  width:max-content; max-width:calc(100% - 28px); padding:14px 18px; border:1px solid #bed4f1;
+  border-radius:16px; background:#f1f7ff; color:#274c75; box-shadow:0 8px 30px #173c631c;
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.site-app-update[hidden] { display:none; }
+.site-app-update button {
+  flex:none; min-height:44px; padding:8px 13px; border:0; border-radius:10px;
+  background:#315cf5; color:#fff; font:inherit; font-weight:650; cursor:pointer;
+}
+.site-app-update button:focus-visible { outline:3px solid #315cf5; outline-offset:3px; }
+.site-app-dialog [data-offline-info][data-error=true] { color:#a83d35; }
+.site-app-dialog [data-offline-update] { background:#315cf5; color:#fff; }

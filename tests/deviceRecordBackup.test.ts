@@ -130,7 +130,7 @@ test('install entry selection follows build inputs and routed public pages rathe
   assert.throws(() => appEntryHtmlPaths('input: {}', publicFiles), /HTML build inputs/);
 });
 
-test('install metadata covers all entry pages and real icon sizes without an offline worker', () => {
+test('install metadata covers all entry pages and real icon sizes', () => {
   const root = new URL('../', import.meta.url), manifest = JSON.parse(readFileSync(new URL('public/manifest.webmanifest', root), 'utf8'));
   assert.equal(manifest.display, 'standalone'); assert.equal(manifest.id, './'); assert.equal(manifest.scope, './');
   assert.equal(manifest.start_url, './index.html?source=pwa');

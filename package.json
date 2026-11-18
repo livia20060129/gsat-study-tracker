@@ -1,7 +1,7 @@
 {
   "name": "gsat-study-tracker-v171",
   "private": true,
-  "version": "171.6.186",
+  "version": "171.6.187",
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
@@ -13,6 +13,8 @@
     "test": "node --experimental-strip-types --test \"tests/*.test.ts\"",
     "test:edge": "deno test --config supabase/functions/google-calendar/deno.json --frozen --allow-env supabase/tests",
     "test:e2e": "npm run build && playwright test",
+    "test:pwa": "npm run build && playwright test e2e/offlineApp.spec.ts e2e/installableApp.spec.ts",
+    "check:app": "node --experimental-strip-types scripts/checkAppRelease.ts",
     "benchmark:runtime": "node --experimental-strip-types scripts/benchmark_runtime.ts"
   },
   "devDependencies": {

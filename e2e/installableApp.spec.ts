@@ -27,7 +27,7 @@ async function open(page: Page): Promise<void> {
   await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
 }
 
-test('every installed entry shares one identity and real app icons without claiming offline support', async ({ page, request }) => {
+test('every installed entry shares one identity and real app icons with explicit offline preparation', async ({ page, request }) => {
   for (const path of ['/', '/todo.html', '/summary.html', '/material.progress.html', '/vocabulary.review.html', '/gpt.prompt.html', '/privacy.html']) {
     await page.goto(path);
     await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', './manifest.webmanifest');
@@ -38,7 +38,8 @@ test('every installed entry shares one identity and real app icons without claim
   const manifest = await response.json(); expect(manifest.display).toBe('standalone'); expect(manifest.id).toBe('./');
   for (const icon of manifest.icons) expect((await request.get('/' + icon.src)).ok()).toBe(true);
   await open(page);
-  await expect(page.locator('#siteAppDialog')).toContainText('重新載入頁面也需要連線');
+  await expect(page.locator('#siteAppDialog')).toContainText('完成離線準備後');
+  await expect(page.locator('[data-offline-info]')).toContainText('尚未準備離線頁面');
 });
 
 test('install prompts require a verified backup, use the click activation, and preserve account-specific source data', async ({ page }, info) => {

@@ -18,7 +18,9 @@ export const SITE_SECURITY_HEADERS: Record<string, string> = {
 export function cloudflareSecurityHeaders(): string {
   return '/*\n' + Object.entries(SITE_SECURITY_HEADERS).map(([name, value]) => `  ${name}: ${value}`).join('\n')
     + '\n\n/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n'
-    + '\n/manifest.webmanifest\n  Content-Type: application/manifest+json\n  Cache-Control: no-cache\n';
+    + '\n/manifest.webmanifest\n  Content-Type: application/manifest+json\n  Cache-Control: no-cache\n'
+    + '\n/app-worker.js\n  Content-Type: application/javascript\n  Cache-Control: no-cache, no-store, must-revalidate\n'
+    + '\n/app-release.json\n  Cache-Control: no-cache, no-store, must-revalidate\n';
 }
 
 /** Static hosts such as GitHub Pages still enforce the script policy via HTML. */
