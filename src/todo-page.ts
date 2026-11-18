@@ -985,8 +985,8 @@ element<HTMLDivElement>('todoList').addEventListener('focusout', function saveOn
 window.addEventListener('pagehide', function saveBeforeLeaving(): void {
   if (document.activeElement instanceof HTMLInputElement) saveFocusedDraft(document.activeElement);
 });
-window.addEventListener(DEVICE_DRAFT_SAVE, function saveBeforeInstall(event): void {
-  if (!(event as CustomEvent<DeviceDraftSaveRequest>).detail.checkOnly) document.querySelectorAll<HTMLInputElement>('[data-todo-minutes], [data-todo-range]').forEach(saveFocusedDraft);
+window.addEventListener(DEVICE_DRAFT_SAVE, function saveDeviceDraft(event): void {
+  document.querySelectorAll<HTMLInputElement>('[data-todo-minutes], [data-todo-range]').forEach(saveFocusedDraft);
   if (draftBases.size) (event as CustomEvent<DeviceDraftSaveRequest>).detail.reject(
     element('todoError').textContent || '待辦仍有尚未儲存的輸入，請確認後再安裝或還原。');
 });

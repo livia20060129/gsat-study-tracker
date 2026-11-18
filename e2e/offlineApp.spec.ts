@@ -158,7 +158,22 @@ test('waiting updates preserve drafts, refuse another open tab and activate only
   await expect(page.locator('#siteAppDialog')).not.toBeVisible();
   await expect(page.locator('#notes')).toHaveValue('更新前最後草稿');
   await open(page); await expect(page.locator('[data-offline-info]')).toContainText('171.6.next');
-  await expect(page.locator('[data-app-backup-info]')).toContainText('1 天');
+  const snapshot = await page.evaluate(() => new Promise<{ content: string }>((resolve, reject) => {
+    const request = indexedDB.open('gsat-study-tracker-record-backups', 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result, tx = database.transaction('snapshots', 'readonly');
+      const read = tx.objectStore('snapshots').get('study-v11:guest:latest');
+      read.onsuccess = () => resolve(read.result);
+      tx.oncomplete = () => database.close(); tx.onerror = () => reject(tx.error);
+    };
+  }));
+  const entries = JSON.parse(snapshot.content).entries as { key: string; raw: string }[];
+  const copy = entries.find(entry => entry.key === prefix + day);
+  expect(copy).toBeDefined();
+  const decoded = decodeStudyRecord(copy!.raw, day);
+  expect(decoded.ok).toBe(true);
+  if (decoded.ok) expect(decoded.record.notes).toBe('更新前最後草稿');
 });
 
 test('an offline running timer resumes from elapsed wall time across navigation and reload', async ({ page, context, browserName }) => {

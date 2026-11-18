@@ -849,7 +849,6 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 .site-app-dialog [data-app-close] { width:40px; min-height:40px; padding:0; flex-shrink:0; font-size:25px; }
 .site-app-actions { display:flex; flex-wrap:wrap; gap:9px; }
 .site-app-dialog .site-app-note { color:#60748c; font-size:13px; }
-.site-app-dialog summary { cursor:pointer; color:#315e94; }
 .site-app-dialog [data-app-status] { min-height:1.6em; color:#247252; margin-bottom:0; }
 .site-app-dialog [data-app-status][data-error="true"] { color:#a83d35; }
 .site-app-dialog [hidden] { display:none!important; }

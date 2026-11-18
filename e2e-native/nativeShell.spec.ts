@@ -37,7 +37,7 @@ async function openApp(page: Page): Promise<void> {
 }
 test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
 
-test('bundled native pages keep manual install hidden and share a verified backup through the system sheet', async ({ page }, info) => {
+test('bundled native settings hide install and backup controls while preserving records and account help', async ({ page }, info) => {
   await bridge(page, info.project.name === 'ios-bridge');
   await page.goto('/privacy.html');
   await page.evaluate(date => {
@@ -47,13 +47,12 @@ test('bundled native pages keep manual install hidden and share a verified backu
   await openApp(page);
   await expect(page.locator('[data-app-install]')).toBeHidden();
   await expect(page.locator('[data-offline-info]')).toContainText('App 已內建離線頁面');
-  await page.locator('[data-app-export]').click();
-  await expect(page.locator('[data-app-status]')).toContainText('已開啟備份分享選單');
+  await expect(page.locator('#siteAppDialog')).not.toContainText('裝置備份與容量');
+  await expect(page.locator('[data-app-export], [data-app-backup], [data-app-persist]')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: '申請刪除帳號與資料' })).toHaveAttribute('href', 'https://myself.liviayeh.dev/support.html#account-deletion');
   const calls = await page.evaluate(() => window.nativeProbe.calls);
-  const write = calls.find(call => call.plugin === 'Filesystem' && call.method === 'writeFile')!;
-  const backup = JSON.parse(Buffer.from(write.options.data,'base64').toString());
-  expect(backup.records[0].notes).toBe('原生 App 的備份');
-  expect(calls.find(call => call.plugin === 'Share')?.options.files[0]).toContain('file:///private-cache/gsat-exports/');
+  expect(calls.some(call => call.plugin === 'Filesystem' || call.plugin === 'Share')).toBe(false);
+  expect(await page.evaluate(date => JSON.parse(localStorage.getItem('study-v11:guest:' + date)!).notes, date)).toBe('原生 App 的備份');
   expect(await page.evaluate(() => navigator.serviceWorker?.controller)).toBeNull();
   await page.screenshot({ path: info.outputPath('native-app-settings.png') });
 });

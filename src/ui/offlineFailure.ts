@@ -6,7 +6,7 @@ export function offlineFailureMessage(failure: OfflineFailure): string {
     case 'http': return `${file}下載失敗${failure.status ? `（HTTP ${failure.status}）` : ''}，請確認整份建置檔案已部署後重試；原紀錄仍保留。`;
     case 'payload': return `${file}的離線副本格式不符，可能被部署頁面或驗證頁取代；請確認 offline-pages 已一併部署。`;
     case 'integrity': return `${file}與此版本的核對碼不符，請確認同一份建置已完整部署；原紀錄仍保留。`;
-    case 'quota': return `${file}無法寫入：網站離線快取容量不足。請先下載備份，再整理網站容量後重試。`;
+    case 'quota': return `${file}無法寫入：網站離線儲存容量不足，請確認裝置可用空間後重試；原紀錄仍保留。`;
     default: return `${file}無法寫入離線快取，請確認瀏覽器儲存權限後重試；原紀錄仍保留。`;
   }
 }

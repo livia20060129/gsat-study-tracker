@@ -109,7 +109,7 @@ export function queueDeviceRecordCopy(storage: KeyValueStorage, key: string, raw
 }
 
 function assertScope(storage: KeyValueStorage, prefix: string): void {
-  if (!validPrefix(prefix) || initialRecordPrefix(storage) !== prefix) throw new Error('帳號已變更，已停止處理；請重新開啟安裝與資料。');
+  if (!validPrefix(prefix) || initialRecordPrefix(storage) !== prefix) throw new Error('帳號已變更，已停止處理；請重新載入後再試。');
 }
 export async function readDeviceRecords(storage: KeyValueStorage, prefix: string): Promise<DeviceRecordSnapshot> {
   assertScope(storage, prefix);

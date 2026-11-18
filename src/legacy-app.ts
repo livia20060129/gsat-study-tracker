@@ -404,11 +404,6 @@ var CALENDAR_WRITING_TEST_PLAN={"2026-08-21":{"round":17,"focus":"基礎連接�
 
 var data=null;
 var dataLoadBase=null;
-var deviceDraftPending=false;
-window.addEventListener('input',function(event){
- var field=event.target;
- if(field&&field.matches&&field.matches('#notes,#mood,#wakeHour,#wakeMinute,#biggestBlock,#firstThingTomorrow,[data-item] input,[data-item] textarea,[data-item] select'))deviceDraftPending=true;
-},true);
 var localVisibleRefreshPending=false;
 var routineTimeMode='wake';
 var routineTimeDrafts={wake:{hour:'',minute:''},bedtime:{hour:'',minute:''}};
@@ -1176,11 +1171,6 @@ function saveGoogleAuthDraft(){
  var error=new GoogleAuthDraftError(recordSaveFailureReason());id('status').textContent=error.message;recordSaveFeedback.show(error.message);throw error;
 }
 window.addEventListener(DEVICE_DRAFT_SAVE,function(event){
- if(event.detail.checkOnly){
-  if(deviceDraftPending)event.detail.reject('目前畫面仍有尚未保存的輸入，請先儲存並完成同步。');
-  else if(!data||data.storageIssue||!validate().ok)event.detail.reject('目前輸入尚未確認：'+recordSaveFailureReason());
-  return;
- }
  try{if(!persist(false))event.detail.reject('目前輸入尚未儲存：'+recordSaveFailureReason());else recordSaveFeedback.clear()}
  catch(error){event.detail.reject('目前輸入尚未儲存：'+(error&&error.message?error.message:recordSaveFailureReason()))}
 });
@@ -4236,7 +4226,6 @@ function persist(show,options){
  var ok=false;
  try{ok=(!changed&&!!previous||writeStoredRecord(data))&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
  if(ok){
-  deviceDraftPending=false;
   if(rangeCompletionSignature(data)!==rangeCompletionSignature(previous)){
    var rangeSync=synchronizeLocalRanges();
    var rangeUpdated=rangeSync.saved.find(function(record){return record.date===data.date});if(rangeUpdated)data=rangeUpdated;

@@ -1,32 +1,23 @@
 # 最新更新
 
-版本：v171.6.190（個人版）
+版本：v171.6.191（個人版）
 
-## 第五階段：雙平台原生測試工程
+## 精簡安裝設定
 
-- 新增 Android 與 iPhone／iPad 的 Capacitor 8.6.2 工程，使用同一份 Tracker 程式與既有帳號。
-- 介面、詞庫、中文字型與匯出程式包進 App，可直接離線開啟。網頁版仍建置至 dist；原生 App 使用 dist-native，不啟用網頁 Service Worker 更新。
-- Google 登入改由系統瀏覽器授權，再回 App 沿用 PKCE 與原有帳號保護。Calendar 回傳目標納入既有 HMAC 與一次性 nonce 核對，不接受任意回跳網址。
-- PDF、Word、JSON 與原始紀錄備份使用系統分享；超過一天的匯出暫存於下次匯出清理，不清除讀書紀錄或登入資料。
-- 加入原生返回鍵、Prompt 複製、兩平台圖示、iOS 隱私清單，以及手動觸發的 GitHub 建置工作流程。
-- 原生最低 iOS／iPadOS 16.4；Android target SDK 36、最低 Android 7，WebView 107 以上。
+- 移除「裝置備份與容量」整區：備份並整理、下載／匯入備份、保留裝置資料、容量摘要及缺少日期還原。
+- 功能選單入口改為「安裝與更新」，只保留 App 安裝、離線準備與更新；原生 App 保留帳號刪除申請入口。
+- 安裝不再要求登入、同步完成或備份核對。開啟設定不掃描歷史紀錄、不檢查容量、不改寫紀錄或觸發同步。
+- 移除舊安裝備份門檻及專用監聽程式；既有讀書紀錄、裝置副本，以及保存、登入與更新流程的自動資料保護保留。
+- 保留對話框開關動畫、iPhone 加入主畫面說明、提早收到的安裝提示、安裝取消及失敗重試。
 
-## 套用與下一步
+## 套用
 
-先依 NATIVE_APP_SETUP.md，在現有 Supabase 的 Auth Redirect URLs 新增：
+依交付資料的覆蓋說明合併檔案並刪除列出的三個舊安裝輔助檔。執行 npm ci、npm test、npm run build、npm run check:app，再沿用原方式發布整份 dist。沒有新套件、SQL、Edge Function 或 Google／Supabase 設定。
 
-~~~text
-gsattracker://auth/callback?google_auth=1
-~~~
-
-再更新 google-calendar 與 google-calendar-callback，無 SQL migration 或新 secret。Google Cloud 原登入用戶端與 Supabase Google Provider 沿用。
-
-使用 npm ci、npm run native:sync、npm run native:check 準備工程。Android 需 SDK／Android Studio，iOS 需 Mac／Xcode 與自己的簽署設定。
-
-本機已完成原始碼與網頁層準備，沒有 Android SDK 或 macOS，尚未產生 APK／IPA，亦未執行線上建置、部署或商店送審。正式發布仍須完成 native/STORE_RELEASE.md 的 Apple 登入、App 內帳號刪除、簽章及實機驗收；不要將測試工程誤稱正式上架完成。
+原生 App 需另執行 npm run native:sync、npm run native:check，再依 NATIVE_APP_SETUP.md 打包。這次未部署、未執行線上建置、未產生 APK／IPA。
 
 English commit suggestion:
 
 ~~~text
-feat: add Android and iOS native app projects with secure auth callbacks
+refactor: simplify app settings and remove backup capacity controls
 ~~~

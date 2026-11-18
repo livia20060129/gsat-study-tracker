@@ -37,7 +37,7 @@ test('installation-era login waits for verified device backup after saving the f
 test('a failed device backup cancels the redirect with its own actionable reason', async () => {
   const f = fixture();
   await assert.rejects(beginGoogleAuthentication({ ...f.options, beforeRedirect: async () => { throw new Error('IDB aborted'); } }), error => {
-    assert.match(googleAuthErrorMessage(error), /裝置備份未完成/); return true;
+    assert.match(googleAuthErrorMessage(error), /紀錄保護尚未完成.*原有紀錄仍保留/); return true;
   });
   assert.equal(f.redirects.length, 0); assert.equal(f.store.values.has(GOOGLE_AUTH_INTENT_KEY), false);
 });

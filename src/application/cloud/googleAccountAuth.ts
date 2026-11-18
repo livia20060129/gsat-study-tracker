@@ -70,7 +70,7 @@ export function googleAuthErrorMessage(error: unknown): string {
   if (code === 'google_identity_mismatch') return '回傳帳號與原帳號不同，已停止綁定；原有紀錄仍保留。';
   if (code === 'google_auth_expired') return '登入連結已過期或缺少驗證資料，請重新使用 Google 登入。';
   if (code === 'google_auth_replaced') return '另一個分頁已開始新的 Google 登入，請在最新操作的分頁繼續。';
-  if (code === 'device_backup_unavailable') return '紀錄已保存在本機，但登入前的裝置備份未完成；請開啟「安裝與資料」檢查儲存空間後再試。';
+  if (code === 'device_backup_unavailable') return '登入前的紀錄保護尚未完成，請稍後重試；原有紀錄仍保留。';
   if (error instanceof Error && /storage|儲存|保存/i.test(error.message)) return '無法保存登入驗證資料，請確認瀏覽器允許此網站使用儲存空間後再試。';
   return 'Google 登入或綁定未完成，請確認網路與登入設定後再試；原有紀錄仍保留。';
 }
