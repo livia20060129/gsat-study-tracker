@@ -11,8 +11,10 @@ import { initializeDisclosureMotion } from './ui/disclosureMotion.ts';
 import { initializeMobileSections } from './ui/mobileSections.ts';
 import { initializeSelectionMotion } from './ui/selectionMotion.ts';
 import { initializeInstallableApp } from './ui/installableApp.ts';
+import { initializeNativePlatform } from './native/bootstrap.ts';
 import type { StudyItem, StudyRecord } from './types.ts';
 initializeDisclosureMotion();
+void initializeNativePlatform();
 const cache = new Map<string, {
     raw: string;
     record: StudyRecord;

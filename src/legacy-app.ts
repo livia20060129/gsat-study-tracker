@@ -33,6 +33,9 @@ import { createSessionRestorationGate } from './application/cloud/sessionRestora
 import { beginGoogleAuthentication, cleanGoogleAuthReturnUrl, completeGoogleAuthReturn, GoogleAuthDraftError, googleAuthErrorMessage, googleAuthFetch, hasGoogleIdentity, prepareGoogleAuthReturn } from './application/cloud/googleAccountAuth.ts';
 import { captureDeviceRecords } from './infrastructure/storage/deviceRecordBackup.ts';
 import { DEVICE_DRAFT_SAVE } from './ui/devicePreparation.ts';
+import { isNativeApp, openAuthorizationUrl, copyDeviceText } from './native/platform.ts';
+import { NATIVE_AUTH_RETURN_URL } from './native/nativePolicy.ts';
+import { saveBlob } from './ui/saveBlob.ts';
 import { incrementalSyncStart, latestServerWatermark, recordSyncWatermarkKey } from './storage/syncWatermark';
 import { calendarFixedTemplate } from './calendar/calendarBridge';
 import { prioritizeCalendarPageRanges } from './calendar/pagePriority';
@@ -1133,13 +1136,12 @@ async function cloudUndoConflictResolution(){
   return restored.ok;
  });
 }
-function downloadStorageRecovery(){
+async function downloadStorageRecovery(){
  var issue=data&&data.storageIssue?localStorageDecodeIssue(data.storageIssue.date):null;
  if(!issue){id('status').textContent='目前沒有可下載的損壞紀錄備份。';return}
  try{
-  var blob=new Blob([issue.raw],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
-  link.href=url;link.download='gsat-study-record-'+issue.date+'-original-backup.txt';document.body.appendChild(link);link.click();link.remove();
-  setTimeout(function(){URL.revokeObjectURL(url)},1000);id('status').textContent='已下載 '+issue.date+' 的原始本機資料備份。';
+  await saveBlob(new Blob([issue.raw],{type:'text/plain;charset=utf-8'}),'gsat-study-record-'+issue.date+'-original-backup.txt');
+  id('status').textContent=(isNativeApp()?'已開啟分享選單：':'已下載 ')+issue.date+' 的原始本機資料備份。';
  }catch(e){id('status').textContent='無法下載原始備份：'+(e&&e.message?e.message:String(e))}
 }
 async function repairStorageIssueFromCloud(){
@@ -1195,7 +1197,8 @@ async function cloudGoogleAuthenticate(){
     linkIdentity:function(options){return cloudClient.auth.linkIdentity(options)}
    },storage:cloudGoogleAuthStorage,supabaseUrl:SUPABASE_URL,href:window.location.href,
    date:id('studyDate').value,userId:userId,currentUserId:function(){return cloudUser?cloudUser.id:null},
-   saveDraft:saveGoogleAuthDraft,beforeRedirect:function(){return captureDeviceRecords(store,STORE_PREFIX).then(function(){})},redirect:function(url){window.location.assign(url)}
+   saveDraft:saveGoogleAuthDraft,beforeRedirect:function(){return captureDeviceRecords(store,STORE_PREFIX).then(function(){})},
+   returnUrl:isNativeApp()?NATIVE_AUTH_RETURN_URL:undefined,redirect:openAuthorizationUrl
   });
  }catch(error){cloudGoogleSetMessage(googleAuthErrorMessage(error),false)}
  finally{setCloudAuthPending(false)}
@@ -1406,8 +1409,8 @@ async function calendarConnect(){
  try{
   if(!googleCalendarClientConfig.isConfigured||!googleCalendarClientConfig.clientId)throw new Error(googleCalendarClientConfig.message);
   calendarSetMessage('正在建立 Google OAuth 連線…',true);
-  var r=await calendarInvoke('auth-url',{clientId:googleCalendarClientConfig.clientId});if(!calendarRequestCurrent(token))return;
-  if(!r.url)throw new Error('伺服器未回傳 Google 授權網址。');window.location.assign(String(r.url));
+  var r=await calendarInvoke('auth-url',{clientId:googleCalendarClientConfig.clientId,...(isNativeApp()?{nativeApp:true}:{})});if(!calendarRequestCurrent(token))return;
+  if(!r.url)throw new Error('伺服器未回傳 Google 授權網址。');await openAuthorizationUrl(String(r.url));
  }catch(e){calendarHandleUnavailable(token,e)}
 }
 async function calendarSyncNow(){
@@ -4487,8 +4490,8 @@ async function copyTextToClipboard(text){
  text=String(text==null?'':text);
  if(!text)return false;
  try{
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-   await navigator.clipboard.writeText(text);return true;
+  if(isNativeApp()||(navigator.clipboard&&navigator.clipboard.writeText)){
+   await copyDeviceText(text);return true;
   }
  }catch(e){}
  try{

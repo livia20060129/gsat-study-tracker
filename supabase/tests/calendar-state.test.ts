@@ -57,3 +57,19 @@ Deno.test('Calendar authorization requires a verified registered Auth user',asyn
     let accepted=false;try{await authenticatedUser(invalid,bad);accepted=true;}catch{/*rejected*/}assert(!accepted);
   }
 });
+
+Deno.test('native Calendar return is signed, exact and still consumes its one-use nonce',async()=>{
+  configure(); const {admin,issued}=fixture();
+  const state=await createOAuthState(userId,clientId,admin,true);
+  const result=await verifyOAuthState(state,admin);
+  assert(result.nativeApp===true); assert(result.userId===userId); assert(issued.size===0);
+  let replayed=false;try{await verifyOAuthState(state,admin);replayed=true;}catch{/*rejected*/}
+  assert(!replayed);
+  const other=fixture(),web=await createOAuthState(userId,clientId,other.admin);
+  const [payload,signature]=web.split('.');
+  const decoded=JSON.parse(atob(payload.replaceAll('-','+').replaceAll('_','/')));
+  decoded.nativeApp=true;
+  const tampered=btoa(JSON.stringify(decoded)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'')+'.'+signature;
+  let accepted=false;try{await verifyOAuthState(tampered,other.admin);accepted=true;}catch{/*rejected*/}
+  assert(!accepted);assert(other.issued.size===1);
+});

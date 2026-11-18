@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
     const admin = adminClient();
     const cfg = googleConfig();
-    const { userId, clientId } = await verifyOAuthState(state, admin);
+    const { userId, clientId, nativeApp } = await verifyOAuthState(state, admin);
     const tokens = await exchangeAuthorizationCode(code, clientId);
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
     const { error } = await admin.rpc('calendar_connection_write', { p_user_id: userId, p_tokens: {
@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
 
     try { await syncCalendarForUser(admin, userId); }
     catch (error) { if (!(error instanceof CalendarRequestError && error.code === 'calendar_sync_busy')) throw error; }
-    const target = new URL(cfg.appReturnUrl);
+    const target = new URL(nativeApp ? 'gsattracker://auth/calendar' : cfg.appReturnUrl);
     target.searchParams.set('calendar', 'connected');
     return calendarRedirectResponse(target.toString());
   } catch (error) {

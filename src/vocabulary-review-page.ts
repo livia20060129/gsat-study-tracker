@@ -9,6 +9,7 @@ import { VOCABULARY_DICTIONARY_KEY, vocabularyDictionary, vocabularyDictionaryLi
 import { patchChildOrder } from './ui/patchChildOrder.ts';
 import { ProgressiveEntries } from './ui/progressiveEntries.ts';
 import { DEVICE_DRAFT_SAVE, type DeviceDraftSaveRequest } from './ui/devicePreparation.ts';
+import { saveBlob } from './ui/saveBlob.ts';
 import { readMaterialProgressRecords } from './study/materialProgress.ts';
 import {
   normalizedGsatVocabularyLevel,
@@ -731,10 +732,7 @@ async function exportVocabulary(withTranslations: boolean): Promise<void> {
       const bytes = await vocabularyPdfDocument(entries, activeContentKind, withTranslations, await vocabularyPdfFont());
       blob = new Blob([Uint8Array.from(bytes)], { type: 'application/pdf' });
     }
-    const url = URL.createObjectURL(blob), link = document.createElement('a');
-    link.href = url; link.download = `英文${activeContentKind}表_${withTranslations ? '有' : '無'}翻譯.${format === 'docx' ? 'docx' : 'pdf'}`;
-    document.body.append(link); link.click(); link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    await saveBlob(blob, `英文${activeContentKind}表_${withTranslations ? '有' : '無'}翻譯.${format === 'docx' ? 'docx' : 'pdf'}`);
   } catch {
     element('vocabularyError').textContent = `${format === 'docx' ? 'DOCX' : 'PDF'} 匯出失敗，請稍後重試；原本的單字資料仍保留。`;
     element('vocabularyError').hidden = false;

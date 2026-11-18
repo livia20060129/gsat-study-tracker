@@ -115,8 +115,9 @@ export interface GoogleOAuthApi {
 export async function beginGoogleAuthentication(options: {
   auth: GoogleOAuthApi; storage: GoogleAuthStorage; supabaseUrl: string; href: string;
   date: string; userId: string | null; currentUserId(): string | null; saveDraft(): boolean;
-  redirect(url: string): void; now?: number; attempt?: string;
+  redirect(url: string): void | Promise<void>; now?: number; attempt?: string;
   beforeRedirect?(): Promise<void>;
+  returnUrl?: string;
 }): Promise<void> {
   const intent: GoogleAuthIntent = { version: 1, kind: options.userId ? 'link' : 'signin', userId: options.userId,
     date: options.date, startedAt: options.now ?? Date.now(), attempt: options.attempt ?? crypto.randomUUID() };
@@ -129,7 +130,8 @@ export async function beginGoogleAuthentication(options: {
   }
   await options.storage.setItem(GOOGLE_AUTH_INTENT_KEY, JSON.stringify(intent));
   try {
-    const request: OAuthOptions = { provider: 'google', options: { redirectTo: googleAuthReturnUrl(options.href),
+    if (options.returnUrl && options.returnUrl !== 'gsattracker://auth/callback?google_auth=1') throw new Error('Invalid native authentication return URL');
+    const request: OAuthOptions = { provider: 'google', options: { redirectTo: options.returnUrl ?? googleAuthReturnUrl(options.href),
       scopes: 'openid email profile', queryParams: { prompt: 'select_account' }, skipBrowserRedirect: true } };
     const result = intent.kind === 'link' ? await options.auth.linkIdentity(request) : await options.auth.signInWithOAuth(request);
     if (result.error) throw result.error;
@@ -149,7 +151,7 @@ export async function beginGoogleAuthentication(options: {
       if (prepared?.attempt !== intent.attempt) throw { code: 'google_auth_replaced' };
     }
     if (intent.kind === 'signin') url.searchParams.delete('skip_http_redirect');
-    options.redirect(url.href);
+    await options.redirect(url.href);
   } catch (error) {
     await clearGoogleAuthIntent(options.storage, intent.attempt).catch(() => {});
     throw error;

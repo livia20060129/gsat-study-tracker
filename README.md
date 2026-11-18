@@ -1,8 +1,10 @@
 # GSAT Study Tracker
 
-目前版本：**v171.6.189**
+目前版本：**v171.6.190**
 
 個人版學測讀書追蹤器，整合每日／每週項目、逾期待辦、Google Calendar 唯讀排程、Supabase 跨裝置同步、計時、完成率、教材進度與週／月總結。
+
+v171.6.190 開始第五階段的 Android 與 iPhone／iPad 原生 App：Capacitor 工程內建頁面與詞庫，新增系統瀏覽器 Google／Calendar 回跳、PDF／Word／備份分享、原生返回鍵與平台圖示。沿用既有帳號及資料格式，網頁版仍獨立建置。提供手動雙平台建置工作流程；本機尚無 Android SDK／Mac，尚未產生 APK／IPA 或上架。操作見 [NATIVE_APP_SETUP.md](NATIVE_APP_SETUP.md)，正式商店剩餘項目見 [native/STORE_RELEASE.md](native/STORE_RELEASE.md)。
 
 v171.6.189 讓已登入且同步確認完成的帳號，在「安裝與資料」自動備份並核對後直接安裝，不再要求手動點「備份並整理」。沿用既有登入、不額外同步、不改寫主紀錄；未保存輸入、備份失敗與帳號變更仍受保護。另新增《精通 高中生物總複習（上）整理篇》末頁 p.279 的四主題頁碼地圖，接入教材庫、Tracker 與教材進度。完整對照見 [BIOLOGY_MASTERY_PAGE_MAP.md](BIOLOGY_MASTERY_PAGE_MAP.md)。
 

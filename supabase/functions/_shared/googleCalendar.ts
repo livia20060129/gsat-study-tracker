@@ -146,7 +146,7 @@ async function hmac(value: string, secret: string): Promise<string> {
   return base64Url(new Uint8Array(signature));
 }
 
-export async function createOAuthState(userId: string, clientId: string, admin = adminClient()): Promise<string> {
+export async function createOAuthState(userId: string, clientId: string, admin = adminClient(), nativeApp = false): Promise<string> {
   const cfg = googleConfig();
   const nonce = crypto.randomUUID(), expiresAt = Date.now() + 15 * 60 * 1000;
   clientId = normalizeGoogleClientId(clientId);
@@ -156,12 +156,12 @@ export async function createOAuthState(userId: string, clientId: string, admin =
   if (error) throw error;
   const payload = base64Url(new TextEncoder().encode(JSON.stringify({
     userId,
-    clientId, expiresAt, nonce,
+    clientId, expiresAt, nonce, ...(nativeApp ? { nativeApp: true } : {}),
   })));
   return `${payload}.${await hmac(payload, cfg.stateSecret)}`;
 }
 
-export async function verifyOAuthState(state: string, admin = adminClient()): Promise<{ userId: string; clientId: string }> {
+export async function verifyOAuthState(state: string, admin = adminClient()): Promise<{ userId: string; clientId: string; nativeApp?: true }> {
   const cfg = googleConfig();
   try {
     if (state.length > 4096) throw new Error('oversized');
@@ -174,11 +174,12 @@ export async function verifyOAuthState(state: string, admin = adminClient()): Pr
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuid.test(decoded.userId) || !uuid.test(decoded.nonce) || !Number.isFinite(decoded.expiresAt)
       || decoded.expiresAt <= Date.now() || decoded.expiresAt > Date.now() + 16 * 60_000) throw new Error('claims');
+    if (decoded.nativeApp !== undefined && decoded.nativeApp !== true) throw new Error('return target');
     const clientId = normalizeGoogleClientId(decoded.clientId);
     const { data, error } = await admin.rpc('calendar_oauth_nonce_consume', { p_user_id: decoded.userId, p_nonce: decoded.nonce, p_client_id: clientId });
     if (error) throw error;
     if (data !== true) throw new Error('replayed');
-    return { userId: decoded.userId, clientId };
+    return { userId: decoded.userId, clientId, ...(decoded.nativeApp === true ? { nativeApp: true as const } : {}) };
   } catch {
     throw new CalendarRequestError('授權連結已失效或已使用，請重新連接 Google Calendar。', 400, 'invalid_oauth_state');
   }

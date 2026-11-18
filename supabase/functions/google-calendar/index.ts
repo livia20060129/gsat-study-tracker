@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     if (action === 'auth-url') {
       assertGoogleOAuthServerConfigured();
       const clientId = normalizeGoogleClientId(body.clientId);
-      const state = await createOAuthState(userId, clientId, admin);
+      const state = await createOAuthState(userId, clientId, admin, body.nativeApp === true);
       return json({ url: buildGoogleAuthorizationUrl(state, clientId) });
     }
     if (action === 'status') {

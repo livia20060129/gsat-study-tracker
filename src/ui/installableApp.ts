@@ -7,6 +7,8 @@ import { decodeStudyRecord } from '../storage/studyRecordCodec.ts';
 import { initializeOfflineApp } from './offlineApp.ts';
 import { accountInstallReceiptCurrent, prepareAccountInstall, type AccountInstallReceipt } from '../application/prepareAccountInstall.ts';
 import { INSTALL_AUTH_KEY, readInstallAccount } from '../infrastructure/storage/installAccount.ts';
+import { isNativeApp } from '../native/platform.ts';
+import { saveBlob } from './saveBlob.ts';
 
 interface InstallPrompt extends Event {
   prompt(): Promise<void>;
@@ -38,10 +40,16 @@ export function initializeInstallableApp(): void {
     <p class="site-app-note">裝置備份不包含登入憑證。Google 翻譯、Calendar 與雲端同步需要網路。完成離線準備後，可離線開啟及重新載入主要頁面。</p></section>
     <p data-app-status role="status" aria-live="polite"></p>`;
   document.body.append(dialog);
+  if (isNativeApp()) {
+    const accountHelp = document.createElement('p'); accountHelp.className = 'site-app-note';
+    const link = document.createElement('a'); link.href = 'https://myself.liviayeh.dev/support.html#account-deletion';
+    link.textContent = '申請刪除帳號與資料'; accountHelp.append(link);
+    dialog.querySelector('[data-app-backup-info]')!.after(accountHelp);
+  }
   const offline = initializeOfflineApp(dialog, { run, openSettings: () => entry.click() });
   const find = <T extends HTMLElement>(selector: string): T => dialog.querySelector<T>(selector)!;
   const install = find<HTMLButtonElement>('[data-app-install]');
-  const standalone = (): boolean => matchMedia('(display-mode: standalone)').matches
+  const standalone = (): boolean => isNativeApp() || matchMedia('(display-mode: standalone)').matches
     || (navigator as Navigator & { standalone?: boolean }).standalone === true;
   function status(message: string, error = false): void {
     const node = find('[data-app-status]'); node.textContent = message; node.dataset.error = String(error);
@@ -137,14 +145,12 @@ export function initializeInstallableApp(): void {
       offline.refresh();
     }
   }
-  function download(snapshot: DeviceRecordSnapshot): void {
+  async function download(snapshot: DeviceRecordSnapshot): Promise<void> {
     const records = snapshot.entries.flatMap(row => {
       const decoded = decodeStudyRecord(row.raw, row.key.slice(-10)); return decoded.ok ? [decoded.record] : [];
     });
-    const url = URL.createObjectURL(new Blob([JSON.stringify({ ...snapshot, records }, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a'); link.href = url;
-    link.download = `GSAT-Tracker-${snapshot.prefix.includes(':guest:') ? 'guest' : 'account'}-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    await saveBlob(new Blob([JSON.stringify({ ...snapshot, records }, null, 2)], { type: 'application/json' }),
+      `GSAT-Tracker-${snapshot.prefix.includes(':guest:') ? 'guest' : 'account'}-${new Date().toISOString().slice(0, 10)}.json`);
   }
   entry.addEventListener('click', () => {
     scope = initialRecordPrefix(localStorage); prepared = false; recovery = null; automaticReceipt = null;
@@ -191,8 +197,8 @@ export function initializeInstallableApp(): void {
     const current = await readDeviceRecords(localStorage, scope); assertScope();
     const entries = new Map((recovery?.entries ?? []).map(row => [row.key, row]));
     for (const row of current.entries) entries.set(row.key, row);
-    download({ ...current, entries: [...entries.values()].sort((a, b) => a.key.localeCompare(b.key)) });
-    status('已下載已儲存的紀錄備份；尚未儲存的輸入請先保存。');
+    await download({ ...current, entries: [...entries.values()].sort((a, b) => a.key.localeCompare(b.key)) });
+    status(isNativeApp() ? '已開啟備份分享選單，請選擇儲存到檔案；尚未儲存的輸入請先保存。' : '已下載已儲存的紀錄備份；尚未儲存的輸入請先保存。');
   }));
   find('[data-app-import]').addEventListener('click', () => find<HTMLInputElement>('[data-app-file]').click());
   find<HTMLInputElement>('[data-app-file]').addEventListener('change', event => void run(async () => {

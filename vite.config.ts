@@ -8,6 +8,7 @@ import { buildOfflineRelease } from './scripts/pwaBuild.ts';
 
 function createViteConfig({ mode }: ConfigEnv): UserConfig {
   assertSafeViteEnvironment(loadEnv(mode, process.cwd(), ''));
+  const native = mode === 'native', output = native ? 'dist-native' : 'dist';
   return {
     base: './',
     plugins: [{ name: 'security-headers', configurePreviewServer(server) {
@@ -16,15 +17,17 @@ function createViteConfig({ mode }: ConfigEnv): UserConfig {
         next();
       });
     }, closeBundle() {
-      writeFileSync(resolve('dist/_headers'), cloudflareSecurityHeaders());
-      for (const name of readdirSync(resolve('dist')).filter(name=>name.endsWith('.html'))) {
-        const path=resolve('dist',name); writeFileSync(path,injectStaticSecurityMeta(readFileSync(path,'utf8')));
+      writeFileSync(resolve(output, '_headers'), cloudflareSecurityHeaders());
+      for (const name of readdirSync(resolve(output)).filter(name=>name.endsWith('.html'))) {
+        const path=resolve(output,name); writeFileSync(path,injectStaticSecurityMeta(readFileSync(path,'utf8')));
       }
-      buildOfflineRelease(resolve('dist'), JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version, SITE_SECURITY_HEADERS);
+      if (!native) buildOfflineRelease(resolve(output), JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version, SITE_SECURITY_HEADERS);
     } }, { name: 'shared-site-shell', configureServer(server) {
       server.middlewares.use((request, _response, next) => { if (request.url === '/site-shell.js') request.url = '/src/site-shell.ts'; next(); });
     } }],
     build: {
+      outDir: output,
+      target: native ? 'es2022' : undefined,
       rollupOptions: {
         input: {
           siteShell: './src/site-shell.ts',

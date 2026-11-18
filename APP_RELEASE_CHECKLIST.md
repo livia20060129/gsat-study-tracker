@@ -1,13 +1,13 @@
 # 個人版 App 發布與實機驗收
 
-適用 v171.6.189。此檔列出待執行的實機步驟，不代表已部署或已在真實裝置通過。自動測試的實際結果見交付資料中的驗證紀錄。
+適用 v171.6.190。此檔列出待執行的實機步驟，不代表已部署或已在真實裝置通過。自動測試的實際結果見交付資料中的驗證紀錄。
 
 ## 發布前
 
 1. 先保存並下載正式網站的備份，記下目前 Google 帳號、Calendar 狀態與一筆已填寫日期。
 2. 合併必要覆蓋檔案，執行 `npm ci`、`npm test`、`npm run test:e2e`、`npm run check:app`。
 3. 沿用既有 Actions／HTTPS 網址發布整份 `dist`。本次不需要新的 OAuth、Supabase 專案、套件或 migration。原登入返回網址維持不變。
-4. 確認線上的 `app-worker.js` 回傳 JavaScript，而非首頁 HTML／404；`app-release.json` 版本為 171.6.189，版本識別與這次建置結果一致。`offline-pages` 要整個發布，並執行 `npm run check:app:live -- https://myself.liviayeh.dev/` 驗證 CDN 實際回應；只檢查本機建置無法發現 CDN 改寫。
+4. 確認線上的 `app-worker.js` 回傳 JavaScript，而非首頁 HTML／404；`app-release.json` 版本為 171.6.190，版本識別與這次建置結果一致。`offline-pages` 要整個發布，並執行 `npm run check:app:live -- https://myself.liviayeh.dev/` 驗證 CDN 實際回應；只檢查本機建置無法發現 CDN 改寫。
 5. 已登入並同步成功時，開啟「安裝與資料」應自動完成裝置備份，不需再點「備份並整理」；未同步或訪客仍可使用手動工具。再選「準備離線使用」，等候核對完成，從各平台建立 App 圖示。
 
 ## 裝置矩陣
@@ -44,4 +44,4 @@ Playwright WebKit 的 `setOffline(true)` 會拒絕連純文字 Service Worker �
 - 需要回復程式時，重新建置並一次發布一個完整、已驗證的版本，包含它的 worker 及 release index。已使用離線功能的用戶仍須同意更新；只刪除 worker 檔或覆蓋幾個舊 HTML，不是可靠的回復方式。
 - 首次引入離線 worker 後，若要回到完全沒有 worker 的舊版，需另外製作退役流程，不能假設伺服器上的 404 會自動移除已安裝版本。
 
-發布完成條件：自動檢查通過、HTTPS 成品確認、上述實際使用裝置驗收完成，且保留可回復的成品與資料備份。商店上架仍屬第五階段選配。
+發布完成條件：自動檢查通過、HTTPS 成品確認、上述實際使用裝置驗收完成，且保留可回復的成品與資料備份。第五階段已有雙平台原生測試工程；真正原生編譯、裝置、簽署與商店檢查另依 NATIVE_APP_SETUP.md、native/STORE_RELEASE.md 完成。

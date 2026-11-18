@@ -3,6 +3,7 @@ import { captureDeviceRecords } from '../infrastructure/storage/deviceRecordBack
 import { initialRecordPrefix } from '../storage/local.ts';
 import { saveBeforeDeviceOperation } from './devicePreparation.ts';
 import { offlineFailureMessage, readOfflineFailure } from './offlineFailure.ts';
+import { isNativeApp } from '../native/platform.ts';
 
 interface ReleaseInfo { version: string; id: string; ready: boolean }
 interface OfflineAppOptions { run(task: () => Promise<void>): Promise<void>; openSettings(): void }
@@ -29,6 +30,12 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
     <button type="button" data-offline-check>檢查更新</button><button type="button" data-offline-update hidden>儲存並更新</button></div>
     <p class="site-app-note">先連線準備一次，即可離線開啟主要頁面、填寫紀錄及匯出。ECDICT 僅保留最近下載的詞庫；Google 登入、翻譯與雲端同步需連線。</p>`;
   dialog.querySelector('section')!.after(section);
+  if (isNativeApp()) {
+    section.querySelector<HTMLElement>('[data-offline-info]')!.textContent = 'App 已內建離線頁面與詞庫；程式更新由安裝檔或商店提供。雲端同步與 Google 翻譯仍需網路。';
+    section.querySelector<HTMLElement>('.site-app-actions')!.hidden = true;
+    section.querySelector<HTMLElement>('.site-app-note')!.hidden = true;
+    return { refresh(): void {} };
+  }
   const banner = document.createElement('aside');
   banner.dataset.siteOverlay = '';
   banner.className = 'site-app-update'; banner.hidden = true; banner.setAttribute('aria-label', 'App 更新');

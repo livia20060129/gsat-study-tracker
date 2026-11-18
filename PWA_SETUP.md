@@ -1,4 +1,4 @@
-# App 安裝、離線與更新（v171.6.189）
+# App 安裝、離線與更新（v171.6.190）
 
 本版延續第一、二階段的安裝與裝置資料保護，加入第三階段離線頁面、安全更新，以及第四階段的自動驗證與發布檢查。入口在功能選單最下方「安裝與資料」。實際桌面、Android、iPhone 安裝與鎖屏測試，須在部署後依 APP_RELEASE_CHECKLIST.md 驗收。
 
@@ -96,6 +96,12 @@ v171.6.187 直接下載 HTML 核對；正式網站的 Cloudflare JavaScript Dete
 GitHub Actions 會在正式建置後核對 release index 的逐檔大小與 SHA-256，再上傳發布成品。Windows／Android／iPhone 的實機項目、失敗時處理及回復方式見 [APP_RELEASE_CHECKLIST.md](APP_RELEASE_CHECKLIST.md)。
 
 瀏覽器測試可驗證畫面、模擬安裝事件、資料庫寫入／還原及 OAuth 回跳。實際安裝到桌面／手機、系統圖示、外部 Google 授權回到 App 的行為，需在部署後以目標裝置驗收，不以模擬事件代替實機確認。
+
+## 第五階段：Android 與 iPhone／iPad 原生測試工程
+
+v171.6.190 增加兩平台的 Capacitor 工程，內建介面與詞庫，使用系統瀏覽器登入及檔案分享。原有網頁版／PWA 仍由 dist 發布；原生 App 另建 dist-native，由安裝檔或商店更新。
+
+操作與實際剩餘設定見 [NATIVE_APP_SETUP.md](NATIVE_APP_SETUP.md)，正式發布尚需完成的登入、帳號刪除與簽署項目見 [native/STORE_RELEASE.md](native/STORE_RELEASE.md)。本次不代表已產生 APK／IPA、已上架或已通過審查。
 
 ## 參考
 

@@ -1,7 +1,10 @@
 import './styles.css';
 import './homepage.css';
-import './legacy-app';
+import { initializeNativePlatform } from './native/bootstrap.ts';
 import { initializeTrackerLayout } from './ui/trackerLayout.ts';
 import { initializeDisclosureMotion } from './ui/disclosureMotion.ts';
-initializeTrackerLayout();
-initializeDisclosureMotion();
+if (await initializeNativePlatform()) {
+  await import('./legacy-app');
+  initializeTrackerLayout();
+  initializeDisclosureMotion();
+}
