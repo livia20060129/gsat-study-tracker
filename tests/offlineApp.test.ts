@@ -4,20 +4,27 @@ import { createHash } from 'node:crypto';
 import { runInNewContext } from 'node:vm';
 import { offlineAssetPath, offlineWorkerSource, type OfflineRelease } from '../scripts/pwaBuild.ts';
 import { prepareAppUpdate } from '../src/application/prepareAppUpdate.ts';
+import { offlineFailureMessage } from '../src/ui/offlineFailure.ts';
 
-function workerFixture(options: { base?: string; broken?: boolean; quota?: boolean } = {}) {
+function workerFixture(options: { base?: string; broken?: boolean; quota?: boolean; cacheQuota?: boolean; transport?: boolean; htmlTransform?: boolean; missingPayload?: boolean } = {}) {
   const base = options.base ?? 'https://tracker.example/app/';
   const data = new Map([['index.html', '<html>one complete version</html>'], ['todo.html', '<html>todo</html>'],
     ['assets/tracker-abc123.js', 'console.log("app")']]);
   const release: OfflineRelease = { version: 'test', id: 'release-a', pages: ['index.html', 'todo.html'],
-    resources: [...data].map(([path, content]) => ({ path, bytes: content.length, hash: createHash('sha256').update(content).digest('hex') })) };
+    resources: [...data].map(([path, content]) => ({ path, bytes: content.length, hash: createHash('sha256').update(content).digest('hex'),
+      ...(options.transport && path.endsWith('.html') ? { source: 'offline-pages/' + path + '.json' } : {}) })),
+    documentHeaders: { 'Content-Security-Policy': "script-src 'self'; frame-ancestors 'none'", 'X-Frame-Options': 'DENY' } };
   const stores = new Map<string, Map<string, Response>>(), network: string[] = [];
   const handlers = new Map<string, (event: any) => void>();
   let clients: { id: string; url: string }[] = [{ id: 'tab-one', url: base + 'index.html' }], skipped = 0;
   const cacheApi = (name: string) => {
     const rows = stores.get(name) ?? new Map<string, Response>(); stores.set(name, rows);
     return { async match(key: string | Request) { return rows.get(typeof key === 'string' ? key : key.url)?.clone(); },
-      async put(key: string, response: Response) { if (options.quota && name.endsWith('ecdict-v1')) throw new Error('quota'); rows.set(key, response.clone()); },
+      async put(key: string, response: Response) {
+        if (options.quota && name.endsWith('ecdict-v1')) throw new Error('quota');
+        if (options.cacheQuota && name.includes(':release:')) throw new DOMException('full', 'QuotaExceededError');
+        rows.set(key, response.clone());
+      },
       async keys() { return [...rows.keys()].map(url => new Request(url)); },
       async delete(key: Request) { return rows.delete(key.url); } };
   };
@@ -28,9 +35,16 @@ function workerFixture(options: { base?: string; broken?: boolean; quota?: boole
     async fetch(request: Request) {
       network.push(request.url);
       const relative = request.url.slice(base.length).split('?')[0];
+      if (relative.startsWith('offline-pages/')) {
+        if (options.missingPayload) return new Response('missing', { status: 404 });
+        const path = relative.slice('offline-pages/'.length, -'.json'.length);
+        const html = options.broken && path === 'todo.html' ? 'different release' : data.get(path);
+        return new Response(JSON.stringify({ html }), { headers: { 'Content-Type': 'application/json' } });
+      }
       if (relative.startsWith('dictionaries/')) return new Response('{"word":"意思"}', { headers: { 'Content-Type': 'application/json' } });
       if (!data.has(relative)) throw new Error('offline');
-      return new Response(options.broken && relative === 'todo.html' ? 'different release' : data.get(relative));
+      const html = options.htmlTransform && relative.endsWith('.html') ? '<script>window.__CF$cv$params={r:"test"};</script>' : '';
+      return new Response((options.broken && relative === 'todo.html' ? 'different release' : data.get(relative)) + html);
     } });
   async function dispatch(type: string, detail = {}) {
     const work: Promise<unknown>[] = [];
@@ -81,9 +95,37 @@ test('offline handling respects scope and excludes private APIs while never reta
 test('a partially deployed release fails installation and removes only its own incomplete cache', async () => {
   const f = workerFixture({ broken: true }); f.stores.set('unrelated-cache', new Map());
   f.stores.set('gsat-offline:/app/:release:previous', new Map());
-  await assert.rejects(f.dispatch('install'), /verification/);
-  assert.deepEqual([...f.stores.keys()], ['unrelated-cache', 'gsat-offline:/app/:release:previous']);
+  await assert.rejects(f.dispatch('install'), /integrity/);
+  assert.deepEqual([...f.stores.keys()], ['unrelated-cache', 'gsat-offline:/app/:release:previous', 'gsat-offline:/app/:status']);
   assert.equal(f.skipped(), 0);
+});
+test('CDN-transformed HTML cannot invalidate exact offline copies, whose bytes and security headers are retained', async () => {
+  const f = workerFixture({ transport: true, htmlTransform: true }); await f.dispatch('install');
+  const response = await f.response('index.html', { mode: 'navigate' });
+  assert.equal(await response?.text(), '<html>one complete version</html>');
+  assert.equal(response?.headers.get('X-Frame-Options'), 'DENY');
+  assert.match(response?.headers.get('Content-Security-Policy') ?? '', /frame-ancestors 'none'/);
+  assert.ok(f.network.some(url => url.endsWith('offline-pages/index.html.json')));
+  assert.ok(!f.network.some(url => /\/index\.html$/.test(url)));
+});
+test('a changed offline copy still fails integrity and records the exact failed page', async () => {
+  const f = workerFixture({ transport: true, broken: true });
+  await assert.rejects(f.dispatch('install'), /integrity.*todo\.html/);
+  const entry = f.stores.get('gsat-offline:/app/:status')!.values().next().value!;
+  const status = await entry.json();
+  assert.deepEqual(status.failure, { code: 'integrity', path: 'todo.html' });
+  assert.equal(f.stores.has('gsat-offline:/app/:release:release-a'), false);
+});
+test('missing files and a full cache produce different diagnostics without clearing previous data', async () => {
+  for (const [options, code] of [[{ transport: true, missingPayload: true }, 'http'], [{ cacheQuota: true }, 'quota']] as const) {
+    const f = workerFixture(options); f.stores.set('previous-data', new Map());
+    await assert.rejects(f.dispatch('install'));
+    const status = await f.stores.get('gsat-offline:/app/:status')!.values().next().value!.json();
+    assert.equal(status.failure.code, code); assert.equal(status.failure.path, 'index.html');
+    assert.equal(f.stores.has('previous-data'), true);
+    assert.ok(offlineFailureMessage(status.failure).includes('index.html'));
+    assert.equal(offlineFailureMessage(status.failure).includes('容量不足'), code === 'quota');
+  }
 });
 test('release activation retains the previous asset version and does not clear dictionary or foreign caches', async () => {
   const f = workerFixture();

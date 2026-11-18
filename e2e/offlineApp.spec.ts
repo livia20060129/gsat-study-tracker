@@ -1,5 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { offlineWorkerSource, type OfflineRelease } from '../scripts/pwaBuild.ts';
@@ -12,10 +14,12 @@ const prefix = 'study-v11:guest:', day = '2026-11-18';
 const record = { schemaVersion: 2, date: day, notes: '離線前筆記', items: [{ id: 'offline-words', type: 'englishVocabInteractive', done: false,
   minutes: '3', required: false, source: 'custom', f: { words: [{ text: 'ability', noun: true, translation: '能力' }] } }] };
 let server: Server, base: string, release: OfflineRelease, broken = false, networkDown = false;
+let transformHtml = false, missingPayload = false, cacheQuota = false;
 
 test.beforeEach(async ({ context, page }) => {
   release = JSON.parse(await readFile('dist/app-release.json', 'utf8'));
   broken = false; networkDown = false;
+  transformHtml = false; missingPayload = false; cacheQuota = false;
   const root = resolve('dist');
   const types: Record<string, string> = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json',
     '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ttf': 'font/ttf' };
@@ -28,8 +32,15 @@ test.beforeEach(async ({ context, page }) => {
     const file = resolve(root, path);
     if (!file.startsWith(root + sep)) { response.writeHead(404).end(); return; }
     try {
-      const content = path === 'app-worker.js' ? Buffer.from(offlineWorkerSource(release))
-        : broken && path === 'todo.html' ? Buffer.from('not the expected release') : await readFile(file);
+      const indexSource = release.resources.find(row => row.path === 'index.html')?.source;
+      const todoSource = release.resources.find(row => row.path === 'todo.html')?.source;
+      if (missingPayload && path === indexSource) { response.writeHead(404).end('not deployed'); return; }
+      const quotaProbe = `const put = Cache.prototype.put; Cache.prototype.put = function(request, response) {
+        if (String(typeof request === 'string' ? request : request.url).includes('/assets/')) throw new DOMException('full', 'QuotaExceededError');
+        return put.call(this, request, response); };\n`;
+      let content = path === 'app-worker.js' ? Buffer.from((cacheQuota ? quotaProbe : '') + offlineWorkerSource(release))
+        : broken && path === todoSource ? Buffer.from(JSON.stringify({ html: 'not the expected release' })) : await readFile(file);
+      if (transformHtml && path.endsWith('.html')) content = Buffer.from(content.toString().replace('</body>', '<script>window.__CF$cv$params={r:"test-injected"};</script></body>'));
       response.writeHead(200, { 'Content-Type': (types[extname(path)] || 'application/octet-stream') + (path.endsWith('.html') ? ';charset=utf-8' : ''),
         'Cache-Control': 'no-store' }); response.end(content);
     } catch { response.writeHead(404).end(); }
@@ -215,4 +226,43 @@ test('unfinished vocabulary editors block an update without discarding the edito
   await expect(page.locator('[data-offline-update]')).toBeVisible();
   await page.locator('[data-app-close]').click();
   await expect(page.locator('[data-vocabulary-text]')).toHaveValue('ability');
+});
+
+test('CDN-injected HTML still prepares exact offline pages with original security headers', async ({ page, context, request, browserName }) => {
+  transformHtml = true;
+  expect(await (await request.get(base + 'index.html')).text()).toContain('__CF$cv$params');
+  const audit = await promisify(execFile)(process.execPath, ['--experimental-strip-types', 'scripts/checkLiveAppRelease.ts', base], { timeout: 20000 });
+  expect(audit.stdout).toContain('0 failed');
+  await prepare(page); await goOffline(page, context, browserName);
+  await page.goto(base + 'index.html?date=' + day);
+  await expect(page.locator('#notes')).toHaveValue('離線前筆記');
+  expect(await page.content()).not.toContain('test-injected');
+  const headers = await page.evaluate(async () => {
+    for (const key of await caches.keys()) {
+      if (!key.includes(':release:')) continue;
+      const response = await (await caches.open(key)).match(new URL('./index.html', location.href).href);
+      if (response) return { csp: response.headers.get('Content-Security-Policy'), frame: response.headers.get('X-Frame-Options') };
+    }
+  });
+  expect(headers?.csp).toContain("frame-ancestors 'none'"); expect(headers?.frame).toBe('DENY');
+});
+
+test('missing offline copies identify the file and HTTP status and can be retried without clearing records', async ({ page }) => {
+  missingPayload = true;
+  await open(page); await page.locator('[data-offline-prepare]').click();
+  await expect(page.locator('[data-offline-info]')).toContainText('index.html');
+  await expect(page.locator('[data-offline-info]')).toContainText('HTTP 404');
+  await expect(page.locator('[data-offline-info]')).not.toContainText('容量不足');
+  await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  expect(await notes(page)).toBe('離線前筆記');
+  missingPayload = false; await page.locator('[data-offline-prepare]').click();
+  await expect(page.locator('[data-offline-info]')).toContainText('離線頁面已核對');
+});
+
+test('cache quota failures report capacity specifically and preserve the primary record', async ({ page }) => {
+  cacheQuota = true;
+  await open(page); await page.locator('[data-offline-prepare]').click();
+  await expect(page.locator('[data-offline-info]')).toContainText('容量不足');
+  await expect(page.locator('[data-offline-info]')).not.toContainText('核對碼不符');
+  expect(await notes(page)).toBe('離線前筆記');
 });

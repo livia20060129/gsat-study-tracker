@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
-import { offlineAssetPath, type OfflineRelease } from './pwaBuild.ts';
+import { offlineAssetPath, offlineDocumentSource, type OfflineRelease } from './pwaBuild.ts';
 
 const root = resolve('dist');
 const release = JSON.parse(readFileSync(resolve(root, 'app-release.json'), 'utf8')) as OfflineRelease;
@@ -18,6 +18,11 @@ for (const resource of release.resources) {
   const content = readFileSync(file);
   assert.equal(content.length, resource.bytes, resource.path + ': size mismatch');
   assert.equal(createHash('sha256').update(content).digest('hex'), resource.hash, resource.path + ': hash mismatch');
+  if (resource.path.endsWith('.html')) {
+    assert.equal(resource.source, offlineDocumentSource(resource.path, resource.hash), 'Missing CDN-independent offline document');
+    const payload = JSON.parse(readFileSync(resolve(root, resource.source), 'utf8'));
+    assert.equal(payload.html, content.toString('utf8'), resource.path + ': offline copy differs');
+  }
   bytes += content.length;
 }
 for (const required of ['index.html', 'todo.html', 'summary.html', 'material.progress.html', 'vocabulary.review.html', 'gpt.prompt.html']) {

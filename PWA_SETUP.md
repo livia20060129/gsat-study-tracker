@@ -1,4 +1,4 @@
-# App 安裝、離線與更新（v171.6.187）
+# App 安裝、離線與更新（v171.6.188）
 
 本版延續第一、二階段的安裝與裝置資料保護，加入第三階段離線頁面、安全更新，以及第四階段的自動驗證與發布檢查。入口在功能選單最下方「安裝與資料」。實際桌面、Android、iPhone 安裝與鎖屏測試，須在部署後依 APP_RELEASE_CHECKLIST.md 驗收。
 
@@ -7,7 +7,7 @@
 1. 依覆蓋說明合併檔案，執行 `npm ci`、`npm run build`，沿用既有部署方式。
 2. 使用原本的 HTTPS 網址。每個頁面均指向同一份 `manifest.webmanifest`；必須部署 `public/icons` 產生的圖示與整份建置結果。
 3. 既有 Google 登入回傳網址維持 `index.html?google_auth=1`。沒有新增 OAuth 用戶端、Supabase 專案、SQL migration、Edge Function 或登入提供者設定。
-4. 執行 `npm run check:app` 核對正式檔案；整份 `dist` 一次發布，包含新產生的 `app-worker.js`、`app-release.json`。不要只上傳個別 HTML，或覆蓋不同建置版本的資產。
+4. 執行 `npm run check:app` 核對正式檔案；整份 `dist` 一次發布，包含新產生的 `app-worker.js`、`app-release.json` 及 `offline-pages` 資料夾。不要只上傳個別 HTML，或覆蓋不同建置版本的資產。
 5. 部署後先保存舊分頁的輸入，再重新整理以載入新版。新版自動提示與更新只在啟用離線功能後生效。
 
 ## 安裝
@@ -53,7 +53,7 @@ Google 登入跳轉前，先保存目前輸入並等待裝置備份完成。備�
 ## 第三階段：離線使用
 
 1. 先連線，於「安裝與資料」選「準備離線使用」。首次下載約 11 MB，包含所有正式入口、程式、樣式、核心詞庫與 PDF 所需字型。
-2. 等待「離線頁面已核對」。頁面檔案由相同建置產生，逐檔核對 SHA-256，完整下載才讓離線版本生效。一般瀏覽不會自動下載整包。
+2. 等待「離線頁面已核對」。頁面檔案由相同建置產生；離線 HTML 透過 `offline-pages` 下有內容識別碼的 JSON 副本下載，解碼後逐檔核對原始 HTML 的 SHA-256，完整下載才讓離線版本生效。一般瀏覽不會自動下載整包。
 3. 之後可離線開啟／重新載入首頁、待辦、總結、教材、單字及排程說明；本機紀錄仍沿用原保存、驗證、帳號隔離與衝突規則，可離線匯出 PDF／Word。
 4. ECDICT 擴充詞庫採實際查詢時下載，保留最近 64 組。未下載或被淘汰的部分需連線取得，未保存的 Google 翻譯不能離線產生。辭典外部連結與裝置未安裝的語音仍可能需要網路。
 5. Google 登入、Calendar、雲端同步及 Google 翻譯需要連線。網路恢復不新增背景輪詢或無限重試；同步仍依載入、手動操作與既有 Actions 觸發。
@@ -76,6 +76,14 @@ Google 登入跳轉前，先保存目前輸入並等待裝置備份完成。備�
 
 下載中斷、內容不符、保存或備份失敗時不更新，繼續使用原完整版本。只整理此 App 自己的舊版本快取，保留上一版檔案及已下載詞庫；不清除 localStorage、IndexedDB、登入資料或其他網站快取。
 
+## 離線準備錯誤與 CDN
+
+v171.6.187 直接下載 HTML 核對；正式網站的 Cloudflare JavaScript Detections 會附加每次請求不同的驗證腳本，因而觸發版本核對失敗。v171.6.188 改用建置時的 JSON 頁面副本，保留原始 HTML、CSP／X-Frame-Options 安全標頭及完整雜湊核對；不移除下載內容中的驗證腳本來勉強通過，也不更改 Cloudflare 防護設定。
+
+錯誤會顯示對應檔案與原因：下載中斷、HTTP 狀態、離線副本格式、版本核對失敗、快取容量不足或儲存權限。小型診斷只保存檔名、錯誤種類、HTTP 狀態及版本，不含紀錄、Token 或回應原文；成功準備後清除。即使安裝 worker 已停止，視窗仍可讀到確切原因。
+
+整份新版部署後，執行 `npm run check:app:live -- https://myself.liviayeh.dev/`；它會以公開請求核對線上的頁面副本及程式檔，不讀取帳號資料。出現缺檔時先確認 `offline-pages` 已部署；核對不符時確認檔案來自同一次建置。完成後回到「安裝與資料」再選「準備離線使用」，原紀錄及登入資料保留。
+
 ## 第四階段：驗證與發布
 
 發布前執行 `npm test`、`npm run test:e2e`、`npm run check:app`。`npm run test:pwa` 可單獨驗證安裝、資料保護、離線與安全更新；完整測試仍涵蓋原有登入、Calendar、計時、發音、匯出、導覽及版面。
@@ -92,3 +100,4 @@ GitHub Actions 會在正式建置後核對 release index 的逐檔大小與 SHA-
 - [MDN：儲存容量與清除規則](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria)
 - [Component Gallery：Alert](https://component.gallery/components/alert/)
 - [Service Worker 生命週期](https://web.dev/articles/service-worker-lifecycle)
+- [Cloudflare：JavaScript Detections 的 HTML 注入行為](https://developers.cloudflare.com/cloudflare-challenges/challenge-types/javascript-detections/)

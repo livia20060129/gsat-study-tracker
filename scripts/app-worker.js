@@ -4,17 +4,45 @@ const BASE = new URL('./', self.location.href);
 const CACHE_PREFIX = 'gsat-offline:' + BASE.pathname + ':';
 const CACHE = CACHE_PREFIX + 'release:' + RELEASE.id;
 const DICTIONARY = CACHE_PREFIX + 'ecdict-v1';
+const STATUS = CACHE_PREFIX + 'status';
+const STATUS_URL = new URL('offline-install-status.json', BASE).href;
 const resources = new Map(RELEASE.resources.map(row => [new URL(row.path, BASE).href, row]));
 const pages = new Set(RELEASE.pages);
 const MAX_DICTIONARY_ENTRIES = 64;
 
-async function verifiedResponse(url, row) {
-  const response = await fetch(new Request(url, { cache: 'reload', credentials: 'same-origin' }));
-  if (!response.ok || (response.url && new URL(response.url).origin !== BASE.origin)) throw new Error('Incomplete app download');
+function problem(code, row, status) {
+  const error = new Error('Offline ' + code + ': ' + row.path);
+  error.offline = { code, path: row.path, ...(status ? { status } : {}) }; return error;
+}
+async function checkedBytes(response, row) {
   const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', await response.clone().arrayBuffer()))]
     .map(value => value.toString(16).padStart(2, '0')).join('');
-  if (hash !== row.hash) throw new Error('App release verification failed');
+  if (hash !== row.hash) throw problem('integrity', row);
   return response;
+}
+async function verifiedResponse(url, row) {
+  let response;
+  try { response = await fetch(new Request(row.source ? new URL(row.source, BASE).href : url, { cache: 'reload', credentials: 'same-origin' })); }
+  catch { throw problem('network', row); }
+  if (!response.ok || (response.url && new URL(response.url).origin !== BASE.origin)) throw problem('http', row, response.status);
+  if (row.source) {
+    if (!/application\/json/i.test(response.headers.get('Content-Type') || '')) throw problem('payload', row);
+    let payload;
+    try { payload = await response.json(); } catch { throw problem('payload', row); }
+    if (typeof payload?.html !== 'string') throw problem('payload', row);
+    response = new Response(payload.html, { headers: { ...RELEASE.documentHeaders, 'Content-Type': 'text/html;charset=utf-8' } });
+  }
+  return checkedBytes(response, row);
+}
+async function reportFailure(error) {
+  const failure = { type: 'GSAT_OFFLINE_FAILURE', base: BASE.href, release: RELEASE.id,
+    failure: error.offline || { code: error.name === 'QuotaExceededError' ? 'quota' : 'cache', path: '' } };
+  try { await (await caches.open(STATUS)).put(STATUS_URL, new Response(JSON.stringify(failure), { headers: { 'Content-Type': 'application/json' } })); } catch { /* A full cache may not hold diagnostics. */ }
+  try {
+    for (const client of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) {
+      if (client.url.startsWith(BASE.href)) client.postMessage(failure);
+    }
+  } catch { /* Failed installation still rejects even if its window has closed. */ }
 }
 
 function resourceUrl(request) {
@@ -37,18 +65,27 @@ function resourceUrl(request) {
   return null;
 }
 async function installRelease(repair = false) {
-  const cache = await caches.open(CACHE);
   try {
+    const cache = await caches.open(CACHE);
     // Bounded batches avoid hundreds of simultaneous requests on mobile connections.
     const rows = [...resources];
     for (let offset = 0; offset < rows.length; offset += 4) {
       const results = await Promise.allSettled(rows.slice(offset, offset + 4).map(async ([url, row]) => {
-        const response = (repair && await cache.match(url)) || await verifiedResponse(url, row);
-        await cache.put(url, response);
+        let response;
+        if (repair) { try { const saved = await cache.match(url); if (saved) response = await checkedBytes(saved, row); } catch { /* Repair changed cached bytes from the verified source. */ } }
+        response ||= await verifiedResponse(url, row);
+        try { await cache.put(url, response); }
+        catch (error) { throw problem(error.name === 'QuotaExceededError' ? 'quota' : 'cache', row); }
       }));
-      if (results.some(result => result.status === 'rejected')) throw new Error('App release verification failed');
+      const failed = results.find(result => result.status === 'rejected');
+      if (failed) throw failed.reason;
     }
-  } catch (error) { if (!repair) await caches.delete(CACHE); throw error; }
+    try { await (await caches.open(STATUS)).delete(new Request(STATUS_URL)); } catch { /* Diagnostic cleanup is optional. */ }
+  } catch (error) {
+    await reportFailure(error);
+    if (!repair) { try { await caches.delete(CACHE); } catch { /* Preserve the failure reason. */ } }
+    throw error;
+  }
 }
 self.addEventListener('install', event => event.waitUntil(installRelease()));
 self.addEventListener('activate', event => event.waitUntil((async () => {

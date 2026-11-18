@@ -1,13 +1,13 @@
 # 個人版 App 發布與實機驗收
 
-適用 v171.6.187。此檔列出待執行的實機步驟，不代表已部署或已在真實裝置通過。自動測試的實際結果見交付資料中的驗證紀錄。
+適用 v171.6.188。此檔列出待執行的實機步驟，不代表已部署或已在真實裝置通過。自動測試的實際結果見交付資料中的驗證紀錄。
 
 ## 發布前
 
 1. 先保存並下載正式網站的備份，記下目前 Google 帳號、Calendar 狀態與一筆已填寫日期。
 2. 合併必要覆蓋檔案，執行 `npm ci`、`npm test`、`npm run test:e2e`、`npm run check:app`。
 3. 沿用既有 Actions／HTTPS 網址發布整份 `dist`。本次不需要新的 OAuth、Supabase 專案、套件或 migration。原登入返回網址維持不變。
-4. 確認線上的 `app-worker.js` 回傳 JavaScript，而非首頁 HTML／404；`app-release.json` 版本為 171.6.187，版本識別與這次建置結果一致。
+4. 確認線上的 `app-worker.js` 回傳 JavaScript，而非首頁 HTML／404；`app-release.json` 版本為 171.6.188，版本識別與這次建置結果一致。`offline-pages` 要整個發布，並執行 `npm run check:app:live -- https://myself.liviayeh.dev/` 驗證 CDN 實際回應；只檢查本機建置無法發現 CDN 改寫。
 5. 功能選單 → 安裝與資料 → 備份並整理 → 準備離線使用，等候核對完成，再從各平台建立 App 圖示。
 
 ## 裝置矩陣

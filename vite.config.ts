@@ -20,7 +20,7 @@ function createViteConfig({ mode }: ConfigEnv): UserConfig {
       for (const name of readdirSync(resolve('dist')).filter(name=>name.endsWith('.html'))) {
         const path=resolve('dist',name); writeFileSync(path,injectStaticSecurityMeta(readFileSync(path,'utf8')));
       }
-      buildOfflineRelease(resolve('dist'), JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version);
+      buildOfflineRelease(resolve('dist'), JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version, SITE_SECURITY_HEADERS);
     } }, { name: 'shared-site-shell', configureServer(server) {
       server.middlewares.use((request, _response, next) => { if (request.url === '/site-shell.js') request.url = '/src/site-shell.ts'; next(); });
     } }],

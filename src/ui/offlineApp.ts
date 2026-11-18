@@ -2,6 +2,7 @@ import { prepareAppUpdate } from '../application/prepareAppUpdate.ts';
 import { captureDeviceRecords } from '../infrastructure/storage/deviceRecordBackup.ts';
 import { initialRecordPrefix } from '../storage/local.ts';
 import { saveBeforeDeviceOperation } from './devicePreparation.ts';
+import { offlineFailureMessage, readOfflineFailure } from './offlineFailure.ts';
 
 interface ReleaseInfo { version: string; id: string; ready: boolean }
 interface OfflineAppOptions { run(task: () => Promise<void>): Promise<void>; openSettings(): void }
@@ -71,7 +72,9 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
     observed.add(worker);
     worker.addEventListener('statechange', () => {
       if (worker.state === 'activated') void readActive().then(refresh).catch(() => { error = '無法確認離線版本，請再檢查更新。'; refresh(); });
-      if (worker.state === 'redundant' && registration?.active) error = '新版未下載完整，繼續使用原版本；請連線後再檢查更新。';
+      if (worker.state === 'redundant' && registration?.active) void readOfflineFailure(base).then(failure => {
+        error = failure ? offlineFailureMessage(failure) : '新版未下載完整，繼續使用原版本；請連線後再檢查更新。'; refresh();
+      });
       if (worker.state === 'installed' || worker.state === 'redundant') setTimeout(refresh, 0);
     });
   }
@@ -90,7 +93,8 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
           function finish(cause?: Error): void { clearTimeout(timeout); worker!.removeEventListener('statechange', state); cause ? reject(cause) : resolve(); }
           function state(): void {
             if (worker!.state === 'activated') finish();
-            else if (worker!.state === 'redundant') finish(new Error('離線檔案未下載完整或容量不足，請連線後重試；紀錄仍保留。'));
+            else if (worker!.state === 'redundant') void readOfflineFailure(base).then(failure => finish(new Error(
+              failure ? offlineFailureMessage(failure) : error || '離線準備未完成，請確認網路與瀏覽器儲存權限後重試；原紀錄仍保留。')));
           }
           worker.addEventListener('statechange', state); state();
         });
@@ -123,6 +127,12 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
       } });
   }));
   if (supported) {
+    navigator.serviceWorker.addEventListener('message', event => {
+      const source = event.source as ServiceWorker | null;
+      if (source?.scriptURL !== new URL('app-worker.js', base).href || event.data?.type !== 'GSAT_OFFLINE_FAILURE'
+          || event.data.base !== base || typeof event.data.failure?.code !== 'string') return;
+      error = offlineFailureMessage(event.data.failure); refresh();
+    });
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (approved) location.reload(); });
     try {
       if (localStorage.getItem(ENABLED_KEY) === 'true') void register().catch(() => {
