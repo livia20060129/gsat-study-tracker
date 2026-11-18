@@ -22,6 +22,8 @@ import {
 } from '../data/azarGrammar.ts';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from '../data/mathMaterialPageMaps.ts';
 import {
+  BIOLOGY_MASTERY_UPPER_PAGE_MAP,
+  BIOLOGY_MASTERY_UPPER_TITLE,
   BIOLOGY_NEW_KEY_PAGE_MAP,
   CHEMISTRY_NEW_KEY_PAGE_MAP,
   EARTH_SCIENCE_NEW_KEY_PAGE_MAP,
@@ -314,6 +316,11 @@ const MATERIAL_DEFINITIONS: MaterialDefinition[] = [
     title: '自然｜生物｜新關鍵', unitLabel: '大主題', segments: largeTopicSegments(BIOLOGY_NEW_KEY_PAGE_MAP),
   },
   {
+    id: `natural:生物:${BIOLOGY_MASTERY_UPPER_TITLE}`, subject: 'natural', group: '生物',
+    title: `自然｜生物｜${BIOLOGY_MASTERY_UPPER_TITLE}`, unitLabel: '大主題',
+    segments: largeTopicSegments(BIOLOGY_MASTERY_UPPER_PAGE_MAP),
+  },
+  {
     id: 'natural:化學:新關鍵', subject: 'natural', group: '化學',
     title: '自然｜化學｜新關鍵', unitLabel: '大主題', segments: largeTopicSegments(CHEMISTRY_NEW_KEY_PAGE_MAP),
   },
@@ -344,6 +351,7 @@ export function builtInMaterialCatalog(): CatalogMaterial[] {
       match = { material: title };
       if (title === '123日的淬鍊') rows = DAY123_PAGE_MAPS[subject];
       if (title === '好考點') rows = GOODPOINT_PAGE_MAPS[subject];
+      if (subject === '生物' && title === BIOLOGY_MASTERY_UPPER_TITLE) rows = BIOLOGY_MASTERY_UPPER_PAGE_MAP;
       if (title === '新關鍵') rows = ({ 生物: BIOLOGY_NEW_KEY_PAGE_MAP, 化學: CHEMISTRY_NEW_KEY_PAGE_MAP, 物理: PHYSICS_NEW_KEY_PAGE_MAP, 地科: EARTH_SCIENCE_NEW_KEY_PAGE_MAP })[subject as '生物'];
     } else if (definition.subject === 'math') {
       subject = '數學';
@@ -409,6 +417,7 @@ function normalizeNaturalSubject(value: unknown): string {
 
 function normalizeNaturalMaterial(value: unknown): string {
   const text = String(value ?? '').replace(/\s+/g, '');
+  if (text === BIOLOGY_MASTERY_UPPER_TITLE.replace(/\s+/g, '')) return BIOLOGY_MASTERY_UPPER_TITLE;
   if (text.includes('123日')) return '123日的淬鍊';
   if (text.includes('好考點')) return '好考點';
   return text;

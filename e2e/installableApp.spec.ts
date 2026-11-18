@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { showMobileSection } from './helpers/siteNavigation.ts';
 import { decodeStudyRecord } from '../src/storage/studyRecordCodec.ts';
+import { markRecordSynced } from '../src/storage/recordSync.ts';
 
 test.use({ viewport: { width: 375, height: 812 }, reducedMotion: 'reduce', timezoneId: 'Asia/Taipei' });
 const prefix = 'study-v11:guest:', activeKey = 'study-v11:meta:active-record-prefix';
@@ -220,4 +221,92 @@ test('an install prompt fired before the shared shell finishes loading remains a
   await expect(page.locator('[data-app-install]')).toBeVisible();
   await page.getByRole('button', { name: '備份並整理', exact: true }).click();
   await expect(page.locator('[data-app-install]')).toBeEnabled();
+});
+
+const accountId = '00000000-0000-0000-0000-000000000189';
+const accountPrefix = `study-v11:user:${accountId}:`;
+const authKey = 'sb-arxbirgujbrtzhoficdf-auth-token';
+async function accountSeed(page: Page, options: { pending?: boolean; tombstone?: boolean; expires?: boolean } = {}): Promise<void> {
+  await seed(page);
+  const saved = markRecordSynced({ ...original, serverRevision: 7 });
+  if (options.pending) saved.localDirty = true;
+  await page.evaluate(async ({ accountPrefix, accountId, authKey, activeKey, saved, options }) => {
+    localStorage.setItem(activeKey, accountPrefix);
+    localStorage.setItem(accountPrefix + saved.date, JSON.stringify(saved));
+    const session = JSON.stringify({ access_token: 'test-account-install-token', user: { id: accountId },
+      expires_at: Math.floor(Date.now() / 1000) + (options.expires ? -60 : 3600) });
+    localStorage.setItem(authKey, session);
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('gsat-study-tracker-auth', 1);
+      request.onupgradeneeded = () => { request.result.createObjectStore('sessions'); };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result, tx = db.transaction('sessions', 'readwrite');
+        tx.objectStore('sessions').put({ value: options.tombstone ? null : session }, authKey);
+        tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error);
+      };
+    });
+    const probe = window as unknown as { appPromptCalls: number }; probe.appPromptCalls = 0;
+    const event = new Event('beforeinstallprompt', { cancelable: true });
+    Object.assign(event, { prompt: async () => { probe.appPromptCalls++; }, userChoice: Promise.resolve({ outcome: 'dismissed' }) });
+    window.dispatchEvent(event);
+  }, { accountPrefix, accountId, authKey, activeKey, saved, options });
+}
+
+test('synced account records are automatically backed up and directly installable without compaction or extra network requests', async ({ page }, info) => {
+  await accountSeed(page);
+  let requests = 0; page.on('request', request => { if (request.url().includes('.supabase.co/')) requests++; });
+  const before = await page.evaluate(key => localStorage.getItem(key), accountPrefix + original.date);
+  await open(page);
+  await expect(page.locator('[data-app-install]')).toBeEnabled();
+  await expect(page.locator('[data-app-instructions]')).toContainText('自動核對');
+  await expect(page.locator('[data-app-status]')).toContainText('可直接安裝');
+  await expect(page.locator('[data-app-backup-info]')).toContainText('1 天');
+  expect(await page.evaluate(key => localStorage.getItem(key), accountPrefix + original.date)).toBe(before);
+  expect(requests).toBe(0);
+  await page.screenshot({ path: info.outputPath('account-automatic-install-backup.png') });
+  await page.locator('[data-app-install]').click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { appPromptCalls: number }).appPromptCalls)).toBe(1);
+});
+
+for (const condition of ['pending', 'tombstone', 'expires'] as const) test(`an account with ${condition} retains the manual requirement instead of claiming automatic backup`, async ({ page }) => {
+  await accountSeed(page, { [condition]: true }); await open(page);
+  await expect(page.locator('[data-app-install]')).toBeDisabled();
+  await expect(page.locator('[data-app-status]')).not.toContainText('自動完成核對');
+  await page.getByRole('button', { name: '備份並整理', exact: true }).click();
+  await expect(page.locator('[data-app-install]')).toBeEnabled();
+});
+
+test('new unsynced edits revoke automatic readiness and a later confirmed save automatically backs up again', async ({ page }) => {
+  await accountSeed(page); await open(page); await expect(page.locator('[data-app-install]')).toBeEnabled();
+  const next = markRecordSynced({ ...original, notes: '稍後完成同步的新內容', serverRevision: 8 });
+  await page.evaluate(({ key, next }) => {
+    localStorage.setItem(key, JSON.stringify({ ...next, localDirty: true }));
+    window.dispatchEvent(new StorageEvent('storage', { key, storageArea: localStorage }));
+  }, { key: accountPrefix + original.date, next });
+  await expect(page.locator('[data-app-install]')).toBeDisabled();
+  await page.evaluate(({ key, next }) => {
+    localStorage.setItem(key, JSON.stringify(next)); window.dispatchEvent(new Event('study-records-changed'));
+  }, { key: accountPrefix + original.date, next });
+  await expect(page.locator('[data-app-install]')).toBeEnabled();
+  await expect(page.locator('[data-app-status]')).toContainText('自動完成核對');
+  const pending = page.waitForEvent('download'); await page.locator('[data-app-export]').click();
+  const exported = JSON.parse(await readFile((await (await pending).path())!, 'utf8'));
+  expect(exported.records).toHaveLength(1); expect(exported.records[0].notes).toBe(next.notes);
+});
+
+test('a failed automatic backup never enables install or requests a manual click as a completed backup', async ({ page }) => {
+  await accountSeed(page);
+  await page.evaluate(() => {
+    const transaction = IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction = function(stores, mode, options) {
+      const tx = transaction.call(this, stores, mode, options);
+      if (this.name === 'gsat-study-tracker-record-backups' && mode === 'readwrite' && String(stores).includes('snapshots')) tx.abort();
+      return tx;
+    };
+  });
+  await open(page);
+  await expect(page.locator('[data-app-status]')).toContainText('裝置備份無法寫入');
+  await expect(page.locator('[data-app-install]')).toBeDisabled();
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).notes, accountPrefix + original.date)).toBe(original.notes);
 });

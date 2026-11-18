@@ -2,9 +2,11 @@ import { initialRecordPrefix } from '../storage/local.ts';
 import { captureDeviceRecords, deviceBackupVault, isDeviceRecordKey, parseDeviceSnapshot, readDeviceRecords, restoreMissingDeviceRecords,
   type DeviceRecordSnapshot } from '../infrastructure/storage/deviceRecordBackup.ts';
 import { compactConfirmedRecordStorage } from '../infrastructure/storage/localRecordCompaction.ts';
-import { saveBeforeDeviceOperation } from './devicePreparation.ts';
+import { saveBeforeDeviceOperation, verifyBeforeDeviceOperation } from './devicePreparation.ts';
 import { decodeStudyRecord } from '../storage/studyRecordCodec.ts';
 import { initializeOfflineApp } from './offlineApp.ts';
+import { accountInstallReceiptCurrent, prepareAccountInstall, type AccountInstallReceipt } from '../application/prepareAccountInstall.ts';
+import { INSTALL_AUTH_KEY, readInstallAccount } from '../infrastructure/storage/installAccount.ts';
 
 interface InstallPrompt extends Event {
   prompt(): Promise<void>;
@@ -16,13 +18,15 @@ export function initializeInstallableApp(): void {
   const installWindow = window as Window & { __gsatInstallPrompt?: InstallPrompt };
   let prompt = installWindow.__gsatInstallPrompt, busy = false, prepared = false, scope = '', closing = false, localCount = 0, revision = 0;
   let recovery: DeviceRecordSnapshot | null = null;
+  let automaticReceipt: AccountInstallReceipt | null = null, checkingAutomatic = false;
+  let automaticTimer: ReturnType<typeof setTimeout> | undefined;
   const dialog = document.createElement('dialog');
   dialog.id = 'siteAppDialog'; dialog.className = 'site-app-dialog';
   dialog.setAttribute('aria-labelledby', 'siteAppTitle');
   dialog.innerHTML = `<header><h2 id="siteAppTitle">安裝與裝置資料</h2><button type="button" data-app-close aria-label="關閉安裝與資料">×</button></header>
     <section aria-labelledby="siteAppInstallTitle"><h3 id="siteAppInstallTitle">GSAT Tracker App</h3>
     <p data-app-instructions></p><button type="button" data-app-install disabled>安裝 App</button>
-    <p class="site-app-note">安裝前請先備份。若新 App 沒有原瀏覽器的資料，請登入同一 Google 帳號；訪客可先下載備份，再於新 App 匯入。</p></section>
+    <p class="site-app-note">已登入且紀錄同步完成時，會自動核對裝置備份。若新 App 沒有原瀏覽器的資料，請登入同一 Google 帳號；訪客可先下載備份，再於新 App 匯入。</p></section>
     <section aria-labelledby="siteAppDataTitle"><h3 id="siteAppDataTitle">裝置備份與容量</h3>
     <p data-app-source></p><p data-app-capacity></p><p data-app-persistence></p>
     <div class="site-app-actions"><button type="button" data-app-backup><span data-ui-icon="save" aria-hidden="true"></span>備份並整理</button>
@@ -48,7 +52,10 @@ export function initializeInstallableApp(): void {
     }
     install.hidden = false;
     install.disabled = busy || !prompt || !prepared;
-    if (prompt) find('[data-app-instructions]').textContent = '完成「備份並整理」後，即可安裝到此裝置。';
+    if (prompt) find('[data-app-instructions]').textContent = checkingAutomatic ? '正在自動核對帳號紀錄與裝置備份…'
+      : automaticReceipt && prepared ? '裝置備份已自動核對，可直接安裝到此裝置。'
+      : scope.startsWith('study-v11:user:') ? '同步完成後會自動備份並開放安裝；也可使用「備份並整理」。'
+      : '完成「備份並整理」後，即可安裝到此裝置。';
     else if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
       find('[data-app-instructions]').textContent = '在 Safari 開啟此網站，點「分享」→「加入主畫面」，若有「以網頁 App 開啟」選項請開啟。';
       install.hidden = true;
@@ -59,6 +66,31 @@ export function initializeInstallableApp(): void {
   }
   function assertScope(): void {
     if (scope !== initialRecordPrefix(localStorage)) throw new Error('帳號已變更，請關閉後重新開啟此視窗。');
+  }
+  function cloudReady(): boolean {
+    const badge = document.getElementById('cloudStatusBadge');
+    // Standalone pages reuse the persisted session and per-record acknowledgements.
+    return !badge || (badge.dataset.state === 'ok' && document.getElementById('cloudLoggedIn')?.hidden === false);
+  }
+  async function automaticBackup(): Promise<void> {
+    if (prepared || standalone() || !scope.startsWith('study-v11:user:')) return;
+    checkingAutomatic = true; installState();
+    try {
+      const receipt = await prepareAccountInstall({ storage: localStorage, prefix: scope,
+        account: readInstallAccount, cloudReady, verifyDraft: verifyBeforeDeviceOperation,
+        revision: () => revision, backup: prefix => captureDeviceRecords(localStorage, prefix) });
+      if (!receipt) return;
+      automaticReceipt = receipt; prepared = true;
+      await refresh();
+      status('帳號紀錄已同步，裝置備份已自動完成核對，可直接安裝。');
+    } finally { checkingAutomatic = false; }
+  }
+  function scheduleAutomaticBackup(): void {
+    if (!dialog.open || busy || prepared || standalone() || automaticTimer !== undefined) return;
+    automaticTimer = setTimeout(() => {
+      automaticTimer = undefined;
+      if (dialog.open && !busy && !prepared) void run(automaticBackup);
+    }, 80);
   }
   async function refresh(): Promise<void> {
     const prefix = scope;
@@ -79,7 +111,8 @@ export function initializeInstallableApp(): void {
     const entries = await deviceBackupVault().list(prefix);
     assertScope();
     recovery = { format: 'gsat-device-backup', version: 1, prefix, createdAt: new Date().toISOString(), entries };
-    find('[data-app-backup-info]').textContent = entries.length ? `已核對裝置備份 ${entries.length} 天；最近保存 ${new Date(Math.max(...entries.map(row => row.savedAt))).toLocaleString('zh-TW')}。` : '尚無裝置備份，請先選「備份並整理」。';
+    find('[data-app-backup-info]').textContent = entries.length ? `已核對裝置備份 ${entries.length} 天；最近保存 ${new Date(Math.max(...entries.map(row => row.savedAt))).toLocaleString('zh-TW')}。`
+      : localCount ? '尚無裝置備份，請先選「備份並整理」。' : '目前沒有已儲存紀錄需要備份。';
     showRecovery(recovery);
     find<HTMLButtonElement>('[data-app-export]').disabled = !entries.length && !localCount;
   }
@@ -114,15 +147,15 @@ export function initializeInstallableApp(): void {
     link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   entry.addEventListener('click', () => {
-    scope = initialRecordPrefix(localStorage); prepared = false; recovery = null;
+    scope = initialRecordPrefix(localStorage); prepared = false; recovery = null; automaticReceipt = null;
     status('正在讀取裝置資料…'); dialog.showModal(); installState();
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) dialog.animate([{ transform: 'translateY(18px)' }, { transform: 'translateY(0)' }], { duration: 180, easing: 'ease-out' });
-    void run(async () => { await refresh(); status(''); });
+    void run(async () => { await refresh(); status(''); await automaticBackup(); });
   });
   function close(): void {
     if (busy || closing) return;
     closing = true;
-    const finish = (): void => { dialog.close(); closing = false; };
+    const finish = (): void => { clearTimeout(automaticTimer); automaticTimer = undefined; dialog.close(); closing = false; };
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) finish();
     else void dialog.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(18px)' }], { duration: 150, easing: 'ease-in' }).finished.then(finish, finish);
   }
@@ -137,18 +170,22 @@ export function initializeInstallableApp(): void {
     const capturedRevision = revision;
     await captureDeviceRecords(localStorage, scope); assertScope();
     if (capturedRevision !== revision) throw new Error('備份期間紀錄有更新，請再選一次「備份並整理」。');
-    prepared = true; await refresh(); status(`裝置備份已完成核對，已無損整理 ${compacted} 筆資料。`);
+    automaticReceipt = null; prepared = true; await refresh(); status(`裝置備份已完成核對，已無損整理 ${compacted} 筆資料。`);
   }));
   install.addEventListener('click', () => {
     if (!prompt || busy || !prepared) return;
     try { assertScope(); }
     catch (error) { status((error as Error).message, true); prepared = false; installState(); return; }
+    if (automaticReceipt && (!cloudReady() || !accountInstallReceiptCurrent(localStorage, scope, automaticReceipt))) {
+      prepared = false; automaticReceipt = null; installState();
+      status('帳號或紀錄已變更，正在重新確認登入、同步與備份。'); scheduleAutomaticBackup(); return;
+    }
     const request = prompt; prompt = undefined; delete installWindow.__gsatInstallPrompt; installState();
     // Invoke directly in the click handler: browsers require a fresh user activation.
     void request.prompt().then(() => request.userChoice).then(choice => status(choice.outcome === 'accepted' ? '已接受安裝，之後可從裝置圖示開啟。' : '已取消安裝，網站仍可照常使用。'))
       .catch(() => status('瀏覽器未完成安裝，請使用瀏覽器選單重試。', true));
   });
-  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); prompt = event as InstallPrompt; installState(); });
+  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); prompt = event as InstallPrompt; installState(); scheduleAutomaticBackup(); });
   window.addEventListener('appinstalled', () => { prompt = undefined; install.hidden = true; status('App 已安裝。'); });
   find('[data-app-export]').addEventListener('click', () => void run(async () => {
     const current = await readDeviceRecords(localStorage, scope); assertScope();
@@ -176,7 +213,7 @@ export function initializeInstallableApp(): void {
   }));
   window.addEventListener('storage', event => {
     if (dialog.open && (event.key === null || event.key === 'study-v11:meta:active-record-prefix')) {
-      prepared = false; recovery = null; installState(); status('資料空間已變更，請關閉後重新開啟。', true);
+      prepared = false; automaticReceipt = null; recovery = null; installState(); status('資料空間已變更，請關閉後重新開啟。', true);
       if (initialRecordPrefix(localStorage) !== scope) {
         localCount = 0;
         find('[data-app-source]').textContent = '帳號已變更，請重新開啟。';
@@ -184,15 +221,25 @@ export function initializeInstallableApp(): void {
         find('[data-app-missing]').textContent = '';
         find<HTMLDetailsElement>('[data-app-recovery]').hidden = true;
       }
-    } else if (dialog.open && event.key?.startsWith(scope) && isDeviceRecordKey(event.key)) {
+    } else if (dialog.open && ((event.key?.startsWith(scope) && isDeviceRecordKey(event.key)) || event.key === INSTALL_AUTH_KEY)) {
       invalidatePreparedCopy();
     }
   });
   function invalidatePreparedCopy(): void {
     revision++;
     if (dialog.open && prepared && !busy) {
-      prepared = false; installState(); status('紀錄已更新，請重新完成「備份並整理」後安裝。');
+      const automatic = Boolean(automaticReceipt);
+      prepared = false; automaticReceipt = null; installState();
+      status(automatic ? '紀錄或登入狀態已更新，正在重新確認裝置備份。' : '紀錄已更新，請重新完成「備份並整理」後安裝。');
     }
+    scheduleAutomaticBackup();
   }
   window.addEventListener('study-records-changed', invalidatePreparedCopy);
+  window.addEventListener('input', event => { if (event.target instanceof Node && !dialog.contains(event.target)) invalidatePreparedCopy(); });
+  window.addEventListener('focus', () => { if (dialog.open && automaticReceipt) invalidatePreparedCopy(); });
+  const badge = document.getElementById('cloudStatusBadge');
+  if (badge) new MutationObserver(() => {
+    if (!cloudReady() && automaticReceipt) invalidatePreparedCopy();
+    else scheduleAutomaticBackup();
+  }).observe(badge, { attributes: true, attributeFilter: ['data-state'], childList: true, subtree: true, characterData: true });
 }

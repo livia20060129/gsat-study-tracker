@@ -5,6 +5,36 @@ export type NaturalMaterialPageMapRow = readonly [
   topic: string,
 ];
 
+export const BIOLOGY_MASTERY_UPPER_TITLE = '精通 高中生物總複習（上）整理篇';
+
+/**
+ * Photographed printed contents; final p.279 supplied by the user.
+ * Ends use the next printed start minus one. Keep p.138 and p.192–196
+ * as topic starts before the first numbered point, without guessing content.
+ * The contents do not identify p.1–3.
+ */
+export const BIOLOGY_MASTERY_UPPER_PAGE_MAP = [
+  [4, 8, '主題一 細胞的構造與功能', '要點一 細胞學說與細胞膜的研究歷程'],
+  [9, 24, '主題一 細胞的構造與功能', '要點二 細胞的分子組成'],
+  [25, 57, '主題一 細胞的構造與功能', '要點三 細胞的構造與功能'],
+  [58, 93, '主題一 細胞的構造與功能', '要點四 細胞週期與細胞分裂'],
+  [94, 101, '主題二 細胞與能量', '要點一 細胞的代謝與酵素'],
+  [102, 108, '主題二 細胞與能量', '要點二 細胞能量的直接來源～ATP'],
+  [109, 118, '主題二 細胞與能量', '要點三 呼吸作用'],
+  [119, 131, '主題二 細胞與能量', '要點四 光合作用（以植物葉綠體為例）'],
+  [132, 137, '主題二 細胞與能量', '要點五 能量的來源、流轉與使用'],
+  [138, 138, '主題三 遺傳1～古典遺傳學', '主題起頁（要點前）'],
+  [139, 171, '主題三 遺傳1～古典遺傳學', '要點一 性狀與遺傳'],
+  [172, 191, '主題三 遺傳1～古典遺傳學', '要點二 染色體與遺傳'],
+  [192, 196, '主題四 遺傳2～分子遺傳學—遺傳物質', '主題起頁（要點前）'],
+  [197, 203, '主題四 遺傳2～分子遺傳學—遺傳物質', '要點一 遺傳物質的研究歷程'],
+  [204, 204, '主題四 遺傳2～分子遺傳學—遺傳物質', '要點二 核酸的構造'],
+  [205, 218, '主題四 遺傳2～分子遺傳學—遺傳物質', '要點三 DNA的構造與複製'],
+  [219, 246, '主題四 遺傳2～分子遺傳學—遺傳物質', '要點四 基因的表現'],
+  [247, 262, '主題四 遺傳2～分子遺傳學—遺傳物質', '要點五 遺傳變異'],
+  [263, 279, '主題四 遺傳2～分子遺傳學—遺傳物質', '要點六 遺傳學在生物科技的應用'],
+] as const satisfies readonly NaturalMaterialPageMapRow[];
+
 /**
  * 《新關鍵》生物學測總複習講義。
  *
@@ -217,6 +247,10 @@ function pageMatches(
 
 export function biologyNewKeyPageMatches(startValue: unknown, endValue: unknown): NaturalMaterialPageMatch[] {
   return pageMatches(BIOLOGY_NEW_KEY_PAGE_MAP, startValue, endValue);
+}
+
+export function biologyMasteryUpperPageText(startValue: unknown, endValue: unknown): string {
+  return pageText(pageMatches(BIOLOGY_MASTERY_UPPER_PAGE_MAP, startValue, endValue), 'p.4–279');
 }
 
 export function chemistryNewKeyPageMatches(startValue: unknown, endValue: unknown): NaturalMaterialPageMatch[] {

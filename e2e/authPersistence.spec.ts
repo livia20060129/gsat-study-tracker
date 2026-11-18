@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { goHome } from './helpers/siteNavigation.ts';
+import { goHome, showMobileSection } from './helpers/siteNavigation.ts';
 import { mockGoogleRedirect } from './helpers/googleOAuth.ts';
 
 test.use({ timezoneId: 'Asia/Taipei', reducedMotion: 'reduce' });
@@ -105,6 +105,48 @@ test('login survives every standalone page, browser history and reload on deskto
   await page.goto('/summary.html'); await page.goBack(); await loggedIn(page);
   await page.goForward(); await goHome(page); await loggedIn(page);
   expect(await storedSession(page)).toContain('test-refresh');
+});
+
+test('a restored and synchronized Tracker account automatically prepares installation from the existing session', async ({ page }) => {
+  await setup(page, { legacy: true }); await page.goto('/'); await loggedIn(page);
+  // The fixture has revision 2 before Tracker adds its normal scheduled cards.
+  // Wait for that existing load-triggered upload to be acknowledged before measuring installation.
+  await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key)!).serverRevision, prefix + date)).toBeGreaterThanOrEqual(3);
+  await expect(page.locator('#cloudStatusBadge')).toHaveAttribute('data-state', 'ok');
+  await page.evaluate(() => {
+    const event = new Event('beforeinstallprompt', { cancelable: true });
+    Object.assign(event, { prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'dismissed' }) });
+    window.dispatchEvent(event);
+  });
+  let uploads = 0;
+  page.on('request', request => { if (request.url().includes('/rpc/upsert_study_record')) uploads++; });
+  await showMobileSection(page, 'tools'); await page.locator('#siteAppSettings').click();
+  await expect(page.locator('[data-app-install]')).toBeEnabled();
+  await expect(page.locator('[data-app-status]')).toContainText('自動完成核對');
+  expect(uploads).toBe(0);
+});
+
+test('automatic installation refuses a failed unsaved Tracker field even when its stored record is synced', async ({ page }) => {
+  await setup(page, { legacy: true }); await page.goto('/'); await loggedIn(page);
+  await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key)!).serverRevision, prefix + date)).toBeGreaterThanOrEqual(3);
+  await expect(page.locator('#cloudStatusBadge')).toHaveAttribute('data-state', 'ok');
+  await page.evaluate(key => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(candidate, value) {
+      if (candidate === key) throw new DOMException('full', 'QuotaExceededError');
+      return set.call(this, candidate, value);
+    };
+    const event = new Event('beforeinstallprompt', { cancelable: true });
+    Object.assign(event, { prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'dismissed' }) });
+    window.dispatchEvent(event);
+  }, prefix + date);
+  await page.locator('#notes').fill('尚未成功保存的新草稿'); await page.locator('#notes').blur();
+  await showMobileSection(page, 'tools'); await page.locator('#siteAppSettings').click();
+  await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  await expect(page.locator('[data-app-install]')).toBeDisabled();
+  await expect(page.locator('[data-app-status]')).toContainText('尚未保存');
+  await page.locator('[data-app-close]').click();
+  await expect(page.locator('#notes')).toHaveValue('尚未成功保存的新草稿');
 });
 
 test('failed localStorage capability probes do not turn a login into page-only memory', async ({ page }) => {

@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  BIOLOGY_MASTERY_UPPER_PAGE_MAP,
+  BIOLOGY_MASTERY_UPPER_TITLE,
+  biologyMasteryUpperPageText,
   BIOLOGY_NEW_KEY_PAGE_MAP,
   biologyNewKeyPageMatches,
   biologyNewKeyPageText,
@@ -15,6 +18,44 @@ import {
   physicsNewKeyPageMatches,
   physicsNewKeyPageText,
 } from '../src/data/naturalMaterialPageMaps.ts';
+import { builtInMaterialCatalog, materialProgressRows } from '../src/study/materialProgress.ts';
+import { catalogRangeText, catalogValidationError } from '../src/study/materialCatalog.ts';
+
+test('Biology Mastery upper catalog covers photographed p.4–279 without gaps or overlapping topic starts', () => {
+  const book = builtInMaterialCatalog().find(row => row.title === BIOLOGY_MASTERY_UPPER_TITLE);
+  assert.ok(book); assert.equal(book.subject, '生物'); assert.equal(book.total, 279);
+  assert.equal(catalogValidationError(book), ''); assert.equal(book.sections.length, 19);
+  assert.equal(book.sections[0].start, 4);
+  for (let index = 1; index < book.sections.length; index++) assert.equal(book.sections[index].start, book.sections[index - 1].end + 1);
+  assert.deepEqual(BIOLOGY_MASTERY_UPPER_PAGE_MAP.filter(row => row[0] === 138 || row[0] === 192).map(row => [row[0], row[1], row[3]]),
+    [[138, 138, '主題起頁（要點前）'], [192, 196, '主題起頁（要點前）']]);
+});
+
+test('Biology Mastery upper references preserve the single-page nucleic-acid section and exact final boundary', () => {
+  const book = builtInMaterialCatalog().find(row => row.title === BIOLOGY_MASTERY_UPPER_TITLE)!;
+  const item = { id: 'mastery', type: 'scienceReview', done: false, minutes: '', required: false, f: { subject: '生物', material: book.title, start: '204', end: '205' } };
+  assert.match(catalogRangeText(book, item), /核酸的構造.*DNA的構造與複製/);
+  assert.match(biologyMasteryUpperPageText(204, 204), /核酸的構造（p\.204）/);
+  assert.match(biologyMasteryUpperPageText(263, 279), /遺傳學在生物科技的應用（p\.263–279）/);
+  assert.match(biologyMasteryUpperPageText(280, 280), /不在已建立/);
+  assert.match(biologyMasteryUpperPageText(1, 3), /不在已建立/);
+});
+
+test('Biology Mastery upper progress groups four topics and does not mix another biology edition', () => {
+  const book = builtInMaterialCatalog().find(row => row.title === BIOLOGY_MASTERY_UPPER_TITLE)!;
+  const rows = materialProgressRows([{ date: '2026-11-18', items: [
+    { id: 'mastery', type: 'scienceReview', done: true, minutes: '', required: false, f: { subject: '生物', material: book.title, start: '263', end: '279' } },
+    { id: 'other', type: 'scienceReview', done: true, minutes: '', required: false, f: { subject: '生物', material: '新關鍵', start: '4', end: '236' } },
+  ] }]);
+  const progress = rows.find(row => row.id === book.id)!;
+  assert.deepEqual(progress.segments.map(row => row.label), [
+    '主題一 細胞的構造與功能（p.4–93）', '主題二 細胞與能量（p.94–137）',
+    '主題三 遺傳1～古典遺傳學（p.138–191）', '主題四 遺傳2～分子遺傳學—遺傳物質（p.192–279）',
+  ]);
+  assert.equal(progress.completionPercent, 6);
+  assert.equal(progress.segments[3].completionPercent, 19);
+  assert.equal(progress.segments[0].completionPercent, 0);
+});
 
 test('Biology New Key covers every printed content page from p.4 through p.236', () => {
   assert.equal(BIOLOGY_NEW_KEY_PAGE_MAP[0][0], 4);

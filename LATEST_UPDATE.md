@@ -1,25 +1,29 @@
 # 最新更新
 
-版本：v171.6.188（個人版）
+版本：v171.6.189（個人版）
 
-## 離線準備與 CDN 相容修正
+## 同步帳號直接安裝
 
-正式網站實際核對 63 個檔案，52 個程式／靜態檔符合原核對碼；11 個 HTML 各被 Cloudflare JavaScript Detections 附加 1,114 bytes 的腳本，造成原版離線下載拒絕安裝。這個失敗被合併成「下載不完整或容量不足」，無法辨認真正原因。
+- 已登入、目前帳號的實際紀錄均已由雲端確認，且沒有未保存的輸入時，開啟「安裝與資料」會自動備份並讀回核對，完成後可直接按「安裝 App」。
+- 不再要求這些帳號手動點「備份並整理」。該工具保留給訪客、待同步資料與需要整理容量的情況。
+- 自動準備只讀取既有登入與同步確認，不另啟登入、更新驗證或雲端上傳，不壓縮或改寫主紀錄。
+- 帳號、紀錄、草稿或同步狀態變更後重新核對；備份失敗、登入過期或資料未保存時不誤稱完成。不循環輪詢。
+- 保留原生安裝需要使用者點擊的規則，以及 Safari 分享／加入主畫面的操作方式。
 
-- 離線 HTML 改由建置產生、以內容識別碼命名的 JSON 副本下載，避免 CDN 對 HTML 的動態附加內容；解碼後仍核對原始 HTML 的完整 SHA-256。
-- 保留 CSP、X-Frame-Options 等原安全標頭，以及 Cloudflare 防護設定；原紀錄、登入、Calendar 與同步規則保持相容。
-- 新版／不完整副本仍無法通過核對。錯誤會明確顯示檔名，以及 HTTP、下載中斷、格式、版本核對、容量或權限原因。
-- 安裝 worker 結束前保存小型公開診斷，並通知目前頁面；成功後清除。診斷不包含讀書紀錄、憑證或回應原文。
-- 新增正式站核對指令 `npm run check:app:live -- https://myself.liviayeh.dev/`，補上只測本機無法發現的 CDN 差異。
+## 生物教材頁碼地圖
 
-覆蓋後建置並部署整份 dist，包含新產生的 offline-pages 資料夾。部署後再次選「功能選單 → 安裝與資料 → 準備離線使用」。操作與發布驗收見 PWA_SETUP.md、APP_RELEASE_CHECKLIST.md。
+新增《精通 高中生物總複習（上）整理篇》，末頁 p.279。依目錄照片的印刷起頁建立 19 段，含四大主題與兩段主題起頁；p.1–3 沒有章節資料，不猜測歸屬。已接入教材庫、生物講義版本、Tracker 章節提示、四主題進度及目前排程 Prompt，與其他版本分開計算。
+
+完整對照見 BIOLOGY_MASTERY_PAGE_MAP.md。本次未修改 Calendar 行程。
+
+## 套用
+
+沿用既有建置與部署方式。請發布整份 dist，包含離線 worker、release index 與 offline-pages；保留 v171.6.188 的 CDN 相容修正。安裝流程見 PWA_SETUP.md，部署後實機驗收見 APP_RELEASE_CHECKLIST.md。
 
 無新增套件、OAuth、SQL migration 或 Edge Function。此交付尚未推送或部署。
-
-Cloudflare 行為參考：https://developers.cloudflare.com/cloudflare-challenges/challenge-types/javascript-detections/
 
 English commit suggestion:
 
 ~~~text
-fix: prepare offline pages without CDN HTML mutations
+feat: automate synced-account install backups and add biology page map
 ~~~

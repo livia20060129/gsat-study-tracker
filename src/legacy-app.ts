@@ -93,7 +93,7 @@ import { catalogMaterialMatchesItem, catalogOverrides, catalogRangeText, effecti
 import { CURRENT_STUDY_RECORD_SCHEMA_VERSION } from './storage/studyRecordCodec';
 import { CALENDAR_MATH_PLAN, CALENDAR_WEEK_MATH_TARGETS } from './data/mathCalendar';
 import { NEWKEY_12_PAGE_MAP, NEWKEY_34_PAGE_MAP } from './data/mathMaterialPageMaps';
-import { naturalNewKeyPageText } from './data/naturalMaterialPageMaps';
+import { BIOLOGY_MASTERY_UPPER_TITLE, biologyMasteryUpperPageText, naturalNewKeyPageText } from './data/naturalMaterialPageMaps';
 import { CALENDAR_NATURAL_INTEGRATION_DETAILS, CALENDAR_NATURAL_INTEGRATION_ITEMS, CALENDAR_NATURAL_PLAN } from './data/naturalCalendar';
 import { GSAT_ENGLISH_TITLES, SUPPLEMENT_ENGLISH_TITLES, isListeningTestBookTitle, LISTENING_TEST_BOOK_TITLE, LISTENING_TEST_MAX } from './data/englishBooks';
 import {
@@ -401,6 +401,11 @@ var CALENDAR_WRITING_TEST_PLAN={"2026-08-21":{"round":17,"focus":"基礎連接�
 
 var data=null;
 var dataLoadBase=null;
+var deviceDraftPending=false;
+window.addEventListener('input',function(event){
+ var field=event.target;
+ if(field&&field.matches&&field.matches('#notes,#mood,#wakeHour,#wakeMinute,#biggestBlock,#firstThingTomorrow,[data-item] input,[data-item] textarea,[data-item] select'))deviceDraftPending=true;
+},true);
 var localVisibleRefreshPending=false;
 var routineTimeMode='wake';
 var routineTimeDrafts={wake:{hour:'',minute:''},bedtime:{hour:'',minute:''}};
@@ -1169,6 +1174,11 @@ function saveGoogleAuthDraft(){
  var error=new GoogleAuthDraftError(recordSaveFailureReason());id('status').textContent=error.message;recordSaveFeedback.show(error.message);throw error;
 }
 window.addEventListener(DEVICE_DRAFT_SAVE,function(event){
+ if(event.detail.checkOnly){
+  if(deviceDraftPending)event.detail.reject('目前畫面仍有尚未保存的輸入，請先儲存並完成同步。');
+  else if(!data||data.storageIssue||!validate().ok)event.detail.reject('目前輸入尚未確認：'+recordSaveFailureReason());
+  return;
+ }
  try{if(!persist(false))event.detail.reject('目前輸入尚未儲存：'+recordSaveFailureReason());else recordSaveFeedback.clear()}
  catch(error){event.detail.reject('目前輸入尚未儲存：'+(error&&error.message?error.message:recordSaveFailureReason()))}
 });
@@ -2745,6 +2755,7 @@ function scienceMaterialOptions(subject,v){
  else if(subject==='物理'||subject==='化學')a=['好考點','新關鍵','大滿貫','123日的淬鍊'];
  else if(subject==='生物'||subject==='地科')a=['新關鍵','大滿貫','123日的淬鍊'];
  else a=['新關鍵','大滿貫','123日的淬鍊'];
+ if(subject==='生物')a.push(BIOLOGY_MASTERY_UPPER_TITLE);
  return'<option value="">請選擇</option>'+manualOptionGroup(subject||'請先選擇科目',a,v);
 }
 function normalizeScience(f){
@@ -2865,6 +2876,7 @@ function renderScienceFields(x,reviewMode){
  if(f.material==='好考點'&&(f.subject==='物理'||f.subject==='化學'))reference='<div class="field"><label>對應單元／章節</label><div class="small" data-science-auto>'+esc(goodPointCombinedText(f.subject,f.start,f.end))+'</div></div>';
  if(f.material==='123日的淬鍊'&&f.subject!=='混合')reference='<div class="field"><label>123日的淬鍊｜頁碼對應章節</label><div class="small" data-science-auto>'+esc(day123Text(f.subject,f.start,f.end))+'</div></div>';
  if(['生物','化學','物理','地科'].includes(f.subject)&&f.material==='新關鍵')reference='<div class="field"><label>新關鍵｜頁碼對應單元／主題</label><div class="small" data-science-auto>'+esc(naturalNewKeyPageText(f.subject,f.start,f.end))+'</div></div>';
+ if(f.subject==='生物'&&f.material===BIOLOGY_MASTERY_UPPER_TITLE)reference='<div class="field"><label>'+esc(BIOLOGY_MASTERY_UPPER_TITLE)+'｜頁碼對應主題／要點</label><div class="small" data-science-auto>'+esc(biologyMasteryUpperPageText(f.start,f.end))+'</div></div>';
  if(f.subject==='混合'&&f.material==='複習週記')reference='<div class="field"><label>對應章節</label><div class="small" data-science-auto>'+esc(naturalReviewText(x))+'</div></div>';
  if(reference)h+=renderStudyReference(reference);
  if(!reviewMode)h+='<div class="checkline" style="margin-top:10px"><label><input type="checkbox" data-check="progress"'+checked(f.progress)+'> 進度</label><label><input type="checkbox" data-check="graded"'+checked(f.graded)+'> 批改</label><label><input type="checkbox" data-check="corrected"'+checked(f.corrected)+'> 訂正</label></div>';
@@ -3584,6 +3596,7 @@ function refreshAuto(card,x){
   if(x.f.material==='好考點'){applyGoodPoint(x.f);if(s)s.textContent=goodPointCombinedText(x.f.subject,x.f.start,x.f.end)}
   else if(x.f.material==='123日的淬鍊'){if(s)s.textContent=day123Text(x.f.subject,x.f.start,x.f.end)}
   else if(['生物','化學','物理','地科'].includes(x.f.subject)&&x.f.material==='新關鍵'){if(s)s.textContent=naturalNewKeyPageText(x.f.subject,x.f.start,x.f.end)}
+  else if(x.f.subject==='生物'&&x.f.material===BIOLOGY_MASTERY_UPPER_TITLE){if(s)s.textContent=biologyMasteryUpperPageText(x.f.start,x.f.end)}
   else if(x.f.subject==='混合'){applyNaturalReview(x);if(s)s.textContent=naturalReviewText(x)}
  }
  var mappedBook=x.type==='chineseReading'?canonicalPageMappedBook(x.f&&x.f.book):(x.type==='extra'?canonicalPageMappedBook(x.f&&x.f.title):null);
@@ -4220,6 +4233,7 @@ function persist(show,options){
  var ok=false;
  try{ok=(!changed&&!!previous||writeStoredRecord(data))&&sameStudyContent(readStoredRecord(data.date),data)}catch(e){}
  if(ok){
+  deviceDraftPending=false;
   if(rangeCompletionSignature(data)!==rangeCompletionSignature(previous)){
    var rangeSync=synchronizeLocalRanges();
    var rangeUpdated=rangeSync.saved.find(function(record){return record.date===data.date});if(rangeUpdated)data=rangeUpdated;
@@ -4270,7 +4284,7 @@ function itemDetails(x){
  }
  else if(x.type==='magazine'){if(isFixedMagazine(x)){s+='｜'+ensureMagazineEntries(x).map(function(r,i){return'第'+(i+1)+'筆：'+line(r.name)+'｜'+line(r.month)+'月號｜Unit '+line(r.unit)+'｜'+line(r.minutes)+' 分鐘'}).join('；')}else s+='｜'+line(f.name)+'｜'+line(f.month)+'月號｜Unit '+line(f.unit)}
  else if(x.type==='chineseReading'){if(f.kind==='writing')s+='｜寫作｜題目：'+line(f.topic)+'｜分數：'+line(f.score)+'｜題型：'+line(f.writingType)+'｜改進方向：'+line(f.improvement);else if(f.kind==='reading')s+='｜古今悅讀一百｜第'+line(f.round)+'回｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');else if(f.kind==='book')s+='｜'+line(f.book)+'｜頁碼：第'+line(f.start)+'頁～第'+line(f.end)+'頁｜對應：'+bookPageText(f.book,f.start,f.end);else s+='｜國文項目：未選擇'}
- else if(x.type==='scienceReview'){if(isCalendarNaturalIntegration(x)){var ce=ensureCalendarNaturalIntegrationEntries(x,(data&&data.date)||'');s+='｜Calendar主題：'+line(f.calendarTopic)+'｜分科項目：'+ce.map(function(c){return(c.done?'✓ ':'— ')+c.subject+'｜123日的淬鍊｜'+line(c.pageText)+'｜對應章節：'+line(c.chapterText)}).join('；')}else{normalizeScience(f);s+='｜科目：'+line(f.subject);if(isCalendarNatural(x)&&f.calendarTopic)s+='｜Calendar主題：'+line(f.calendarTopic);s+='｜講義：'+line(f.material)+'｜頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁';if(f.material==='好考點')s+='｜對應：'+goodPointCombinedText(f.subject,f.start,f.end);if(f.material==='123日的淬鍊'){var d123=day123Matches(f.subject,f.start,f.end);if(d123.length)s+='｜對應：'+day123Text(f.subject,f.start,f.end)}if(['生物','化學','物理','地科'].includes(f.subject)&&f.material==='新關鍵')s+='｜對應：'+naturalNewKeyPageText(f.subject,f.start,f.end);if(f.subject==='混合')s+='｜章節：'+line(f.chapter);s+='｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}}
+ else if(x.type==='scienceReview'){if(isCalendarNaturalIntegration(x)){var ce=ensureCalendarNaturalIntegrationEntries(x,(data&&data.date)||'');s+='｜Calendar主題：'+line(f.calendarTopic)+'｜分科項目：'+ce.map(function(c){return(c.done?'✓ ':'— ')+c.subject+'｜123日的淬鍊｜'+line(c.pageText)+'｜對應章節：'+line(c.chapterText)}).join('；')}else{normalizeScience(f);s+='｜科目：'+line(f.subject);if(isCalendarNatural(x)&&f.calendarTopic)s+='｜Calendar主題：'+line(f.calendarTopic);s+='｜講義：'+line(f.material)+'｜頁數：第'+line(f.start)+'頁到第'+line(f.end)+'頁';if(f.material==='好考點')s+='｜對應：'+goodPointCombinedText(f.subject,f.start,f.end);if(f.material==='123日的淬鍊'){var d123=day123Matches(f.subject,f.start,f.end);if(d123.length)s+='｜對應：'+day123Text(f.subject,f.start,f.end)}if(['生物','化學','物理','地科'].includes(f.subject)&&f.material==='新關鍵')s+='｜對應：'+naturalNewKeyPageText(f.subject,f.start,f.end);if(f.subject==='生物'&&f.material===BIOLOGY_MASTERY_UPPER_TITLE)s+='｜對應：'+biologyMasteryUpperPageText(f.start,f.end);if(f.subject==='混合')s+='｜章節：'+line(f.chapter);s+='｜進度：'+(f.progress?'✓':'—')+'｜批改：'+(f.graded?'✓':'—')+'｜訂正：'+(f.corrected?'✓':'—');if(f.corrected)s+='｜錯因／不熟觀念：'+line(f.reason)}}
  else if(x.type==='mock')s+='｜科目：'+(isLockedEnglishMock(x)?'英文':line(f.subject))+'｜'+line(f.year)+' '+line(f.exam)+' '+line(f.round)+'｜狀態：'+line(f.status)+'｜錯因／不熟觀念：'+line(f.reason);
  else if(numberedStudyScope(x))s+='｜'+line(f.title||f.book)+'｜'+(numberedStudyScope(x).kind==='unit'?bookUnitText(x):numberedScopeText(x));
  else if(x.type==='englishVocabInteractive'){var vw=Array.isArray(f.words)?f.words:[];s+='｜今日單字：'+(vw.length?vw.map(function(z){return typeof z==='string'?z:(z.text||'')}).filter(Boolean).join('、'):'未填')}
