@@ -110,7 +110,7 @@ async function staticResponse(request, route) {
       for (const name of keys.reverse()) { const previous = await (await caches.open(name)).match(route.canonical); if (previous) return previous; }
     }
     // Never substitute a fresh document into an incomplete old release.
-    return new Response('離線檔案暫時無法讀取，請連線後在「安裝與資料」重新準備。', { status: 503, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+    return new Response('離線檔案暫時無法讀取，請連線後在「安裝與更新」重新準備。', { status: 503, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
   }
   const response = await fetch(request);
   if (response.ok && !response.redirected && /application\/json/i.test(response.headers.get('Content-Type') || '')) {

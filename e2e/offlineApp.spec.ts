@@ -15,11 +15,13 @@ const record = { schemaVersion: 2, date: day, notes: '離線前筆記', items: [
   minutes: '3', required: false, source: 'custom', f: { words: [{ text: 'ability', noun: true, translation: '能力' }] } }] };
 let server: Server, base: string, release: OfflineRelease, broken = false, networkDown = false;
 let transformHtml = false, missingPayload = false, cacheQuota = false;
+let payloadGate: { promise: Promise<void>; release(): void } | undefined, payloadRequested = false;
 
 test.beforeEach(async ({ context, page }) => {
   release = JSON.parse(await readFile('dist/app-release.json', 'utf8'));
   broken = false; networkDown = false;
   transformHtml = false; missingPayload = false; cacheQuota = false;
+  payloadGate = undefined; payloadRequested = false;
   const root = resolve('dist');
   const types: Record<string, string> = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json',
     '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ttf': 'font/ttf' };
@@ -34,6 +36,7 @@ test.beforeEach(async ({ context, page }) => {
     try {
       const indexSource = release.resources.find(row => row.path === 'index.html')?.source;
       const todoSource = release.resources.find(row => row.path === 'todo.html')?.source;
+      if (payloadGate && path === todoSource) { payloadRequested = true; await payloadGate.promise; }
       if (missingPayload && path === indexSource) { response.writeHead(404).end('not deployed'); return; }
       const quotaProbe = `const put = Cache.prototype.put; Cache.prototype.put = function(request, response) {
         if (String(typeof request === 'string' ? request : request.url).includes('/assets/')) throw new DOMException('full', 'QuotaExceededError');
@@ -58,13 +61,16 @@ test.beforeEach(async ({ context, page }) => {
   }, { prefix, record });
 });
 test.afterEach(async ({ context }) => {
+  payloadGate?.release();
   await context.setOffline(false);
   // Service-worker update requests can hold keepalive sockets after an aborted install.
   server.closeAllConnections(); await new Promise<void>(done => server.close(() => done()));
 });
 async function open(page: Page): Promise<void> {
   await showMobileSection(page, 'tools');
-  await page.locator('#siteAppSettings').click();
+  const updateNotice = page.locator('.site-app-update button');
+  if (await updateNotice.isVisible()) await updateNotice.click();
+  else await page.locator('#siteAppSettings').click();
   await expect(page.locator('#siteAppDialog')).toBeVisible();
   await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
 }
@@ -72,6 +78,7 @@ async function prepare(page: Page): Promise<void> {
   await open(page); await page.locator('[data-offline-prepare]').click();
   await expect(page.locator('[data-offline-info]')).toContainText('離線頁面已核對');
   await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  await expect(page.locator('[data-offline-prepare]')).toHaveAttribute('data-offline-success', 'true');
   await page.locator('[data-app-close]').click();
   await page.reload();
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
@@ -90,11 +97,109 @@ async function goOffline(page: Page, context: BrowserContext, browserName: strin
   await page.evaluate(() => { Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false }); window.dispatchEvent(new Event('offline')); });
 }
 async function updateReady(page: Page): Promise<void> {
+  await open(page);
   release = { ...release, version: '171.6.next', id: release.id + '-next' };
-  await open(page); await page.locator('[data-offline-check]').click();
+  await page.locator('[data-offline-check]').click();
   await expect(page.locator('[data-offline-update]')).toBeVisible();
   await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
 }
+
+test('completed preparation and update checks show a stable green check for five seconds and renew it on retry', async ({ page }, info) => {
+  test.setTimeout(45000);
+  await page.setViewportSize({ width: 375, height: 812 }); await open(page);
+  await page.evaluate(() => {
+    const durations: Record<string, number[]> = {};
+    Object.assign(window, { offlineSuccessDurations: durations });
+    for (const kind of ['prepare', 'check']) {
+      const button = document.querySelector(`[data-offline-${kind}]`)!;
+      let started = 0, active = false; durations[kind] = [];
+      new MutationObserver(() => {
+        const success = button.getAttribute('data-offline-success') === 'true';
+        if (success && !active) started = performance.now();
+        if (!success && active) durations[kind].push(performance.now() - started);
+        active = success;
+      }).observe(button, { attributes: true, attributeFilter: ['data-offline-success'] });
+    }
+  });
+  const prepareButton = page.locator('[data-offline-prepare]'), checkButton = page.locator('[data-offline-check]');
+  const prepareBounds = await prepareButton.boundingBox();
+  expect((await checkButton.boundingBox())!.y).toBe(prepareBounds!.y);
+  await prepareButton.click(); await page.mouse.move(0, 0);
+  await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  await expect(prepareButton).toHaveAttribute('data-offline-success', 'true');
+  await expect(prepareButton).toHaveAccessibleName('準備離線使用：已完成');
+  await expect(prepareButton).toHaveCSS('background-color', 'rgb(21, 128, 61)');
+  await expect(prepareButton.locator('.site-app-success-check')).toHaveCSS('opacity', '1');
+  expect(await prepareButton.boundingBox()).toEqual(prepareBounds);
+  await page.screenshot({ path: info.outputPath('offline-prepare-success-mobile.png') });
+  await expect(prepareButton).not.toHaveAttribute('data-offline-success', { timeout: 7000 });
+  await expect(prepareButton).toHaveAccessibleName('準備離線使用');
+  await expect(prepareButton.locator('.site-app-success-check')).toHaveCSS('opacity', '0');
+  const checkBounds = await checkButton.boundingBox();
+  await checkButton.click(); await page.mouse.move(0, 0);
+  await expect(checkButton).toHaveAttribute('data-offline-success', 'true');
+  await expect(checkButton).toHaveAccessibleName('檢查更新：已完成');
+  await expect(checkButton).toHaveCSS('background-color', 'rgb(21, 128, 61)');
+  await expect(checkButton.locator('.site-app-success-check')).toHaveCSS('opacity', '1');
+  await expect(page.locator('[data-offline-info]')).toContainText('檢查完成，目前已是最新版本');
+  expect(await checkButton.boundingBox()).toEqual(checkBounds);
+  await page.screenshot({ path: info.outputPath('update-check-success-mobile.png') });
+  // Retry during the five-second feedback, so its previous timer must be cancelled.
+  await page.waitForTimeout(3500); await checkButton.click();
+  await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  await expect(checkButton).toHaveAttribute('data-offline-success', 'true');
+  await expect(checkButton).not.toHaveAttribute('data-offline-success', { timeout: 7000 });
+  await expect(checkButton).toHaveAccessibleName('檢查更新');
+  await expect(page.locator('[data-offline-info]')).toContainText('離線頁面已核對');
+  const durations = await page.evaluate(() => (window as unknown as { offlineSuccessDurations: Record<string, number[]> }).offlineSuccessDurations);
+  for (const duration of [durations.prepare.at(-1)!, durations.check.at(-1)!]) {
+    expect(duration).toBeGreaterThanOrEqual(4900); expect(duration).toBeLessThan(6500);
+  }
+});
+
+test('a new release is not marked successful while its offline payload is still downloading', async ({ page }) => {
+  await prepare(page); await open(page);
+  release = { ...release, version: '171.6.next', id: release.id + '-held' };
+  let releaseDownload!: () => void;
+  payloadGate = { promise: new Promise<void>(resolve => { releaseDownload = resolve; }), release: () => releaseDownload() };
+  const button = page.locator('[data-offline-check]');
+  await button.click();
+  await expect.poll(() => payloadRequested).toBe(true);
+  await expect(button).not.toHaveAttribute('data-offline-success');
+  await expect(button).toBeDisabled();
+  await expect(page.locator('[data-offline-info]')).toContainText('正在檢查並核對更新');
+  payloadGate.release();
+  await expect(button).toHaveAttribute('data-offline-success', 'true');
+  await expect(button).toBeEnabled();
+  await expect(page.locator('[data-offline-update]')).toBeVisible();
+  await expect(page.locator('[data-offline-info]')).toContainText('新版已下載');
+  // A newer valid release may replace an already verified waiting worker.
+  release = { ...release, id: release.id + '-newer' }; payloadGate = undefined;
+  await button.click();
+  await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  await expect(button).toHaveAttribute('data-offline-success', 'true');
+  await expect(page.locator('[data-offline-info]')).toHaveAttribute('data-error', 'false');
+  await expect(page.locator('[data-offline-update]')).toBeVisible();
+  expect(await notes(page)).toBe('離線前筆記');
+});
+
+test('failed update checks clear the previous success, retain records and allow a successful retry', async ({ page }) => {
+  await prepare(page); await open(page);
+  const button = page.locator('[data-offline-check]');
+  await button.click(); await expect(button).toHaveAttribute('data-offline-success', 'true');
+  networkDown = true; await button.click();
+  await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  await expect(page.locator('[data-offline-info]')).toHaveAttribute('data-error', 'true');
+  await expect(page.locator('[data-app-status]')).toHaveAttribute('data-error', 'true');
+  await expect(button).not.toHaveAttribute('data-offline-success');
+  await expect(page.locator('[data-offline-prepare]')).not.toHaveAttribute('data-offline-success');
+  expect(await notes(page)).toBe('離線前筆記');
+  networkDown = false; await button.click();
+  await expect(button).toHaveAttribute('data-offline-success', 'true');
+  await expect(page.locator('[data-offline-info]')).toHaveAttribute('data-error', 'false');
+  await expect(page.locator('[data-app-status]')).toHaveText('');
+  await expect(page.locator('[data-app-status]')).toHaveAttribute('data-error', 'false');
+});
 
 for (const profile of [
   { name: 'desktop', viewport: { width: 1280, height: 720 } },
@@ -198,18 +303,12 @@ test('an offline running timer resumes from elapsed wall time across navigation 
 });
 
 test('an incomplete new deployment leaves the old release and offline records usable', async ({ page, context, browserName }) => {
-  await prepare(page);
+  await prepare(page); await open(page);
   release = { ...release, id: release.id + '-broken', version: 'broken' }; broken = true;
-  const failed = page.evaluate(async () => {
-    const reg = (await navigator.serviceWorker.getRegistration())!;
-    await new Promise<void>(resolve => {
-      reg.addEventListener('updatefound', () => {
-        const worker = reg.installing!;
-        worker.addEventListener('statechange', () => { if (worker.state === 'redundant') resolve(); });
-      }, { once: true }); void reg.update();
-    });
-  });
-  await failed;
+  await page.locator('[data-offline-check]').click();
+  await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  await expect(page.locator('[data-offline-info]')).toHaveAttribute('data-error', 'true');
+  await expect(page.locator('[data-offline-check]')).not.toHaveAttribute('data-offline-success');
   expect(await page.evaluate(() => caches.keys())).not.toContain('gsat-offline:/app/:release:' + release.id);
   await goOffline(page, context, browserName); await page.goto(base + 'todo.html');
   await expect(page.locator('#siteAppDialog')).toHaveCount(1);
@@ -269,9 +368,11 @@ test('missing offline copies identify the file and HTTP status and can be retrie
   await expect(page.locator('[data-offline-info]')).toContainText('HTTP 404');
   await expect(page.locator('[data-offline-info]')).not.toContainText('容量不足');
   await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
+  await expect(page.locator('[data-offline-prepare]')).not.toHaveAttribute('data-offline-success');
   expect(await notes(page)).toBe('離線前筆記');
   missingPayload = false; await page.locator('[data-offline-prepare]').click();
   await expect(page.locator('[data-offline-info]')).toContainText('離線頁面已核對');
+  await expect(page.locator('[data-offline-prepare]')).toHaveAttribute('data-offline-success', 'true');
 });
 
 test('cache quota failures report capacity specifically and preserve the primary record', async ({ page }) => {
@@ -279,5 +380,6 @@ test('cache quota failures report capacity specifically and preserve the primary
   await open(page); await page.locator('[data-offline-prepare]').click();
   await expect(page.locator('[data-offline-info]')).toContainText('容量不足');
   await expect(page.locator('[data-offline-info]')).not.toContainText('核對碼不符');
+  await expect(page.locator('[data-offline-prepare]')).not.toHaveAttribute('data-offline-success');
   expect(await notes(page)).toBe('離線前筆記');
 });

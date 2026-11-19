@@ -869,4 +869,12 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 }
 .site-app-update button:focus-visible { outline:3px solid #315cf5; outline-offset:3px; }
 .site-app-dialog [data-offline-info][data-error=true] { color:#a83d35; }
+.site-app-dialog [data-offline-info] { min-height:3.3em; }
 .site-app-dialog [data-offline-update] { background:#315cf5; color:#fff; }
+/* Component Gallery button states: icon and colour confirm completed actions. */
+.site-app-dialog .site-app-feedback-action { position:relative; padding-inline:28px; transition:background-color .18s,border-color .18s,color .18s; }
+.site-app-success-check { position:absolute; inset-inline-start:8px; width:16px; height:16px; opacity:0; pointer-events:none; }
+.site-app-dialog [data-offline-success=true] { background:#15803d; border-color:#15803d; color:#fff; }
+.site-app-dialog [data-offline-success=true]:hover { background:#166534; border-color:#166534; }
+.site-app-dialog [data-offline-success=true] .site-app-success-check { opacity:1; }
+@media (prefers-reduced-motion:reduce) { .site-app-dialog .site-app-feedback-action { transition:none; } }

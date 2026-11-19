@@ -48,7 +48,7 @@ export function initializeInstallableApp(): void {
   }
   async function run(task: () => Promise<void>): Promise<void> {
     if (busy) return;
-    busy = true; dialog.setAttribute('aria-busy', 'true');
+    busy = true; status(''); dialog.setAttribute('aria-busy', 'true');
     find<HTMLButtonElement>('[data-app-close]').disabled = true;
     dialog.querySelectorAll<HTMLButtonElement>('section button').forEach(button => { button.disabled = true; });
     try { await task(); }
