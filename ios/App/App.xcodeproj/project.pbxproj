@@ -17,6 +17,15 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
+		6C15917C3E0449F4B7D310E8 /* StudyTimerWidget.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = 5655913BFED94EEB9D3B75EF /* StudyTimerWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		595813B50F93EC390B0645F6 /* StudyBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF1940FBDA6667944755267 /* StudyBridgeViewController.swift */; };
+		AF7665DAA7A839439D531F4C /* StudyLockTimerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4601A0B8CCA6021132C75559 /* StudyLockTimerEngine.swift */; };
+		B686ECEDC708D3883B4F7219 /* StudyLockTimerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D969A48FA032867DE5181F /* StudyLockTimerPlugin.swift */; };
+		246DF9228F74429194069B5F /* StudyTimerAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94EB8B6F1A1127DB78827E73 /* StudyTimerAttributes.swift */; };
+		4EC52FD4C5D9EF23CFBB7539 /* StudyTimerIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0682502E464D0D9F2E3011 /* StudyTimerIntent.swift */; };
+		7DF78214FDEEE4E5B6DC98CF /* StudyTimerAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94EB8B6F1A1127DB78827E73 /* StudyTimerAttributes.swift */; };
+		4DC254EE6307F32CFFF7B71F /* StudyTimerIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D0682502E464D0D9F2E3011 /* StudyTimerIntent.swift */; };
+		C7E4969606C3C971392D8FB9 /* StudyTimerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC375AEDDD908C88F7148B9E /* StudyTimerWidget.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +41,14 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		5655913BFED94EEB9D3B75EF /* StudyTimerWidget.appex */ = {isa = PBXFileReference; name = "StudyTimerWidget.appex"; path = "StudyTimerWidget.appex"; sourceTree = BUILT_PRODUCTS_DIR; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; };
+		7EF1940FBDA6667944755267 /* StudyBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyBridgeViewController.swift; sourceTree = "<group>"; };
+		4601A0B8CCA6021132C75559 /* StudyLockTimerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyLockTimerEngine.swift; sourceTree = "<group>"; };
+		F8D969A48FA032867DE5181F /* StudyLockTimerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyLockTimerPlugin.swift; sourceTree = "<group>"; };
+		94EB8B6F1A1127DB78827E73 /* StudyTimerAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerAttributes.swift; sourceTree = "<group>"; };
+		2D0682502E464D0D9F2E3011 /* StudyTimerIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerIntent.swift; sourceTree = "<group>"; };
+		FC375AEDDD908C88F7148B9E /* StudyTimerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyTimerWidget.swift; sourceTree = "<group>"; };
+		95B6D4A5D08A02C4552FFC91 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -40,6 +57,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		224297E27FED4F48A9D9E608 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -52,6 +76,8 @@
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
+				E813C5874BF73428D0BD8B25 /* SharedTimer */,
+				D84813B4AC84250626F2B2C1 /* StudyTimerWidget */,
 			);
 			sourceTree = "<group>";
 		};
@@ -59,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				5655913BFED94EEB9D3B75EF /* StudyTimerWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,8 +103,29 @@
 				504EC3131FED79650016851F /* Info.plist */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				7EF1940FBDA6667944755267 /* StudyBridgeViewController.swift */,
+				4601A0B8CCA6021132C75559 /* StudyLockTimerEngine.swift */,
+				F8D969A48FA032867DE5181F /* StudyLockTimerPlugin.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		E813C5874BF73428D0BD8B25 /* SharedTimer */ = {
+			isa = PBXGroup;
+			children = (
+				94EB8B6F1A1127DB78827E73 /* StudyTimerAttributes.swift */,
+				2D0682502E464D0D9F2E3011 /* StudyTimerIntent.swift */,
+			);
+			path = SharedTimer;
+			sourceTree = "<group>";
+		};
+		D84813B4AC84250626F2B2C1 /* StudyTimerWidget */ = {
+			isa = PBXGroup;
+			children = (
+				FC375AEDDD908C88F7148B9E /* StudyTimerWidget.swift */,
+				95B6D4A5D08A02C4552FFC91 /* Info.plist */,
+			);
+			path = StudyTimerWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -90,10 +138,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				E0BF49D9C5D04B06A1FB21C3 /* Copy Files */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				8FA621D0FE78A3ADAC9E0A8F /* StudyTimerWidget */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -103,14 +153,31 @@
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
+		8203609F2D504C469929BC51 /* "StudyTimerWidget" */ = {
+			isa = PBXNativeTarget;
+			name = "StudyTimerWidget";
+			productName = "StudyTimerWidget";
+			productReference = 5655913BFED94EEB9D3B75EF;
+			productType = "com.apple.product-type.app-extension";
+			buildConfigurationList = C90702C915724AAD9658054D;
+			buildPhases = (
+				69067DEFCC714282961E72B5 /* Sources */,
+				224297E27FED4F48A9D9E608 /* Frameworks */,
+				53D7129ED5D347FA9859FDD5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		504EC2FC1FED79650016851F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0920;
-				LastUpgradeCheck = 0920;
+				LastSwiftUpdateCheck = 920;
+				LastUpgradeCheck = 920;
 				TargetAttributes = {
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
@@ -136,6 +203,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				8203609F2D504C469929BC51 /* "StudyTimerWidget" */,
 			);
 		};
 /* End PBXProject section */
@@ -155,6 +223,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		53D7129ED5D347FA9859FDD5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -164,6 +239,21 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				595813B50F93EC390B0645F6 /* StudyBridgeViewController.swift in Sources */,
+				AF7665DAA7A839439D531F4C /* StudyLockTimerEngine.swift in Sources */,
+				B686ECEDC708D3883B4F7219 /* StudyLockTimerPlugin.swift in Sources */,
+				246DF9228F74429194069B5F /* StudyTimerAttributes.swift in Sources */,
+				4EC52FD4C5D9EF23CFBB7539 /* StudyTimerIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		69067DEFCC714282961E72B5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7DF78214FDEEE4E5B6DC98CF /* StudyTimerAttributes.swift in Sources */,
+				4DC254EE6307F32CFFF7B71F /* StudyTimerIntent.swift in Sources */,
+				C7E4969606C3C971392D8FB9 /* StudyTimerWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -304,14 +394,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 192;
+				CURRENT_PROJECT_VERSION = 193;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 171.6.192;
+				MARKETING_VERSION = 171.6.193;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.liviayeh.gsat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -326,14 +416,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 192;
+				CURRENT_PROJECT_VERSION = 193;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 171.6.192;
+				MARKETING_VERSION = 171.6.193;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.liviayeh.gsat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -341,6 +431,52 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		FA472F1B669D441C9F74F5BC /* Debug */ = {
+			name = Debug;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = StudyTimerWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.liviayeh.gsat.timer;
+				SDKROOT = iphoneos;
+				GENERATE_INFOPLIST_FILE = YES;
+				SWIFT_VERSION = 5.0;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_EXTENSION";
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				CODE_SIGN_STYLE = Automatic;
+				MARKETING_VERSION = 171.6.193;
+				CURRENT_PROJECT_VERSION = 193;
+			};
+		};
+		E74D06F19C474DF28647FEE9 /* Release */ = {
+			name = Release;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = StudyTimerWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.liviayeh.gsat.timer;
+				SDKROOT = iphoneos;
+				GENERATE_INFOPLIST_FILE = YES;
+				SWIFT_VERSION = 5.0;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_EXTENSION";
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				CODE_SIGN_STYLE = Automatic;
+				MARKETING_VERSION = 171.6.193;
+				CURRENT_PROJECT_VERSION = 193;
+			};
 		};
 /* End XCBuildConfiguration section */
 
@@ -363,6 +499,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C90702C915724AAD9658054D /* Build configuration list for PBXNativeTarget "StudyTimerWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FA472F1B669D441C9F74F5BC /* Debug */,
+				E74D06F19C474DF28647FEE9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -379,6 +524,38 @@
 			productName = "CapApp-SPM";
 		};
 /* End XCSwiftPackageProductDependency section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		E0BF49D9C5D04B06A1FB21C3 /* Copy Files */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6C15917C3E0449F4B7D310E8 /* StudyTimerWidget.appex in Copy Files */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			name = "Copy Files";
+			dstPath = "";
+			dstSubfolderSpec = 13;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8FA621D0FE78A3ADAC9E0A8F /* StudyTimerWidget */ = {
+			isa = PBXTargetDependency;
+			target = 8203609F2D504C469929BC51;
+			targetProxy = 9EC23D0F74AFF2A503021A89;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		9EC23D0F74AFF2A503021A89 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F;
+			proxyType = 1;
+			remoteGlobalIDString = 8203609F2D504C469929BC51;
+			remoteInfo = StudyTimerWidget;
+		};
+/* End PBXContainerItemProxy section */
 	};
 	rootObject = 504EC2FC1FED79650016851F /* Project object */;
 }

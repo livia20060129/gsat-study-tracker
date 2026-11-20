@@ -1,6 +1,7 @@
 import { isNativeApp, copyDeviceText } from './platform.ts';
 import { nativeCallbackPage, nativeExternalUrl } from './nativePolicy.ts';
 import { saveBeforeDeviceOperation } from '../ui/devicePreparation.ts';
+import { setLockTimerReconciler } from './lockTimerEvents.ts';
 
 let starting: Promise<boolean> | undefined;
 export function initializeNativePlatform(): Promise<boolean> {
@@ -10,6 +11,10 @@ export function initializeNativePlatform(): Promise<boolean> {
 async function initialize(): Promise<boolean> {
   const { App } = await import('@capacitor/app');
   const { Browser } = await import('@capacitor/browser');
+  // Optional lock-screen setup must not delay editor startup or the existing OAuth callback.
+  const lockTimer = import('./lockScreenTimer.ts').then(module => module.initializeLockScreenTimer()).catch(() => null);
+  setLockTimerReconciler(async () => { await (await lockTimer)?.beforeEdit(); });
+  await App.addListener('appStateChange', state => { if (state.isActive) void lockTimer.then(timer => timer?.sync()); });
   document.documentElement.dataset.nativeApp = 'true';
   let returning = false;
   async function callback(url: string, cold = false): Promise<boolean> {
@@ -27,9 +32,13 @@ async function initialize(): Promise<boolean> {
     location.replace(destination);
     return true;
   }
-  await App.addListener('appUrlOpen', event => { void callback(event.url); });
+  await App.addListener('appUrlOpen', event => {
+    if (event.url.startsWith('gsattracker://timer/')) void lockTimer.then(timer => timer?.open(event.url)).catch(() => {});
+    else void callback(event.url);
+  });
   const launch = await App.getLaunchUrl();
   if (launch?.url && await callback(launch.url, true)) return false;
+  if (launch?.url?.startsWith('gsattracker://timer/') && await lockTimer.then(timer => timer?.open(launch.url!)).catch(() => false)) return false;
   await App.addListener('backButton', ({ canGoBack }) => {
     const dialog = document.querySelector<HTMLDialogElement>('dialog[open]');
     if (dialog) { if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close(); return; }

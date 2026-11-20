@@ -15,8 +15,8 @@ if (platform === 'android') {
     throw new Error('命令列 Java 尚未就緒，請將 JAVA_HOME 指向 JDK 21，再重新建置。');
   }
   const result = windows
-    ? spawnSync('cmd.exe', ['/d', '/c', 'gradlew.bat', 'assembleDebug'], { cwd: resolve('android'), stdio: 'inherit' })
-    : spawnSync('sh', ['./gradlew', 'assembleDebug'], { cwd: resolve('android'), stdio: 'inherit' });
+    ? spawnSync('cmd.exe', ['/d', '/c', 'gradlew.bat', 'testDebugUnitTest', 'assembleDebug'], { cwd: resolve('android'), stdio: 'inherit' })
+    : spawnSync('sh', ['./gradlew', 'testDebugUnitTest', 'assembleDebug'], { cwd: resolve('android'), stdio: 'inherit' });
   if (result.error) throw result.error;
   process.exit(result.status ?? 1);
 } else if (platform === 'ios') {

@@ -4,6 +4,8 @@ v171.6.190 提供兩平台的原生測試工程，沿用既有 Tracker 介面及
 
 目前完成工程、圖示、登入回跳、Calendar 回跳、系統分享、返回鍵與網頁層驗證。此電腦沒有 Android SDK，且是 Windows；尚未在這裡編譯 APK、IPA，亦未在真正 Android／iOS 裝置或商店驗收。商店正式送審前的剩餘事項見 native/STORE_RELEASE.md。
 
+v171.6.193 新增原生鎖定畫面計時。Android 需允許「讀書計時」通知；iOS 新增 StudyTimerWidget extension，App 與 Widget 都需選擇同一簽章 Team。iOS 17／iPadOS 17 以上可直接暫停／繼續，iOS 16.4 控制會開啟 App。設定、限制與驗收見 [native/LOCK_SCREEN_TIMER.md](native/LOCK_SCREEN_TIMER.md)。
+
 ## 先設定登入回傳
 
 1. 開啟現有 Supabase 專案 → Authentication → URL Configuration → Redirect URLs。
@@ -52,7 +54,7 @@ npm run native:android:debug
 
 1. 在 Mac 安裝 Xcode 26 或更新版與 Node.js 22，將同一份原始碼及必要覆蓋檔案放到 Mac。
 2. 執行 npm ci、npm run native:sync、npm run native:check，再執行 npm run native:ios。
-3. 在 Xcode 選 App target → Signing & Capabilities，選自己的 Team，確認 Bundle Identifier 為 dev.liviayeh.gsat，開啟自動簽署。專案同時支援 iPhone 與 iPad，最低 iOS／iPadOS 16.4。
+3. 在 Xcode 選 App target → Signing & Capabilities，選自己的 Team，確認 Bundle Identifier 為 dev.liviayeh.gsat，開啟自動簽署；再為 StudyTimerWidget target 選相同 Team，確認 extension ID 為 dev.liviayeh.gsat.timer。專案同時支援 iPhone 與 iPad，最低 iOS／iPadOS 16.4；iPad 即時動態需 iPadOS 17。
 4. 先選模擬器按 Run。命令列驗證可用 npm run native:ios:simulator；這只建置模擬器，不產生可安裝到手機的 IPA。
 5. 接上 iPhone／iPad，在 Xcode 選裝置按 Run，依裝置提示信任開發者及開啟開發者模式。
 6. 正式 TestFlight／App Store 需 Apple Developer、簽章與 App Store Connect；先完成 native/STORE_RELEASE.md 的登入與帳號刪除項目，再進行外部測試／送審。

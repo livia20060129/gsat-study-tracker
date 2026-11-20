@@ -12,6 +12,7 @@ import {
   type StudyTimerPointer,
 } from './application/timer/studyTimerController.ts';
 import { ACTIVE_RECORD_PREFIX_KEY } from './storage/local.ts';
+import { notifyLockTimerControl, reconcileLockTimerBeforeEdit } from './native/lockTimerEvents.ts';
 import { coalescedRecordRefresh, isRecordStorageChange } from './ui/recordRefresh.ts';
 import { createOverdueTaskCache } from './study/overdueTaskCache.ts';
 import { DEVICE_DRAFT_SAVE, type DeviceDraftSaveRequest } from './ui/devicePreparation.ts';
@@ -724,8 +725,9 @@ function saveRange(action: TodoActionTarget, input: HTMLInputElement): void {
   }
 }
 
-function switchTimeMode(action: TodoActionTarget, mode: StudyTimeMode, manualMinutes: string): void {
+async function switchTimeMode(action: TodoActionTarget, mode: StudyTimeMode, manualMinutes: string): Promise<void> {
   try {
+    if (import.meta.env.MODE === 'native') await reconcileLockTimerBeforeEdit();
     const current = currentTimer(action);
     if (!current || current.mode === mode) return;
     const change = switchStudyTimerMode(current, mode, manualMinutes);
@@ -739,14 +741,16 @@ function switchTimeMode(action: TodoActionTarget, mode: StudyTimeMode, manualMin
   }
 }
 
-function runTimerAction(action: TodoActionTarget, command: string): void {
+async function runTimerAction(action: TodoActionTarget, command: string): Promise<void> {
   try {
+    if (import.meta.env.MODE === 'native') await reconcileLockTimerBeforeEdit();
     const current = currentTimer(action);
     if (!current) throw new Error('找不到原始計時項目，請重新讀取後再試。');
     if (command === 'toggle' && current.startedAt === null) pauseActiveTimer(action);
     const change = changeStudyTimer(current, command);
     if (!change) return;
     if (!saveTimer(action, change.state, change.minutes)) throw new Error('計時尚未儲存，請重新讀取後再試。');
+    notifyLockTimerControl({date: action.recordDate, itemId: action.itemId}, action.title, command === 'reset', command === 'toggle' && change.state.startedAt !== null);
     if (change.minutes !== undefined) drafts.remove(draftKey(action), 'minutes');
     if (!drafts.hasRecordEdits(action.recordDate)) draftBases.delete(action.recordDate);
     if (command === 'finish') setFeedback(`已完成「${action.title}」的計時並保存 ${change.minutes || '—'} 分鐘。`);
@@ -936,7 +940,8 @@ element<HTMLDivElement>('todoList').addEventListener('click', function handleTod
   if (target.dataset.todoTimeMode) {
     const minutes = target.closest<HTMLElement>('.todo-card')
       ?.querySelector<HTMLInputElement>('[data-todo-minutes]')?.value ?? '';
-    return switchTimeMode(action, target.dataset.todoTimeMode as StudyTimeMode, minutes);
+    void switchTimeMode(action, target.dataset.todoTimeMode as StudyTimeMode, minutes);
+    return;
   }
   if (target.dataset.todoTimerAction) runTimerAction(action, target.dataset.todoTimerAction);
 });
@@ -1027,6 +1032,7 @@ element<HTMLAnchorElement>('refreshTodo').addEventListener('click', function ref
   void refreshBrowserCalendarSchedule();
 });
 const backgroundRefresh = coalescedRecordRefresh(() => load(false, true));
+window.addEventListener('gsat-native-timer-applied', () => backgroundRefresh.flush());
 window.addEventListener('storage', function refreshChangedRecords(event): void {
   if (!isRecordStorageChange(event, recordPrefix, localStorage)) return;
   if (event.key === null || event.key === ACTIVE_RECORD_PREFIX_KEY) backgroundRefresh.flush();

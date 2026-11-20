@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
 
 const root = process.cwd();
 const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version as string;
@@ -50,4 +51,5 @@ edit('ios/App/App.xcodeproj/project.pbxproj', text => {
   }
   return text;
 });
+createRequire(import.meta.url)('./configureLockTimerProject.cjs')(version, build);
 console.log('Native project configuration verified: ' + version + ' (build ' + build + ')');

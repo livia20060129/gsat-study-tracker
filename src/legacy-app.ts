@@ -64,6 +64,7 @@ import { readRecoverableCloudBackup, writeRecoverableCloudBackup } from './infra
 import { completedRangeIndex, reconcileRangeCompletion, rangeCompletionSignature } from './study/rangeCompletion.ts';
 import { mergeQueuedRecord, reconcileLocalRecordEdit } from './application/records/localRecordEdits.ts';
 import { changeStudyTimer, resolveStudyTimerTarget, sameStudyTimerPointer, sameStudyTimerTarget, setStudyTimerTargetMinutes, setStudyTimerTargetState, studyTimerTargetState, studyTimerToggleLabel, switchStudyTimerMode } from './application/timer/studyTimerController.ts';
+import { notifyLockTimerControl, RECORD_SCOPE_CHANGED, reconcileLockTimerBeforeEdit } from './native/lockTimerEvents.ts';
 import { groupedSourceDateText, hasDeferredStudySource, shouldShowSourceDate } from './study/sourceDate';
 import { completionCelebrationForChange } from './study/completionCelebration';
 import { completionDateValue, deferredCompletionDate, isCompletedByDate } from './study/completionCheckedOn';
@@ -486,6 +487,7 @@ function setStorageScope(userId){
  if(statusFeedbackRefresh)statusFeedbackRefresh();
  localRecordRepository.setPrefix(STORE_PREFIX);
  try{store.setItem(ACTIVE_RECORD_PREFIX_KEY,STORE_PREFIX)}catch(e){}
+ window.dispatchEvent(new Event(RECORD_SCOPE_CHANGED));
  mathProgressIndex.replaceAll([]);
  data=null;
  dataLoadBase=null;
@@ -3635,7 +3637,8 @@ function animateTimerModeSelection(control,nextMode){
  segments.querySelectorAll('[data-time-mode]').forEach(function(button){button.setAttribute('aria-pressed',button.getAttribute('data-time-mode')===nextMode?'true':'false')});
  timerModeRenderTimer=setTimeout(function(){timerModeRenderTimer=null;render()},270);
 }
-function selectTimerModeFromControl(item,control){
+async function selectTimerModeFromControl(item,control){
+ if(import.meta.env.MODE==='native'){try{await reconcileLockTimerBeforeEdit()}catch(error){id('status').textContent=error.message;return}item=findItem(item.id);if(!item)return}
  var target=timerTargetFromControl(item,control);if(!target)return;
  var state=timerStateForTarget(target),pointer=readTimerPointer(),nextMode=control.getAttribute('data-time-mode')==='timer'?'timer':'manual';
  if(state.mode===nextMode)return;
@@ -3645,7 +3648,8 @@ function selectTimerModeFromControl(item,control){
  if(!saveTimerTargetChange(target,change,nextPointer)){render();return}
  animateTimerModeSelection(control,nextMode);
 }
-function runTimerAction(item,control,action){
+async function runTimerAction(item,control,action){
+ if(import.meta.env.MODE==='native'){try{await reconcileLockTimerBeforeEdit()}catch(error){id('status').textContent=error.message;return}item=findItem(item.id);if(!item)return}
  var target=timerTargetFromControl(item,control);if(!target)return;
  var now=Date.now(),pointer=readTimerPointer(),state=timerStateForTarget(target);
  if(action==='timer-toggle'&&state.startedAt===null){
@@ -3660,7 +3664,7 @@ function runTimerAction(item,control,action){
  var nextPointer=readTimerPointer();
  if(change.state.startedAt!==null)nextPointer=target.pointer;
  else if(sameTimerPointer(nextPointer,target.pointer))nextPointer=null;
- saveTimerTargetChange(target,change,nextPointer);
+ if(saveTimerTargetChange(target,change,nextPointer))notifyLockTimerControl(target.pointer,timerTargetTitle(target),action==='timer-reset',action==='timer-toggle'&&change.state.startedAt!==null);
  render();
 }
 
@@ -3944,7 +3948,9 @@ function undoLastSmallDelete(){
 function handleClick(e){
  var b=e.target.closest('[data-action]');if(!b)return;var card=b.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null,action=b.getAttribute('data-action');
  if(action==='timer-pause-active'){
-  e.preventDefault();e.stopPropagation();var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI();
+  e.preventDefault();e.stopPropagation();
+  if(import.meta.env.MODE==='native'){void reconcileLockTimerBeforeEdit().then(function(){var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI()}).catch(function(error){id('status').textContent=error.message})}
+  else{var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI()}
  }
  else if(action==='time-mode-select'&&x){e.preventDefault();selectTimerModeFromControl(x,b)}
  else if((action==='timer-toggle'||action==='timer-finish'||action==='timer-reset')&&x){e.preventDefault();runTimerAction(x,b,action)}
@@ -4666,6 +4672,17 @@ window.addEventListener('storage',function(event){
 window.addEventListener('study-records-changed',function(){if(overviewMetricView==='reminder')updateYesterdayReminder()});
 window.addEventListener('storage',schedulePendingCloudSync);
 window.addEventListener('study-records-changed',schedulePendingCloudSync);
+window.addEventListener('gsat-native-timer-applied',function(event){
+ var change=event.detail,pointer=change&&change.pointer;
+ if(data&&change.scope===STORE_PREFIX&&pointer&&pointer.date===data.date){
+  var fresh=resolveStudyTimerTarget(readStoredRecord(pointer.date),pointer),visible=resolveStudyTimerTarget(data,pointer);
+  if(fresh&&visible){
+   var state=studyTimerTargetState(fresh);setStudyTimerTargetState(visible,state);
+   var baseTarget=dataLoadBase&&resolveStudyTimerTarget(dataLoadBase,pointer);if(baseTarget)setStudyTimerTargetState(baseTarget,state);
+  }
+ }
+ refreshVisibleRecordFromLocalChange();refreshTimerUI();
+});
 window.addEventListener('pageshow',function(event){if(event.persisted){
  localVisibleRefreshPending=true;refreshVisibleRecordFromLocalChange();
  if(overviewMetricView==='reminder')updateYesterdayReminder();

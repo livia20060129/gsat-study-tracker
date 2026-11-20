@@ -1,7 +1,7 @@
 {
   "name": "gsat-study-tracker-v171",
   "private": true,
-  "version": "171.6.192",
+  "version": "171.6.193",
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
@@ -36,7 +36,8 @@
     "@playwright/test": "1.63.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",
-    "wrangler": "4.132.0"
+    "wrangler": "4.132.0",
+    "xcode": "4.0.0"
   },
   "dependencies": {
     "@capacitor/app": "8.1.2",
