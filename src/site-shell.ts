@@ -64,8 +64,6 @@ right.querySelector('.site-workspace-home')!.setAttribute('data-navigation', 'ho
 right.querySelectorAll<HTMLAnchorElement>('.site-tools a,.site-workspace-home').forEach(link => {
     if (link.getAttribute('href') === `./${currentPage}`) link.setAttribute('aria-current', 'page');
 });
-left.querySelector('.site-summary-link')!.setAttribute('aria-label', '週／月總結');
-if (currentPage === 'summary.html') left.querySelector('.site-summary-link')!.setAttribute('aria-current', 'page');
 initializeSelectionMotion(right, bar);
 initializeInstallableApp();
 const sidebarDate = initializeSidebarDate(left, dateKey(), function dateChanged(): void {
@@ -140,10 +138,10 @@ function refreshRails(): void {
         }
         left.querySelector('[data-rail-account]')!.textContent = prefix.includes(':user:') ? '目前帳號的本機資料' : '訪客本機資料';
         const pending = overdueEntriesForPeriod(overdueTasks(records.filter(record => currentWeek.has(record.date)), today), 'week', today);
-        right.querySelector('[data-rail-overdue-count]')!.textContent = `${pending.length} 項`;
+        left.querySelector('[data-rail-overdue-count]')!.textContent = `${pending.length} 項`;
         const preview = pending.length ? overduePreviewGroups(pending).slice(0, 10).map(group => `<a class="site-overdue-item" href="./todo.html?period=week&amp;item=${encodeURIComponent(group.key)}#${group.subject}"><strong>${escapeText(group.title)}：${group.count} 項逾期</strong><small>${escapeText(group.subjectLabel)}</small></a>`).join('') : '<p class="site-overdue-empty">本週尚無逾期項目</p>';
         if (previousPreview !== preview) {
-            right.querySelector('[data-rail-overdue-list]')!.innerHTML = preview;
+            left.querySelector('[data-rail-overdue-list]')!.innerHTML = preview;
             previousPreview = preview;
         }
         updateRailStatus();
@@ -152,7 +150,7 @@ function refreshRails(): void {
         previousPreview = '';
         previousTicks = '';
         left.querySelector('[data-rail-account]')!.textContent = '無法讀取本機資料';
-        right.querySelector('[data-rail-overdue-list]')!.textContent = '本機資料暫時無法讀取。';
+        left.querySelector('[data-rail-overdue-list]')!.textContent = '本機資料暫時無法讀取。';
     }
 }
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;

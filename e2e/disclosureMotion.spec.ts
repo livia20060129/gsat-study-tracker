@@ -46,6 +46,9 @@ async function sampleMotion(page: Page, selector: string, trigger: Locator, scre
       node.getAnimations({ subtree: true }).filter(animation => animation.id.startsWith('study-disclosure-')).forEach(animation => animation.finish());
     });
   }
+  // Finishing WAAPI can queue cleanup until the next render in WebKit. Do not
+  // let the next click sample the previous, still-filled height animation.
+  await expect(page.locator(selector).first()).not.toHaveAttribute('data-disclosure-motion');
   return samples;
 }
 
@@ -120,12 +123,16 @@ test('dynamically rendered chapter references and weekly sections use the same d
   const panel = page.locator(selector);
   await expect(panel).toBeVisible();
   expectSmooth(await sampleMotion(page, selector, panel.locator(':scope > summary')), false);
+  await expect(panel).not.toHaveAttribute('open');
   expectSmooth(await sampleMotion(page, selector, panel.locator(':scope > summary')), true);
+  await expect(panel).toHaveAttribute('open', '');
   await page.locator('[data-study-items-view="week"]').click();
   const weekly = page.locator('.weekly-day').first();
   await expect(weekly).toBeVisible();
   expectSmooth(await sampleMotion(page, '.weekly-day', weekly.locator(':scope > summary')), false);
+  await expect(weekly).not.toHaveAttribute('open');
   expectSmooth(await sampleMotion(page, '.weekly-day', weekly.locator(':scope > summary')), true);
+  await expect(weekly).toHaveAttribute('open', '');
 });
 
 test('todo cards and long-term overdue sections animate both ways and preserve page edits', async ({ page }, testInfo) => {

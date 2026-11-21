@@ -151,13 +151,13 @@ test('old catalog bookmarks redirect to the shared page and Tracker has only one
   await openLibrary(page);
   await page.goto('/material.catalog.html?from=bookmark#english');
   await expect(page).toHaveURL(/material\.progress\.html\?from=bookmark#english$/);
-  await expect(page.getByRole('heading', { name: '教材進度圖', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: '教材進度圖', exact: true })).toBeVisible();
   await expect(page.getByRole('tab', { name: '英文', exact: true })).toHaveAttribute('aria-selected', 'true');
   await navigateSite(page, 'index.html');
   await expect(page.locator('.site-tools a[href="./material.progress.html"]')).toHaveCount(1);
   await expect(page.locator('.site-tools a[href="./material.catalog.html"]')).toHaveCount(0);
   await navigateSite(page, 'material.progress.html');
-  await expect(page.getByRole('heading', { name: '教材進度圖', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: '教材進度圖', exact: true })).toBeVisible();
 });
 
 test('mobile progress and editor use the same panel without horizontal overflow', async ({ page }, testInfo) => {

@@ -46,7 +46,7 @@ test('mouse hover slides one selection surface, rapid reversal is continuous, an
   await markerMatches(page, menu('vocabulary.review'));
   await expect(page.locator(`${rail} [aria-current=page]`)).toHaveAttribute('href', './todo.html');
   expect(page.url()).toBe(originalUrl);
-  await page.locator(`${rail} .site-overdue h2`).hover();
+  await page.locator('#siteAppSettings').hover();
   expect(await page.locator(marker).evaluate(node => node.getAnimations().some(animation => animation.id === 'study-navigation-selection'))).toBe(true);
   await finishMarker(page);
   await markerMatches(page, menu('todo'));
@@ -95,12 +95,12 @@ test('hovering away during a clicked pulse cannot cancel the requested navigatio
 });
 
 test('keyboard focus previews the menu and a page without a right-side entry restores no false selection', async ({ page }) => {
-  await openMenu(page, '/summary.html');
+  await openMenu(page, '/privacy.html');
   await expect(page.locator(marker)).toBeHidden();
   await page.locator(menu('material.progress')).focus();
   await finishMarker(page);
   await markerMatches(page, menu('material.progress'));
-  await page.locator('.site-summary-link').focus();
+  await page.locator('.site-brand').focus();
   await expect(page.locator(marker)).toBeHidden();
   await page.locator(menu('index')).hover();
   await expect(page.locator(marker)).toBeVisible();

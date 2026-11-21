@@ -5,7 +5,7 @@ import { expandTodoCard } from './helpers/todoCard.ts';
 
 test('legal pages switch languages and preserve the choice across navigation', async ({ page }) => {
   await page.goto('/privacy.html?lang=zh');
-  await expect(page.locator('.header-inner h1:visible')).toHaveText('隱私權政策');
+  await expect(page.locator('main')).toHaveAttribute('aria-label', '隱私權政策｜Study Tracker');
   await expect(page.locator('[data-legal-panel="zh-Hant"]')).toBeVisible();
   await expect(page.locator('[data-legal-panel="en"]')).toBeHidden();
 
@@ -13,22 +13,22 @@ test('legal pages switch languages and preserve the choice across navigation', a
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
   await expect(page).toHaveTitle('Privacy Policy | Study Tracker');
-  await expect(page.locator('.header-inner h1:visible')).toHaveText('Privacy Policy');
+  await expect(page.locator('main')).toHaveAttribute('aria-label', 'Privacy Policy | Study Tracker');
   await expect(page).toHaveURL(/lang=en/);
 
   await page.goto('/terms.html');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
   await expect(page).toHaveTitle('Terms of Service | Study Tracker');
-  await expect(page.locator('.header-inner h1:visible')).toHaveText('Terms of Service');
+  await expect(page.locator('main')).toHaveAttribute('aria-label', 'Terms of Service | Study Tracker');
 
   await page.goto('/support.html');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
   await expect(page).toHaveTitle('User Support | Study Tracker');
-  await expect(page.locator('.header-inner h1:visible')).toHaveText('User Support');
+  await expect(page.locator('main')).toHaveAttribute('aria-label', 'User Support | Study Tracker');
   await page.locator('[data-legal-language="zh-Hant"]').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hant');
   await expect(page.locator('[data-legal-panel="zh-Hant"]')).toBeVisible();
-  await expect(page.locator('.header-inner h1:visible')).toHaveText('使用者支援');
+  await expect(page.locator('main')).toHaveAttribute('aria-label', '使用者支援｜Study Tracker');
 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileBounds = await page.locator('.document, .language-switch').evaluateAll(elements => elements.map(element => {
@@ -98,7 +98,7 @@ test('overdue task page filters subjects and persists skip without marking compl
 
   await page.goto('/');
   await navigateSite(page, 'todo.html');
-  await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
+  await expect(page.getByRole('main', { name: '待辦事項', exact: true })).toBeVisible();
   await expect(page.locator('.todo-card')).toHaveCount(2);
   await expect(page.getByRole('heading', { name: '英文訂正與搭配詞整理' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '數學講義題目：理解檢查＋錯題標記＋訂正' })).toHaveCount(0);
@@ -361,7 +361,7 @@ test('todo page preserves a focused manual-minute draft when leaving the origina
   await minutes.fill('37.5');
 
   await page.goForward();
-  await expect(page.getByRole('heading', { name: '待辦事項' })).toBeVisible();
+  await expect(page.getByRole('main', { name: '待辦事項', exact: true })).toBeVisible();
   await expandTodoCard(page.locator('.todo-card'));
   await expect(page.getByLabel('原日期時間同步測試的學習時間')).toHaveValue('37.5');
 });
@@ -482,7 +482,7 @@ test('English vocabulary review sorts entries and persists editable parts of spe
   });
 
   await navigateSite(page, 'vocabulary.review.html');
-  await expect(page.getByRole('heading', { name: '英文單字複習' })).toBeVisible();
+  await expect(page.getByRole('main', { name: '英文單字複習', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '隱藏中文', exact: true }).click();
   const links = page.locator('.vocabulary-word-link');
   await expect(links).toHaveCount(2);
@@ -1387,7 +1387,7 @@ test('learning summary uses one week/month control for the complete page', async
     }));
   });
   await page.reload();
-  await expect(page.getByRole('heading', { name: '週／月總結' })).toBeVisible();
+  await expect(page.getByRole('main', { name: '週／月總結', exact: true })).toBeVisible();
   await expect(page.locator('#summaryModeSwitch')).toHaveCount(1);
   await expect(page.locator('#summaryCalendar .summary-day')).toHaveCount(7);
   await expect(page.locator('#calendarTitle')).toHaveText('週曆');
@@ -1455,12 +1455,12 @@ test('learning summary uses one week/month control for the complete page', async
     const controls = node.querySelector('.summary-view-controls')!.getBoundingClientRect();
     const header = node.getBoundingClientRect();
     return {
-      headingFontSize: getComputedStyle(node.querySelector('h1')!).fontSize,
+      headingCount: node.querySelectorAll('h1').length,
       controlsCenter: controls.left + controls.width / 2,
       headerCenter: header.left + header.width / 2,
     };
   });
-  expect(mobileHeader.headingFontSize).toBe('28px');
+  expect(mobileHeader.headingCount).toBe(0);
   await expect(page.locator('.summary-back')).toBeHidden();
   await expect(page.locator('.site-mobile-bar')).toBeVisible();
   expect(Math.abs(mobileHeader.controlsCenter - mobileHeader.headerCenter)).toBeLessThan(3);

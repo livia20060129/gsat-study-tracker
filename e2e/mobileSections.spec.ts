@@ -95,7 +95,7 @@ test('scroll down hides the navigation, reverse scroll reveals it without resizi
   await expect(page.locator('body')).toHaveAttribute('data-mobile-nav-hidden', 'false');
 });
 
-test('full-page tools cap the preview at ten grouped books, retain total count, and link to all matching Units', async ({ page }, testInfo) => {
+test('full-page date section caps the preview at ten grouped books, retain total count, and link to all matching Units', async ({ page }, testInfo) => {
   await page.clock.setFixedTime(new Date('2026-11-05T12:00:00+08:00'));
   await page.setViewportSize({ width: 320, height: 812 });
   await page.goto('/todo.html');
@@ -110,7 +110,7 @@ test('full-page tools cap the preview at ten grouped books, retain total count, 
     localStorage.setItem('study-v11:guest:2026-11-03', JSON.stringify({ date: '2026-11-03', items }));
   });
   await page.reload();
-  await showMobileSection(page, 'tools');
+  await showMobileSection(page, 'date');
   await expect(page.locator('[data-rail-overdue-list] a')).toHaveCount(10);
   await expect(page.locator('[data-rail-overdue-count]')).toHaveText('24 項');
   await expect(page.locator('[data-rail-overdue-list] a').first()).toContainText('2 項逾期');
@@ -120,7 +120,7 @@ test('full-page tools cap the preview at ten grouped books, retain total count, 
   await page.locator('[data-rail-overdue-list] a').first().click();
   await expect(page.locator('#todoList .todo-card')).toHaveCount(2);
   await expect(page.locator('body')).toHaveAttribute('data-mobile-section', 'content');
-  await showMobileSection(page, 'tools');
+  await showMobileSection(page, 'date');
   await page.locator('.site-overdue-all').click();
   await expect(page.locator('#todoList .todo-card')).toHaveCount(24);
 });

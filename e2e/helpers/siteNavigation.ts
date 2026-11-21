@@ -11,15 +11,14 @@ export async function showMobileSection(page: Page, section: 'date' | 'content' 
 }
 
 export async function navigateSite(page: Page, destination: string): Promise<void> {
-    const summary = destination === 'summary.html';
-    const rail = page.locator(summary ? '.site-rail-left' : '.site-rail-right');
+    const rail = page.locator('.site-rail-right');
     const compact = await page.evaluate(() => matchMedia('(max-width: 1199px)').matches);
     if (compact && destination === 'index.html') {
         await page.locator('.site-mobile-home').focus();
         await page.locator('.site-mobile-home').click();
         return;
     }
-    if (compact) await showMobileSection(page, summary ? 'date' : 'tools');
+    if (compact) await showMobileSection(page, 'tools');
     const link = rail.locator(`a[href="./${destination}"]`);
     const target = new URL((await link.getAttribute('href'))!, page.url());
     await link.click();

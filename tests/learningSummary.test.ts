@@ -376,7 +376,8 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(styles, /summary-day-tooltip\{display:block;visibility:hidden;opacity:0/);
   assert.match(styles, /grid-template-columns:minmax\(100px,116px\) minmax\(0,1fr\)/);
   assert.match(styles, /@media\(max-width:650px\)\{\.summary-page\{padding-top:16px\}/);
-  assert.match(styles, /\.summary-heading h1\{font-size:28px\}/);
+  assert.doesNotMatch(html, /<h1|class="summary-heading"/);
+  assert.match(html, /<main class="summary-page" aria-label="週／月總結"/);
   assert.match(styles, /\.summary-back\{width:100%\}/);
   assert.match(styles, /\.summary-mode-switch>span\{background:#528bd0/);
   assert.match(styles, /summary-dashboard-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
@@ -391,7 +392,8 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /exit\.cancel\(\);\s*applyMode\(\);/);
   assert.match(runtime, /height: `\$\{beforeHeight\}px`/);
   assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back header-action-link"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
-  assert.match(sharedShell, /class="site-summary-link" href="\.\/summary\.html"/);
+  assert.match(sharedShell, /\['summary\.html', '週／月總結'/);
+  assert.doesNotMatch(sharedShell, /site-summary-link/);
   assert.doesNotMatch(index, /本週趨勢|completionTrendPanel|completionViewTabs/);
   assert.match(styles, /@import "\.\/header-action-link\.css"/);
   assert.match(sharedHeaderActions, /\.header-action-link\{/);

@@ -14,12 +14,10 @@ test('all pages share desktop rails and three full-width mobile sections without
       if (width >= 1200) await expect(page.locator('[data-rail-date]')).toHaveCSS('color', 'rgb(237, 243, 252)');
       await expect(page.locator('#siteMobileBar [data-mobile-section]')).toHaveCount(3);
       const home = page.locator('.site-workspace-home');
-      const compactHome = path === '/' && width < 1200;
-      const desktopHome = path === '/' && width >= 1200;
-      const title = compactHome ? page.locator('.site-mobile-home') : desktopHome
-        ? page.getByRole('heading', { name: '今日資訊', exact: true }) : page.locator('h1:not(.site-mobile-section-heading):visible').first();
-      await expect(title).toBeVisible();
-      if (!desktopHome) await expect(title).toHaveCSS('font-size', compactHome ? '16px' : '28px');
+      const content = page.locator('main');
+      await expect(content).toBeVisible();
+      await expect(content).toHaveAttribute('aria-label', /.+/);
+      await expect(page.locator('h1:not(.site-mobile-section-heading)')).toHaveCount(0);
       if (path === '/') await expect(page.locator('main > .app-header')).toHaveCount(0);
       await expect(width >= 1200 ? home : page.locator('.site-mobile-home')).toHaveCSS('color', path === '/' ? 'rgb(57, 103, 233)' : 'rgb(23, 42, 57)');
       const selectedTool = page.locator(`.site-tools a[href=".${path}"]`);
@@ -27,27 +25,24 @@ test('all pages share desktop rails and three full-width mobile sections without
         await expect(selectedTool).toHaveAttribute('aria-current', 'page');
         await expect(selectedTool).toHaveCSS('color', 'rgb(57, 103, 233)');
       }
-      if (path === '/summary.html') {
-        await expect(page.locator('.site-summary-link')).toHaveAttribute('aria-current', 'page');
-        if (width >= 1200) await expect(page.locator('.site-summary-link')).toHaveCSS('color', 'rgb(165, 199, 255)');
-      }
       await expect(page.locator('.site-rail .site-connection')).toHaveCount(0);
-      await expect(page.locator('.site-rail a[href="./summary.html"]')).toHaveCount(1);
+      await expect(page.locator('.site-rail-right .site-tools a[href="./summary.html"]')).toHaveCount(1);
+      await expect(page.locator('.site-rail-left .site-overdue')).toHaveCount(1);
+      await expect(page.locator('.site-rail-right .site-overdue,.site-rail-left a[href="./summary.html"]')).toHaveCount(0);
       if (width >= 1200) {
         await expect(page.locator('.site-rail-left')).toBeVisible();
         await expect(page.locator('.site-rail-right')).toBeVisible();
-        expect((await title.boundingBox())!.x).toBeGreaterThanOrEqual(200);
+        expect((await content.boundingBox())!.x).toBeGreaterThanOrEqual(200);
         await expect(page.locator('.site-mobile-bar')).toBeHidden();
       } else {
         await expect(page.locator('.site-rail-left')).toBeHidden();
         await expect(page.locator('.site-rail-right')).toBeHidden();
         await showMobileSection(page, 'tools');
         await expect(page.locator('.site-rail-right')).toBeVisible();
-        if (compactHome) { await expect(page.locator('main')).toBeHidden(); await expect(title).toBeVisible(); }
-        else await expect(title).toBeHidden();
+        await expect(content).toBeHidden();
         expect(Math.abs((await page.locator('.site-rail-right').boundingBox())!.width - width)).toBeLessThanOrEqual(16);
         await expect(page.locator('.site-rail-backdrop')).toHaveCount(0);
-        await expect(page.locator('.site-tools a')).toHaveCount(4);
+        await expect(page.locator('.site-tools a')).toHaveCount(5);
         await expect(home).toBeVisible();
         const menuWidths = await page.locator('.site-workspace-home,.site-tools>a').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().width));
         expect(Math.max(...menuWidths) - Math.min(...menuWidths)).toBeLessThan(1);
@@ -59,7 +54,7 @@ test('all pages share desktop rails and three full-width mobile sections without
         await expect(page.locator('.site-rail-right')).toBeHidden();
         await expect(page.locator('button[data-mobile-section="content"]')).toBeFocused();
         await showMobileSection(page, 'date');
-        await expect(page.locator('.site-summary-link')).toBeVisible();
+        await expect(page.locator('.site-rail-left .site-overdue')).toBeVisible();
         await expect(page.locator('[data-rail-date]')).toHaveCSS('color', 'rgb(57, 103, 233)');
         await showMobileSection(page, 'content');
         await expect(page.locator('.site-rail-left')).toBeHidden();
@@ -84,8 +79,8 @@ test('real navigation stays highlighted when deployment redirects HTML links to 
       const selected = page.locator('.site-rail [aria-current="page"]');
       await expect(selected).toHaveCount(1);
       await expect(selected).toHaveAttribute('href', `./${name}.html`);
-      if (width < 1200) await showMobileSection(page, name === 'summary' ? 'date' : 'tools');
-      await expect(selected).toHaveCSS('color', name === 'summary' && width >= 1200 ? 'rgb(165, 199, 255)' : 'rgb(57, 103, 233)');
+      if (width < 1200) await showMobileSection(page, 'tools');
+      await expect(selected).toHaveCSS('color', 'rgb(57, 103, 233)');
       if (name !== 'index') await expect(page.locator(width >= 1200 ? '.site-workspace-home' : '.site-mobile-home')).toHaveCSS('color', 'rgb(23, 42, 57)');
       await page.reload();
       await expect(page.locator('.site-rail [aria-current="page"]')).toHaveAttribute('href', `./${name}.html`);

@@ -268,21 +268,6 @@ body.has-site-shell {
   border-color: #86b5ff;
 }
 
-.site-summary-link {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 28px;
-  padding: 18px 0;
-  border-top: 1px solid #4a596c;
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.site-summary-link[aria-current=page] {
-  color: #a5c7ff;
-}
-
 .site-rail-bottom {
   margin-top: auto;
   padding-top: 50px;
@@ -526,7 +511,6 @@ body.has-site-shell {
   .site-brand strong { font-size: 17px; }
   .site-rail-date strong { font-size: 48px; }
   .site-week>strong { font-size: 36px; }
-  .site-summary-link { font-size: 14px; }
   .site-workspace-home strong { font-size: 28px; }
   .site-tools strong { font-size: 14px; }
   .site-tools small { font-size: 12px; }
@@ -591,8 +575,7 @@ body.has-site-shell {
   .site-week>strong { color: var(--rail-blue); }
   .site-week-ticks a { border-top-color: #dbe3ee; }
   .site-week-ticks .has-record { border-top-color: var(--rail-blue); }
-  .site-rail .site-summary-link { display: block; margin: 0; padding: 16px 18px; border: 1px solid #dbe3ee; border-radius: 16px; background: #fff; color: var(--rail-blue); font-size: 14px; }
-  .site-rail-bottom { margin-top: 22px; padding-top: 0; }
+  .site-rail .site-rail-bottom { margin-top: 22px; padding-top: 0; }
   .site-rail .site-tools { margin: 0; padding: 0 16px; border: 1px solid #dbe3ee; border-radius: 18px; background: #fff; }
   .site-tools>a { min-height: 78px; padding: 16px 0; }
   .site-tools>a:last-child { border-bottom: 0; }
@@ -938,3 +921,22 @@ html[data-desktop-titlebar=true] .site-desktop-titlebar {
 .site-app-dialog [data-offline-success=true]:hover { background:#166534; border-color:#166534; }
 .site-app-dialog [data-offline-success=true] .site-app-success-check { opacity:1; }
 @media (prefers-reduced-motion:reduce) { .site-app-dialog .site-app-feedback-action { transition:none; } }
+
+/* Keep the weekly preview readable on the date rail's dark desktop surface. */
+@media (min-width:1200px) {
+  .has-site-shell .site-rail-left .site-overdue,
+  .has-site-shell .site-rail-left .site-overdue-item { border-color:#4a5d72; }
+  .has-site-shell .site-rail-left .site-overdue h2,
+  .has-site-shell .site-rail-left .site-overdue-item { color:#edf3fc; }
+  .has-site-shell .site-rail-left .site-overdue :is(header>span,small),
+  .has-site-shell .site-rail-left .site-overdue-empty { color:#b6c9df; }
+  .has-site-shell .site-rail-left .site-overdue-all { color:#a5c7ff !important; }
+}
+/* With no page heading, retain only the summary's useful period controls. */
+.has-site-shell .summary-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+.has-site-shell .summary-header .summary-period-nav { flex:1; }
+.has-site-shell .summary-header .summary-view-controls { flex:none; }
+@media (max-width:700px) {
+  .has-site-shell .summary-header { align-items:stretch; }
+  .has-site-shell .summary-header .summary-period-nav { flex:auto; }
+}

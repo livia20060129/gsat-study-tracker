@@ -81,7 +81,7 @@ test('real navigation links use the shared transition across app, legal and sour
   for (const path of ['todo.html', 'summary.html', 'material.progress.html', 'vocabulary.review.html']) {
     await navigateSite(page, path);
     await expect(page).toHaveURL(new RegExp('/' + path.replaceAll('.', '\\.') + '$'));
-    await expectEntry(page, undefined, path === 'summary.html' ? 'fade' : 'slide');
+    await expectEntry(page, undefined, 'slide');
     if (path === 'vocabulary.review.html') {
       await page.locator('#vocabularyReferences a[href="./vocabulary.sources.html"]').click();
       await expect(page).toHaveURL(/\/vocabulary\.sources\.html$/);
@@ -135,12 +135,12 @@ test('reduced motion keeps direct entry, links and history usable without page e
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const path of ['/', '/privacy.html', '/terms.html', '/support.html', '/gpt.prompt.html', '/vocabulary.sources.html']) {
     await page.goto(path);
-    await expect(path === '/' ? page.getByRole('heading', { name: '今日資訊', exact: true }) : page.locator('h1:visible')).toBeVisible();
+    await expect(page.locator('main')).toBeVisible();
     expect((await motion(page)).entries).toEqual([]);
   }
   await navigateSite(page, 'vocabulary.review.html');
   await expect(page).toHaveURL(/\/vocabulary\.review\.html$/);
-  await expect(page.locator('h1:visible')).toHaveText('英文單字複習');
+  await expect(page.locator('main')).toHaveAttribute('aria-label', '英文單字複習');
   expect((await motion(page)).entries).toEqual([]);
   await page.goBack();
   await expect(page).toHaveURL(/\/vocabulary\.sources\.html$/);
@@ -178,7 +178,7 @@ test('rails render before async shell data, retain geometry through hydration, a
     });
     try {
       await page.goto(path, { waitUntil: 'commit' });
-      const anchors = page.locator('.site-rail-left,.site-rail-right,.site-brand,.site-summary-link,.site-tools');
+      const anchors = page.locator('.site-rail-left,.site-rail-right,.site-brand,.site-tools a[href="./summary.html"],.site-tools');
       await expect(page.locator('.site-rail-left')).toBeVisible();
       await expect(page.locator('.site-rail-right')).toBeVisible();
       await expect(page.locator('#siteRecordDate')).toHaveCount(0);

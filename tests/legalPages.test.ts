@@ -15,7 +15,9 @@ test('all public legal and support pages offer the same bilingual control', () =
     assert.match(html, /data-legal-language="en"[^>]*aria-pressed="false"/, `${name}: English control`);
     assert.match(html, /data-legal-panel="zh-Hant"/, `${name}: Chinese panel`);
     assert.match(html, /data-legal-panel="en" lang="en" hidden/, `${name}: English panel`);
-    assert.match(html, /src="\.\/legal-language\.js" defer/, `${name}: shared language controller`);
+    assert.match(html, /src="\.\/legal-language\.js(?:\?v=[\d.]+)?" defer/, `${name}: shared language controller`);
+    assert.match(html, /<main class="document" aria-label="[^"]+"/, `${name}: accessible page name`);
+    assert.doesNotMatch(html, /<h1\b/, `${name}: no large page title`);
   }
   assert.match(languageScript, /localStorage\.setItem\(LANGUAGE_STORAGE_KEY, language\)/);
   assert.match(languageScript, /document\.documentElement\.lang = selected/);

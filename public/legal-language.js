@@ -45,8 +45,8 @@ function saveLanguage(language) {
 function applyLanguage(language, persist) {
   const selected = normalizedLanguage(language);
   document.documentElement.lang = selected;
-  document.querySelectorAll('[data-legal-panel], [data-legal-title]').forEach(function (panel) {
-    const panelLanguage = panel.getAttribute('data-legal-panel') || panel.getAttribute('data-legal-title');
+  document.querySelectorAll('[data-legal-panel]').forEach(function (panel) {
+    const panelLanguage = panel.getAttribute('data-legal-panel');
     panel.hidden = panelLanguage !== selected;
   });
   document.querySelectorAll('[data-legal-language]').forEach(function (button) {
@@ -54,6 +54,7 @@ function applyLanguage(language, persist) {
   });
   const metadata = pageMetadata(selected);
   document.title = metadata.title;
+  document.querySelector('main')?.setAttribute('aria-label', metadata.title);
   document.querySelector('meta[name="description"]')?.setAttribute('content', metadata.description);
   if (persist) {
     saveLanguage(selected);
