@@ -12,18 +12,18 @@ test('legal pages switch languages and preserve the choice across navigation', a
   await page.locator('[data-legal-language="en"]').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
-  await expect(page).toHaveTitle('Privacy Policy | GSAT Study Tracker');
+  await expect(page).toHaveTitle('Privacy Policy | Study Tracker');
   await expect(page.locator('.header-inner h1:visible')).toHaveText('Privacy Policy');
   await expect(page).toHaveURL(/lang=en/);
 
   await page.goto('/terms.html');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
-  await expect(page).toHaveTitle('Terms of Service | GSAT Study Tracker');
+  await expect(page).toHaveTitle('Terms of Service | Study Tracker');
   await expect(page.locator('.header-inner h1:visible')).toHaveText('Terms of Service');
 
   await page.goto('/support.html');
   await expect(page.locator('[data-legal-panel="en"]')).toBeVisible();
-  await expect(page).toHaveTitle('User Support | GSAT Study Tracker');
+  await expect(page).toHaveTitle('User Support | Study Tracker');
   await expect(page.locator('.header-inner h1:visible')).toHaveText('User Support');
   await page.locator('[data-legal-language="zh-Hant"]').click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hant');
