@@ -66,3 +66,7 @@ button:focus-visible,a:focus-visible{outline:3px solid rgba(142,174,161,.3);outl
   .summary-completed-card .summary-section-head { flex-wrap: wrap; gap: 8px; }
   .summary-completed-day li { grid-template-columns: 46px minmax(0, 1fr); gap: 8px; }
 }
+
+/* Changing periods morphs existing marks without moving or fading the cards. */
+[data-summary-morph-number]{font-variant-numeric:tabular-nums}
+[data-summary-morph-exit]{pointer-events:none}

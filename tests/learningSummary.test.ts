@@ -320,7 +320,6 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.doesNotMatch(html, /id="subjectBack"|返回全部科目<\/button>/);
   const runtime = readFileSync(new URL('../src/learning-summary-page.ts', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../src/learning-summary.css', import.meta.url), 'utf8');
-  assert.match(runtime, /summaryTotalCompletion'\)\.textContent = `\$\{current\.completion\.settlementPercent\}%`/);
   assert.match(runtime, /STATUS_DAY_COMPLETION_STORAGE_KEY/);
   assert.match(runtime, /summarizeLearningPeriod\(records, period, completionOptions\)/);
   assert.doesNotMatch(runtime, /fetch\(|openai|anthropic|gemini/i);
@@ -389,8 +388,6 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /remarkClass\[remarks\.completionState\]/);
   assert.match(html, /id="summaryContent"/);
   assert.match(runtime, /function switchSummaryMode\(mode: SummaryMode\)/);
-  assert.match(runtime, /exit\.cancel\(\);\s*applyMode\(\);/);
-  assert.match(runtime, /height: `\$\{beforeHeight\}px`/);
   assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back header-action-link"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
   assert.match(sharedShell, /\['summary\.html', '週／月總結'/);
   assert.doesNotMatch(sharedShell, /site-summary-link/);

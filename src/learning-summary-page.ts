@@ -1,4 +1,5 @@
 import './learning-summary.css';
+import { createSummaryPeriodMotion } from './ui/summaryPeriodMotion.ts';
 import { CALENDAR_SCHEDULE_UPDATED, initializeBrowserCalendarSchedule } from './application/calendar/browserCalendarSchedule.ts';
 import {
   completedItemSummarySubject, completedItemsForPeriod, completedItemsForSubject,
@@ -64,8 +65,7 @@ let recordPrefix = '';
 let includeStatusDaysInCompletion = storedStatusDayCompletionPreference();
 let selectedSubject: SubjectTimeSubject | null = null;
 let pendingSubjectEntryOrigin: DOMRect | null = null;
-let summaryModeAnimation: Animation | null = null;
-let summaryModeTransitionToken = 0;
+const summaryPeriodMotion = createSummaryPeriodMotion(element<HTMLDivElement>('summaryContent'), formatMotionNumber);
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -102,6 +102,45 @@ function signed(value: number, suffix: string): string {
   if (rounded > 0) prefix = '+';
   else if (rounded === 0) prefix = '±';
   return `${prefix}${rounded}${suffix}`;
+}
+
+function motionNumberAttributes(key: string, value: number, format: string): string {
+  return `data-summary-morph-number="${escapeHtml(key)}" data-summary-morph-value="${value}" data-summary-morph-format="${format}"`;
+}
+
+function motionNumber(key: string, value: number, format: string, text: string): string {
+  return `<span ${motionNumberAttributes(key, value, format)}>${escapeHtml(text)}</span>`;
+}
+
+/** Preserve the existing elements and typography; missing observations stay absent. */
+function setMotionNumber(id: string, key: string, value: number | null, format: string, text: string): void {
+  const target = element<HTMLElement>(id);
+  target.textContent = text;
+  for (const name of ['data-summary-morph-number', 'data-summary-morph-value', 'data-summary-morph-format']) target.removeAttribute(name);
+  if (value === null || !Number.isFinite(value)) return;
+  target.dataset.summaryMorphNumber = key;
+  target.dataset.summaryMorphValue = String(value);
+  target.dataset.summaryMorphFormat = format;
+}
+
+function formatMotionNumber(format: string, value: number): string {
+  if (format === 'hours') return formatHours(value);
+  if (format === 'hoursTick') return `${formatHours(value)} hr`;
+  if (format === 'detailHours') return `${formatHours(value)} hr`;
+  if (format === 'percent') return `${Math.round(value)}%`;
+  if (format === 'detailPercent') return `${Math.round(value * 10) / 10}%`;
+  if (format === 'signedHours') return signed(value, ' hr');
+  if (format === 'signedPercent') return signed(value, '%');
+  if (format === 'sleep') return formatSleepDuration(value);
+  if (format === 'clock') return formatClockMinutes(value);
+  if (format === 'recordedDays') return `${Math.round(value)} 天已有紀錄`;
+  if (format === 'completedCount') return `共 ${Math.round(value)} 項`;
+  if (format.startsWith('nights:')) return `${Math.round(value)}／${format.slice(7)} 晚`;
+  return String(Math.round(value));
+}
+
+function arcMotion(key: string, start: number, end: number): string {
+  return `data-summary-morph-arc="${escapeHtml(key)}" data-summary-morph-start="${start}" data-summary-morph-end="${end}"`;
 }
 
 function comparisonClass(value: number, lowerIsBetter = false): string {
@@ -144,17 +183,17 @@ function summaryMoodColor(mood: string, opacity: number): string {
 function subjectDonutMarkup(summary: LearningPeriodSummary): string {
   const subjectTime = groupedSummarySubjectTime(summary.timeEntries);
   const arcs = subjectTimeDonutSlices(subjectTime);
-  const paths = arcs.map(slice => `<path class="summary-donut-slice" data-summary-subject-path="${slice.subject}" d="${subjectTimeArcPath(slice)}" fill="none" stroke="${slice.color}" tabindex="0" role="button" aria-label="${slice.subject} ${formatHours(slice.minutes)} 小時，占 ${slice.percent}%"></path>`).join('');
+  const paths = arcs.map(slice => `<path class="summary-donut-slice" ${arcMotion(`subject:${slice.subject}`, slice.startPercent, slice.endPercent)} data-summary-subject-path="${slice.subject}" d="${subjectTimeArcPath(slice)}" fill="none" stroke="${slice.color}" tabindex="0" role="button" aria-label="${slice.subject} ${formatHours(slice.minutes)} 小時，占 ${slice.percent}%"></path>`).join('');
   const labels = arcs.filter(slice => slice.endPercent - slice.startPercent >= 6).map(slice => {
     const fontSize = 16;
-    return `<button class="summary-donut-label-button" type="button" data-summary-subject="${slice.subject}" style="left:${slice.labelX / 1.6}%;top:${slice.labelY / 1.6}%;font-size:${fontSize}px" aria-label="查看${slice.subject}項目">${SUBJECT_TIME_SHORT_LABELS[slice.subject]}</button>`;
+    return `<button class="summary-donut-label-button" type="button" data-summary-morph-label="subject:${slice.subject}" data-summary-subject="${slice.subject}" style="left:${slice.labelX / 1.6}%;top:${slice.labelY / 1.6}%;font-size:${fontSize}px" aria-label="查看${slice.subject}項目">${SUBJECT_TIME_SHORT_LABELS[slice.subject]}</button>`;
   }).join('');
   return `<div class="summary-donut-shell">
     <svg class="summary-donut-ring" viewBox="0 0 160 160" aria-label="本期各科完成時間占比">
       <circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle>${paths}
     </svg>
     ${labels}
-    <div class="summary-donut-center"><strong>${formatHours(subjectTime.totalMinutes)}</strong><span>hr</span></div>
+    <div class="summary-donut-center"><strong ${motionNumberAttributes('donut:hours', subjectTime.totalMinutes, 'hours')}>${formatHours(subjectTime.totalMinutes)}</strong><span>hr</span></div>
   </div>`;
 }
 
@@ -166,13 +205,13 @@ function detailDonutMarkup(
   const paths = slices.map((slice, index) => {
     const startPercent = cursor;
     cursor = index === slices.length - 1 ? 100 : Math.min(100, cursor + slice.percent);
-    return `<path class="summary-donut-slice is-detail" d="${subjectTimeArcPath({ startPercent, endPercent: cursor })}" fill="none" stroke="${slice.color}"><title>${escapeHtml(slice.label)}：${formatHours(slice.minutes)} 小時，占 ${slice.percent}%；點擊返回全部科目</title></path>`;
+    return `<path class="summary-donut-slice is-detail" ${arcMotion(`detail:${selectedSubject}:${slice.label}`, startPercent, cursor)} d="${subjectTimeArcPath({ startPercent, endPercent: cursor })}" fill="none" stroke="${slice.color}"><title>${escapeHtml(slice.label)}：${formatHours(slice.minutes)} 小時，占 ${slice.percent}%；點擊返回全部科目</title></path>`;
   }).join('');
   return `<div class="summary-donut-shell is-detail">
     <svg class="summary-donut-ring" data-summary-back viewBox="0 0 160 160" tabindex="0" role="button" aria-label="返回全部科目">
       <circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle>${paths}
     </svg>
-    <div class="summary-donut-center"><strong>${formatHours(totalMinutes)}</strong><span>hr</span></div>
+    <div class="summary-donut-center"><strong ${motionNumberAttributes('donut:hours', totalMinutes, 'hours')}>${formatHours(totalMinutes)}</strong><span>hr</span></div>
   </div>`;
 }
 
@@ -181,11 +220,11 @@ function renderCalendar(summary: LearningPeriodSummary): void {
   document.querySelector<HTMLElement>('.summary-calendar-weekdays')!.hidden = activeMode !== 'month';
   calendar.className = `summary-calendar is-${activeMode}`;
   element<HTMLHeadingElement>('calendarTitle').textContent = activeMode === 'week' ? '週曆' : '月曆';
-  element<HTMLParagraphElement>('calendarCaption').textContent = `${summary.recordedDayCount} 天已有紀錄`;
+  setMotionNumber('calendarCaption', 'calendar:recorded', summary.recordedDayCount, 'recordedDays', `${summary.recordedDayCount} 天已有紀錄`);
   const maxMinutes = Math.max(1, ...summary.days.map(day => day.totalMinutes));
   const blankCount = calendarLeadingBlankCount(summary.period);
   const blanks = Array.from({ length: blankCount }, () => '<span class="summary-calendar-blank" aria-hidden="true"></span>');
-  const days = summary.days.map(day => {
+  const days = summary.days.map((day, index) => {
     const intensity = day.totalMinutes > 0 ? 0.12 + 0.58 * day.totalMinutes / maxMinutes : 0;
     const timeColor = opaqueStudyTimeColor(intensity);
     const timeText = day.hasRecord ? formatMinutes(day.totalMinutes) : '尚無紀錄';
@@ -199,7 +238,7 @@ function renderCalendar(summary: LearningPeriodSummary): void {
       periodCompletionLabel = day.completionIncludedInPeriod ? '列入週／月完成率' : '不列入週／月完成率';
     }
     const periodCompletionText = periodCompletionLabel ? `，${periodCompletionLabel}` : '';
-    return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}${moodClass}" role="listitem" style="--day-completion:${day.completionPercent * 3.6}deg;--day-time-color:${timeColor};--day-core-color:${coreColor}">
+    return `<article class="summary-day${day.hasRecord ? ' has-record' : ''}${day.completionPercent === 100 ? ' is-complete' : ''}${moodClass}" role="listitem" data-summary-morph-day="${index}" style="--day-completion:${day.completionPercent * 3.6}deg;--day-time-color:${timeColor};--day-core-color:${coreColor}">
       <button class="summary-day-button" type="button" data-summary-day aria-expanded="false" aria-label="${escapeHtml(formatDateLabel(day.date))}，${escapeHtml(timeText)}，完成率 ${day.completionPercent}%${escapeHtml(moodText)}${escapeHtml(periodCompletionText)}">
         <span class="summary-day-week">${activeMode === 'week' ? `週${day.weekday}` : ''}</span>
         <span class="summary-day-ring"><span class="summary-day-core"><strong>${day.dayNumber}</strong></span></span>
@@ -257,13 +296,15 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
         color: subjectFamilyDetailColor(baseColor, index, detail.slices.length),
       }));
     const detailRows = Math.max(1, Math.min(4, slices.length));
-    const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${slice.percent}%｜${formatHours(slice.minutes)} hr</span></li>`).join('');
+    const list = slices.map(slice => `<li><i style="background:${slice.color}"></i><span class="summary-subject-detail-name">${escapeHtml(slice.label)}</span><span class="summary-subject-detail-value">${motionNumber(`detail:${selectedSubject}:${slice.label}:percent`, slice.percent, 'detailPercent', `${slice.percent}%`)}｜${motionNumber(`detail:${selectedSubject}:${slice.label}:hours`, slice.minutes, 'detailHours', `${formatHours(slice.minutes)} hr`)}</span></li>`).join('');
     target.innerHTML = slices.length
       ? `${detailDonutMarkup(detail.totalMinutes, slices)}<ul class="summary-subject-detail-list" style="--summary-detail-rows:${detailRows}">${list}</ul>`
-      : `<div class="summary-donut-shell is-empty"><div class="summary-donut-center"><strong>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無此科目的完成時間紀錄。</p>`;
+      : `<div class="summary-donut-shell is-empty"><svg class="summary-donut-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle></svg><div class="summary-donut-center"><strong ${motionNumberAttributes('donut:hours', 0, 'hours')}>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無此科目的完成時間紀錄。</p>`;
     if (shouldAnimateEntry && entryOrigin) {
+      const entryContent = target.firstElementChild;
       target.getBoundingClientRect();
       requestAnimationFrame(() => {
+        if (target.firstElementChild !== entryContent) return;
         const destination = target.querySelector<HTMLElement>('.summary-donut-shell.is-detail');
         const destinationRect = destination?.getBoundingClientRect();
         target.classList.add('is-detail-ready');
@@ -289,7 +330,7 @@ function renderSubjectDistribution(summary: LearningPeriodSummary): void {
   target.classList.remove('animate-detail-entry', 'is-detail-ready');
   const slices = groupedSummarySubjectTime(summary.timeEntries).slices;
   if (!slices.length) {
-    target.innerHTML = `<div class="summary-donut-shell is-empty"><svg class="summary-donut-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle></svg><div class="summary-donut-center"><strong>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無完成時間紀錄。</p>`;
+    target.innerHTML = `<div class="summary-donut-shell is-empty"><svg class="summary-donut-ring" viewBox="0 0 160 160" aria-hidden="true"><circle class="summary-donut-track" cx="80" cy="80" r="56" fill="none"></circle></svg><div class="summary-donut-center"><strong ${motionNumberAttributes('donut:hours', 0, 'hours')}>0.0</strong><span>hr</span></div></div><p class="summary-empty">本期尚無完成時間紀錄。</p>`;
     return;
   }
   target.innerHTML = subjectDonutMarkup(summary);
@@ -359,35 +400,35 @@ function renderTrend(summary: LearningPeriodSummary): void {
   const grid = [0, 50, 100].map(percent => {
     const y = top + plotHeight * (1 - percent / 100);
     const timeTick = formatHours(maxMinutes * percent / 100);
-    return `<line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}"/><text class="trend-time-tick" x="4" y="${y + 4}">${timeTick} hr</text><text class="trend-completion-tick" x="${width - 4}" y="${y + 4}">${percent}%</text>`;
+    return `<line x1="${left}" y1="${y}" x2="${width - right}" y2="${y}"/><text class="trend-time-tick" x="4" y="${y + 4}" data-summary-morph-number="trend:tick:${percent}" data-summary-morph-value="${maxMinutes * percent / 100}" data-summary-morph-format="hoursTick">${timeTick} hr</text><text class="trend-completion-tick" x="${width - 4}" y="${y + 4}">${percent}%</text>`;
   }).join('');
-  const bars = points.map(point => {
+  const bars = points.map((point, index) => {
     const barHeight = plotHeight * point.totalMinutes / maxMinutes;
     const makeupHeight = plotHeight * point.makeupMinutes / maxMinutes;
     const regularHeight = barHeight - makeupHeight;
     const regularMinutes = Math.max(0, Math.round((point.totalMinutes - point.makeupMinutes) * 10) / 10);
     const regular = regularMinutes > 0
-      ? `<rect data-time-kind="regular" data-minutes="${regularMinutes}" x="${point.x - barWidth / 2}" y="${top + plotHeight - regularHeight}" width="${barWidth}" height="${regularHeight}" rx="4"><title>當日進度：${formatWholeDuration(regularMinutes)}</title></rect>` : '';
+      ? `<rect data-summary-morph-shape="trend:regular:${index}" data-time-kind="regular" data-minutes="${regularMinutes}" x="${point.x - barWidth / 2}" y="${top + plotHeight - regularHeight}" width="${barWidth}" height="${regularHeight}" rx="4"><title>當日進度：${formatWholeDuration(regularMinutes)}</title></rect>` : '';
     const makeup = point.makeupMinutes > 0
-      ? `<rect class="trend-makeup-time" data-time-kind="makeup" data-minutes="${point.makeupMinutes}" x="${point.x - barWidth / 2}" y="${top + plotHeight - barHeight}" width="${barWidth}" height="${makeupHeight}" rx="4"><title>補舊進度：${formatWholeDuration(point.makeupMinutes)}</title></rect>` : '';
+      ? `<rect class="trend-makeup-time" data-summary-morph-shape="trend:makeup:${index}" data-time-kind="makeup" data-minutes="${point.makeupMinutes}" x="${point.x - barWidth / 2}" y="${top + plotHeight - barHeight}" width="${barWidth}" height="${makeupHeight}" rx="4"><title>補舊進度：${formatWholeDuration(point.makeupMinutes)}</title></rect>` : '';
     return `<g data-trend-date="${point.date}"><title>${point.date}：${formatWholeDuration(point.totalMinutes)}</title>${regular}${makeup}</g>`;
   }).join('');
   const line = points.map(point => `${point.x},${point.y}`).join(' ');
-  const dots = points.map(point => `<circle cx="${point.x}" cy="${point.y}" r="3.8"><title>${point.date}：完成率 ${point.completionPercent}%</title></circle>`).join('');
+  const dots = points.map((point, index) => `<circle data-summary-morph-shape="trend:completion:${index}" cx="${point.x}" cy="${point.y}" r="3.8"><title>${point.date}：完成率 ${point.completionPercent}%</title></circle>`).join('');
   const labels = points.map((point, index) => {
     const show = activeMode === 'week' || index === 0 || index === points.length - 1 || point.dayNumber % 5 === 0;
     return show ? `<text class="trend-day-label" x="${point.x}" y="${height - 13}">${activeMode === 'week' ? `週${point.weekday}` : point.dayNumber}</text>` : '';
   }).join('');
-  target.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="本期每日學習時間與完成率趨勢">${grid}${bars}<polyline points="${line}"/>${dots}${labels}</svg>`;
+  target.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="本期每日學習時間與完成率趨勢">${grid}${bars}<polyline data-summary-morph-line="trend:completion" points="${line}"/>${dots}${labels}</svg>`;
 }
 
 function renderComparison(current: LearningPeriodSummary, previous: LearningPeriodSummary): void {
   const timeDelta = current.subjectTime.totalMinutes - previous.subjectTime.totalMinutes;
   const completionDelta = current.completion.settlementPercent - previous.completion.settlementPercent;
-  element<HTMLElement>('summaryTotalCompletion').textContent = `${current.completion.settlementPercent}%`;
+  setMotionNumber('summaryTotalCompletion', 'comparison:total', current.completion.settlementPercent, 'percent', `${current.completion.settlementPercent}%`);
   element<HTMLDListElement>('summaryComparison').innerHTML = `
-    <div><dt>學習時間</dt><dd class="${comparisonClass(timeDelta)}">${signed(timeDelta / 60, ' hr')}</dd></div>
-    <div><dt>完成率</dt><dd class="${comparisonClass(completionDelta)}">${signed(completionDelta, '%')}</dd></div>`;
+    <div><dt>學習時間</dt><dd class="${comparisonClass(timeDelta)}" ${motionNumberAttributes('comparison:hours', timeDelta / 60, 'signedHours')}>${signed(timeDelta / 60, ' hr')}</dd></div>
+    <div><dt>完成率</dt><dd class="${comparisonClass(completionDelta)}" ${motionNumberAttributes('comparison:completion', completionDelta, 'signedPercent')}>${signed(completionDelta, '%')}</dd></div>`;
 }
 
 function sleepTrendMarkup(summary: SleepPeriodSummary): string {
@@ -417,14 +458,13 @@ function sleepTrendMarkup(summary: SleepPeriodSummary): string {
     if (!runs.length || !previous || previous.y === null) runs.push([]);
     runs.at(-1)?.push(point);
   });
-  const lines = runs.filter(run => run.length > 1).map(run => `<polyline points="${run.map(point => `${point.x},${point.y}`).join(' ')}"/>`).join('');
-  const markers = points.map(point => {
+  const lines = runs.filter(run => run.length > 1).map(run => `<polyline data-summary-morph-line="sleep:${points.indexOf(run[0])}:${points.indexOf(run.at(-1)!)}" points="${run.map(point => `${point.x},${point.y}`).join(' ')}"/>`).join('');
+  const markers = points.map((point, index) => {
     const label = activeMode === 'week' ? `週${['日', '一', '二', '三', '四', '五', '六'][new Date(`${point.date}T12:00:00`).getDay()]}` : Number(point.date.slice(-2));
     const detail = point.status === 'valid' ? formatSleepDuration(point.sleepMinutes) : point.statusText;
     const marker = point.y === null
       ? `<text class="sleep-status-marker" x="${point.x}" y="${top + plotHeight - 5}">—<title>${point.date}：${detail}</title></text>`
-      : `<circle cx="${point.x}" cy="${point.y}" r="4"><title>${point.date}：${detail}</title></circle>`;
-    const index = points.indexOf(point);
+      : `<circle data-summary-morph-shape="sleep:night:${index}" cx="${point.x}" cy="${point.y}" r="4"><title>${point.date}：${detail}</title></circle>`;
     const showLabel = activeMode === 'week' || index === 0 || index === points.length - 1 || Number(point.date.slice(-2)) % 5 === 0;
     return `${marker}${showLabel ? `<text class="sleep-day-label" x="${point.x}" y="${height - 13}">${label}</text>` : ''}`;
   }).join('');
@@ -433,10 +473,10 @@ function sleepTrendMarkup(summary: SleepPeriodSummary): string {
 
 function renderPersonalStatus(current: SleepPeriodSummary, previous: SleepPeriodSummary): void {
   element<HTMLElement>('personalStatusPeriod').textContent = activeMode === 'week' ? '本週作息統計' : '本月作息統計';
-  element<HTMLElement>('averageSleepDuration').textContent = formatSleepDuration(current.averageSleepMinutes);
-  element<HTMLElement>('averageBedtime').textContent = formatClockMinutes(current.averageBedtimeMinutes);
-  element<HTMLElement>('averageWakeTime').textContent = formatClockMinutes(current.averageWakeMinutes);
-  element<HTMLElement>('validSleepCount').textContent = `${current.validNightCount}／${current.totalNightCount} 晚`;
+  setMotionNumber('averageSleepDuration', 'sleep:duration', current.averageSleepMinutes, 'sleep', formatSleepDuration(current.averageSleepMinutes));
+  setMotionNumber('averageBedtime', 'sleep:bedtime', current.averageBedtimeMinutes, 'clock', formatClockMinutes(current.averageBedtimeMinutes));
+  setMotionNumber('averageWakeTime', 'sleep:wake', current.averageWakeMinutes, 'clock', formatClockMinutes(current.averageWakeMinutes));
+  setMotionNumber('validSleepCount', 'sleep:count', current.validNightCount, `nights:${current.totalNightCount}`, `${current.validNightCount}／${current.totalNightCount} 晚`);
   element<HTMLElement>('sleepTrend').innerHTML = sleepTrendMarkup(current);
   element<HTMLElement>('sleepComparisonPeriod').textContent = activeMode === 'week' ? '相較上週' : '相較上月';
   const comparison = element<HTMLElement>('sleepComparisonValue');
@@ -465,7 +505,7 @@ function renderCompletedItems(period: SummaryPeriod): void {
   const entries = completedItemsForSubject(completedItemsForPeriod(records, period), selectedSubject);
   const title = activeMode === 'week' ? '本週完成項目' : '本月完成項目';
   element<HTMLElement>('completedItemsTitle').textContent = selectedSubject ? `${title}｜${selectedSubject}` : title;
-  element<HTMLElement>('completedItemsCount').textContent = `共 ${entries.length} 項`;
+  setMotionNumber('completedItemsCount', 'completed:count', entries.length, 'completedCount', `共 ${entries.length} 項`);
   element<HTMLButtonElement>('clearCompletedSubjectFilter').hidden = !selectedSubject;
   const container = element<HTMLElement>('summaryCompletedItems');
   if (!entries.length) {
@@ -491,6 +531,7 @@ function renderCompletedItems(period: SummaryPeriod): void {
 }
 
 function renderAll(): void {
+  summaryPeriodMotion.finish();
   const period = summaryPeriod(activeAnchor, activeMode);
   const previousPeriod = summaryPeriod(shiftSummaryAnchor(activeAnchor, activeMode, -1), activeMode);
   const completionOptions = { includeStatusDaysInCompletion };
@@ -520,46 +561,24 @@ function renderAll(): void {
   renderCompletedItems(period);
 }
 
+function changeSummaryPeriod(change: () => void): void {
+  document.querySelectorAll<HTMLElement>('.summary-donut-return-overlay').forEach(overlay => {
+    overlay.getAnimations().forEach(animation => animation.cancel());
+    overlay.remove();
+  });
+  element<HTMLDivElement>('summarySubjectDistribution').getAnimations({ subtree: true }).forEach(animation => animation.finish());
+  const before = summaryPeriodMotion.capture();
+  change();
+  renderAll();
+  summaryPeriodMotion.start(before);
+}
+
 function switchSummaryMode(mode: SummaryMode): void {
   if (mode === activeMode) return;
-  const content = element<HTMLDivElement>('summaryContent');
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const applyMode = () => {
+  changeSummaryPeriod(() => {
     activeMode = mode;
     history.replaceState(null, '', `${location.pathname}${location.search}#${mode}`);
-    renderAll();
-  };
-  if (reducedMotion) {
-    summaryModeAnimation?.cancel();
-    summaryModeAnimation = null;
-    applyMode();
-    return;
-  }
-  const token = ++summaryModeTransitionToken;
-  const beforeHeight = content.getBoundingClientRect().height;
-  summaryModeAnimation?.cancel();
-  content.classList.add('is-mode-transitioning');
-  const exit = content.animate([
-    { opacity: 1, transform: 'translateY(0)' },
-    { opacity: 0, transform: 'translateY(-7px)' },
-  ], { duration: 130, easing: 'ease-out', fill: 'forwards' });
-  summaryModeAnimation = exit;
-  void exit.finished.then(() => {
-    if (token !== summaryModeTransitionToken) return;
-    exit.cancel();
-    applyMode();
-    const afterHeight = content.getBoundingClientRect().height;
-    const enter = content.animate([
-      { height: `${beforeHeight}px`, opacity: 0, transform: 'translateY(9px)' },
-      { height: `${afterHeight}px`, opacity: 1, transform: 'translateY(0)' },
-    ], { duration: 360, easing: 'cubic-bezier(.2,.78,.2,1)' });
-    summaryModeAnimation = enter;
-    void enter.finished.then(() => {
-      if (token !== summaryModeTransitionToken) return;
-      summaryModeAnimation = null;
-      content.classList.remove('is-mode-transitioning');
-    }).catch(() => {});
-  }).catch(() => {});
+  });
 }
 
 function loadRecords(): void {
@@ -589,12 +608,10 @@ element<HTMLDivElement>('summaryModeSwitch').addEventListener('click', event => 
   switchSummaryMode(mode);
 });
 element<HTMLButtonElement>('previousPeriod').addEventListener('click', () => {
-  activeAnchor = shiftSummaryAnchor(activeAnchor, activeMode, -1);
-  renderAll();
+  changeSummaryPeriod(() => { activeAnchor = shiftSummaryAnchor(activeAnchor, activeMode, -1); });
 });
 element<HTMLButtonElement>('nextPeriod').addEventListener('click', () => {
-  activeAnchor = shiftSummaryAnchor(activeAnchor, activeMode, 1);
-  renderAll();
+  changeSummaryPeriod(() => { activeAnchor = shiftSummaryAnchor(activeAnchor, activeMode, 1); });
 });
 element<HTMLInputElement>('includeStatusDaysCompletion').addEventListener('change', event => {
   includeStatusDaysInCompletion = (event.currentTarget as HTMLInputElement).checked;

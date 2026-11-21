@@ -10,7 +10,7 @@
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="./page-transitions.js?v=171.6.197"></script>
+  <script src="./page-transitions.js?v=171.6.198"></script>
   <meta name="theme-color" content="#ffffff" />
   <link rel="icon" type="image/png" href="./book.png" />
   
@@ -21,7 +21,7 @@
     <header class="summary-header">
       <div class="summary-period-nav" aria-label="切換統計期間">
         <button id="previousPeriod" type="button" aria-label="上一週">‹</button>
-        <strong id="periodLabel"></strong>
+        <strong id="periodLabel" aria-live="polite" aria-atomic="true"></strong>
         <button id="nextPeriod" type="button" aria-label="下一週">›</button>
       </div>
       <div class="summary-view-controls">
