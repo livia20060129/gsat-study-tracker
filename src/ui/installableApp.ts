@@ -14,7 +14,7 @@ export function initializeInstallableApp(): void {
   dialog.id = 'siteAppDialog'; dialog.className = 'site-app-dialog';
   dialog.setAttribute('aria-labelledby', 'siteAppTitle');
   dialog.innerHTML = `<header><h2 id="siteAppTitle">安裝與更新</h2><button type="button" data-app-close aria-label="關閉安裝與更新">×</button></header>
-    <section aria-labelledby="siteAppInstallTitle"><h3 id="siteAppInstallTitle">GSAT Tracker App</h3>
+    <section aria-labelledby="siteAppInstallTitle"><h3 id="siteAppInstallTitle">Study Tracker App</h3>
     <p data-app-instructions></p><button type="button" data-app-install disabled>安裝 App</button>
     <p class="site-app-note">安裝後可從裝置圖示開啟。若需跨裝置使用紀錄，請登入同一 Google 帳號。</p></section>
     <p data-app-status role="status" aria-live="polite"></p>`;
@@ -29,6 +29,8 @@ export function initializeInstallableApp(): void {
     find('[data-app-status]').before(accountHelp);
   }
   const standalone = (): boolean => installed || isNativeApp() || matchMedia('(display-mode: standalone)').matches
+    || matchMedia('(display-mode: window-controls-overlay)').matches
+    || document.documentElement.dataset.desktopTitlebar === 'true'
     || (navigator as Navigator & { standalone?: boolean }).standalone === true;
   function status(message: string, error = false): void {
     const node = find('[data-app-status]'); node.textContent = message; node.dataset.error = String(error);
@@ -39,7 +41,7 @@ export function initializeInstallableApp(): void {
     }
     install.disabled = busy || !prompt;
     install.hidden = !prompt;
-    if (prompt) find('[data-app-instructions]').textContent = '將 GSAT Tracker 安裝到此裝置，之後可從圖示直接開啟。';
+    if (prompt) find('[data-app-instructions]').textContent = '將 Study Tracker 安裝到此裝置，之後可從圖示直接開啟。';
     else if (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
       find('[data-app-instructions]').textContent = '在 Safari 開啟此網站，點「分享」→「加入主畫面」，若有「以網頁 App 開啟」選項請開啟。';
     } else {

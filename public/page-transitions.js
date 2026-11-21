@@ -119,6 +119,35 @@ window.addEventListener('appinstalled', function clearInstallPrompt() { delete w
   if (source) {
     document.documentElement.classList.add('site-shell-ready');
 
+    // Reserve native caption-button geometry before the first paint. The shell
+    // module may load later; dragging and the title bar must already be usable.
+    const overlay = navigator.windowControlsOverlay;
+    const titlebarProperties = ['x', 'y', 'width', 'height', 'content-height'];
+    let titlebarFrame = 0;
+    function updateDesktopTitlebar() {
+      const root = document.documentElement;
+      try {
+        const rect = overlay?.getTitlebarAreaRect();
+        const valid = overlay?.visible && rect && [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)
+          && rect.x >= 0 && rect.y >= 0 && rect.width > 0 && rect.height > 0;
+        if (valid) {
+          const values = [rect.x, rect.y, rect.width, rect.y + rect.height, rect.height];
+          titlebarProperties.forEach((name, index) => root.style.setProperty('--site-titlebar-' + name, values[index] + 'px'));
+          root.dataset.desktopTitlebar = 'true';
+          return;
+        }
+      } catch { /* Unsupported or unavailable geometry keeps the normal layout. */ }
+      delete root.dataset.desktopTitlebar;
+      titlebarProperties.forEach(name => root.style.removeProperty('--site-titlebar-' + name));
+    }
+    function scheduleTitlebarUpdate() {
+      if (titlebarFrame) return;
+      titlebarFrame = requestAnimationFrame(() => { titlebarFrame = 0; updateDesktopTitlebar(); });
+    }
+    updateDesktopTitlebar();
+    overlay?.addEventListener?.('geometrychange', scheduleTitlebarUpdate);
+    window.addEventListener('pageshow', updateDesktopTitlebar);
+
     function mountShellFrame() {
       if (!document.body) return false;
       const tools = [
@@ -136,7 +165,7 @@ window.addEventListener('appinstalled', function clearInstallPrompt() { delete w
       right.className = 'site-rail site-rail-right';
       right.id = 'siteRightRail';
       right.setAttribute('aria-label', '工具與本週逾期');
-      right.innerHTML = `<h1 class="site-mobile-section-heading">功能選單</h1><div class="site-rail-top"><a class="site-workspace-home" href="./index.html"><strong>GSAT Tracker</strong><span><svg data-ui-icon="house" aria-hidden="true"></svg>首頁</span></a></div><nav class="site-tools" aria-label="讀書工具">${tools.map(([href, title, caption, icon]) => `<a href="./${href}" aria-label="${title}"><span class="site-tool-icon" aria-hidden="true">${icon}</span><span><strong>${title}</strong><small>${caption}</small></span><span class="site-tool-arrow" aria-hidden="true">→</span></a>`).join('')}</nav><section class="site-overdue"><header><h2>本週逾期</h2><span data-rail-overdue-count>0 項</span></header><div data-rail-overdue-list></div><a class="site-overdue-all" href="./todo.html?period=all">查看全部待辦 →</a></section><button type="button" id="siteAppSettings" class="site-app-entry" aria-haspopup="dialog" aria-controls="siteAppDialog"><svg data-ui-icon="download" aria-hidden="true"></svg><span>安裝與更新</span></button>`;
+      right.innerHTML = `<h1 class="site-mobile-section-heading">功能選單</h1><div class="site-rail-top"><a class="site-workspace-home" href="./index.html"><strong>Study Tracker</strong><span><svg data-ui-icon="house" aria-hidden="true"></svg>首頁</span></a></div><nav class="site-tools" aria-label="讀書工具">${tools.map(([href, title, caption, icon]) => `<a href="./${href}" aria-label="${title}"><span class="site-tool-icon" aria-hidden="true">${icon}</span><span><strong>${title}</strong><small>${caption}</small></span><span class="site-tool-arrow" aria-hidden="true">→</span></a>`).join('')}</nav><section class="site-overdue"><header><h2>本週逾期</h2><span data-rail-overdue-count>0 項</span></header><div data-rail-overdue-list></div><a class="site-overdue-all" href="./todo.html?period=all">查看全部待辦 →</a></section><button type="button" id="siteAppSettings" class="site-app-entry" aria-haspopup="dialog" aria-controls="siteAppDialog"><svg data-ui-icon="download" aria-hidden="true"></svg><span>安裝與更新</span></button>`;
       const bar = document.createElement('div');
       bar.className = 'site-mobile-bar';
       bar.id = 'siteMobileBar';
@@ -147,14 +176,20 @@ window.addEventListener('appinstalled', function clearInstallPrompt() { delete w
       };
       const pageName = location.pathname.replace(/\/+$/, '').split('/').pop().replace(/\.html$/, '');
       const contentTitle = contentTitles[pageName] || '今日記錄';
-      bar.innerHTML = `<a class="site-mobile-home" href="./index.html">GSAT Tracker</a><nav aria-label="手機全頁分區"><button type="button" data-mobile-section="date" aria-controls="siteLeftRail" aria-pressed="false"><span aria-hidden="true" data-ui-icon="calendar-days"></span><span>日期紀錄</span></button><button type="button" data-mobile-section="content" aria-pressed="true"><span aria-hidden="true" data-ui-icon="notebook-pen"></span><span>${contentTitle}</span></button><button type="button" data-mobile-section="tools" aria-controls="siteRightRail" aria-pressed="false"><span aria-hidden="true" data-ui-icon="menu"></span><span>功能選單</span></button></nav>`;
+      bar.innerHTML = `<a class="site-mobile-home" href="./index.html">Study Tracker</a><nav aria-label="手機全頁分區"><button type="button" data-mobile-section="date" aria-controls="siteLeftRail" aria-pressed="false"><span aria-hidden="true" data-ui-icon="calendar-days"></span><span>日期紀錄</span></button><button type="button" data-mobile-section="content" aria-pressed="true"><span aria-hidden="true" data-ui-icon="notebook-pen"></span><span>${contentTitle}</span></button><button type="button" data-mobile-section="tools" aria-controls="siteRightRail" aria-pressed="false"><span aria-hidden="true" data-ui-icon="menu"></span><span>功能選單</span></button></nav>`;
       if (!pageName || pageName === 'index') bar.querySelector('.site-mobile-home').setAttribute('aria-current', 'page');
       const today = new Date();
       left.querySelector('[data-rail-year]').textContent = String(today.getFullYear());
       left.querySelector('[data-rail-date]').textContent = `${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
       left.querySelector('[data-rail-weekday]').textContent = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][today.getDay()];
       document.body.classList.add('has-site-shell');
-      document.body.append(left, right, bar);
+      const titlebar = document.createElement('header');
+      titlebar.id = 'siteDesktopTitlebar'; titlebar.className = 'site-desktop-titlebar';
+      titlebar.setAttribute('data-site-overlay', '');
+      titlebar.setAttribute('aria-label', 'Study Tracker 視窗標題列');
+      titlebar.innerHTML = '<div class="site-desktop-titlebar-content"><div class="site-desktop-brand"><svg data-ui-icon="book-open" aria-hidden="true"></svg><span>Study Tracker</span></div><span class="site-desktop-page"></span></div>';
+      titlebar.querySelector('.site-desktop-page').textContent = !pageName || pageName === 'index' ? '每日紀錄' : contentTitle;
+      document.body.append(left, right, bar, titlebar);
 
       const shell = document.createElement('script');
       shell.type = 'module';
@@ -208,7 +243,7 @@ window.addEventListener('appinstalled', function clearInstallPrompt() { delete w
     if (reducedMotion.matches || document.visibilityState === 'hidden') return;
     if (!document.body || typeof Element.prototype.animate !== 'function') return;
     for (const content of document.body.children) {
-      if (!(content instanceof HTMLElement) || content.matches('.site-rail,.site-mobile-bar,.site-rail-backdrop,script,style,link')) continue;
+      if (!(content instanceof HTMLElement) || content.matches('.site-rail,.site-mobile-bar,.site-rail-backdrop,[data-site-overlay],script,style,link')) continue;
       if (slide) {
         if (!content.matches('main,header,footer,section') || !content.getClientRects().length) continue;
         if (getComputedStyle(content).position === 'static') {

@@ -557,7 +557,7 @@ body.has-site-shell {
     contain: layout paint;
   }
   html[data-menu-page-entry], html[data-menu-page-departure] { overflow-x: clip; }
-  html[data-menu-page-entry=pending] body > :is(main,header,footer,section) { visibility: hidden; }
+  html[data-menu-page-entry=pending] body > :is(main,header,footer,section):not([data-site-overlay]) { visibility: hidden; }
   html[data-mobile-slide-direction] { overflow-x: clip; }
   .site-mobile-content-hidden { display: none !important; }
   body[data-mobile-nav-hidden=true] .site-mobile-bar { transform: translateY(-100%); pointer-events: none; }
@@ -871,6 +871,65 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 .site-app-dialog [data-offline-info][data-error=true] { color:#a83d35; }
 .site-app-dialog [data-offline-info] { min-height:3.3em; }
 .site-native-timer-notice { position:fixed; z-index:1800; left:50%; bottom:calc(90px + env(safe-area-inset-bottom)); transform:translateX(-50%); box-sizing:border-box; width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border:1px solid #bed4f1; border-radius:12px; background:#f1f7ff; color:#274c75; font:14px/1.5 system-ui,sans-serif; box-shadow:0 8px 30px #173c631c; }
+
+/* Installed desktop PWA: retain the OS caption buttons and extend both rails
+   behind the title area. No replacement window buttons or extra outer frame. */
+.site-desktop-titlebar { display:none; }
+html[data-desktop-titlebar=true] { scroll-padding-top:calc(var(--site-titlebar-height, 0px) + 72px); }
+html[data-desktop-titlebar=true] body { padding-top:var(--site-titlebar-height, 0px)!important; }
+html[data-desktop-titlebar=true] .site-desktop-titlebar {
+  display:block; position:fixed; z-index:1150; inset:0 0 auto;
+  height:var(--site-titlebar-height, 0px); box-sizing:border-box; isolation:isolate;
+  margin:0; padding:0; border:0; border-radius:0; box-shadow:none;
+  background:var(--site-page-background, #eef3f8); color:#17263a;
+  -webkit-app-region:drag; app-region:drag; user-select:none;
+  font:500 13px/1.4 Inter,"Noto Sans TC",system-ui,sans-serif;
+}
+.site-desktop-titlebar-content {
+  position:absolute; display:flex; align-items:center; min-width:0; box-sizing:border-box;
+  left:env(titlebar-area-x, var(--site-titlebar-x, 0px));
+  top:env(titlebar-area-y, var(--site-titlebar-y, 0px));
+  width:env(titlebar-area-width, var(--site-titlebar-width, 100%));
+  height:env(titlebar-area-height, var(--site-titlebar-content-height, 0px));
+  overflow:hidden;
+}
+.site-desktop-brand {
+  position:relative; z-index:1; display:flex; align-items:center; gap:9px;
+  flex:0 1 auto; min-width:0; box-sizing:border-box; padding:0 22px;
+  width:calc(var(--rail-left, 240px) - env(titlebar-area-x, var(--site-titlebar-x, 0px)));
+  max-width:100%; white-space:nowrap;
+}
+.site-desktop-brand>span { overflow:hidden; text-overflow:ellipsis; }
+.site-desktop-brand>.ui-icon { width:18px; height:18px; }
+.site-desktop-page {
+  flex:1; min-width:0; margin-right:18px; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; text-align:center; color:#64748b; font-size:12px;
+}
+@media(min-width:1200px) {
+  html[data-desktop-titlebar=true] .site-desktop-titlebar::before,
+  html[data-desktop-titlebar=true] .site-desktop-titlebar::after {
+    content:""; position:absolute; z-index:-1; top:0; bottom:0; box-sizing:border-box; pointer-events:none;
+  }
+  html[data-desktop-titlebar=true] .site-desktop-titlebar::before { left:0; width:var(--rail-left, 240px); background:#293b4f; }
+  html[data-desktop-titlebar=true] .site-desktop-titlebar::after { right:0; width:var(--rail-right, 300px); background:#fff; border-left:1px solid var(--flat-line, #dce5ee); }
+  html[data-desktop-titlebar=true] .site-desktop-brand { color:#edf3fc; }
+  html[data-desktop-titlebar=true] .site-desktop-page { margin-right:calc(var(--rail-right, 300px)/2); }
+  html[data-desktop-titlebar=true] .site-rail { top:0; padding-top:calc(26px + var(--site-titlebar-height, 0px)); }
+  html[data-desktop-titlebar=true] .site-rail-left>.site-rail-top { display:none; }
+  html[data-desktop-titlebar=true] .site-rail-date { margin-top:0; padding-top:0; border-top:0; }
+  html[data-desktop-titlebar=true] .site-workspace-home>strong { display:none; }
+  html[data-desktop-titlebar=true] .connection-dock { top:calc(var(--site-titlebar-height, 0px) + 8px); max-height:calc(100dvh - var(--site-titlebar-height, 0px) - 16px); }
+}
+@media(max-width:1199px) {
+  html[data-desktop-titlebar=true] { --site-mobile-header-height:calc(76px + var(--site-titlebar-height, 0px)); }
+  html[data-desktop-titlebar=true] body.has-site-shell { padding-top:var(--site-mobile-header-height)!important; }
+  html[data-desktop-titlebar=true] .site-mobile-bar { top:var(--site-titlebar-height, 0px); }
+  html[data-desktop-titlebar=true] .site-mobile-bar>.site-mobile-home { display:none; }
+  html[data-desktop-titlebar=true] body[data-mobile-nav-hidden=true] .site-mobile-bar { transform:translateY(-100%); }
+  html[data-desktop-titlebar=true] body[data-mobile-nav-hidden=true] .connection-dock:not([open]) { top:calc(var(--site-titlebar-height, 0px) + 8px); }
+}
+@media(max-width:680px) { html[data-desktop-titlebar=true] .site-desktop-page { display:none; } }
+@media print { html[data-desktop-titlebar=true] body.has-site-shell { padding:0!important; } .site-desktop-titlebar { display:none!important; } }
 .site-app-dialog [data-offline-update] { background:#315cf5; color:#fff; }
 /* Component Gallery button states: icon and colour confirm completed actions. */
 .site-app-dialog .site-app-feedback-action { position:relative; padding-inline:28px; transition:background-color .18s,border-color .18s,color .18s; }

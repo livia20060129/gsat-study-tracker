@@ -1,37 +1,35 @@
 # 最新更新
 
-版本：v171.6.193（個人版）
+版本：v171.6.194（個人版）
 
-## 原生 App 鎖定畫面計時
+## 桌面 App 整合式標題列
 
-- Android 持續通知、iPhone／iPad 即時動態顯示讀書項目、累計時間及「暫停／繼續」，點內容可返回該日期。
-- Android 與 iOS 17 以上可直接操作；iOS 16.4–16.x 的控制會開啟 App。iPad 即時動態需要 iPadOS 17 以上。
-- 系統自行更新時間；不以 JavaScript 背景輪詢維持畫面。App 暫停執行或 WebView 重新載入後，保留原生操作並寫回原工作卡。
-- 寫回前核對帳號、來源項目與計時版本；保留正在輸入的筆記、其他讀書欄位及真正的新修改。寫入失敗時保留原生計時，不用過時的時間完成工作。
-- 完成、重設、改為手動、完成項目或切換帳號會結束目前顯示；暫停時保留累計時間及「繼續」。
-- 沿用主頁與待辦共用的計時器，不新增同步循環、不修改雲端結構或登入流程。
+- 採用已確認的第一種「整合式標題列」，左右欄底色都延伸至頂端；顯示名稱改為 Study Tracker。
+- 系統視窗控制保留原生功能，依實際按鈕位置及標題列高度調整內容，支援控制區在左側或右側，標題空白區可拖曳視窗。
+- 在第一個畫面就建立標題列，切換頁面不播放內容進場動畫；縮放與開關整合模式時重新核對保留區，不建立額外外框或假視窗按鈕。
+- 縮窄 App 視窗時維持三區全頁切換，標題列不隨頁面捲動收起。一般手機及不支援此功能的瀏覽器維持原生標題列；列印不保留 App 標題列空間。
+- 安裝與更新畫面正確識別整合式 App 視窗，保留原安裝識別碼、帳號與讀書資料。
+- 修正前一版原生計時判斷直接引用建置環境的檢查回歸，改用已存在的 isNativeApp 平台函式，保留原生計時與寫回保護。
 
 ## 套用
 
-以 v171.6.192 為基礎，將「必要覆蓋檔案」依原路徑合併，沒有需要刪除的檔案。執行：
+以 v171.6.193 為基礎，將「必要覆蓋檔案」依原路徑合併，沒有需要刪除的檔案。執行：
 
 ~~~text
 npm ci
 npm test
 npm run build
 npm run check:app
-npm run native:sync
-npm run native:check
 ~~~
 
-原生 App 必須重新編譯安裝：Android 執行 npm run native:android:debug；iOS 在 Mac 執行 npm run native:ios，在 App 與 StudyTimerWidget 兩個 target 選擇相同簽章 Team。沒有 Mac 時可使用既有手動 Build native test apps 工作流程檢查 iOS 模擬器建置，但不會產生可裝到手機的簽署 IPA。
+沿用原本部署方式，發布整份 dist。已安裝的桌面 App 先檢查更新，完成更新後關閉全部 App 視窗再開啟。安裝名稱與視窗模式由瀏覽器管理，可能需要重新讀取安裝資訊或確認名稱變更；不要先解除安裝或清除網站資料。
 
-詳見 [鎖定畫面計時設定與驗收](native/LOCK_SCREEN_TIMER.md)。xcode 4.0.0 改為明確鎖定的開發依賴；Android 新增測試專用 org.json 依賴。沒有 SQL、Edge Function、Google Cloud 或 Supabase 設定異動。
+詳見 [桌面 App 外框與標題列](DESKTOP_APP_FRAME.md)。桌面版使用現有 PWA，不需 Apple 開發者帳號，也不需重打包 APK／IPA；原生手機 App 若要取得新版共用介面，仍沿用原本的 native:sync 與打包流程。沒有新套件、SQL、Edge Function 或 Google／Supabase 設定異動。
 
-本次未部署、未執行線上工作流程、未產生 APK／IPA；此 Windows 環境沒有 Android SDK／Xcode，尚待原生平台編譯與實機驗收。瀏覽器橋接測試不代表真正鎖定畫面已通過驗收。
+本次未部署、未執行線上工作流程、未產生 APK／IPA。桌面標題列的瀏覽器測試使用系統保留區模擬，實際 OS 按鈕、拖曳與最大化仍需在部署後的已安裝 App 驗收。
 
 English commit suggestion:
 
 ~~~text
-feat: add native lock screen study timers with pause and resume
+feat: integrate desktop title bar with full-height sidebars
 ~~~

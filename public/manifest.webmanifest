@@ -1,14 +1,15 @@
 {
   "id": "./",
-  "name": "GSAT Tracker",
-  "short_name": "GSAT Tracker",
+  "name": "Study Tracker",
+  "short_name": "Study Tracker",
   "description": "每日讀書完成度紀錄卡",
   "lang": "zh-Hant",
   "start_url": "./index.html?source=pwa",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["window-controls-overlay"],
   "background_color": "#f5f8fc",
-  "theme_color": "#f5f8fc",
+  "theme_color": "#ffffff",
   "prefer_related_applications": false,
   "icons": [
     { "src": "icons/app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

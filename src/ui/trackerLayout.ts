@@ -80,8 +80,8 @@ function initializeHomeHeader(): void {
     const mobileBar = document.getElementById('siteMobileBar');
     const mobileHome = mobileBar?.querySelector<HTMLAnchorElement>('.site-mobile-home');
     if (mobileHome) {
-        mobileHome.setAttribute('aria-label', 'GSAT Tracker');
-        mobileHome.innerHTML = '<span data-home-icon="book" aria-hidden="true"></span><span><strong>GSAT Tracker</strong><small>每日讀書完成度紀錄卡</small></span>';
+        mobileHome.setAttribute('aria-label', 'Study Tracker');
+        mobileHome.innerHTML = '<span data-home-icon="book" aria-hidden="true"></span><span><strong>Study Tracker</strong><small>每日讀書完成度紀錄卡</small></span>';
         renderIcons(mobileHome);
     }
     document.querySelector('[data-home-save]')?.addEventListener('click', () => {

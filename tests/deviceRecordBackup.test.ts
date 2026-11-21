@@ -133,6 +133,8 @@ test('install entry selection follows build inputs and routed public pages rathe
 test('install metadata covers all entry pages and real icon sizes', () => {
   const root = new URL('../', import.meta.url), manifest = JSON.parse(readFileSync(new URL('public/manifest.webmanifest', root), 'utf8'));
   assert.equal(manifest.display, 'standalone'); assert.equal(manifest.id, './'); assert.equal(manifest.scope, './');
+  assert.equal(manifest.name, 'Study Tracker'); assert.equal(manifest.short_name, 'Study Tracker');
+  assert.deepEqual(manifest.display_override, ['window-controls-overlay']);
   assert.equal(manifest.start_url, './index.html?source=pwa');
   const config = readFileSync(new URL('vite.config.ts', root), 'utf8');
   const entries = appEntryHtmlPaths(config, readdirSync(new URL('public/', root)));

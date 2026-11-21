@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }) => {
   pageErrors.set(page, errors);
   page.on('pageerror', error => { errors.push(error.message); });
   await page.goto('/');
-  await expect(page.locator('main h1')).toHaveText('GSAT Tracker');
+  await expect(page.locator('main h1')).toHaveText('Study Tracker');
 });
 
 test.afterEach(async ({ page }) => {

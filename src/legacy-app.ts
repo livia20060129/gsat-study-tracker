@@ -3638,7 +3638,7 @@ function animateTimerModeSelection(control,nextMode){
  timerModeRenderTimer=setTimeout(function(){timerModeRenderTimer=null;render()},270);
 }
 async function selectTimerModeFromControl(item,control){
- if(import.meta.env.MODE==='native'){try{await reconcileLockTimerBeforeEdit()}catch(error){id('status').textContent=error.message;return}item=findItem(item.id);if(!item)return}
+ if(isNativeApp()){try{await reconcileLockTimerBeforeEdit()}catch(error){id('status').textContent=error.message;return}item=findItem(item.id);if(!item)return}
  var target=timerTargetFromControl(item,control);if(!target)return;
  var state=timerStateForTarget(target),pointer=readTimerPointer(),nextMode=control.getAttribute('data-time-mode')==='timer'?'timer':'manual';
  if(state.mode===nextMode)return;
@@ -3649,7 +3649,7 @@ async function selectTimerModeFromControl(item,control){
  animateTimerModeSelection(control,nextMode);
 }
 async function runTimerAction(item,control,action){
- if(import.meta.env.MODE==='native'){try{await reconcileLockTimerBeforeEdit()}catch(error){id('status').textContent=error.message;return}item=findItem(item.id);if(!item)return}
+ if(isNativeApp()){try{await reconcileLockTimerBeforeEdit()}catch(error){id('status').textContent=error.message;return}item=findItem(item.id);if(!item)return}
  var target=timerTargetFromControl(item,control);if(!target)return;
  var now=Date.now(),pointer=readTimerPointer(),state=timerStateForTarget(target);
  if(action==='timer-toggle'&&state.startedAt===null){
@@ -3949,7 +3949,7 @@ function handleClick(e){
  var b=e.target.closest('[data-action]');if(!b)return;var card=b.closest('[data-item]'),x=card?findItem(card.getAttribute('data-item')):null,action=b.getAttribute('data-action');
  if(action==='timer-pause-active'){
   e.preventDefault();e.stopPropagation();
-  if(import.meta.env.MODE==='native'){void reconcileLockTimerBeforeEdit().then(function(){var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI()}).catch(function(error){id('status').textContent=error.message})}
+  if(isNativeApp()){void reconcileLockTimerBeforeEdit().then(function(){var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI()}).catch(function(error){id('status').textContent=error.message})}
   else{var paused=pauseActiveTimer();if(paused&&paused.record===data)render();else refreshTimerUI()}
  }
  else if(action==='time-mode-select'&&x){e.preventDefault();selectTimerModeFromControl(x,b)}
