@@ -103,9 +103,9 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
       if (worker.state === 'installed' || worker.state === 'redundant') setTimeout(refresh, 0);
     });
   }
-  function waitForWorker(worker: ServiceWorker, activation = false): Promise<void> {
+  function waitForWorker(worker: ServiceWorker, activation = false, timeoutMs = 90000): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => finish(new Error('離線下載逾時，請檢查網路後重試。')), 90000);
+      const timeout = setTimeout(() => finish(new Error('離線下載逾時，請檢查網路後重試。')), timeoutMs);
       function finish(cause?: Error): void { clearTimeout(timeout); worker.removeEventListener('statechange', state); cause ? reject(cause) : resolve(); }
       function state(): void {
         if (worker.state === 'activated' || (!activation && worker.state === 'installed')) finish();
@@ -114,6 +114,18 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
       }
       worker.addEventListener('statechange', state); state();
     });
+  }
+  async function settleInstallingWorkers(): Promise<void> {
+    const seen = new Set<ServiceWorker>(), deadline = performance.now() + 90000;
+    let failure: unknown;
+    // A registration's automatic check may overlap the explicit update job.
+    // Drain existing installs without starting another check or retrying a failed one.
+    while (registration?.installing && !seen.has(registration.installing)) {
+      const worker = registration.installing; seen.add(worker);
+      try { await waitForWorker(worker, false, Math.max(1, deadline - performance.now())); }
+      catch (cause) { failure = cause; }
+    }
+    if (failure) throw failure;
   }
   function register(): Promise<void> {
     if (pending) return pending;
@@ -144,14 +156,18 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
   check.addEventListener('click', () => void options.run(async () => {
     clearSuccess(check); error = ''; checking = true; refresh();
     try {
+      if (pending) await pending;
       if (!registration) throw new Error('請先完成離線準備，再檢查更新。');
       await registration.update();
-      if (registration.installing) await waitForWorker(registration.installing);
+      await settleInstallingWorkers();
       await readActive();
       if (error) throw new Error(error);
       if (!ready && !registration.waiting) throw new Error('尚無已核對的離線版本，請先準備離線使用。');
       showSuccess(check);
-    } catch (cause) { error = cause instanceof Error ? cause.message : '檢查更新失敗，請連線後再試。'; throw cause; }
+    } catch (cause) {
+      try { await settleInstallingWorkers(); } catch (latest) { cause = latest; }
+      error = cause instanceof Error ? cause.message : '檢查更新失敗，請連線後再試。'; throw cause;
+    }
     finally { checking = false; refresh(); }
   }));
   update.addEventListener('click', () => void options.run(async () => {

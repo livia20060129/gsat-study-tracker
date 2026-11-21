@@ -82,3 +82,41 @@ test('review POS follows word/combination/sentence modes on mobile, preserves ch
   expect(words[1]).toEqual(expect.objectContaining({ verb: true, fixedCombination: true, beautifulSentences: false }));
   expect(words[2]).toEqual(expect.objectContaining({ adverb: true, fixedCombination: false, beautifulSentences: true }));
 });
+
+test('a background record update cannot replace a word-kind button between pointer down and click', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/');
+  const date = '2026-10-22', key = 'study-v11:guest:' + date;
+  await page.evaluate(({ key, date }) => {
+    localStorage.clear();
+    localStorage.setItem('study-v11:meta:active-record-prefix', 'study-v11:guest:');
+    localStorage.setItem(key, JSON.stringify({ date, notes: '原筆記', items: [{
+      id: 'word-kind-pointer', type: 'englishVocabInteractive', source: 'custom', required: false,
+      done: false, minutes: '15', f: { words: [{ id: 'word', text: 'novelty', noun: true }] },
+    }] }));
+  }, { key, date });
+  await page.reload(); await selectStudyDate(page, date);
+  const card = page.locator('[data-item="word-kind-pointer"]');
+  const button = card.getByRole('button', { name: '組合', exact: true });
+  await button.scrollIntoViewIfNeeded();
+  const original = await button.elementHandle(), bounds = await button.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  await page.mouse.down();
+  try {
+    await page.evaluate(key => {
+      const oldValue = localStorage.getItem(key), record = JSON.parse(oldValue!);
+      record.notes = '背景分頁的新筆記';
+      const newValue = JSON.stringify(record); localStorage.setItem(key, newValue);
+      window.dispatchEvent(new StorageEvent('storage', { key, oldValue, newValue, storageArea: localStorage }));
+    }, key);
+    expect(await original!.evaluate(node => node.isConnected)).toBe(true);
+  } finally { await page.mouse.up(); }
+  await expect(card.locator('.word-pos-primary')).toBeHidden();
+  await page.reload(); await selectStudyDate(page, date);
+  await expect(card.locator('.word-pos-primary')).toBeHidden();
+  const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), key);
+  expect(saved.notes).toBe('背景分頁的新筆記');
+  expect(saved.items.find((item: { id: string }) => item.id === 'word-kind-pointer').f.words[0])
+    .toMatchObject({ noun: true, fixedCombination: true, beautifulSentences: false });
+});

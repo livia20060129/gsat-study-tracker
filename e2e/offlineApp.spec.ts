@@ -14,14 +14,16 @@ const prefix = 'study-v11:guest:', day = '2026-11-18';
 const record = { schemaVersion: 2, date: day, notes: '離線前筆記', items: [{ id: 'offline-words', type: 'englishVocabInteractive', done: false,
   minutes: '3', required: false, source: 'custom', f: { words: [{ text: 'ability', noun: true, translation: '能力' }] } }] };
 let server: Server, base: string, release: OfflineRelease, broken = false, networkDown = false;
-let transformHtml = false, missingPayload = false, cacheQuota = false;
+let transformHtml = false, missingPayload = false, cacheQuota = false, slowCleanup = false;
 let payloadGate: { promise: Promise<void>; release(): void } | undefined, payloadRequested = false;
+let workerRequests: { broken: boolean; release: string; at: number }[] = [];
 
 test.beforeEach(async ({ context, page }) => {
   release = JSON.parse(await readFile('dist/app-release.json', 'utf8'));
   broken = false; networkDown = false;
-  transformHtml = false; missingPayload = false; cacheQuota = false;
+  transformHtml = false; missingPayload = false; cacheQuota = false; slowCleanup = false;
   payloadGate = undefined; payloadRequested = false;
+  workerRequests = [];
   const root = resolve('dist');
   const types: Record<string, string> = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json',
     '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ttf': 'font/ttf' };
@@ -34,6 +36,7 @@ test.beforeEach(async ({ context, page }) => {
     const file = resolve(root, path);
     if (!file.startsWith(root + sep)) { response.writeHead(404).end(); return; }
     try {
+      if (path === 'app-worker.js') workerRequests.push({ broken, release: release.id, at: Date.now() });
       const indexSource = release.resources.find(row => row.path === 'index.html')?.source;
       const todoSource = release.resources.find(row => row.path === 'todo.html')?.source;
       if (payloadGate && path === todoSource) { payloadRequested = true; await payloadGate.promise; }
@@ -41,7 +44,9 @@ test.beforeEach(async ({ context, page }) => {
       const quotaProbe = `const put = Cache.prototype.put; Cache.prototype.put = function(request, response) {
         if (String(typeof request === 'string' ? request : request.url).includes('/assets/')) throw new DOMException('full', 'QuotaExceededError');
         return put.call(this, request, response); };\n`;
-      let content = path === 'app-worker.js' ? Buffer.from((cacheQuota ? quotaProbe : '') + offlineWorkerSource(release))
+      const cleanupProbe = `const removeCache = CacheStorage.prototype.delete; CacheStorage.prototype.delete = async function(name) {
+        await new Promise(resolve => setTimeout(resolve, 300)); return removeCache.call(this, name); };\n`;
+      let content = path === 'app-worker.js' ? Buffer.from((cacheQuota ? quotaProbe : '') + (slowCleanup ? cleanupProbe : '') + offlineWorkerSource(release))
         : broken && path === todoSource ? Buffer.from(JSON.stringify({ html: 'not the expected release' })) : await readFile(file);
       if (transformHtml && path.endsWith('.html')) content = Buffer.from(content.toString().replace('</body>', '<script>window.__CF$cv$params={r:"test-injected"};</script></body>'));
       response.writeHead(200, { 'Content-Type': (types[extname(path)] || 'application/octet-stream') + (path.endsWith('.html') ? ';charset=utf-8' : ''),
@@ -302,14 +307,24 @@ test('an offline running timer resumes from elapsed wall time across navigation 
   await expect(restored.locator('[data-timer-display]')).toHaveText('02:05');
 });
 
-test('an incomplete new deployment leaves the old release and offline records usable', async ({ page, context, browserName }) => {
+test('an incomplete new deployment leaves the old release and offline records usable', async ({ page, context, browserName }, info) => {
   await prepare(page); await open(page);
-  release = { ...release, id: release.id + '-broken', version: 'broken' }; broken = true;
+  release = { ...release, id: release.id + '-broken', version: 'broken' }; broken = true; slowCleanup = true;
   await page.locator('[data-offline-check]').click();
   await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
   await expect(page.locator('[data-offline-info]')).toHaveAttribute('data-error', 'true');
   await expect(page.locator('[data-offline-check]')).not.toHaveAttribute('data-offline-success');
-  expect(await page.evaluate(() => caches.keys())).not.toContain('gsat-offline:/app/:release:' + release.id);
+  const cacheNames = await page.evaluate(() => caches.keys());
+  if (cacheNames.includes('gsat-offline:/app/:release:' + release.id)) {
+    const details = await page.evaluate(async base => {
+      const registration = await navigator.serviceWorker.getRegistration(base);
+      const status = await (await caches.open('gsat-offline:/app/:status')).match(new URL('offline-install-status.json', base).href);
+      return { status: status ? await status.json() : null, message: document.querySelector('[data-offline-info]')?.textContent,
+        workers: { active: registration?.active?.state, installing: registration?.installing?.state, waiting: registration?.waiting?.state } };
+    }, base);
+    await info.attach('failed-install-cache-state', { body: JSON.stringify({ cacheNames, ...details, workerRequests }), contentType: 'application/json' });
+  }
+  expect(cacheNames).not.toContain('gsat-offline:/app/:release:' + release.id);
   await goOffline(page, context, browserName); await page.goto(base + 'todo.html');
   await expect(page.locator('#siteAppDialog')).toHaveCount(1);
   await page.goto(base + 'index.html?date=' + day); await expect(page.locator('#notes')).toHaveValue('離線前筆記');

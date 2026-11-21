@@ -6,7 +6,7 @@ import { offlineAssetPath, offlineWorkerSource, type OfflineRelease } from '../s
 import { prepareAppUpdate } from '../src/application/prepareAppUpdate.ts';
 import { offlineFailureMessage } from '../src/ui/offlineFailure.ts';
 
-function workerFixture(options: { base?: string; broken?: boolean; quota?: boolean; cacheQuota?: boolean; transport?: boolean; htmlTransform?: boolean; missingPayload?: boolean } = {}) {
+function workerFixture(options: { base?: string; broken?: boolean; quota?: boolean; cacheQuota?: boolean; transport?: boolean; htmlTransform?: boolean; missingPayload?: boolean; onFailure?: () => void } = {}) {
   const base = options.base ?? 'https://tracker.example/app/';
   const data = new Map([['index.html', '<html>one complete version</html>'], ['todo.html', '<html>todo</html>'],
     ['assets/tracker-abc123.js', 'console.log("app")']]);
@@ -16,7 +16,7 @@ function workerFixture(options: { base?: string; broken?: boolean; quota?: boole
     documentHeaders: { 'Content-Security-Policy': "script-src 'self'; frame-ancestors 'none'", 'X-Frame-Options': 'DENY' } };
   const stores = new Map<string, Map<string, Response>>(), network: string[] = [];
   const handlers = new Map<string, (event: any) => void>();
-  let clients: { id: string; url: string }[] = [{ id: 'tab-one', url: base + 'index.html' }], skipped = 0;
+  let clients: { id: string; url: string; postMessage?: (value: unknown) => void }[] = [{ id: 'tab-one', url: base + 'index.html', postMessage: () => options.onFailure?.() }], skipped = 0;
   const cacheApi = (name: string) => {
     const rows = stores.get(name) ?? new Map<string, Response>(); stores.set(name, rows);
     return { async match(key: string | Request) { return rows.get(typeof key === 'string' ? key : key.url)?.clone(); },
@@ -31,7 +31,7 @@ function workerFixture(options: { base?: string; broken?: boolean; quota?: boole
   const self = { location: { href: base + 'app-worker.js' }, addEventListener(type: string, handler: (event: any) => void) { handlers.set(type, handler); },
     clients: { async matchAll() { return clients; } }, async skipWaiting() { skipped++; } };
   runInNewContext(offlineWorkerSource(release), { self, crypto, URL, Request, Response, Map, Set, Uint8Array,
-    caches: { async open(name: string) { return cacheApi(name); }, async keys() { return [...stores.keys()]; }, async delete(name: string) { return stores.delete(name); } },
+    caches: { async has(name: string) { return stores.has(name); }, async open(name: string) { return cacheApi(name); }, async keys() { return [...stores.keys()]; }, async delete(name: string) { return stores.delete(name); } },
     async fetch(request: Request) {
       network.push(request.url);
       const relative = request.url.slice(base.length).split('?')[0];
@@ -108,6 +108,20 @@ test('CDN-transformed HTML cannot invalidate exact offline copies, whose bytes a
   assert.ok(f.network.some(url => url.endsWith('offline-pages/index.html.json')));
   assert.ok(!f.network.some(url => /\/index\.html$/.test(url)));
 });
+test('a failed installation removes its cache before notifying the app while retaining the previous release', async () => {
+  const observedCaches: boolean[] = [];
+  const key = 'gsat-offline:/app/:release:release-a';
+  const f = workerFixture({ broken: true, onFailure: () => { observedCaches.push(f.stores.has(key)); } });
+  const previous = new Map<string, Response>([[f.base + 'index.html', new Response('previous release')]]);
+  f.stores.set('gsat-offline:/app/:release:previous', previous);
+  await assert.rejects(f.dispatch('install'), /integrity/);
+  assert.deepEqual(observedCaches, [false]);
+  assert.equal((await f.message('GSAT_RELEASE')).ready, false);
+  assert.equal(f.stores.has(key), false);
+  assert.equal([...f.stores.keys()].some(name => name.includes(':installing:')), false);
+  assert.equal(f.stores.get('gsat-offline:/app/:release:previous'), previous);
+});
+
 test('a changed offline copy still fails integrity and records the exact failed page', async () => {
   const f = workerFixture({ transport: true, broken: true });
   await assert.rejects(f.dispatch('install'), /integrity.*todo\.html/);
@@ -129,10 +143,12 @@ test('missing files and a full cache produce different diagnostics without clear
 });
 test('release activation retains the previous asset version and does not clear dictionary or foreign caches', async () => {
   const f = workerFixture();
+  f.stores.set('gsat-offline:/app/:installing:abandoned', new Map());
   for (const name of ['gsat-offline:/other/:release:foreign', 'gsat-offline:/app/:release:ancient', 'gsat-offline:/app/:release:previous', 'gsat-offline:/app/:ecdict-v1']) f.stores.set(name, new Map());
   f.stores.get('gsat-offline:/app/:release:previous')!.set(f.base + 'assets/old-xyz123.js', new Response('previous import'));
   await f.dispatch('install'); await f.dispatch('activate');
   assert.equal(f.stores.has('gsat-offline:/app/:release:ancient'), false);
+  assert.equal(f.stores.has('gsat-offline:/app/:installing:abandoned'), false);
   assert.equal(f.stores.has('gsat-offline:/other/:release:foreign'), true);
   assert.equal(f.stores.has('gsat-offline:/app/:ecdict-v1'), true);
   assert.equal(await (await f.response('assets/old-xyz123.js'))?.text(), 'previous import');

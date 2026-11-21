@@ -16,6 +16,7 @@ function reviewRuntime(dependencies: Record<string, unknown> = {}): ReturnType<t
     propagateDailyWorkField,
     vocabularyAutoFillStatus, VOCABULARY_PARTS_OF_SPEECH,
     englishWordFeedbackMessage: () => '',
+    localVisibleRefreshPending: false, cloudVisibleRefreshPending: false,
     ...dependencies,
   });
   for (const name of ['englishReviewWordKind', 'renderEnglishReviewWordTagRow', 'renderEnglishReviewWordKind',

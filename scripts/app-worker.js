@@ -65,8 +65,11 @@ function resourceUrl(request) {
   return null;
 }
 async function installRelease(repair = false) {
+  const staging = CACHE_PREFIX + 'installing:' + RELEASE.id;
+  let publishing = false, existingRelease = false;
   try {
-    const cache = await caches.open(CACHE);
+    existingRelease = await caches.has(CACHE);
+    const cache = await caches.open(repair ? CACHE : staging);
     // Bounded batches avoid hundreds of simultaneous requests on mobile connections.
     const rows = [...resources];
     for (let offset = 0; offset < rows.length; offset += 4) {
@@ -80,18 +83,35 @@ async function installRelease(repair = false) {
       const failed = results.find(result => result.status === 'rejected');
       if (failed) throw failed.reason;
     }
+    if (!repair) {
+      publishing = true;
+      const published = await caches.open(CACHE);
+      for (const [url, row] of rows) {
+        const response = await cache.match(url);
+        if (!response) throw problem('cache', row);
+        try { await published.put(url, response); }
+        catch (error) { throw problem(error.name === 'QuotaExceededError' ? 'quota' : 'cache', row); }
+        await cache.delete(new Request(url));
+      }
+      await caches.delete(staging);
+    }
     try { await (await caches.open(STATUS)).delete(new Request(STATUS_URL)); } catch { /* Diagnostic cleanup is optional. */ }
   } catch (error) {
+    if (!repair) {
+      try { await caches.delete(staging); } catch { /* Preserve the failure reason. */ }
+      if (publishing && !existingRelease) { try { await caches.delete(CACHE); } catch { /* Preserve the failure reason. */ } }
+    }
     await reportFailure(error);
-    if (!repair) { try { await caches.delete(CACHE); } catch { /* Preserve the failure reason. */ } }
     throw error;
   }
 }
 self.addEventListener('install', event => event.waitUntil(installRelease()));
 self.addEventListener('activate', event => event.waitUntil((async () => {
-  const old = (await caches.keys()).filter(name => name.startsWith(CACHE_PREFIX + 'release:') && name !== CACHE);
+  const names = await caches.keys();
+  const old = names.filter(name => name.startsWith(CACHE_PREFIX + 'release:') && name !== CACHE);
+  const abandoned = self.registration?.installing ? [] : names.filter(name => name.startsWith(CACHE_PREFIX + 'installing:'));
   // Keep one previous release for a retiring tab's already-loaded, hashed imports.
-  await Promise.all(old.slice(0, -1).map(name => caches.delete(name)));
+  await Promise.all([...old.slice(0, -1), ...abandoned].map(name => caches.delete(name)));
   // Do not claim or reload pages that loaded without this worker.
 })()));
 async function staticResponse(request, route) {
@@ -131,8 +151,8 @@ self.addEventListener('message', event => {
   if (!port) return;
   if (event.data?.type === 'GSAT_RELEASE') {
     event.waitUntil((async () => {
-      const cache = await caches.open(CACHE);
-      const keys = new Set((await cache.keys()).map(request => request.url));
+      const cache = await caches.has(CACHE) ? await caches.open(CACHE) : null;
+      const keys = new Set(cache ? (await cache.keys()).map(request => request.url) : []);
       port.postMessage({ version: RELEASE.version, id: RELEASE.id, ready: [...resources.keys()].every(url => keys.has(url)) });
     })()); return;
   }

@@ -15,9 +15,12 @@ test('all pages share desktop rails and three full-width mobile sections without
       await expect(page.locator('#siteMobileBar [data-mobile-section]')).toHaveCount(3);
       const home = page.locator('.site-workspace-home');
       const compactHome = path === '/' && width < 1200;
-      const title = compactHome ? page.locator('.site-mobile-home') : page.locator('h1:not(.site-mobile-section-heading):visible').first();
+      const desktopHome = path === '/' && width >= 1200;
+      const title = compactHome ? page.locator('.site-mobile-home') : desktopHome
+        ? page.getByRole('heading', { name: '今日資訊', exact: true }) : page.locator('h1:not(.site-mobile-section-heading):visible').first();
       await expect(title).toBeVisible();
-      await expect(title).toHaveCSS('font-size', compactHome ? '16px' : '28px');
+      if (!desktopHome) await expect(title).toHaveCSS('font-size', compactHome ? '16px' : '28px');
+      if (path === '/') await expect(page.locator('main > .app-header')).toHaveCount(0);
       await expect(width >= 1200 ? home : page.locator('.site-mobile-home')).toHaveCSS('color', path === '/' ? 'rgb(57, 103, 233)' : 'rgb(23, 42, 57)');
       const selectedTool = page.locator(`.site-tools a[href=".${path}"]`);
       if (width >= 1200 && await selectedTool.count()) {

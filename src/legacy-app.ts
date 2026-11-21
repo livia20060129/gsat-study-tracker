@@ -406,6 +406,7 @@ var CALENDAR_WRITING_TEST_PLAN={"2026-08-21":{"round":17,"focus":"基礎連接�
 var data=null;
 var dataLoadBase=null;
 var localVisibleRefreshPending=false;
+var wordKindPointer=null;
 var routineTimeMode='wake';
 var routineTimeDrafts={wake:{hour:'',minute:''},bedtime:{hour:'',minute:''}};
 var routineTimeSwitchTimer=null;
@@ -1434,7 +1435,7 @@ async function calendarDisconnect(){
 
 function isEditingRecordControl(){
  var active=document.activeElement,tag=active&&active.tagName?String(active.tagName).toUpperCase():'';
- return (tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')&&active!==id('studyDate');
+ return wordKindPointer!==null||((tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')&&active!==id('studyDate'));
 }
 function setCloudVisibleRefreshPending(pending,options){
  cloudVisibleRefreshPending=!!pending;
@@ -3747,7 +3748,8 @@ function selectEnglishReviewWordKind(item,control){
  if(['word','combination','sentence'].indexOf(kind)<0)return;
  current.fixedCombination=kind==='combination';current.beautifulSentences=kind==='sentence';
  if(kind!=='word')delete current.vocabularyLookupPending;
- propagateDailyWorkField(item,'words',words);persist(false);
+ propagateDailyWorkField(item,'words',words);
+ if(persist(false)&&(localVisibleRefreshPending||cloudVisibleRefreshPending))writeHeader();
  var switcher=control.closest('[data-word-kind-switch]');if(!switcher)return;
  switcher.dataset.active=kind==='word'?'0':(kind==='combination'?'1':'2');
  switcher.querySelectorAll('[data-word-kind]').forEach(function(button){button.setAttribute('aria-pressed',button.getAttribute('data-word-kind')===kind?'true':'false')});
@@ -4650,6 +4652,21 @@ id('calendarDisconnectBtn').addEventListener('click',calendarDisconnect);
 var connectionSettingsPanel=id('connectionSettings');
 var connectionSettingsSummary=connectionSettingsPanel.querySelector(':scope > summary');
 if(connectionSettingsSummary)setupConnectionSettingsMotion(connectionSettingsPanel,connectionSettingsSummary);
+// Preserve the pressed button until click commits; Safari need not focus buttons.
+document.addEventListener('pointerdown',function(event){
+ var target=event.target;
+ if(event.button===0&&event.isPrimary!==false&&target.closest&&target.closest('[data-word-kind-switch]'))wordKindPointer={pointerId:event.pointerId};
+},true);
+function finishWordKindPointer(event){
+ var pressed=wordKindPointer;if(!pressed||(event&&event.pointerId!==pressed.pointerId))return;
+ setTimeout(function(){
+  if(wordKindPointer!==pressed)return;
+  wordKindPointer=null;applyPendingVisibleCloudRefresh();refreshVisibleRecordFromLocalChange();
+ },0);
+}
+document.addEventListener('pointerup',finishWordKindPointer,true);
+document.addEventListener('pointercancel',finishWordKindPointer,true);
+window.addEventListener('blur',function(){finishWordKindPointer()});
 document.addEventListener('focusout',function(){setTimeout(function(){applyPendingVisibleCloudRefresh();refreshVisibleRecordFromLocalChange()},0)});
 document.addEventListener('focusin',function(e){if(e.target.matches&&e.target.matches('[data-word-text]'))wordInputCommits.focus(e.target,{prefix:STORE_PREFIX,date:data.date})});
 document.addEventListener('focusout',function(e){
