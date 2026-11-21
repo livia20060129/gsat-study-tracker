@@ -5,7 +5,9 @@ for (const width of [360, 1440]) test(`home information and reflection retain da
   await page.clock.setFixedTime(new Date('2026-11-08T12:00:00+08:00'));
   await page.setViewportSize({ width, height: 900 });
   await page.goto('/');
-  await expect(page.locator('.home-brand h1')).toHaveText('Study Tracker');
+  await expect(page.locator('main')).toHaveAttribute('aria-label', '每日讀書紀錄');
+  await expect(page.locator('main > .app-header')).toHaveCount(0);
+  expect(await page.locator('main').evaluate(main => document.getElementById('connectionSettings')!.getBoundingClientRect().top - main.getBoundingClientRect().top)).toBeLessThan(50);
   await expect(page.locator('[data-home-date], [data-home-date-label], .app-header input[type="date"]')).toHaveCount(0);
   await expect(page.locator('#studyDate')).toHaveValue('2026-11-08');
   await expect(page.locator('#routineDisclosure')).toBeHidden();

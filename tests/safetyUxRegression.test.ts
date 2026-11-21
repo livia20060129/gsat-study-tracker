@@ -120,7 +120,9 @@ test('connection settings share one responsive transition lifecycle', () => {
 });
 
 test('material progress navigation stays in the current browser tab', () => {
-  const link = html.match(/<a[^>]*href="\.\/material\.progress\.html"[^>]*>教材進度圖<\/a>/)?.[0] || '';
-  assert.ok(link);
-  assert.doesNotMatch(link, /target="_blank"/);
+  const shell = readFileSync(new URL('../public/page-transitions.js', import.meta.url), 'utf8');
+  const tools = shell.match(/<nav class="site-tools"[^>]*>(.*?)<\/nav>/s)?.[1] || '';
+  assert.match(shell, /\['material\.progress\.html', '教材進度圖'/);
+  assert.match(tools, /<a href="\.\//);
+  assert.doesNotMatch(tools, /target="_blank"/);
 });

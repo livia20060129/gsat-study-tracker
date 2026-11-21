@@ -120,7 +120,8 @@ test('unsupported browsers and ordinary mobile pages have no desktop titlebar ga
   await page.goto('/');
   await expect(page.locator('#siteDesktopTitlebar')).toBeHidden();
   await expect(page.locator('body')).toHaveCSS('padding-top','0px');
-  await expect(page.locator('.home-brand h1')).toHaveText('Study Tracker');
+  await expect(page.locator('main > .app-header')).toHaveCount(0);
+  await expect(page.locator('#connectionSettings')).toBeVisible();
   await page.setViewportSize({width:375,height:812}); await page.reload();
   await expect(page.locator('#siteDesktopTitlebar')).toBeHidden();
   await expect(page.locator('.site-mobile-home')).toBeVisible();

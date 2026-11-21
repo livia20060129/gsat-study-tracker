@@ -303,6 +303,7 @@ test('summary page has one global week/month switch and no separate total-hours 
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const config = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8');
   const sharedHeaderActions = readFileSync(new URL('../public/navigation.css', import.meta.url), 'utf8');
+  const sharedShell = readFileSync(new URL('../public/page-transitions.js', import.meta.url), 'utf8');
   assert.equal((html.match(/id="summaryModeSwitch"/g) || []).length, 1);
   assert.equal((html.match(/data-summary-mode=/g) || []).length, 2);
   assert.match(html, /id="summaryTotalCompletion"/);
@@ -390,7 +391,7 @@ test('summary page has one global week/month switch and no separate total-hours 
   assert.match(runtime, /exit\.cancel\(\);\s*applyMode\(\);/);
   assert.match(runtime, /height: `\$\{beforeHeight\}px`/);
   assert.match(html, /<div class="summary-view-controls">\s*<a class="summary-back header-action-link"[^>]*>回到 Tracker<\/a>\s*<div class="summary-mode-switch"/);
-  assert.match(index, /class="header-action-link" href="\.\/summary\.html">週／月總結<\/a>/);
+  assert.match(sharedShell, /class="site-summary-link" href="\.\/summary\.html"/);
   assert.doesNotMatch(index, /本週趨勢|completionTrendPanel|completionViewTabs/);
   assert.match(styles, /@import "\.\/header-action-link\.css"/);
   assert.match(sharedHeaderActions, /\.header-action-link\{/);

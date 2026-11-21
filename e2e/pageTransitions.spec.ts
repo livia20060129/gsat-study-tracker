@@ -135,7 +135,7 @@ test('reduced motion keeps direct entry, links and history usable without page e
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const path of ['/', '/privacy.html', '/terms.html', '/support.html', '/gpt.prompt.html', '/vocabulary.sources.html']) {
     await page.goto(path);
-    await expect(page.locator('h1:visible')).toBeVisible();
+    await expect(path === '/' ? page.getByRole('heading', { name: '今日資訊', exact: true }) : page.locator('h1:visible')).toBeVisible();
     expect((await motion(page)).entries).toEqual([]);
   }
   await navigateSite(page, 'vocabulary.review.html');
