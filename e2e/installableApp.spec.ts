@@ -47,7 +47,9 @@ test('every entry shares the app identity and opens simplified install and offli
   const manifest = await response.json(); expect(manifest.display).toBe('standalone'); expect(manifest.id).toBe('./');
   for (const icon of manifest.icons) expect((await request.get('/' + icon.src)).ok()).toBe(true);
   await open(page);
-  await expect(page.locator('[data-offline-info]')).toContainText('尚未準備離線頁面');
+  await expect(page.locator('[data-offline-info]')).toBeHidden();
+  await expect(page.locator('[data-app-current-version]')).toHaveText(/^v\d+\.\d+\.\d+$/);
+  await expect(page.locator('[data-app-latest-version]')).toHaveText(await page.locator('[data-app-current-version]').innerText());
   await expect(page.getByRole('button', { name: '準備離線使用', exact: true })).toBeVisible();
 });
 

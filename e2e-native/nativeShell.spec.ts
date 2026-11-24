@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { showMobileSection } from '../e2e/helpers/siteNavigation.ts';
@@ -221,7 +222,10 @@ test('bundled native settings hide install and backup controls while preserving 
   }, date);
   await openApp(page);
   await expect(page.locator('[data-app-install]')).toBeHidden();
-  await expect(page.locator('[data-offline-info]')).toContainText('App 已內建離線頁面');
+  await expect(page.locator('[data-offline-info]')).toBeHidden();
+  const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  await expect(page.locator('[data-app-current-version]')).toHaveText(`v${version}`);
+  await expect(page.locator('[data-app-latest-version]')).toHaveText('請至商店查看');
   await expect(page.locator('#siteAppDialog')).not.toContainText('裝置備份與容量');
   await expect(page.locator('[data-app-export], [data-app-backup], [data-app-persist]')).toHaveCount(0);
   await expect(page.getByRole('link', { name: '申請刪除帳號與資料' })).toHaveAttribute('href', 'https://myself.liviayeh.dev/support.html#account-deletion');

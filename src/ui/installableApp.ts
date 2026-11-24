@@ -64,7 +64,7 @@ export function initializeInstallableApp(): void {
   }
   entry.addEventListener('click', () => {
     if (dialog.open || closing) return;
-    status(''); dialog.showModal(); installState(); offline.refresh();
+    status(''); dialog.showModal(); installState(); offline.refresh(true);
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) dialog.animate([{ transform: 'translateY(18px)' }, { transform: 'translateY(0)' }], { duration: 180, easing: 'ease-out' });
   });
   function close(): void {

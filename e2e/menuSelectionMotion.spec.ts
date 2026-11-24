@@ -5,6 +5,24 @@ const rail = '#siteRightRail';
 const marker = `${rail} .site-navigation-selection`;
 const menu = (name: string): string => `${rail} a[href="./${name}.html"]`;
 
+for (const width of [1440, 390]) test(`right menu remains usable after entering summary at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.route('https://arxbirgujbrtzhoficdf.supabase.co/**', route => route.fulfill({ json: [] }));
+  await page.goto('/todo.html');
+  await showMobileSection(page, 'tools');
+  await page.locator(menu('summary')).click();
+  await expect(page).toHaveURL(/\/summary\.html$/);
+  await showMobileSection(page, 'tools');
+  await page.locator(menu('material.progress')).click();
+  await expect(page).toHaveURL(/\/material\.progress\.html$/);
+  await showMobileSection(page, 'tools');
+  await page.locator(menu('summary')).click();
+  await expect(page).toHaveURL(/\/summary\.html$/);
+  await showMobileSection(page, 'tools');
+  await page.locator(menu('vocabulary.review')).click();
+  await expect(page).toHaveURL(/\/vocabulary\.review\.html$/);
+});
+
 async function openMenu(page: Page, path = '/todo.html'): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(path);

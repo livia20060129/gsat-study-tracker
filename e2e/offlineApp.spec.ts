@@ -47,7 +47,7 @@ test.beforeEach(async ({ context, page }) => {
       const cleanupProbe = `const removeCache = CacheStorage.prototype.delete; CacheStorage.prototype.delete = async function(name) {
         await new Promise(resolve => setTimeout(resolve, 300)); return removeCache.call(this, name); };\n`;
       let content = path === 'app-worker.js' ? Buffer.from((cacheQuota ? quotaProbe : '') + (slowCleanup ? cleanupProbe : '') + offlineWorkerSource(release))
-        : broken && path === todoSource ? Buffer.from(JSON.stringify({ html: 'not the expected release' })) : await readFile(file);
+        : path === 'app-release.json' ? Buffer.from(JSON.stringify(release)) : broken && path === todoSource ? Buffer.from(JSON.stringify({ html: 'not the expected release' })) : await readFile(file);
       if (transformHtml && path.endsWith('.html')) content = Buffer.from(content.toString().replace('</body>', '<script>window.__CF$cv$params={r:"test-injected"};</script></body>'));
       response.writeHead(200, { 'Content-Type': (types[extname(path)] || 'application/octet-stream') + (path.endsWith('.html') ? ';charset=utf-8' : ''),
         'Cache-Control': 'no-store' }); response.end(content);
@@ -81,7 +81,7 @@ async function open(page: Page): Promise<void> {
 }
 async function prepare(page: Page): Promise<void> {
   await open(page); await page.locator('[data-offline-prepare]').click();
-  await expect(page.locator('[data-offline-info]')).toContainText('離線頁面已核對');
+  await expect(page.locator('[data-offline-info]')).toBeHidden();
   await expect(page.locator('#siteAppDialog')).not.toHaveAttribute('aria-busy');
   await expect(page.locator('[data-offline-prepare]')).toHaveAttribute('data-offline-success', 'true');
   await page.locator('[data-app-close]').click();
@@ -146,7 +146,7 @@ test('completed preparation and update checks show a stable green check for five
   await expect(checkButton).toHaveAccessibleName('檢查更新：已完成');
   await expect(checkButton).toHaveCSS('background-color', 'rgb(21, 128, 61)');
   await expect(checkButton.locator('.site-app-success-check')).toHaveCSS('opacity', '1');
-  await expect(page.locator('[data-offline-info]')).toContainText('檢查完成，目前已是最新版本');
+  await expect(page.locator('[data-app-latest-version]')).toHaveText(`v${release.version}`);
   expect(await checkButton.boundingBox()).toEqual(checkBounds);
   await page.screenshot({ path: info.outputPath('update-check-success-mobile.png') });
   // Retry during the five-second feedback, so its previous timer must be cancelled.
@@ -155,7 +155,7 @@ test('completed preparation and update checks show a stable green check for five
   await expect(checkButton).toHaveAttribute('data-offline-success', 'true');
   await expect(checkButton).not.toHaveAttribute('data-offline-success', { timeout: 7000 });
   await expect(checkButton).toHaveAccessibleName('檢查更新');
-  await expect(page.locator('[data-offline-info]')).toContainText('離線頁面已核對');
+  await expect(page.locator('[data-offline-info]')).toBeHidden();
   const durations = await page.evaluate(() => (window as unknown as { offlineSuccessDurations: Record<string, number[]> }).offlineSuccessDurations);
   for (const duration of [durations.prepare.at(-1)!, durations.check.at(-1)!]) {
     expect(duration).toBeGreaterThanOrEqual(4900); expect(duration).toBeLessThan(6500);
@@ -267,7 +267,7 @@ test('waiting updates preserve drafts, refuse another open tab and activate only
   await page.locator('[data-offline-update]').click();
   await expect(page.locator('#siteAppDialog')).not.toBeVisible();
   await expect(page.locator('#notes')).toHaveValue('更新前最後草稿');
-  await open(page); await expect(page.locator('[data-offline-info]')).toContainText('171.6.next');
+  await open(page); await expect(page.locator('[data-app-latest-version]')).toHaveText('v171.6.next');
   const snapshot = await page.evaluate(() => new Promise<{ content: string }>((resolve, reject) => {
     const request = indexedDB.open('gsat-study-tracker-record-backups', 1);
     request.onerror = () => reject(request.error);
@@ -386,7 +386,7 @@ test('missing offline copies identify the file and HTTP status and can be retrie
   await expect(page.locator('[data-offline-prepare]')).not.toHaveAttribute('data-offline-success');
   expect(await notes(page)).toBe('離線前筆記');
   missingPayload = false; await page.locator('[data-offline-prepare]').click();
-  await expect(page.locator('[data-offline-info]')).toContainText('離線頁面已核對');
+  await expect(page.locator('[data-offline-info]')).toBeHidden();
   await expect(page.locator('[data-offline-prepare]')).toHaveAttribute('data-offline-success', 'true');
 });
 

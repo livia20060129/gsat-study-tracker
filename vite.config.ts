@@ -11,6 +11,7 @@ function createViteConfig({ mode }: ConfigEnv): UserConfig {
   const native = mode === 'native', output = native ? 'dist-native' : 'dist';
   return {
     base: './',
+    define: { __STUDY_TRACKER_VERSION__: JSON.stringify(JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version) },
     plugins: [{ name: 'security-headers', configurePreviewServer(server) {
       server.middlewares.use((_request, response, next) => {
         for (const [name, value] of Object.entries(SITE_SECURITY_HEADERS)) response.setHeader(name, value);

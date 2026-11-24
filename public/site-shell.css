@@ -832,6 +832,10 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 .site-app-dialog [data-app-close] { width:40px; min-height:40px; padding:0; flex-shrink:0; font-size:25px; }
 .site-app-actions { display:flex; flex-wrap:wrap; gap:9px; }
 .site-app-dialog .site-app-note { color:#60748c; font-size:13px; }
+.site-app-versions { display:grid; gap:6px; margin:14px 0 0; font-size:14px; }
+.site-app-versions > div { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:baseline; gap:16px; }
+.site-app-versions dt { color:#60748c; }
+.site-app-versions dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
 .site-app-dialog [data-app-status] { min-height:1.6em; color:#247252; margin-bottom:0; }
 .site-app-dialog [data-app-status][data-error="true"] { color:#a83d35; }
 .site-app-dialog [hidden] { display:none!important; }
@@ -852,7 +856,6 @@ body.tracker-home.has-site-shell { --accent:var(--flat-blue); --line:var(--flat-
 }
 .site-app-update button:focus-visible { outline:3px solid #315cf5; outline-offset:3px; }
 .site-app-dialog [data-offline-info][data-error=true] { color:#a83d35; }
-.site-app-dialog [data-offline-info] { min-height:3.3em; }
 .site-native-timer-notice { position:fixed; z-index:1800; left:50%; bottom:calc(90px + env(safe-area-inset-bottom)); transform:translateX(-50%); box-sizing:border-box; width:max-content; max-width:calc(100% - 32px); padding:12px 16px; border:1px solid #bed4f1; border-radius:12px; background:#f1f7ff; color:#274c75; font:14px/1.5 system-ui,sans-serif; box-shadow:0 8px 30px #173c631c; }
 
 /* Installed desktop PWA: retain the OS caption buttons and extend both rails

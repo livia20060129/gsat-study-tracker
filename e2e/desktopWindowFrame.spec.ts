@@ -17,6 +17,50 @@ async function overlay(page: Page): Promise<void> {
 }
 test.use({ viewport: { width: 1440, height: 900 }, timezoneId: 'Asia/Taipei' });
 
+for (const interruption of ['cancel', 'pause'] as const) test(`installed summary menu still navigates when its click animation is interrupted by ${interruption}`, async ({ page }) => {
+  await overlay(page);
+  await page.route('https://arxbirgujbrtzhoficdf.supabase.co/**', route => route.fulfill({ json: [] }));
+  await page.goto('/todo.html');
+  await page.locator('#siteRightRail a[href="./summary.html"]').click();
+  await expect(page).toHaveURL(/\/summary\.html$/);
+  await expect(page.locator('html')).toHaveAttribute('data-desktop-titlebar', 'true');
+  await page.evaluate(interruption => {
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function(...args) {
+      const animation = animate.apply(this, args);
+      if (animation.id === 'study-menu-click-bounce') queueMicrotask(() => animation[interruption]());
+      return animation;
+    };
+  }, interruption);
+  await page.locator('#siteRightRail a[href="./material.progress.html"]').click();
+  await expect(page).toHaveURL(/\/material\.progress\.html$/, { timeout: 2000 });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/summary\.html$/);
+  await page.locator('#siteAppSettings').click();
+  await expect(page.locator('#siteAppDialog')).toBeVisible();
+  await page.locator('[data-app-close]').click();
+  await page.locator('#siteRightRail a[href="./vocabulary.review.html"]').click();
+  await expect(page).toHaveURL(/\/vocabulary\.review\.html$/, { timeout: 2000 });
+});
+
+test('Escape cancels a suspended installed-menu request without a delayed navigation, then another menu choice works', async ({ page }) => {
+  await overlay(page); await page.goto('/summary.html');
+  await page.evaluate(() => {
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function(...args) {
+      const animation = animate.apply(this, args);
+      if (animation.id === 'study-menu-click-bounce') animation.pause();
+      return animation;
+    };
+  });
+  await page.locator('#siteRightRail a[href="./material.progress.html"]').click();
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(750);
+  await expect(page).toHaveURL(/\/summary\.html$/);
+  await page.locator('#siteRightRail a[href="./todo.html"]').click();
+  await expect(page).toHaveURL(/\/todo\.html$/, { timeout: 2000 });
+});
+
 test('both rails reach the title area before hydration, with Study Tracker branding and no titlebar entry animation', async ({ page }, info) => {
   await overlay(page);
   let release = (): void => {};

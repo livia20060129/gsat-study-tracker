@@ -23,19 +23,23 @@ function askWorker<T>(worker: ServiceWorker, type: string, timeoutMs = 10000): P
     catch (error) { clearTimeout(timeout); channel.port1.close(); reject(error); }
   });
 }
-export function initializeOfflineApp(dialog: HTMLDialogElement, options: OfflineAppOptions): { refresh(): void } {
+export function initializeOfflineApp(dialog: HTMLDialogElement, options: OfflineAppOptions): { refresh(checkVersion?: boolean): void } {
   const section = document.createElement('section');
   section.setAttribute('aria-labelledby', 'siteOfflineTitle');
   const successIcon = '<svg class="site-app-success-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg>';
-  section.innerHTML = `<h3 id="siteOfflineTitle">離線使用與更新</h3><p data-offline-info role="status"></p>
+  section.innerHTML = `<h3 id="siteOfflineTitle">離線使用與更新</h3><p data-offline-info role="status" hidden></p>
     <div class="site-app-actions"><button type="button" class="site-app-feedback-action" data-offline-prepare>${successIcon}準備離線使用</button>
     <button type="button" class="site-app-feedback-action" data-offline-check>${successIcon}檢查更新</button><button type="button" data-offline-update hidden>儲存並更新</button></div>
-    <p class="site-app-note">先連線準備一次，即可離線開啟主要頁面、填寫紀錄及匯出。ECDICT 僅保留最近下載的詞庫；Google 登入、翻譯與雲端同步需連線。</p>`;
+    <dl class="site-app-versions" aria-label="版本資訊">
+      <div><dt>目前版本</dt><dd data-app-current-version></dd></div>
+      <div><dt>最新版本</dt><dd data-app-latest-version aria-live="polite">尚未檢查</dd></div>
+    </dl>`;
   dialog.querySelector('section')!.after(section);
+  section.querySelector<HTMLElement>('[data-app-current-version]')!.textContent = `v${__STUDY_TRACKER_VERSION__}`;
+  const latest = section.querySelector<HTMLElement>('[data-app-latest-version]')!;
   if (isNativeApp()) {
-    section.querySelector<HTMLElement>('[data-offline-info]')!.textContent = 'App 已內建離線頁面與詞庫；程式更新由安裝檔或商店提供。雲端同步與 Google 翻譯仍需網路。';
     section.querySelector<HTMLElement>('.site-app-actions')!.hidden = true;
-    section.querySelector<HTMLElement>('.site-app-note')!.hidden = true;
+    latest.textContent = '請至商店查看';
     return { refresh(): void {} };
   }
   const banner = document.createElement('aside');
@@ -49,8 +53,9 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
   const check = section.querySelector<HTMLButtonElement>('[data-offline-check]')!;
   const update = section.querySelector<HTMLButtonElement>('[data-offline-update]')!;
   const supported = isSecureContext && 'serviceWorker' in navigator && import.meta.env.PROD;
-  let registration: ServiceWorkerRegistration | undefined, release: ReleaseInfo | undefined;
+  let registration: ServiceWorkerRegistration | undefined;
   let pending: Promise<void> | undefined, error = '', ready = false, revision = 0, approved = false, checking = false;
+  let versionPending: Promise<void> | undefined, latestVersion = '', versionChecked = false;
   const successTimers = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>();
   function clearSuccess(button: HTMLButtonElement): void {
     clearTimeout(successTimers.get(button)); successTimers.delete(button);
@@ -68,7 +73,28 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
   window.addEventListener('input', changed);
   window.addEventListener('study-records-changed', changed);
   window.addEventListener('storage', changed);
-  function refresh(): void {
+  function readLatestVersion(): Promise<void> {
+    if (versionPending) return versionPending;
+    if (!navigator.onLine) return Promise.resolve();
+    latestVersion = ''; versionChecked = true;
+    versionPending = (async () => {
+      const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const response = await fetch(new URL('app-release.json', base), { cache: 'no-store', credentials: 'omit', signal: controller.signal });
+        if (!response.ok) throw new Error('Release unavailable');
+        const value: unknown = await response.json();
+        const version = value && typeof value === 'object' && 'version' in value ? value.version : undefined;
+        if (typeof version !== 'string' || version.length > 64 || !/^\d+(?:\.[\da-z-]+)+(?:\+[\da-z.-]+)?$/i.test(version)) throw new Error('Invalid release');
+        latestVersion = version;
+      } catch { /* A failed metadata lookup must not block offline preparation or imply the app is up to date. */ }
+      finally { clearTimeout(timeout); }
+    })().finally(() => { versionPending = undefined; refresh(); });
+    return versionPending;
+  }
+  function refresh(checkVersion = false): void {
+    if (checkVersion) void readLatestVersion();
+    latest.textContent = !navigator.onLine ? '離線，無法確認' : versionPending ? '檢查中…'
+      : latestVersion ? `v${latestVersion}` : versionChecked ? '無法確認' : '尚未檢查';
     if (error) { clearSuccess(prepare); clearSuccess(check); }
     const busy = dialog.hasAttribute('aria-busy');
     prepare.disabled = busy || !supported || !navigator.onLine;
@@ -81,13 +107,12 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
       : !navigator.onLine ? ready ? '目前離線：可繼續查看與填寫本機紀錄。' : '目前離線；請連線後先準備離線頁面。'
       : checking ? '正在檢查並核對更新，請保持此頁開啟…'
       : registration?.waiting ? '新版已下載，請先關閉其他分頁，再選「儲存並更新」。'
-      : check.dataset.offlineSuccess === 'true' ? '檢查完成，目前已是最新版本。'
-      : ready ? `離線頁面已核對${release ? `（v${release.version}）` : ''}，本機紀錄可離線使用。`
-      : pending ? '正在下載並核對離線頁面，請保持此頁開啟…' : '尚未準備離線頁面；首次下載約十多 MB。');
+      : pending ? '正在下載並核對離線頁面，請保持此頁開啟…' : '');
+    info.hidden = !info.textContent;
   }
   async function readActive(): Promise<void> {
     if (!registration?.active) return;
-    release = await askWorker<ReleaseInfo>(registration.active, 'GSAT_RELEASE');
+    const release = await askWorker<ReleaseInfo>(registration.active, 'GSAT_RELEASE');
     ready = release.ready;
   }
   function observe(worker: ServiceWorker): void {
@@ -96,7 +121,7 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
     let installed = ['installed', 'activating', 'activated'].includes(worker.state);
     worker.addEventListener('statechange', () => {
       if (['installed', 'activating', 'activated'].includes(worker.state)) installed = true;
-      if (worker.state === 'activated') void readActive().then(refresh).catch(() => { error = '無法確認離線版本，請再檢查更新。'; refresh(); });
+      if (worker.state === 'activated') void readActive().then(() => refresh()).catch(() => { error = '無法確認離線版本，請再檢查更新。'; refresh(); });
       if (worker.state === 'redundant' && !installed && registration?.active) void readOfflineFailure(base).then(failure => {
         error = failure ? offlineFailureMessage(failure) : '新版未下載完整，繼續使用原版本；請連線後再檢查更新。'; refresh();
       });
@@ -144,7 +169,7 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
     refresh(); return pending;
   }
   prepare.addEventListener('click', () => void options.run(async () => {
-    clearSuccess(prepare); error = ''; refresh();
+    clearSuccess(prepare); error = ''; refresh(true);
     try {
       await register();
       if (!ready && registration?.active) { await askWorker(registration.active, 'GSAT_PREPARE', 90000); await readActive(); }
@@ -154,7 +179,7 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
     } catch (cause) { error = cause instanceof Error ? cause.message : '離線準備失敗，原紀錄仍保留。'; throw cause; }
   }));
   check.addEventListener('click', () => void options.run(async () => {
-    clearSuccess(check); error = ''; checking = true; refresh();
+    clearSuccess(check); error = ''; checking = true; refresh(true);
     try {
       if (pending) await pending;
       if (!registration) throw new Error('請先完成離線準備，再檢查更新。');
@@ -196,7 +221,7 @@ export function initializeOfflineApp(dialog: HTMLDialogElement, options: Offline
       });
     } catch { /* Online use does not depend on the offline preference being writable. */ }
   }
-  window.addEventListener('online', refresh);
-  window.addEventListener('offline', refresh);
+  window.addEventListener('online', () => refresh(dialog.open));
+  window.addEventListener('offline', () => refresh());
   refresh(); return { refresh };
 }

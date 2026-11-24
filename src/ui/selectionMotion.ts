@@ -35,6 +35,8 @@ export function initializeSelectionMotion(right: HTMLElement, bar: HTMLElement):
   let markerMotion: Animation | null = null;
   let selectionPulses: Animation[] = [];
   let pendingHref: string | null = null;
+  let navigationRequest = 0;
+  let navigationTimer: ReturnType<typeof setTimeout> | undefined;
   let hoveredLink: HTMLAnchorElement | null = null;
   let focusedLink: HTMLAnchorElement | null = null;
   let frame = 0;
@@ -78,6 +80,13 @@ export function initializeSelectionMotion(right: HTMLElement, bar: HTMLElement):
   function cancelPulses(): void {
     selectionPulses.forEach(animation => animation.cancel());
     selectionPulses = [];
+  }
+
+  function cancelNavigation(): void {
+    navigationRequest++;
+    pendingHref = null;
+    clearTimeout(navigationTimer);
+    navigationTimer = undefined;
   }
 
   function pulseSelection(target: HTMLElement): Animation[] {
@@ -147,6 +156,8 @@ export function initializeSelectionMotion(right: HTMLElement, bar: HTMLElement):
   if (typeof ResizeObserver === 'function') new ResizeObserver(refreshGeometry).observe(right);
   window.addEventListener('resize', refreshGeometry);
   window.addEventListener('pageshow', () => {
+    // Initial pageshow can arrive after the user has already selected a page.
+    if (pendingHref) return;
     hoveredLink = focusedLink = null;
     cancelPulses();
     refreshGeometry();
@@ -182,18 +193,25 @@ export function initializeSelectionMotion(right: HTMLElement, bar: HTMLElement):
     const samePage = page === siteNavigationPage(location.pathname) && destination.search === location.search;
     if (samePage && destination.hash !== location.hash) { pulseSelection(target); return; }
     event.preventDefault();
+    const request = ++navigationRequest;
+    clearTimeout(navigationTimer);
     pendingHref = samePage ? null : destination.href;
     cancelPulses();
     const motion = paintMarker(target, true);
     const pulses = pulseSelection(target);
     if (samePage) return;
     const finish = (): void => {
-      if (pendingHref !== destination.href) return;
+      if (navigationRequest !== request || pendingHref !== destination.href) return;
       pendingHref = null;
+      clearTimeout(navigationTimer);
+      navigationTimer = undefined;
       location.assign(destination.href);
     };
+    // A cancelled or suspended OS/browser animation must never consume the link.
+    // The request identity keeps replaced clicks, Escape and pagehide cancelled.
+    navigationTimer = setTimeout(finish, 600);
     const animations = [...(motion ? [motion] : []), ...pulses];
-    if (animations.length) void Promise.all(animations.map(animation => animation.finished)).then(finish, () => {});
+    if (animations.length) void Promise.all(animations.map(animation => animation.finished)).then(finish, finish);
     else finish();
   }, true);
 
@@ -226,10 +244,10 @@ export function initializeSelectionMotion(right: HTMLElement, bar: HTMLElement):
 
   document.addEventListener('keydown', event => {
     if (event.key !== 'Escape' || (!pendingHref && !hoveredLink && !focusedLink)) return;
-    pendingHref = null;
+    cancelNavigation();
     hoveredLink = focusedLink = null;
     cancelPulses();
     paintMarker(selectedLink(), true);
   });
-  window.addEventListener('pagehide', () => { pendingHref = null; hoveredLink = focusedLink = null; markerMotion?.cancel(); cancelPulses(); cancelAnimationFrame(frame); });
+  window.addEventListener('pagehide', () => { cancelNavigation(); hoveredLink = focusedLink = null; markerMotion?.cancel(); cancelPulses(); cancelAnimationFrame(frame); });
 }
