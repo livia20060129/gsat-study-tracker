@@ -1379,19 +1379,19 @@ async function calendarRefreshStatus(showMessage){
   calendarConnected=!!s.connected;
   if(calendarConnected){
    if(s.sync_error==='Calendar sync in progress'){
-    calendarContinuity.fail(token);restoreCalendarSnapshot();calendarSetMessage('Google Calendar 排程正在更新，暫時沿用上一次完整排程；請稍後手動讀取或重新載入頁面。',true);calendarUpdateUI();return false;
+    calendarContinuity.fail(token);restoreCalendarSnapshot();calendarSetMessage('正在更新排程，暫時沿用上次排程。',true);calendarUpdateUI();return false;
    }
    if(s.sync_error)throw new Error('Google Calendar 上一次同步尚未成功：'+s.sync_error);
    var n=await refreshCalendarTaskCache(token,s);if(n===null)return false;
-   var cleaned=cloudBootstrapPending?0:reconcileStoredCalendarPresets('load');
+    if(!cloudBootstrapPending)reconcileStoredCalendarPresets('load');
    if(!cloudBootstrapPending)queueDirtyCloudRecords('load');
-   calendarSetMessage('Google Calendar 已連接；已載入 '+n+' 筆同步排程'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true);
+    calendarSetMessage('已連接 Google Calendar，讀書排程已載入。',true);
   }else{
    calendarContinuity.disconnected(token,hasStoredCalendarSchedule());
    restoreCalendarSnapshot();
    if(calendarContinuity.preservesRecords)calendarSetMessage('Google Calendar 尚未連接；'+calendarFallbackText(),false);
    else if(!googleCalendarClientConfig.isConfigured)calendarSetMessage(googleCalendarClientConfig.message,false);
-   else calendarSetMessage('尚未連接 Google Calendar；目前使用內建排程 fallback。',true);
+    else calendarSetMessage('尚未連接 Google Calendar，目前使用預設排程。',true);
   }
   calendarUpdateUI();return calendarConnected;
  }catch(e){calendarHandleUnavailable(token,e);return false}
@@ -1401,7 +1401,7 @@ async function calendarConnect(){
  var token=calendarContinuity.begin();
  try{
   if(!googleCalendarClientConfig.isConfigured||!googleCalendarClientConfig.clientId)throw new Error(googleCalendarClientConfig.message);
-  calendarSetMessage('正在建立 Google OAuth 連線…',true);
+   calendarSetMessage('正在連接 Google Calendar…',true);
   var r=await calendarInvoke('auth-url',{clientId:googleCalendarClientConfig.clientId,...(isNativeApp()?{nativeApp:true}:{})});if(!calendarRequestCurrent(token))return;
   if(!r.url)throw new Error('伺服器未回傳 Google 授權網址。');await openAuthorizationUrl(String(r.url));
  }catch(e){calendarHandleUnavailable(token,e)}
@@ -1412,12 +1412,12 @@ async function calendarSyncNow(){
  calendarManualSyncPending=true;
  var token=calendarContinuity.begin();
  try{
-  calendarSetMessage('正在從 Google Calendar 讀取最新排程（包含刪除）…',true);
+   calendarSetMessage('正在同步讀書排程…',true);
   var r=await calendarInvoke('sync');if(!calendarRequestCurrent(token))return;
   if(!r.connected)throw new Error('Google Calendar 尚未連接，請重新授權。');
   calendarConnected=true;var n=await refreshCalendarTaskCache(token);if(n===null)return;
-  var cleaned=reconcileStoredCalendarPresets('manual');
-  calendarSetMessage('同步完成：Google API 更新 '+Number(r.synced||0)+' 筆、移除 '+Number(r.removed||0)+' 筆；Tracker 載入 '+n+' 筆'+(cleaned?'，已更新 '+cleaned+' 天本機項目':'')+'。',true);
+   reconcileStoredCalendarPresets('manual');
+   calendarSetMessage('同步完成。',true);
   calendarUpdateUI();refreshVisibleDataAfterBackgroundSync();
   queueDirtyCloudRecords('manual');
  }catch(e){calendarHandleUnavailable(token,e)}finally{calendarManualSyncPending=false}
@@ -1429,7 +1429,7 @@ async function calendarDisconnect(){
  try{
   await calendarInvoke('disconnect');if(!calendarRequestCurrent(token))return false;
   calendarContinuity.forget(token);clearCalendarRuntime();
-  calendarSetMessage('已解除 Google Calendar 連線；Tracker 回到內建排程 fallback。',true);load({skipCloudRead:true});return true;
+  calendarSetMessage('已解除連線，目前使用預設排程。',true);load({skipCloudRead:true});return true;
  }catch(e){calendarHandleUnavailable(token,e);return false}
 }
 
